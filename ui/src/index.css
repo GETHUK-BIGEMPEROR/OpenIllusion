@@ -1,0 +1,99 @@
+@import "@fontsource-variable/sora";
+@import "@fontsource-variable/unbounded";
+@import "@fontsource-variable/geist-mono";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    margin: 0;
+    background: #141017;
+    color: #f0efed;
+    font-family: "Sora Variable", system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01", "cv11";
+  }
+  a { color: #bbaef7; text-decoration: none; }
+  a:hover { color: #d6cefa; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; }
+  :focus { outline: none; }
+  :focus-visible { outline: 2px solid #9a86f0; outline-offset: 2px; }
+  ::selection { background: rgba(154, 134, 240, 0.45); }
+  ::placeholder { color: #7a7184; opacity: 1; }
+  * { scrollbar-width: thin; scrollbar-color: #3a2e45 transparent; }
+  textarea { resize: vertical; }
+  input[type="search"]::-webkit-search-cancel-button { display: none; }
+  input[type="number"]::-webkit-inner-spin-button { opacity: .4; }
+  select { color-scheme: dark; }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  .mk-btn { transition: background-color .12s ease-out, color .12s ease-out, box-shadow .12s ease-out, opacity .12s ease-out, transform .12s ease-out; }
+  .mk-btn:active:not(:disabled) { transform: translateY(0.5px); }
+  .glass {
+    background: rgba(20, 16, 23, 0.62);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .title { font-family: "Unbounded Variable", "Sora Variable", sans-serif; font-weight: 500; letter-spacing: -0.015em; line-height: 1.1; }
+  .eyebrow { font-size: 10.5px; line-height: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #a39cac; }
+  /* Form controls share one look: dark well, hairline, violet focus ring. */
+  .field {
+    background: #141017;
+    border: 1px solid rgba(240, 239, 237, 0.09);
+    border-radius: 8px;
+    transition: border-color .12s ease-out, box-shadow .12s ease-out;
+  }
+  .field:hover { border-color: rgba(240, 239, 237, 0.16); }
+  .field:focus, .field:focus-within { border-color: #9a86f0; box-shadow: 0 0 0 3px rgba(154, 134, 240, 0.2); outline: none; }
+  .field[aria-invalid="true"] { border-color: rgba(255, 107, 126, 0.7); }
+  .field[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px rgba(255, 107, 126, 0.2); }
+  .mk-shimmer {
+    background: linear-gradient(90deg, #2e2437 0, #6e6578 50%, #2e2437 100%);
+    background-size: 200px 4px;
+    animation: shimmer 1.4s linear infinite;
+  }
+  .stage-shimmer {
+    background: linear-gradient(100deg, rgba(240,239,237,0) 20%, rgba(240,239,237,0.06) 50%, rgba(240,239,237,0) 80%);
+    background-size: 200% 100%;
+    animation: stage 1.8s linear infinite;
+  }
+  .skeleton { background: #211927; position: relative; overflow: hidden; }
+  .skeleton::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(100deg, transparent 20%, rgba(240,239,237,0.05) 50%, transparent 80%);
+    background-size: 200% 100%; animation: stage 1.6s linear infinite;
+  }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .checker {
+    background-color: #120e15;
+    background-image: linear-gradient(45deg, #17121b 25%, transparent 25%), linear-gradient(-45deg, #17121b 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #17121b 75%), linear-gradient(-45deg, transparent 75%, #17121b 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  }
+  .dots {
+    background-color: #120e15;
+    background-image: radial-gradient(rgba(240,239,237,0.06) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  .scroll-y { overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+}
+
+@keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+@keyframes stage { 0% { background-position: 150% 0; } 100% { background-position: -50% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+}

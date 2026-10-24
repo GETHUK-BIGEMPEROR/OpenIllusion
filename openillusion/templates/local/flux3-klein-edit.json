@@ -1,0 +1,56 @@
+{
+  "format": "openillusion.template",
+  "version": 1,
+  "id": "local/flux3-klein-edit",
+  "mode": "edit",
+  "label": "FLUX 3 Klein · local",
+  "provider": "bfl",
+  "blurb": "Edit 1–4 images on your own GPU. In the prompt, Image 1 is <ref_image_0>, Image 2 is <ref_image_1>, and so on. From ComfyUI's FLUX 3 Klein (distilled) edit template.",
+  "source": "ComfyUI template image_flux3_klein_distilled_image_edit (prompt upsampler and boxes left out)",
+  "max_images": 4,
+  "min_images": 1,
+  "needs_video": false,
+  "prompt": {"hint": "Make Image 1 a rainy night: cool blue key light, soft neon rim from the left. Keep the pose."},
+  "params": [
+    {"key": "size", "label": "Output", "type": "segmented", "options": ["768", "1024", "1360"], "default": "1024", "help": "Roughly the side of a square of the same area; the shape follows Image 1."},
+    {"key": "steps", "label": "Steps", "type": "int", "min": 4, "max": 32, "default": 16},
+    {"key": "seed", "label": "Seed", "type": "seed", "default": -1}
+  ],
+  "bindings": {
+    "prompt": [["4", "text"]],
+    "image:1": [["11", "image"]],
+    "image:2": [["12", "image"]],
+    "image:3": [["13", "image"]],
+    "image:4": [["14", "image"]],
+    "params.size": [["15", "megapixels", "megapixels"]],
+    "params.steps": [["7", "steps", "int"]],
+    "params.seed": [["7", "seed", "int"]]
+  },
+  "outputs": ["9"],
+  "hints": {
+    "models": {
+      "flux3-image-klein-int8-convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3-image-klein-int8-convrot.safetensors"},
+      "qwen3vl_4b_int8_convrot.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3vl_4b_int8_convrot.safetensors"},
+      "flux2-vae.safetensors": {"folder": "vae", "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/vae/flux2-vae.safetensors"}
+    },
+    "nodes": {}
+  },
+  "workflow": {
+    "1": {"class_type": "UNETLoader", "inputs": {"unet_name": "flux3-image-klein-int8-convrot.safetensors", "weight_dtype": "default"}},
+    "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": "qwen3vl_4b_int8_convrot.safetensors", "type": "flux3", "device": "default"}},
+    "3": {"class_type": "VAELoader", "inputs": {"vae_name": "flux2-vae.safetensors"}},
+    "4": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 0], "text": ""}, "_meta": {"title": "Prompt"}},
+    "11": {"class_type": "LoadImage", "inputs": {"image": "{{image:1}}"}, "_meta": {"title": "Image 1"}},
+    "12": {"class_type": "LoadImage", "inputs": {"image": "{{image:2}}"}, "_meta": {"title": "Image 2"}},
+    "13": {"class_type": "LoadImage", "inputs": {"image": "{{image:3}}"}, "_meta": {"title": "Image 3"}},
+    "14": {"class_type": "LoadImage", "inputs": {"image": "{{image:4}}"}, "_meta": {"title": "Image 4"}},
+    "15": {"class_type": "ImageScaleToTotalPixels", "inputs": {"image": ["11", 0], "upscale_method": "lanczos", "megapixels": 1.0, "resolution_steps": 16}, "_meta": {"title": "Output size"}},
+    "16": {"class_type": "GetImageSize", "inputs": {"image": ["15", 0]}},
+    "17": {"class_type": "ReferenceMultiLatent", "inputs": {"positive": ["4", 0], "negative": ["32", 0], "vae": ["3", 0], "resolution": "resize", "resolution.megapixels": 1.0, "images.image0": ["11", 0], "images.image1": ["12", 0], "images.image2": ["13", 0], "images.image3": ["14", 0]}},
+    "18": {"class_type": "EmptyFlux2LatentImage", "inputs": {"width": ["16", 0], "height": ["16", 1], "batch_size": 1}},
+    "32": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["4", 0]}},
+    "7": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "positive": ["17", 0], "negative": ["17", 1], "latent_image": ["18", 0], "seed": 1, "steps": 16, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
+    "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["3", 0]}},
+    "9": {"class_type": "SaveImage", "inputs": {"images": ["8", 0], "filename_prefix": "openillusion/flux3-klein"}}
+  }
+}

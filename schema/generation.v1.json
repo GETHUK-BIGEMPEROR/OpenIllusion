@@ -1,0 +1,536 @@
+{
+  "$defs": {
+    "Attest": {
+      "additionalProperties": true,
+      "properties": {
+        "sfw": {
+          "default": false,
+          "title": "Sfw",
+          "type": "boolean"
+        },
+        "rights": {
+          "default": false,
+          "title": "Rights",
+          "type": "boolean"
+        }
+      },
+      "title": "Attest",
+      "type": "object"
+    },
+    "Engine": {
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "default": "router",
+          "enum": [
+            "router",
+            "local"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "schema_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Version"
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "title": "Engine",
+      "type": "object"
+    },
+    "InputItem": {
+      "additionalProperties": true,
+      "properties": {
+        "slot": {
+          "title": "Slot",
+          "type": "string"
+        },
+        "role": {
+          "default": "character",
+          "title": "Role",
+          "type": "string"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "license": {
+          "default": "unknown",
+          "title": "License",
+          "type": "string"
+        },
+        "contains_person": {
+          "default": false,
+          "title": "Contains Person",
+          "type": "boolean"
+        },
+        "consent": {
+          "default": false,
+          "title": "Consent",
+          "type": "boolean"
+        },
+        "thumb": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thumb"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration"
+        },
+        "trim": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trim"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        }
+      },
+      "required": [
+        "slot"
+      ],
+      "title": "InputItem",
+      "type": "object"
+    },
+    "Lineage": {
+      "additionalProperties": true,
+      "properties": {
+        "forked_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Forked From"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        },
+        "chain": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Chain",
+          "type": "array"
+        },
+        "sent_to": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sent To",
+          "type": "array"
+        }
+      },
+      "title": "Lineage",
+      "type": "object"
+    },
+    "Result": {
+      "additionalProperties": true,
+      "properties": {
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File"
+        },
+        "poster": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Poster"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "image",
+                "video"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "cost_reported": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Reported"
+        },
+        "elapsed": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Elapsed"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "output_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output File"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "title": "Result",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "format": {
+      "const": "openillusion.generation",
+      "default": "openillusion.generation",
+      "title": "Format",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "title": {
+      "default": "Untitled generation",
+      "title": "Title",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "motion",
+        "edit"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "created": {
+      "title": "Created",
+      "type": "number"
+    },
+    "engine": {
+      "$ref": "#/$defs/Engine"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/InputItem"
+      },
+      "title": "Inputs",
+      "type": "array"
+    },
+    "prompt": {
+      "default": "",
+      "title": "Prompt",
+      "type": "string"
+    },
+    "boxes": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Boxes",
+      "type": "array"
+    },
+    "params": {
+      "additionalProperties": true,
+      "title": "Params",
+      "type": "object"
+    },
+    "request_template": {
+      "additionalProperties": true,
+      "title": "Request Template",
+      "type": "object"
+    },
+    "result": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Result"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "status": {
+      "default": "draft",
+      "enum": [
+        "draft",
+        "running",
+        "done",
+        "failed",
+        "moderated",
+        "cancelled"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "outcome": {
+      "anyOf": [
+        {
+          "enum": [
+            "worked",
+            "partly",
+            "didnt"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outcome"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "starred": {
+      "default": false,
+      "title": "Starred",
+      "type": "boolean"
+    },
+    "lineage": {
+      "$ref": "#/$defs/Lineage"
+    },
+    "attest": {
+      "$ref": "#/$defs/Attest"
+    },
+    "variant": {
+      "anyOf": [
+        {
+          "enum": [
+            "full",
+            "light",
+            "recipe"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Variant"
+    }
+  },
+  "required": [
+    "id",
+    "mode",
+    "engine"
+  ],
+  "title": "OpenIllusion generation manifest, version 1",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:openillusion:generation:v1"
+}

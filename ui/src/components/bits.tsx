@@ -1,0 +1,120 @@
+// Small shared pieces: cost line, outcome toggle/mark, mode and kind badges,
+// model chip, validation row, job state badge.
+import type { Estimate, Job, JobState, Outcome } from "../lib/api";
+import { money, OUTCOME, shortModel } from "../lib/format";
+import { AlertTriangle, Check, CheckCircle, Close, Dash, Info } from "./Icons";
+import { Badge, cx } from "./ui";
+
+/** Cost for the run footer: one line, with a reason underneath when there's no price. */
+export function CostPill({ estimate, times = 1, compact = false }: { estimate?: Estimate | null; times?: number; compact?: boolean }) {
+  const m = money(estimate, times);
+  const color = { exact: "text-text", estimated: "text-text", unknown: "text-orange-text", invalid: "text-rose-text", local: "text-text" }[m.tone];
+  if (compact) return <span className={cx("font-mono text-xs tabular", color)}>{m.label}</span>;
+  const label = m.tone === "local" ? "Runs on" : m.tone === "exact" ? "Cost" : m.tone === "estimated" ? "Est. cost" : "Cost";
+  const value = m.tone === "local" ? "Your GPU · no credits" : estimate ? m.label : "Estimating…";
+  const why =
+    m.tone === "unknown" && estimate ? (estimate.reason === "incomplete" ? "Priced once the required inputs are in." : "Router can't price this model before the run.")
+    : m.tone === "invalid" ? (() => { const v = estimate?.router?.validation?.[0]; return v ? `Router: ${v.loc.slice(1).join(".")} — ${v.msg}` : estimate?.router?.message ?? "Router rejected the request."; })()
+    : null;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-muted">{label}</span>
+        <span className={cx("font-mono tabular", color)}>{value}{times > 1 && m.tone !== "unknown" && m.tone !== "invalid" ? <span className="text-muted"> · ×{times}</span> : null}</span>
+      </div>
+      {why && <span className={cx("text-xs", m.tone === "invalid" ? "text-rose-text" : "text-muted")}>{why}</span>}
+    </div>
+  );
+}
+
+export function OutcomeToggle({ value, onChange, size = "md" }: { value: Outcome | null; onChange: (o: Outcome | null) => void; size?: "sm" | "md" }) {
+  return (
+    <div role="group" aria-label="Outcome" className="inline-flex p-0.5 gap-0.5 rounded-lg bg-bg border border-line">
+      {(["worked", "partly", "didnt"] as Outcome[]).map((o) => {
+        const on = value === o;
+        const s = OUTCOME[o];
+        const Icon = o === "worked" ? Check : o === "partly" ? Dash : Close;
+        return (
+          <button
+            key={o}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(on ? null : o)}
+            className={cx("mk-btn inline-flex items-center gap-1.5 rounded-md border-0 text-sm", size === "sm" ? "h-6 px-2" : "h-[26px] px-2.5", on ? "font-medium" : "bg-transparent text-muted hover:text-text")}
+            style={on ? { background: s.soft, color: s.text } : undefined}
+          >
+            <Icon size={12} style={{ color: s.color }} />
+            {s.word}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function OutcomeMark({ outcome, className }: { outcome: Outcome | null; className?: string }) {
+  if (!outcome) return null;
+  const s = OUTCOME[outcome];
+  return (
+    <span className={cx("inline-flex items-center gap-1 text-xs", className)} style={{ color: s.color }}>
+      {s.glyph} <span className="text-soft">{s.word}</span>
+    </span>
+  );
+}
+
+export function ModeBadge({ mode, className, glass }: { mode: "motion" | "edit"; className?: string; glass?: boolean }) {
+  return <Badge tone={glass ? "glass" : "neutral"} className={cx("uppercase", className)}>{mode}</Badge>;
+}
+
+/** Where a generation runs: Cloud (Comfy Router) or Local (the user's ComfyUI). */
+export function KindBadge({ model, className, glass }: { model: string; className?: string; glass?: boolean }) {
+  const local = model.startsWith("local/");
+  return (
+    <Badge tone={glass ? "glass" : local ? "yellow" : "violet"} dot={local ? "#F2FF59" : "#9A86F0"} className={cx("uppercase", className)}
+      title={local ? "Runs in your ComfyUI through Comfy API v2" : "Runs on Comfy Router with your API key"}>
+      {local ? "Local" : "Cloud"}
+    </Badge>
+  );
+}
+
+export function ModelChip({ model, className }: { model: string; className?: string }) {
+  return <span className={cx("font-mono text-xs text-muted truncate", className)}>{shortModel(model)}</span>;
+}
+
+export function ValidationRow({ level, text, detail }: { level: "pass" | "warn" | "info"; text: string; detail?: string }) {
+  const K = {
+    pass: { Icon: CheckCircle, cls: "text-mint" },
+    warn: { Icon: AlertTriangle, cls: "text-orange" },
+    info: { Icon: Info, cls: "text-violet-light" },
+  }[level];
+  return (
+    <li className="flex items-start gap-2.5 px-3 py-2 border-b border-line last:border-b-0">
+      <K.Icon size={15} className={cx("shrink-0 mt-px", K.cls)} />
+      <span className="flex-1 min-w-0 text-sm">
+        <span className="block text-text">{text}</span>
+        {detail && <span className="block text-xs text-muted">{detail}</span>}
+      </span>
+    </li>
+  );
+}
+
+const STATE: Record<JobState, { label: string; tone: "neutral" | "orange" | "violet" | "mint" | "rose"; bg: string; fg: string }> = {
+  estimating: { label: "Estimating", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#D6D2DB" },
+  waiting: { label: "Waiting", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#D6D2DB" },
+  rate_limited: { label: "Waiting", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#D6D2DB" },
+  queued: { label: "Queued", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#D6D2DB" },
+  running: { label: "Running", tone: "orange", bg: "rgba(255,162,76,0.15)", fg: "#FFC48F" },
+  downloading: { label: "Saving", tone: "violet", bg: "rgba(154,134,240,0.15)", fg: "#BBAEF7" },
+  done: { label: "Done", tone: "mint", bg: "rgba(95,211,154,0.15)", fg: "#C3F0D8" },
+  failed: { label: "Failed", tone: "rose", bg: "rgba(255,107,126,0.15)", fg: "#FFB3BC" },
+  moderated: { label: "Moderated", tone: "rose", bg: "rgba(255,107,126,0.15)", fg: "#FFB3BC" },
+  cancelled: { label: "Cancelled", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#A39CAC" },
+};
+
+export function StateBadge({ job }: { job: Pick<Job, "state" | "queue_position"> }) {
+  const s = STATE[job.state];
+  const label = job.state === "queued" && job.queue_position ? `Queued · ${job.queue_position} ahead` : s.label;
+  return <Badge tone={s.tone}>{label}</Badge>;
+}
+
+export const stateTone = (s: JobState) => STATE[s];
