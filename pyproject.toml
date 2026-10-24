@@ -30,4 +30,4 @@ version = { attr = "openillusion.__version__" }
 include = ["openillusion*"]
 
 [tool.setuptools.package-data]
-openillusion = ["templates/local/*.json", "static/**/*", "starters/**/*"]
+openillusion = ["templates/local/*.json", "templates/local/media/*", "static/**/*", "starters/**/*"]

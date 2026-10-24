@@ -7,9 +7,9 @@ import { Brush, Close, External, Motion as MotionIcon, Refresh, Sliders as Setti
 import { RefTray, useUploader } from "../components/Refs";
 import {
   ActionBar, EmptyStage, EngineCard, invalidFields, OutcomeBar, PromptCard, RawRequest, RunCard, RunStatus, SessionStrip, StageBar, StageError,
-  StageRunning, StudioLayout, useCompose, useCurrent, useStudio, type Fix,
+  NoTemplates, StageRunning, StudioLayout, useCompose, useCurrent, useStudio, type Fix,
 } from "../components/Studio";
-import { Badge, Button, IconButton, Kbd, Section, Segmented, Spinner, TextInput, cx } from "../components/ui";
+import { Badge, Button, IconButton, Kbd, Section, Spinner, TextInput, cx } from "../components/ui";
 import { Trimmer } from "../components/Trimmer";
 import { api, fileUrl } from "../lib/api";
 import { errMsg, ROLES } from "../lib/format";
@@ -102,7 +102,6 @@ export function MotionStudio() {
     return () => window.removeEventListener("keydown", on);
   }, [done, m, share]);
 
-  const swapMode = (s.params.motion_mode as string) ?? "recast";
   const stage = srcSide || resSide ? (
     <ABPlayer a={srcSide} b={resSide} overlay={overlay} />
   ) : noVideo ? (
@@ -115,6 +114,8 @@ export function MotionStudio() {
       Its motion, camera and timing are kept. Add 1–{engine?.max_images ?? 9} references for the new cast, location or look.
     </EmptyStage>
   );
+
+  if (!s.engine && !engine) return <NoTemplates mode="motion" />;
 
   return (
     <StudioLayout
@@ -163,7 +164,7 @@ export function MotionStudio() {
           <Section title="References" meta={`${s.refs.length} / ${engine?.max_images ?? 9}`} data-own-drop>
             <RefTray refs={s.refs} max={engine?.max_images ?? 9} roles={ROLES} onChange={(refs) => set({ refs })} urlOnly={engine?.url_only} />
           </Section>
-          <PromptCard mode="motion" s={s} set={set} label={engine?.prompt?.label} hint={engine?.prompt?.hint} roleSentences={compose?.role_sentences} invalid={invalid.has("prompt")} />
+          <PromptCard mode="motion" s={s} set={set} label={engine?.prompt?.label} hint={engine?.prompt?.hint} examples={engine?.examples} roleSentences={compose?.role_sentences} invalid={invalid.has("prompt")} />
         </>
       }
       center={
@@ -195,10 +196,6 @@ export function MotionStudio() {
         <>
           <EngineCard
             mode="motion" s={s} set={set} engine={engine} invalid={invalid}
-            extra={s.engine === "minimax/minimax-h3" && (
-              <Segmented label="Mode" value={swapMode === "swap" ? "Swap" : "Recast"} options={["Recast", "Swap"] as const}
-                onChange={(v) => set((st) => ({ params: { ...st.params, motion_mode: v === "Swap" ? "swap" : "recast" }, raw: null }))} cols={2} />
-            )}
           />
           <RawRequest s={s} set={set} spec={spec} compose={compose} />
         </>

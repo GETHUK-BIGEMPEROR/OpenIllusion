@@ -1,0 +1,319 @@
+{
+  "format": "openillusion.template",
+  "version": 1,
+  "id": "local/qwen21-weather",
+  "mode": "edit",
+  "label": "Season & weather · Qwen Image 2.1",
+  "provider": "qwen",
+  "blurb": "Turns the scene in Image 1 into another season, weather or time of day. Everything stays where it is.",
+  "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
+  "tags": [
+    "scene",
+    "weather"
+  ],
+  "max_images": 1,
+  "min_images": 1,
+  "needs_video": false,
+  "inputs": [
+    {
+      "slot": "image:1",
+      "label": "Scene",
+      "hint": "A landscape, street or city view."
+    }
+  ],
+  "prompt": {
+    "label": "Season or weather",
+    "hint": "Deep winter, heavy snowfall"
+  },
+  "defaults": {
+    "prompt": "deep winter, heavy snowfall",
+    "inputs": {
+      "image:1": "media/city.jpg"
+    }
+  },
+  "instruction": {
+    "start": [
+      "20",
+      "string_a"
+    ],
+    "end": [
+      "22",
+      "string_b"
+    ]
+  },
+  "examples": [
+    "deep winter, heavy snowfall",
+    "autumn, golden leaves, soft afternoon light",
+    "a thunderstorm, dark clouds and rain",
+    "blue hour, city lights coming on"
+  ],
+  "tips": [
+    "Combine a season with a light: 'winter, sunset'."
+  ],
+  "params": [
+    {
+      "key": "steps",
+      "label": "Steps",
+      "type": "int",
+      "min": 10,
+      "max": 50,
+      "default": 25,
+      "help": "The official pipeline uses 40–50."
+    },
+    {
+      "key": "seed",
+      "label": "Seed",
+      "type": "seed",
+      "default": -1
+    },
+    {
+      "key": "cache",
+      "label": "Step cache",
+      "type": "segmented",
+      "options": [
+        "cpu",
+        "auto",
+        "gpu",
+        "off"
+      ],
+      "default": "cpu",
+      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory."
+    }
+  ],
+  "size": {
+    "options": [
+      {
+        "label": "1K",
+        "px": 1024
+      },
+      {
+        "label": "1.5K",
+        "px": 1536
+      },
+      {
+        "label": "2K",
+        "px": 2048
+      },
+      {
+        "label": "Original",
+        "px": 0
+      }
+    ],
+    "default": "1K",
+    "multiple": 32,
+    "follows": "image:1"
+  },
+  "bindings": {
+    "prompt": [
+      [
+        "21",
+        "string_b"
+      ]
+    ],
+    "image:1": [
+      [
+        "11",
+        "image"
+      ]
+    ],
+    "params.steps": [
+      [
+        "7",
+        "steps",
+        "int"
+      ]
+    ],
+    "params.seed": [
+      [
+        "7",
+        "seed",
+        "int"
+      ]
+    ],
+    "params.cache": [
+      [
+        "2",
+        "device"
+      ]
+    ]
+  },
+  "outputs": [
+    "9"
+  ],
+  "hints": {
+    "models": {
+      "qwen_image_2.1_int8_convrot.safetensors": {
+        "folder": "diffusion_models",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/diffusion_models/qwen_image_2.1_int8_convrot.safetensors"
+      },
+      "qwen3vl_8b_int8_convrot.safetensors": {
+        "folder": "text_encoders",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3vl_8b_int8_convrot.safetensors"
+      },
+      "qwen_image_2.1_vae_bf16.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors"
+      }
+    },
+    "nodes": {}
+  },
+  "workflow": {
+    "1": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    "2": {
+      "class_type": "QwenImage21Cache",
+      "inputs": {
+        "model": [
+          "1",
+          0
+        ],
+        "device": "cpu",
+        "dtype": "default"
+      }
+    },
+    "3": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+        "type": "qwen_image",
+        "device": "default"
+      }
+    },
+    "4": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+      }
+    },
+    "11": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "{{image:1}}"
+      },
+      "_meta": {
+        "title": "Image 1"
+      }
+    },
+    "20": {
+      "class_type": "StringConcatenate",
+      "inputs": {
+        "string_a": "Change the season and weather in <image1> to: ",
+        "string_b": "",
+        "delimiter": ""
+      },
+      "_meta": {
+        "title": "Instruction (start)"
+      }
+    },
+    "21": {
+      "class_type": "StringConcatenate",
+      "inputs": {
+        "string_a": [
+          "20",
+          0
+        ],
+        "string_b": "",
+        "delimiter": ""
+      },
+      "_meta": {
+        "title": "Season or weather"
+      }
+    },
+    "22": {
+      "class_type": "StringConcatenate",
+      "inputs": {
+        "string_a": [
+          "21",
+          0
+        ],
+        "string_b": ". Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place.",
+        "delimiter": ""
+      },
+      "_meta": {
+        "title": "Instruction (end)"
+      }
+    },
+    "5": {
+      "class_type": "TextEncodeQwenImage21",
+      "inputs": {
+        "clip": [
+          "3",
+          0
+        ],
+        "vae": [
+          "4",
+          0
+        ],
+        "prompt": [
+          "22",
+          0
+        ],
+        "negative_prompt": "",
+        "resolution": 0,
+        "images.image_1": [
+          "11",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "Edit"
+      }
+    },
+    "7": {
+      "class_type": "KSampler",
+      "inputs": {
+        "model": [
+          "2",
+          0
+        ],
+        "positive": [
+          "5",
+          0
+        ],
+        "negative": [
+          "5",
+          1
+        ],
+        "latent_image": [
+          "5",
+          2
+        ],
+        "seed": 1,
+        "steps": 25,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 1.0
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "7",
+          0
+        ],
+        "vae": [
+          "4",
+          0
+        ]
+      }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "images": [
+          "8",
+          0
+        ],
+        "filename_prefix": "openillusion/qwen21-weather"
+      }
+    }
+  },
+  "cover": "media/cover-weather.webp"
+}

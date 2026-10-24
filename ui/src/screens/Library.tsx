@@ -2,7 +2,9 @@ import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { ModeBadge, ModelChip } from "../components/bits";
 import { GenerationCard } from "../components/GenerationCard";
-import { TemplateCard } from "../components/TemplateCard";
+import { Masonry } from "../components/Masonry";
+import { TemplateTile } from "../components/TemplateCard";
+import { TemplateInspector } from "../components/TemplateInspector";
 import { Box, Close, Download, Frame, Link, Motion, Search, Trash } from "../components/Icons";
 import { Button, Empty, Notice, Select, Spinner, TextInput, cx } from "../components/ui";
 import { api, type EngineInfo, type Mode, type Outcome } from "../lib/api";
@@ -21,13 +23,25 @@ const SHELVES = [
 const GRID = "grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(212px,1fr))]";
 
 /** Library: the shelf lives in the URL so back/forward and links land on the right tab. */
-export function Library({ shelf: fromRoute }: { shelf?: string }) {
+export function Library({ shelf: fromRoute, t }: { shelf?: string; t?: string }) {
   const search = useApp((s) => s.search);
   const setSearch = useApp((s) => s.setSearch);
   const shelf = SHELVES.some((s) => s.id === fromRoute) ? fromRoute! : "templates";
   const facets = useQuery({ queryKey: ["facets"], queryFn: api.facets });
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const counts: Record<string, number | undefined> = { ...(facets.data?.shelves ?? {}), templates: engines.data?.length };
+  const status = useQuery({ queryKey: ["status"], queryFn: () => api.status() });
+  const openTemplate = useApp((s) => s.openTemplate);
+  const onTemplates = shelf === "templates" && !search;
+  const open = onTemplates ? engines.data?.find((e) => e.id === t) : undefined;
+  const select = (id?: string) => go({ name: "library", shelf: "templates", t: id });
+  const locked = (e: EngineInfo) =>
+    e.kind === "cloud" ? (status.data?.router.ok ? null : "Add a Comfy API key in Settings")
+      : status.data?.local.comfyui ? null : "Start ComfyUI or set its address in Settings";
+  const use = (e: EngineInfo) => {
+    openTemplate(e.mode, e.id);
+    go({ name: e.mode });
+  };
   const pick = (id: string) => {
     setSearch("");
     go({ name: "library", shelf: id });
@@ -53,13 +67,23 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
           })}
         </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto scroll-y">
-        <div className="px-5 py-4 flex flex-col gap-4 max-w-[1680px]">
-          {search ? <Generations shelf={shelf} search={search} />
-            : shelf === "templates" ? <Templates engines={engines.data} loading={engines.isLoading} error={engines.error} />
-            : shelf === "community" ? <Community />
-            : <Generations key={shelf} shelf={shelf} search="" />}
+      <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 min-w-0 overflow-y-auto scroll-y">
+          {onTemplates ? (
+            // At most four columns, centred: spare width becomes equal margins either side.
+            <div className="px-5 py-4 flex flex-col gap-4 mx-auto w-full max-w-[1280px]">
+              <Templates engines={engines.data} loading={engines.isLoading} error={engines.error} locked={locked}
+                selected={open?.id} onOpen={(e) => select(e.id === open?.id ? undefined : e.id)} onUse={use} />
+            </div>
+          ) : (
+            <div className="px-5 py-4 flex flex-col gap-4 max-w-[1680px]">
+              {search ? <Generations shelf={shelf} search={search} />
+                : shelf === "community" ? <Community />
+                : <Generations key={shelf} shelf={shelf} search="" />}
+            </div>
+          )}
         </div>
+        {open && <TemplateInspector key={open.id} e={open} locked={locked(open)} onUse={() => use(open)} onClose={() => select()} />}
       </div>
     </div>
   );
@@ -170,22 +194,17 @@ function SkeletonGrid({ n = 8 }: { n?: number }) {
 }
 
 /** Every engine as a template, cloud and local side by side. Click one to open its studio with it loaded. */
-function Templates({ engines = [], loading, error }: { engines?: EngineInfo[]; loading: boolean; error: unknown }) {
-  const status = useQuery({ queryKey: ["status"], queryFn: () => api.status() });
-  const setStudio = useApp((s) => s.setStudio);
+function Templates({ engines = [], loading, error, locked, selected, onOpen, onUse }: {
+  engines?: EngineInfo[]; loading: boolean; error: unknown; locked: (e: EngineInfo) => string | null;
+  selected?: string; onOpen: (e: EngineInfo) => void; onUse: (e: EngineInfo) => void;
+}) {
   const [kind, setKind] = useState<"" | "cloud" | "local">("");
   const [mode, setMode] = useState<Mode | "">("");
   const shown = engines
     .filter((e) => (!kind || e.kind === kind) && (!mode || e.mode === mode))
     .sort((a, b) => Number(b.curated) - Number(a.curated) || Number(b.kind === "local") - Number(a.kind === "local"));
-  const locked = (e: EngineInfo) =>
-    e.kind === "cloud" ? (status.data?.router.ok ? null : "Add a Comfy API key in Settings")
-      : status.data?.local.comfyui ? null : "Start ComfyUI or set its address in Settings";
-  const use = (e: EngineInfo) => {
-    setStudio(e.mode, { engine: e.id, raw: null });
-    go({ name: e.mode });
-  };
   const count = (k: "cloud" | "local") => engines.filter((e) => e.kind === k).length;
+  const tiles = shown.map((e) => ({ key: e.id, aspect: e.cover ? e.cover_aspect : undefined, e }));
 
   return (
     <>
@@ -199,17 +218,22 @@ function Templates({ engines = [], loading, error }: { engines?: EngineInfo[]; l
         <Chip on={mode === "motion"} onClick={() => setMode("motion")}>Motion</Chip>
       </FilterBar>
       {loading ? (
-        <SkeletonGrid n={6} />
+        <Masonry label="Loading templates" items={SKELETON_TILES} maxCols={4} minCol={220}
+          render={(t) => <div aria-hidden className="skeleton rounded-xl" style={{ aspectRatio: t.aspect }} />} />
       ) : error ? (
         <Notice tone="error" title="Couldn't load templates">{errMsg(error)}</Notice>
-      ) : shown.length ? (
-        <div className={GRID}>{shown.map((e) => <TemplateCard key={e.id} e={e} locked={locked(e)} onUse={() => use(e)} />)}</div>
+      ) : tiles.length ? (
+        <Masonry label="Templates" items={tiles} maxCols={4} minCol={220}
+          render={({ e }) => <TemplateTile e={e} locked={locked(e)} selected={e.id === selected} onOpen={() => onOpen(e)} onUse={() => onUse(e)} />} />
       ) : (
         <Empty icon={<Box size={18} />} title="No templates match" action={<Button size="sm" onClick={() => { setKind(""); setMode(""); }}>Show all</Button>} />
       )}
     </>
   );
 }
+
+// Mixed shapes, so the placeholder wall looks like the one that replaces it.
+const SKELETON_TILES = [0.8, 0.75, 0.8, 1, 0.66, 0.8, 1.33, 0.75].map((aspect, i) => ({ key: String(i), aspect }));
 
 function Community() {
   const qc = useQueryClient();

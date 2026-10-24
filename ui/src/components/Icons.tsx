@@ -156,3 +156,15 @@ export const Compare = ({ size = 14, ...p }: P) => (
 export const Columns = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><rect x="3" y="5" width="8" height="14" rx="2" /><rect x="13" y="5" width="8" height="14" rx="2" /></svg>
 );
+export const Person = ({ size = 16, ...p }: P) => (
+  <svg {...base(size, 1.8)} {...p}><circle cx="12" cy="8" r="4" /><path d="M4.5 20.5c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" /></svg>
+);
+export const Shirt = ({ size = 16, ...p }: P) => (
+  <svg {...base(size, 1.8)} {...p}><path d="M9 3.5 4 6l-1.5 5 3.5 1.2V20.5h12V12.2l3.5-1.2L20 6l-5-2.5c-.6 1.6-1.6 2.5-3 2.5s-2.4-.9-3-2.5Z" /></svg>
+);
+export const Package = ({ size = 16, ...p }: P) => (
+  <svg {...base(size, 1.8)} {...p}><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" /><path d="m4 7.5 8 4.5 8-4.5M12 12v9" /></svg>
+);
+export const Landscape = ({ size = 16, ...p }: P) => (
+  <svg {...base(size, 1.8)} {...p}><path d="m2.5 19 6-9 4 6 2.5-3.5L21.5 19Z" /><circle cx="17" cy="6.5" r="2" /></svg>
+);

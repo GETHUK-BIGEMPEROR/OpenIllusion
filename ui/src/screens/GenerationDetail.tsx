@@ -4,9 +4,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ABPlayer, typing } from "../components/ABPlayer";
 import { KindBadge, ModeBadge, OutcomeToggle, StateBadge } from "../components/bits";
 import { EngineDropdown } from "../components/Engine";
-import { ArrowLeft, Check, Chevron, Close, Copy, Frame, Graph, More, Refresh, Trash, Upload } from "../components/Icons";
+import { ArrowLeft, Check, Chevron, Close, Copy, Frame, Graph, ImageIcon, More, Refresh, Trash, Upload } from "../components/Icons";
 import { StageError, StageRunning, type Fix } from "../components/Studio";
-import { Badge, Button, Empty, IconButton, Kbd, Section, cx } from "../components/ui";
+import { Badge, Button, Empty, IconButton, Kbd, MenuItem, Section, cx } from "../components/ui";
 import { api, fileUrl, workflowUrl, type Manifest } from "../lib/api";
 import { elapsed, errMsg, roleLabel, shortModel, stamp, LICENSES } from "../lib/format";
 import { useElapsed, useJobs } from "../lib/live";
@@ -25,6 +25,7 @@ export function GenerationDetail({ id }: { id: string }) {
   const setStudio = useApp((s) => s.setStudio);
   const [swap, setSwap] = useState(false);
   const [more, setMore] = useState(false);
+  const templates = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const m = q.data;
 
   useEffect(() => {
@@ -76,6 +77,16 @@ export function GenerationDetail({ id }: { id: string }) {
       toast({ text: `Couldn't save: ${errMsg(e)}`, tone: "error" });
     }
   };
+  const useAsCover = async () => {
+    setMore(false);
+    try {
+      await api.setCover(m.engine.model, { generation: m.id });
+      qc.invalidateQueries({ queryKey: ["engines"] });
+      toast({ text: "Template cover updated.", tone: "ok", action: { label: "View", run: () => go({ name: "library", shelf: "templates" }) } });
+    } catch (e) {
+      toast({ text: `Couldn't set the cover: ${errMsg(e)}`, tone: "error" });
+    }
+  };
   const remove = async () => {
     setMore(false);
     try {
@@ -106,6 +117,7 @@ export function GenerationDetail({ id }: { id: string }) {
   const seed = r?.seed ?? (typeof m.params.seed === "number" && (m.params.seed as number) >= 0 ? String(m.params.seed) : null);
   const params = Object.entries(m.params).filter(([k]) => !["seed", "motion_mode"].includes(k));
   const local = m.engine.kind === "local";
+  const isTemplate = !!templates.data?.some((e) => e.id === m.engine.model);
 
   let stage: ReactNode;
   if (hero) stage = <ABPlayer a={source && hero.kind === source.kind ? (source.kind === "image" ? { ...source, poster: null } : source) : null} b={hero} />;
@@ -145,6 +157,7 @@ export function GenerationDetail({ id }: { id: string }) {
               <Popover.Content align="end" sideOffset={6} className="z-50 min-w-[220px] p-1 rounded-lg bg-surface shadow-pop animate-pop flex flex-col">
                 {m.mode === "motion" && <MenuItem onClick={() => { setMore(false); remix({ dropVideo: true }); }}>Remix with my own video</MenuItem>}
                 {local && <MenuItem href={workflowUrl(m.id)} download={`${m.id}.workflow.json`} icon={<Graph size={14} />}>Download ComfyUI workflow</MenuItem>}
+                {isTemplate && m.status === "done" && <MenuItem icon={<ImageIcon size={14} />} onClick={useAsCover}>Use as template cover</MenuItem>}
                 <MenuItem icon={<Copy size={14} />} onClick={() => { navigator.clipboard?.writeText(m.id); setMore(false); toast({ text: "Generation ID copied.", tone: "ok" }); }}>Copy ID</MenuItem>
                 <span className="h-px bg-line my-1" aria-hidden />
                 <MenuItem danger icon={<Trash size={14} />} onClick={remove}>Move to trash</MenuItem>
@@ -216,12 +229,6 @@ export function GenerationDetail({ id }: { id: string }) {
 
 function Row({ k, children }: { k: string; children: ReactNode }) {
   return <><dt className="text-muted first-letter:uppercase truncate">{k}</dt><dd className="m-0 min-w-0 text-soft">{children}</dd></>;
-}
-
-function MenuItem({ children, onClick, href: to, download, icon, danger }: { children: ReactNode; onClick?: () => void; href?: string; download?: string; icon?: ReactNode; danger?: boolean }) {
-  const cls = cx("mk-btn h-8 px-2 rounded-md border-0 bg-transparent text-left text-sm inline-flex items-center gap-2 w-full", danger ? "text-rose-text hover:bg-rose/10" : "text-soft hover:bg-raised hover:text-text");
-  const inner = <><span className="w-4 flex justify-center text-muted">{icon}</span>{children}</>;
-  return to ? <a href={to} download={download} className={cls}>{inner}</a> : <button type="button" onClick={onClick} className={cls}>{inner}</button>;
 }
 
 function CopyButton({ text }: { text: string }) {

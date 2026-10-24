@@ -4,19 +4,48 @@ import { api, fileUrl, HttpError, type EngineInfo, type Estimate, type Job, type
 import { describeFailure } from "../lib/errors";
 import { clock, elapsed, errMsg, OUTCOME, shortModel } from "../lib/format";
 import { useElapsed, useJobs } from "../lib/live";
-import { href } from "../lib/route";
+import { go, href } from "../lib/route";
 import { insertAt, toSpec } from "../lib/spec";
-import { useApp, type StudioState } from "../lib/store";
+import { newKey, useApp, type StudioState } from "../lib/store";
+import { usePrepImages } from "../lib/size";
 import { typing } from "./ABPlayer";
 import { CostPill, OutcomeToggle, StateBadge } from "./bits";
-import { EngineDropdown, ParamFields } from "./Engine";
-import { AlertTriangle, Check, Chevron, Copy, Download, External, Refresh, XCircle } from "./Icons";
+import { EngineDropdown, ParamFields, SizeField } from "./Engine";
+import { AlertTriangle, Brush, Check, Chevron, Copy, Download, External, Motion, Refresh, XCircle } from "./Icons";
 import { gpuName } from "./Shell";
-import { Button, Dot, Kbd, Notice, Section, Spinner, cx } from "./ui";
+import { Button, Dot, Empty, Kbd, Notice, Section, Spinner, cx } from "./ui";
 
 export function useStudio(mode: Mode) {
   const s = useApp((st) => st[mode]);
   const set = useApp((st) => st.setStudio);
+  const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
+  const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings });
+  // A studio without an engine opens on Settings' default, else the mode's first template.
+  useEffect(() => {
+    if (s.engine || !engines.data || !settings.data) return;
+    const mine = engines.data.filter((e) => e.mode === mode);
+    const pref = settings.data[mode === "motion" ? "default_motion_engine" : "default_edit_engine"];
+    const pick = mine.find((e) => e.id === pref) ?? mine[0];
+    if (pick) set(mode, { engine: pick.id });
+  }, [mode, s.engine, engines.data, settings.data, set]);
+  // A template opens ready to run: its samples in the slots, its default prompt in the box. Once per fresh draft;
+  // a draft that already has content (a remix) is left as it is.
+  useEffect(() => {
+    const e = engines.data?.find((x) => x.id === s.engine);
+    if (!e || s.seeded === e.id) return;
+    if (s.refs.length || s.prompt || s.video || !e.defaults) return set(mode, { seeded: e.id });
+    set(mode, {
+      seeded: e.id,
+      prompt: e.defaults.prompt,
+      refs: e.defaults.inputs.filter((i) => i.slot.startsWith("image:")).map((i) => {
+        const n = Number(i.slot.split(":")[1]);
+        return {
+          ...i, key: newKey(), slot: n, sample: true, license: "stock", contains_person: false, consent: false,
+          role: mode === "motion" ? "character" : n === 1 ? "base" : "character",
+        };
+      }),
+    });
+  }, [mode, s.engine, s.seeded, engines.data, set]);
   return [s, (p: Partial<StudioState> | ((s: StudioState) => Partial<StudioState>)) => set(mode, p)] as const;
 }
 
@@ -350,6 +379,23 @@ export function StageError({ state, error, detail, fixes = [], compact = false, 
   );
 }
 
+/** A studio with no template for its mode yet (nothing shipped, or still loading). */
+export function NoTemplates({ mode }: { mode: Mode }) {
+  const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
+  if (engines.isLoading) return <div className="flex-1 flex items-center justify-center" aria-busy="true"><Spinner size={18} /></div>;
+  const other = mode === "motion" ? "edit" : "motion";
+  const hasOther = !!engines.data?.some((e) => e.mode === other);
+  return (
+    <Empty className="flex-1" icon={mode === "motion" ? <Motion size={18} /> : <Brush size={18} />} title={`No ${mode} templates yet`}
+      action={<>
+        {hasOther && <Button tone="primary" size="md" onClick={() => go({ name: other })}>Open {other === "edit" ? "Edit" : "Motion"} studio</Button>}
+        <Button size="md" onClick={() => go({ name: "library", shelf: "templates" })}>Browse templates</Button>
+      </>}>
+      Templates are added one at a time, each after it has run end to end. Drop a template file into your templates folder and it shows up here.
+    </Empty>
+  );
+}
+
 /* ----------------------------------------------------------------- compose */
 
 /** Compose (template + warnings) and the Router estimate, both debounced. */
@@ -372,8 +418,8 @@ export function useCompose(mode: Mode, s: StudioState, engine?: EngineInfo) {
 
 /* ------------------------------------------------------------------ panels */
 
-export function PromptCard({ mode, s, set, roleSentences, children, label = "Prompt", hint, invalid }: {
-  mode: Mode; s: StudioState; set: SetStudio; roleSentences?: string; children?: ReactNode; label?: string; hint?: string; invalid?: boolean;
+export function PromptCard({ mode, s, set, roleSentences, children, label = "Prompt", hint, invalid, examples, noTokens }: {
+  mode: Mode; s: StudioState; set: SetStudio; roleSentences?: string; children?: ReactNode; label?: string; hint?: string; invalid?: boolean; examples?: string[]; noTokens?: boolean;
 }) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const insert = (text: string) => {
@@ -384,7 +430,8 @@ export function PromptCard({ mode, s, set, roleSentences, children, label = "Pro
       ta.current?.setSelectionRange(caret, caret);
     });
   };
-  const tokens = [...s.refs.map((_, i) => `Image ${i + 1}`), ...(mode === "motion" && s.video ? ["Video 1"] : [])];
+  // Templates already refer to their images in their own instruction.
+  const tokens = noTokens ? [] : [...s.refs.map((_, i) => `Image ${i + 1}`), ...(mode === "motion" && s.video ? ["Video 1"] : [])];
   const id = `${mode}-prompt`;
   return (
     <Section title={<label htmlFor={id}>{label}</label>} meta={s.prompt ? <span className="font-mono tabular">{s.prompt.length}</span> : undefined}>
@@ -410,6 +457,18 @@ export function PromptCard({ mode, s, set, roleSentences, children, label = "Pro
             ))}
           </div>
         )}
+        {!!examples?.length && (
+          <div className="flex flex-wrap items-center gap-1" aria-label="Example prompts">
+            <span className="text-xs text-faint mr-0.5">Try</span>
+            {examples.map((x) => (
+              <button key={x} type="button" aria-pressed={s.prompt === x} onClick={() => set({ prompt: x })} title={x}
+                className={cx("mk-btn h-6 max-w-full px-2 rounded-md border text-xs truncate",
+                  s.prompt === x ? "border-line2 bg-active text-text" : "border-line bg-transparent text-muted hover:text-text hover:border-line2")}>
+                {x}
+              </button>
+            ))}
+          </div>
+        )}
         {children}
         <p id={`${id}-help`} className="m-0 text-xs text-faint">Sent exactly as typed.</p>
       </div>
@@ -420,6 +479,7 @@ export function PromptCard({ mode, s, set, roleSentences, children, label = "Pro
 export function EngineCard({ mode, s, set, engine, invalid, extra }: {
   mode: Mode; s: StudioState; set: SetStudio; engine?: EngineInfo; invalid: Set<string>; extra?: ReactNode;
 }) {
+  const images = usePrepImages(s.refs);
   return (
     <>
       <Section title="Engine" meta={engine ? (engine.kind === "local" ? "Local · your GPU" : "Cloud · Comfy Router") : undefined}>
@@ -431,6 +491,7 @@ export function EngineCard({ mode, s, set, engine, invalid, extra }: {
       </Section>
       <Section title="Parameters" meta={engine?.params.length ? (engine.kind === "local" ? "From template" : "From schema") : undefined}>
         <div className="flex flex-col gap-3.5">
+          {engine?.size && <SizeField size={engine.size} value={s.params.size} images={images} onChange={(v) => set((st) => ({ params: { ...st.params, size: v }, raw: null }))} />}
           {engine ? (
             <ParamFields params={engine.params} values={s.params} invalid={invalid} onChange={(k, v) => set((st) => ({ params: { ...st.params, [k]: v }, raw: null }))} />
           ) : (

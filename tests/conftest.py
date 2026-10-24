@@ -1,3 +1,4 @@
+import json
 import sys
 from fractions import Fraction
 from pathlib import Path
@@ -7,7 +8,9 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from openillusion import paths, store  # noqa: E402
+from openillusion import engines, paths, store  # noqa: E402
+
+FIX = Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture(autouse=True)
@@ -58,3 +61,12 @@ def video(tmp_path):
 @pytest.fixture
 def image(tmp_path):
     return make_image(tmp_path / "ref.png")
+
+
+@pytest.fixture
+def fixture_templates(monkeypatch):
+    """Workflows that exercise the local engine (pruning, casts, video output). Test-only, not shipped."""
+    d = FIX / "templates"
+    for f in sorted(d.glob("*.json")):
+        e = engines.load_template(json.loads(f.read_text("utf-8")), base=d)
+        monkeypatch.setitem(engines.ENGINES, e.id, e)

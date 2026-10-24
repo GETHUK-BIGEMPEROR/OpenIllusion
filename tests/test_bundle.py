@@ -4,7 +4,7 @@ import zipfile
 
 import pytest
 
-from openillusion import bundle, media, store
+from openillusion import bundle, engines, media, store
 from openillusion import generation as sc
 
 from conftest import make_image, make_video
@@ -45,8 +45,9 @@ def test_export_requires_attestation_and_consent(tmp_path):
     bundle.export(m.id, "light", False, {"sfw": True, "rights": True})
 
 
-def test_full_roundtrip_keeps_everything(tmp_path):
+def test_full_roundtrip_keeps_everything(tmp_path, monkeypatch):
     m = library_generation(tmp_path)
+    monkeypatch.setitem(engines.ENGINES, m.engine.model, engines.get(m.engine.model))  # a template for it is installed
     out = bundle.export(m.id, "full", False, OK, dest_dir=tmp_path / "x")
     names = set(zipfile.ZipFile(out).namelist())
     assert {"generation.json", "refs/ref-01.png", "driving/driving.mp4", "result/preview.mp4", "result/poster.webp", "LICENSES.md"} <= names

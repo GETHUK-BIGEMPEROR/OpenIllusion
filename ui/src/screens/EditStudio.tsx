@@ -5,9 +5,10 @@ import { useEngine } from "../components/Engine";
 import { ArrowRight, Brush, External, Refresh, Star, Upload } from "../components/Icons";
 import { RegionCanvas } from "../components/RegionCanvas";
 import { addToTray, RefTray, useUploader } from "../components/Refs";
+import { TemplateHeader, TemplateSlots } from "../components/TemplateInputs";
 import {
   ActionBar, EmptyStage, EngineCard, invalidFields, OutcomeBar, PromptCard, RawRequest, RunCard, RunStatus, SessionStrip, StageBar, StageError,
-  StageRunning, StudioLayout, useCompose, useCurrent, useStudio, type Fix,
+  NoTemplates, StageRunning, StudioLayout, useCompose, useCurrent, useStudio, type Fix,
 } from "../components/Studio";
 import { Badge, Button, Kbd, Section, Segmented, cx } from "../components/ui";
 import { StateBadge } from "../components/bits";
@@ -15,8 +16,9 @@ import { api, fileUrl, type Manifest } from "../lib/api";
 import { EDIT_ROLES, errMsg, roleLabel } from "../lib/format";
 import { useElapsed, useJobs } from "../lib/live";
 import { go } from "../lib/route";
-import { newKey, useApp, type RefSlot } from "../lib/store";
+import { newKey, slotOf, useApp, type RefSlot } from "../lib/store";
 import { engineBoxes } from "../lib/boxes";
+import { aspectName, dimsText, plans, usePrepImages } from "../lib/size";
 
 export function EditStudio() {
   const [s, set] = useStudio("edit");
@@ -31,7 +33,13 @@ export function EditStudio() {
   const [view, setView] = useState<"canvas" | "result">("canvas");
   const { upload, busy } = useUploader();
 
-  const base = s.refs[0];
+  const slots = engine?.inputs?.length ? engine.inputs : null;
+  const base = s.refs.find((r, i) => slotOf(r, i) === 1);
+  const images = usePrepImages(s.refs);
+  const sized = engine?.size;
+  // What the server will do (from compose), else the same formula run here while it answers.
+  const local = sized ? plans(sized, s.params.size, images) : {};
+  const out = sized ? (compose?.prep?.[sized.follows] ?? local[sized.follows] ?? null) : null;
   const group = s.group.length ? s.group : s.current ? [s.current] : [];
   const variants = useQueries({ queries: group.map((id) => ({ queryKey: ["generation", id], queryFn: () => api.generation(id), retry: false })) });
   const vlist = variants.map((q) => q.data).filter(Boolean) as Manifest[];
@@ -83,7 +91,7 @@ export function EditStudio() {
 
   const boxJson = engineBoxes(s.boxes);
   const nBoxes = s.boxes.filter((b) => b.label.trim()).length;
-  const pickImage = () => document.querySelector<HTMLButtonElement>('[aria-label="Add reference image"]')?.click();
+  const pickImage = () => document.querySelector<HTMLButtonElement>('[aria-label="Add reference image"], [aria-label^="Add a"]')?.click();
 
   // Failure on the shown variant: plain words plus the fixes the engine suggested.
   const failed = shown && ["failed", "moderated", "cancelled"].includes(shown.status) ? shown : null;
@@ -92,18 +100,35 @@ export function EditStudio() {
     const suggested = shownJob?.fixes ?? [];
     if (suggested.includes("smaller") || /memory/i.test(String(shownJob?.detail ?? failed.result?.error?.message ?? ""))) {
       const size = engine?.params.find((p) => /^(size|resolution|megapixels|width)$/.test(p.key));
-      if (size) fixes.push({ label: "Use a smaller size", run: () => { const opts = size.options ?? []; const i = opts.indexOf(String(s.params[size.key] ?? size.default)); if (opts.length && i > 0) { set((st) => ({ params: { ...st.params, [size.key]: opts[i - 1] }, raw: null })); toast({ text: `${size.label} set to ${opts[i - 1]}. Press Run.`, tone: "ok" }); } else if (size.type === "int") { set((st) => ({ params: { ...st.params, [size.key]: size.min ?? size.default }, raw: null })); } } });
+      const smaller = sized && images.length ? sized.options
+        .map((o) => ({ o, p: plans(sized, o.label, images)[sized.follows] }))
+        .filter((x) => x.p && out && x.p.width * x.p.height < out.width * out.height)
+        .sort((a, b) => b.p.width * b.p.height - a.p.width * a.p.height)[0] : undefined;
+      if (smaller) fixes.push({ label: `Use ${smaller.o.label} (${dimsText(smaller.p)})`, run: () => { set((st) => ({ params: { ...st.params, size: smaller.o.label }, raw: null })); toast({ text: `Size set to ${smaller.o.label}. Press Run.`, tone: "ok" }); } });
+      else if (size) fixes.push({ label: "Use a smaller size", run: () => { const opts = size.options ?? []; const i = opts.indexOf(String(s.params[size.key] ?? size.default)); if (opts.length && i > 0) { set((st) => ({ params: { ...st.params, [size.key]: opts[i - 1] }, raw: null })); toast({ text: `${size.label} set to ${opts[i - 1]}. Press Run.`, tone: "ok" }); } else if (size.type === "int") { set((st) => ({ params: { ...st.params, [size.key]: size.min ?? size.default }, raw: null })); } } });
     }
     if (suggested.includes("rerun") || failed.status !== "cancelled") fixes.push({ label: "Try again", run: () => rerun(failed.id), primary: true, icon: <Refresh size={13} /> });
   }
 
   const stage = !base ? (
-    <EmptyStage icon={<Brush size={20} />} title="Add an image to edit" onPick={pickImage} onDrop={async (files) => addToTray("edit", await upload(files.slice(0, engine?.max_images ?? 10), "image"))} busy={!!busy}
+    slots ? (
+      <EmptyStage icon={<Brush size={20} />} title={`Add ${/^[aeiou]/i.test(slots[0].label ?? "") ? "an" : "a"} ${(slots[0].label ?? "image").toLowerCase()} to start`} onPick={pickImage}
+        onDrop={async (files) => addToTray("edit", await upload(files.slice(0, engine!.max_images), "image"))} busy={!!busy} meta="PNG, JPEG or WebP · up to 16 MP · 20 MB">
+        {slots[0].hint ?? "Click or drop an image."} Drop several to fill the inputs in order.
+      </EmptyStage>
+    ) : <EmptyStage icon={<Brush size={20} />} title="Add an image to edit" onPick={pickImage} onDrop={async (files) => addToTray("edit", await upload(files.slice(0, engine?.max_images ?? 10), "image"))} busy={!!busy}
       meta="PNG, JPEG or WebP · up to 16 MP · 20 MB">
       Click or drop an image. The first image in the tray is the canvas; draw boxes on it to point at what should change.
     </EmptyStage>
   ) : view === "canvas" || !shown ? (
-    <RegionCanvas src={base.url} natural={{ width: base.width, height: base.height }} boxes={s.boxes} onChange={(boxes) => set({ boxes })} />
+    <div className="relative flex-1 min-h-0 flex flex-col">
+      <RegionCanvas src={base.url} natural={{ width: base.width, height: base.height }} boxes={s.boxes} onChange={(boxes) => set({ boxes })} />
+      {out && (
+        <span className="glass absolute right-2.5 bottom-2.5 h-6 px-2 rounded-md text-xs leading-6 pointer-events-none" title={`OpenIllusion crops and sizes the ${out.source[0]}×${out.source[1]} photo to ${dimsText(out)} before the run`}>
+          <span className="text-white/70">Output </span><span className="font-mono tabular text-white">{dimsText(out)} · {aspectName(out)}</span>
+        </span>
+      )}
+    </div>
   ) : (
     <ABPlayer
       a={{ kind: "image", src: base.url, label: "Before" }}
@@ -116,15 +141,24 @@ export function EditStudio() {
     />
   );
 
+  if (!s.engine && !engine) return <NoTemplates mode="edit" />;
+
   return (
     <StudioLayout
       left={
         <>
-          <Section title="Images" meta={`${s.refs.length} / ${engine?.max_images ?? 10}`} data-own-drop>
-            <RefTray refs={s.refs} max={engine?.max_images ?? 10} roles={EDIT_ROLES} defaultRole="base" aspect="1 / 1" onChange={(refs) => set({ refs })} />
-            <p className="m-0 mt-2 text-xs text-faint">First image is the canvas. Drag to reorder.</p>
-          </Section>
-          <PromptCard mode="edit" s={s} set={set} label={engine?.prompt?.label ?? "Instruction"} hint={engine?.prompt?.hint} invalid={invalid.has("prompt")}>
+          {slots && engine ? (
+            <section aria-label="Template inputs" className="p-3 flex flex-col gap-2 border-b border-line">
+              <TemplateHeader e={engine} />
+              <TemplateSlots e={engine} refs={s.refs} onChange={(refs) => set({ refs })} roles={EDIT_ROLES} defaultRole="base" />
+            </section>
+          ) : (
+            <Section title="Images" meta={`${s.refs.length} / ${engine?.max_images ?? 10}`} data-own-drop>
+              <RefTray refs={s.refs} max={engine?.max_images ?? 10} roles={EDIT_ROLES} defaultRole="base" aspect="1 / 1" onChange={(refs) => set({ refs })} />
+              <p className="m-0 mt-2 text-xs text-faint">First image is the canvas. Drag to reorder.</p>
+            </Section>
+          )}
+          <PromptCard mode="edit" s={s} set={set} label={engine?.prompt?.label ?? "Instruction"} hint={engine?.prompt?.hint} examples={engine?.examples} noTokens={!!engine?.instruction} invalid={invalid.has("prompt")}>
             {boxJson && (
               <details className="group rounded-md border border-line">
                 <summary className="h-7 px-2 flex items-center gap-1.5 cursor-pointer text-xs text-muted hover:text-soft select-none">

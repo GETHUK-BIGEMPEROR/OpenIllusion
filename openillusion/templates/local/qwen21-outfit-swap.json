@@ -1,0 +1,345 @@
+{
+  "format": "openillusion.template",
+  "version": 1,
+  "id": "local/qwen21-outfit-swap",
+  "mode": "edit",
+  "label": "Outfit swap · Qwen Image 2.1",
+  "provider": "qwen",
+  "blurb": "Dresses the person in Image 1 in the garment from Image 2. Fabric, color and pattern carry over; the person stays the same.",
+  "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
+  "tags": [
+    "fashion",
+    "two images"
+  ],
+  "max_images": 2,
+  "min_images": 2,
+  "needs_video": false,
+  "inputs": [
+    {
+      "slot": "image:1",
+      "label": "Person",
+      "hint": "Who to dress. Full body or waist up."
+    },
+    {
+      "slot": "image:2",
+      "label": "Garment",
+      "hint": "A product shot or a photo of someone wearing it."
+    }
+  ],
+  "prompt": {
+    "label": "Notes (optional)",
+    "hint": "Tuck the shirt in, sleeves rolled up",
+    "required": false
+  },
+  "defaults": {
+    "prompt": "keep it unbuttoned",
+    "inputs": {
+      "image:1": "media/man-tee.jpg",
+      "image:2": "media/bomber-jacket.jpg"
+    }
+  },
+  "instruction": {
+    "start": [
+      "20",
+      "string_a"
+    ],
+    "end": [
+      "22",
+      "string_b"
+    ]
+  },
+  "examples": [
+    "keep it unbuttoned",
+    "sleeves rolled up to the elbow",
+    "tucked into the trousers"
+  ],
+  "tips": [
+    "A clean product shot of the garment works best for Image 2.",
+    "Match the framing: a jacket on a waist-up photo, a full outfit on a full-body photo."
+  ],
+  "params": [
+    {
+      "key": "steps",
+      "label": "Steps",
+      "type": "int",
+      "min": 10,
+      "max": 50,
+      "default": 25,
+      "help": "The official pipeline uses 40–50."
+    },
+    {
+      "key": "seed",
+      "label": "Seed",
+      "type": "seed",
+      "default": -1
+    },
+    {
+      "key": "cache",
+      "label": "Step cache",
+      "type": "segmented",
+      "options": [
+        "cpu",
+        "auto",
+        "gpu",
+        "off"
+      ],
+      "default": "cpu",
+      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory."
+    }
+  ],
+  "size": {
+    "options": [
+      {
+        "label": "1K",
+        "px": 1024
+      },
+      {
+        "label": "1.5K",
+        "px": 1536
+      },
+      {
+        "label": "2K",
+        "px": 2048
+      },
+      {
+        "label": "Original",
+        "px": 0
+      }
+    ],
+    "default": "1K",
+    "multiple": 32,
+    "follows": "image:1"
+  },
+  "bindings": {
+    "prompt": [
+      [
+        "21",
+        "string_b"
+      ]
+    ],
+    "image:1": [
+      [
+        "11",
+        "image"
+      ]
+    ],
+    "params.steps": [
+      [
+        "7",
+        "steps",
+        "int"
+      ]
+    ],
+    "params.seed": [
+      [
+        "7",
+        "seed",
+        "int"
+      ]
+    ],
+    "params.cache": [
+      [
+        "2",
+        "device"
+      ]
+    ],
+    "image:2": [
+      [
+        "12",
+        "image"
+      ]
+    ]
+  },
+  "outputs": [
+    "9"
+  ],
+  "hints": {
+    "models": {
+      "qwen_image_2.1_int8_convrot.safetensors": {
+        "folder": "diffusion_models",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/diffusion_models/qwen_image_2.1_int8_convrot.safetensors"
+      },
+      "qwen3vl_8b_int8_convrot.safetensors": {
+        "folder": "text_encoders",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3vl_8b_int8_convrot.safetensors"
+      },
+      "qwen_image_2.1_vae_bf16.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors"
+      }
+    },
+    "nodes": {}
+  },
+  "workflow": {
+    "1": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    "2": {
+      "class_type": "QwenImage21Cache",
+      "inputs": {
+        "model": [
+          "1",
+          0
+        ],
+        "device": "cpu",
+        "dtype": "default"
+      }
+    },
+    "3": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+        "type": "qwen_image",
+        "device": "default"
+      }
+    },
+    "4": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+      }
+    },
+    "11": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "{{image:1}}"
+      },
+      "_meta": {
+        "title": "Image 1"
+      }
+    },
+    "20": {
+      "class_type": "StringConcatenate",
+      "inputs": {
+        "string_a": "Dress the person in <image1> in the outfit shown in <image2>. ",
+        "string_b": "",
+        "delimiter": ""
+      },
+      "_meta": {
+        "title": "Instruction (start)"
+      }
+    },
+    "21": {
+      "class_type": "StringConcatenate",
+      "inputs": {
+        "string_a": [
+          "20",
+          0
+        ],
+        "string_b": "",
+        "delimiter": ""
+      },
+      "_meta": {
+        "title": "Notes (optional)"
+      }
+    },
+    "22": {
+      "class_type": "StringConcatenate",
+      "inputs": {
+        "string_a": [
+          "21",
+          0
+        ],
+        "string_b": " Match the garment's color, fabric, pattern, details and fit exactly, draped naturally on their body and pose. Keep the face, identity, hair, pose, body shape, lighting, framing and background of <image1> exactly as they are.",
+        "delimiter": ""
+      },
+      "_meta": {
+        "title": "Instruction (end)"
+      }
+    },
+    "5": {
+      "class_type": "TextEncodeQwenImage21",
+      "inputs": {
+        "clip": [
+          "3",
+          0
+        ],
+        "vae": [
+          "4",
+          0
+        ],
+        "prompt": [
+          "22",
+          0
+        ],
+        "negative_prompt": "",
+        "resolution": 0,
+        "images.image_1": [
+          "11",
+          0
+        ],
+        "images.image_2": [
+          "12",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "Edit"
+      }
+    },
+    "7": {
+      "class_type": "KSampler",
+      "inputs": {
+        "model": [
+          "2",
+          0
+        ],
+        "positive": [
+          "5",
+          0
+        ],
+        "negative": [
+          "5",
+          1
+        ],
+        "latent_image": [
+          "5",
+          2
+        ],
+        "seed": 1,
+        "steps": 25,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 1.0
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "7",
+          0
+        ],
+        "vae": [
+          "4",
+          0
+        ]
+      }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "images": [
+          "8",
+          0
+        ],
+        "filename_prefix": "openillusion/qwen21-outfit-swap"
+      }
+    },
+    "12": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "{{image:2}}"
+      },
+      "_meta": {
+        "title": "Image 2"
+      }
+    }
+  },
+  "cover": "media/cover-outfit-swap.webp"
+}

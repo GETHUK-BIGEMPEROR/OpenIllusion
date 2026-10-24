@@ -85,7 +85,7 @@ export function App() {
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <TopBar crumbs={crumbs} onImport={() => fileInput.current?.click()} />
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          {route.name === "library" && <Library shelf={route.shelf} />}
+          {route.name === "library" && <Library shelf={route.shelf} t={route.t} />}
           {route.name === "motion" && <MotionStudio />}
           {route.name === "edit" && <EditStudio />}
           {route.name === "generation" && <GenerationDetail key={route.id} id={route.id} />}

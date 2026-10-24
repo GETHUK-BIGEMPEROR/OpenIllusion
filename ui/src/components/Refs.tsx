@@ -4,20 +4,30 @@ import { api } from "../lib/api";
 import { errMsg, roleLabel } from "../lib/format";
 import type { Asset, Mode } from "../lib/api";
 import { EDIT_ROLES, ROLES } from "../lib/format";
-import { newKey, useApp, type RefSlot } from "../lib/store";
+import { newKey, slotOf, useApp, type RefSlot } from "../lib/store";
 import { Check, Chevron, Close, Plus } from "./Icons";
 import { Spinner, cx } from "./ui";
 
-/** Uploaded images appended to a tray: the first one in an empty tray gets the default role. */
+/**
+ * Uploaded images added to a tray. Each takes the first free input slot, so a
+ * drop fills a template's empty slots in order; slot 1 gets the default role.
+ */
 export function withRefs(refs: RefSlot[], assets: Asset[], roles: readonly string[], defaultRole: string): RefSlot[] {
-  return [
-    ...refs,
-    ...assets.map((a, i) => ({
-      ...a, key: newKey(), role: refs.length === 0 && i === 0 ? defaultRole : roles.find((r) => r !== defaultRole) ?? defaultRole,
-      license: "own-image", contains_person: false, consent: false,
-    }) as RefSlot),
-  ];
+  const taken = new Set(refs.map(slotOf));
+  const free = () => { let n = 1; while (taken.has(n)) n++; taken.add(n); return n; };
+  const added = assets.map((a) => {
+    const slot = free();
+    return { ...a, key: newKey(), slot, role: slot === 1 ? defaultRole : roles.find((r) => r !== defaultRole) ?? defaultRole,
+      license: "own-image", contains_person: false, consent: false } as RefSlot;
+  });
+  return bySlot([...refs, ...added]);
 }
+
+/** Tray order follows the slots, so refs[0] is always image:1 when it's filled. */
+export const bySlot = (refs: RefSlot[]) => refs.map((r, i) => ({ ...r, slot: slotOf(r, i) })).sort((a, b) => a.slot - b.slot);
+
+/** The generic tray is ordered by hand: position decides the slot again. */
+const byPosition = (refs: RefSlot[]) => refs.map(({ slot: _, ...r }) => r as RefSlot);
 
 /** Add images to a studio's tray from outside it (a drop on the canvas or anywhere in the window). */
 export function addToTray(mode: Mode, assets: Asset[]) {
@@ -90,10 +100,10 @@ export function RefTray({
   const add = async (files: File[]) => {
     const room = Math.max(0, max - refs.length);
     const list = await upload(files.slice(0, room), "image");
-    onChange(withRefs(refs, list, roles, defaultRole));
+    onChange(byPosition(withRefs(byPosition(refs), list, roles, defaultRole)));
   };
 
-  const patch = (key: string, p: Partial<RefSlot>) => onChange(refs.map((r) => (r.key === key ? { ...r, ...p } : r)));
+  const patch = (key: string, p: Partial<RefSlot>) => onChange(byPosition(refs.map((r) => (r.key === key ? { ...r, ...p } : r))));
   const reorder = (from: string, to: string) => {
     const a = refs.findIndex((r) => r.key === from);
     const b = refs.findIndex((r) => r.key === to);
@@ -101,7 +111,7 @@ export function RefTray({
     const next = refs.slice();
     const [x] = next.splice(a, 1);
     next.splice(b, 0, x);
-    onChange(next);
+    onChange(byPosition(next));
   };
 
   return (
@@ -135,7 +145,7 @@ export function RefTray({
               {r.url ? <img src={r.url} alt={`${roleLabel(r.role)} reference ${i + 1}`} className={cx("w-full h-full object-cover block", r.missing && "opacity-50 blur-[1px]")} /> : null}
               <span className="glass absolute left-1 top-1 min-w-[16px] h-4 flex items-center justify-center font-mono text-[10px] rounded px-1">{i + 1}</span>
               {r.missing && <span className="absolute inset-x-1 bottom-1 glass text-xs2 text-center rounded py-0.5 text-orange-text">Missing</span>}
-              <button type="button" aria-label={`Remove reference ${i + 1}`} onClick={(e) => { e.stopPropagation(); onChange(refs.filter((x) => x.key !== r.key)); }} className="glass mk-btn absolute right-1 top-1 w-5 h-5 rounded border-0 flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity">
+              <button type="button" aria-label={`Remove reference ${i + 1}`} onClick={(e) => { e.stopPropagation(); onChange(byPosition(refs.filter((x) => x.key !== r.key))); }} className="glass mk-btn absolute right-1 top-1 w-5 h-5 rounded border-0 flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity">
                 <Close size={8} />
               </button>
             </div>

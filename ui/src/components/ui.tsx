@@ -268,3 +268,10 @@ export function Notice({ tone = "info", title, children, actions, className, rol
 export function Divider({ className }: { className?: string }) {
   return <span aria-hidden className={cx("block h-px bg-line", className)} />;
 }
+
+/** A row in a popover menu: a button, or a link when given href. */
+export function MenuItem({ children, onClick, href: to, download, icon, danger }: { children: ReactNode; onClick?: () => void; href?: string; download?: string; icon?: ReactNode; danger?: boolean }) {
+  const cls = cx("mk-btn h-8 px-2 rounded-md border-0 bg-transparent text-left text-sm inline-flex items-center gap-2 w-full", danger ? "text-rose-text hover:bg-rose/10" : "text-soft hover:bg-raised hover:text-text");
+  const inner = <><span className="w-4 flex justify-center text-muted">{icon}</span>{children}</>;
+  return to ? <a href={to} download={download} className={cls}>{inner}</a> : <button type="button" onClick={onClick} className={cls}>{inner}</button>;
+}

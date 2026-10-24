@@ -66,6 +66,7 @@ class InputItem(_Open):
     duration: float | None = None
     trim: list[float] | None = None
     label: str | None = None
+    prep: dict | None = None  # how the image was cropped and sized for the run: {source, box, width, height}
 
 
 class Result(_Open):

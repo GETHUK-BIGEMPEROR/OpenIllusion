@@ -14,7 +14,7 @@ from fractions import Fraction
 from pathlib import Path
 
 import av
-from PIL import Image, PngImagePlugin
+from PIL import Image, ImageOps, PngImagePlugin
 
 RECIPE_KEY = "openillusion"  # PNG text chunk keyword and MP4 comment prefix
 MP4_PREFIX = "openillusion:"
@@ -206,9 +206,17 @@ def read_mp4_recipe(path: str | Path) -> dict | None:
 
 
 def open_image(data: bytes | str | Path) -> Image.Image:
+    """Decoded, and turned upright the way browsers show it (EXIF orientation applied)."""
     img = Image.open(io.BytesIO(data) if isinstance(data, bytes) else str(data))
     img.load()
-    return img
+    return ImageOps.exif_transpose(img) or img
+
+
+def image_size(path: str | Path) -> tuple[int, int]:
+    """Width and height as shown upright, read from the header without decoding."""
+    with Image.open(str(path)) as img:
+        w, h = img.size
+        return (h, w) if img.getexif().get(0x0112) in (5, 6, 7, 8) else (w, h)
 
 
 def strip_exif(img: Image.Image) -> Image.Image:

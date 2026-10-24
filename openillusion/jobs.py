@@ -25,8 +25,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 import httpx
+from PIL import Image
 
-from . import engines, local, media, paths, proxy, settings, store
+from . import engines, local, media, paths, prep, proxy, settings, store
 from . import generation as sc
 from .router import Router, RouterError
 
@@ -537,7 +538,10 @@ MANAGER = Manager()
 
 
 def resolve_asset(ref: str) -> Path:
-    """An input's source: an upload id, or ``gen:<id>/<relative path>``."""
+    """An input's source: an upload id, ``gen:<id>/<relative path>``, or a template's sample ``tpl:<engine>|<slot>``."""
+    if ref.startswith("tpl:"):
+        engine_id, _, slot = ref[len("tpl:"):].rpartition("|")
+        return engines.default_input(engine_id, slot)
     if ref.startswith("gen:"):
         sid, _, rel = ref[len("gen:"):].partition("/")
         base = store.folder(sid).resolve()
@@ -549,6 +553,19 @@ def resolve_asset(ref: str) -> Path:
     if not p.is_file():
         raise FileNotFoundError(ref)
     return p
+
+
+def input_plans(spec: dict) -> dict[str, prep.Plan]:
+    """How each image of a spec will be cropped and sized, from file headers alone."""
+    e = engines.get(spec["engine"])
+    if not e.size:
+        return {}
+    images = []
+    for i in spec.get("inputs", []):
+        if i["slot"].startswith("image:") and i.get("asset"):
+            w, h = media.image_size(resolve_asset(i["asset"]))
+            images.append({"slot": i["slot"], "width": w, "height": h, "crop": i.get("crop")})
+    return prep.plans(e.size, (spec.get("params") or {}).get("size"), images)
 
 
 def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | None = None) -> sc.Manifest:
@@ -565,6 +582,20 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
         if spec.get("raw"):
             spec["raw"] = json.loads(json.dumps(spec["raw"]).replace(json.dumps(engines.SEED_TOKEN), str(spec["params"]["seed"])))
 
+    # Crop and size every image once, here, so each engine gets what the studio showed.
+    pictures: dict[str, Image.Image] = {}
+    for raw in spec["inputs"]:
+        if raw["slot"].startswith("image:") and raw.get("asset"):
+            img = media.open_image(resolve_asset(raw["asset"]))
+            pictures[raw["slot"]] = media.strip_exif(img) if strip else img
+    plans = prep.plans(e.size, (spec.get("params") or {}).get("size"), [
+        {"slot": r["slot"], "width": pictures[r["slot"]].width, "height": pictures[r["slot"]].height, "crop": r.get("crop")}
+        for r in spec["inputs"] if r["slot"] in pictures
+    ]) if e.size else {}
+    if e.size and e.size["follows"] in plans:
+        lead = plans[e.size["follows"]]
+        spec["size_px"] = {"width": lead.width, "height": lead.height}
+
     items: list[sc.InputItem] = []
     img_n = 0
     for raw in spec["inputs"]:
@@ -577,9 +608,10 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
         src = resolve_asset(raw["asset"]) if raw.get("asset") else None
         if slot.startswith("image:") and src:
             img_n += 1
-            img = media.open_image(src)
-            if strip:
-                img = media.strip_exif(img)
+            img = pictures[slot]
+            if slot in plans:
+                img = prep.apply(img, plans[slot])
+                item.prep = plans[slot].to_dict()
             ext = ".png" if img.mode == "RGBA" else ".jpg"
             rel = f"refs/ref-{img_n:02d}{ext}"
             if ext == ".png":

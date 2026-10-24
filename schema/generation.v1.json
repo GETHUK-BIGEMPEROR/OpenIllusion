@@ -201,6 +201,19 @@
           ],
           "default": null,
           "title": "Label"
+        },
+        "prep": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prep"
         }
       },
       "required": [

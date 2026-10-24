@@ -10,6 +10,8 @@ from openillusion import engines, jobs, local, media, paths, store
 
 from conftest import make_video
 
+pytestmark = pytest.mark.usefixtures("fixture_templates")
+
 KLEIN = "local/flux3-klein-edit"
 H3 = "local/minimax-h3-i2v"
 

@@ -302,9 +302,9 @@ def _review(recipe: dict, source: dict, files: dict[str, bytes], poster: tuple[s
 
     e = engines.get(m.engine.model)
     if m.engine.model in engines.ENGINES:
-        checks.append({"level": "pass", "text": "Model available on Router", "detail": m.engine.model})
+        checks.append({"level": "pass", "text": "Template installed" if e.kind == "local" else "Model available on Router", "detail": m.engine.model})
     else:
-        checks.append({"level": "warn", "text": "Model isn't one of OpenIllusion's curated engines", "detail": f"{m.engine.model} · runs through the schema form if Router lists it"})
+        checks.append({"level": "warn", "text": "Not one of your templates", "detail": f"{m.engine.model} · runs through the schema form if Router lists it"})
 
     missing_video = [i for i in m.inputs if i.slot.startswith("video:") and not (i.file and i.file in files)]
     if missing_video or (e.needs_video and not any(i.slot.startswith("video:") for i in m.inputs)):

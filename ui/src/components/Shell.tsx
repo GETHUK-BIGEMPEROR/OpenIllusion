@@ -283,15 +283,25 @@ export function DropOverlay() {
         toast({ text: errMsg(err), tone: "error" });
       }
     };
-    window.addEventListener("dragenter", enter);
-    window.addEventListener("dragleave", leave);
-    window.addEventListener("dragover", overFn);
-    window.addEventListener("drop", drop);
+    const reset = () => {
+      depth.current = 0;
+      setOver(false);
+    };
+    // Capture phase: inputs that handle their own drops stop propagation, and the overlay must still close.
+    const on = { capture: true };
+    window.addEventListener("dragenter", enter, on);
+    window.addEventListener("dragleave", leave, on);
+    window.addEventListener("dragover", overFn, on);
+    window.addEventListener("drop", drop, on);
+    window.addEventListener("dragend", reset, on);
+    window.addEventListener("blur", reset);
     return () => {
-      window.removeEventListener("dragenter", enter);
-      window.removeEventListener("dragleave", leave);
-      window.removeEventListener("dragover", overFn);
-      window.removeEventListener("drop", drop);
+      window.removeEventListener("dragenter", enter, on);
+      window.removeEventListener("dragleave", leave, on);
+      window.removeEventListener("dragover", overFn, on);
+      window.removeEventListener("drop", drop, on);
+      window.removeEventListener("dragend", reset, on);
+      window.removeEventListener("blur", reset);
     };
   }, [setReview, toast]);
   if (!over) return null;

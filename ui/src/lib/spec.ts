@@ -1,9 +1,10 @@
 import type { EngineInfo, Mode, Spec, SpecInput } from "./api";
-import type { StudioState } from "./store";
+import { slotOf, type StudioState } from "./store";
 
 export function defaults(engine?: EngineInfo): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const p of engine?.params ?? []) if (p.default !== undefined) out[p.key] = p.default;
+  if (engine?.size) out.size = engine.size.default;
   return out;
 }
 
@@ -12,13 +13,14 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
   const inputs: SpecInput[] = [];
   s.refs.forEach((r, i) => {
     inputs.push({
-      slot: `image:${i + 1}`,
+      slot: `image:${slotOf(r, i)}`,
       role: r.role,
       asset: r.missing ? undefined : r.asset || undefined,
       url: r.publicUrl || undefined,
       license: r.license,
       contains_person: r.contains_person,
       consent: r.consent,
+      crop: r.crop,
     });
   });
   const takesVideo = !(engine?.kind === "local" && !engine.needs_video);

@@ -1,17 +1,16 @@
 import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { api, type EngineInfo, type Mode, type ParamSpec } from "../lib/api";
+import { api, type EngineInfo, type Mode, type ParamSpec, type SizeSpec } from "../lib/api";
 import { randomSeed } from "../lib/format";
+import { aspectName, dimsText, plans, sizeNotes, type Crop } from "../lib/size";
 import { Check, Chevron, Dice, Search } from "./Icons";
 import { IconButton, Segmented, Select, Slider, TextInput, Toggle, cx } from "./ui";
 
-export const engineGlyph = (e?: { id: string; label: string }) => {
+export const engineGlyph = (e?: { id: string; label: string; provider?: string }) => {
   if (!e) return "?";
-  if (e.id === "minimax/minimax-h3") return "H3";
-  if (e.id === "bfl/flux-3-image") return "F3";
-  if (e.id.includes("genjutsu")) return "GJ";
-  return e.label.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase();
+  // Template labels describe the task ("Add a hat"); the provider names the model family.
+  return (e.provider || e.label).replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase();
 };
 
 /** Curated engines for the mode plus every other Router model, by schema. */
@@ -83,11 +82,11 @@ export function EngineDropdown({ mode, value, onChange }: { mode: Mode; value: s
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button type="button" aria-haspopup="listbox" aria-label={`Engine: ${engine?.label ?? value}. Change engine`} className="mk-btn group text-left h-12 pl-2 pr-2.5 rounded-lg border border-line bg-bg hover:border-line2 flex items-center gap-2.5 w-full data-[state=open]:border-violet/60">
+        <button type="button" aria-haspopup="listbox" aria-label={value ? `Engine: ${engine?.label ?? value}. Change engine` : "Choose an engine"} className="mk-btn group text-left h-12 pl-2 pr-2.5 rounded-lg border border-line bg-bg hover:border-line2 flex items-center gap-2.5 w-full data-[state=open]:border-violet/60">
           <span aria-hidden className={cx("w-8 h-8 shrink-0 rounded-md flex items-center justify-center font-display font-semibold text-[11px]", engine?.kind === "local" ? "bg-yellow/10 text-yellow-light" : "bg-violet/15 text-violet-lighter")}>{engineGlyph(engine)}</span>
           <span className="flex-1 min-w-0 flex flex-col">
-            <span className="font-semibold text-base leading-[18px] truncate">{engine?.label ?? value}</span>
-            <span className="font-mono text-xs2 text-faint truncate">{engine?.kind === "local" ? `${value.replace(/^local\//, "")} · your ComfyUI` : `${value} · Comfy Router`}</span>
+            <span className={cx("font-semibold text-base leading-[18px] truncate", !value && "text-muted font-medium")}>{engine?.label ?? (value || "Choose an engine")}</span>
+            <span className="font-mono text-xs2 text-faint truncate">{!value ? "No template picked" : engine?.kind === "local" ? `${value.replace(/^local\//, "")} · your ComfyUI` : `${value} · Comfy Router`}</span>
           </span>
           <Chevron size={14} className="text-muted transition-transform group-data-[state=open]:rotate-180" />
         </button>
@@ -95,7 +94,7 @@ export function EngineDropdown({ mode, value, onChange }: { mode: Mode; value: s
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={8} className="z-50 w-[var(--radix-popover-trigger-width)] min-w-[300px] max-h-[min(560px,70vh)] overflow-y-auto scroll-y rounded-xl bg-surface p-1 shadow-float animate-pop">
           <p className="m-0 px-2 pt-2 pb-1 eyebrow flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-violet" aria-hidden />Cloud · Comfy Router</p>
-          <EngineList list={cloud} value={value} pick={pick} />
+          {cloud.length ? <EngineList list={cloud} value={value} pick={pick} /> : <p className="m-0 px-2 py-2 text-sm text-muted">No cloud {mode} templates yet.</p>}
           <div className="mt-1 pt-1 border-t border-line">
             <p className="m-0 px-2 pt-2 pb-1 eyebrow flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-yellow" aria-hidden />Local · your ComfyUI</p>
             {local.length ? <EngineList list={local} value={value} pick={pick} /> : <p className="m-0 px-2 py-2 text-sm text-muted">No local {mode} templates yet.</p>}
@@ -136,7 +135,6 @@ function EngineList({ list, value, pick }: { list: EngineInfo[]; value: string; 
             <span className="flex-1 min-w-0">
               <span className="flex items-center gap-1.5">
                 <span className="font-semibold text-sm truncate">{e.label}</span>
-                {e.curated && (e.id === "minimax/minimax-h3" || e.id === "bfl/flux-3-image") && <span className="h-4 px-1 rounded text-[10px] font-semibold leading-4 bg-yellow/10 text-yellow-light">Default</span>}
               </span>
               <span className="block text-xs text-muted line-clamp-2">{e.blurb}</span>
             </span>
@@ -145,6 +143,42 @@ function EngineList({ list, value, pick }: { list: EngineInfo[]; value: string; 
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Output size in the picture's own pixels, one option per size the template offers, plus notes on upscaling, shape and memory. */
+export function SizeField({ size, value, images, onChange }: {
+  size: SizeSpec; value: unknown; images: { slot: string; width: number; height: number; crop?: Crop }[]; onChange: (v: string) => void;
+}) {
+  const current = size.options.some((o) => o.label === value) ? String(value) : size.default;
+  const lead = images.some((i) => i.slot === size.follows);
+  const at = (label: string) => (lead ? plans(size, label, images)[size.follows] : null);
+  const out = at(current);
+  const n = size.follows.split(":")[1];
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex justify-between items-baseline gap-2">
+        <span className="text-sm font-medium text-soft" title={`Images are cropped and sized by OpenIllusion before the run. The output follows image ${n}.`}>Size</span>
+        {out && <span className="font-mono text-xs tabular text-text">{dimsText(out)} · {aspectName(out)}</span>}
+      </div>
+      <div role="radiogroup" aria-label="Size" className="grid p-0.5 bg-bg border border-line rounded-lg gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.min(size.options.length, 4)}, minmax(0, 1fr))` }}>
+        {size.options.map((o) => {
+          const d = at(o.label);
+          const on = o.label === current;
+          return (
+            <button key={o.label} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.label)}
+              aria-label={`${o.label}${d ? `, ${d.width} by ${d.height}` : ""}`}
+              className={cx("mk-btn border-0 rounded-md px-1 py-1 flex flex-col items-center gap-px min-w-0",
+                on ? "bg-active text-text shadow-seg" : "bg-transparent text-muted hover:text-text")}>
+              <span className={cx("text-sm leading-[18px]", on && "font-medium")}>{o.label}</span>
+              <span className={cx("font-mono text-[10px] leading-3 tabular truncate max-w-full", on ? "text-soft" : "text-faint")}>{d ? dimsText(d) : o.px > 0 ? `~${o.px}²` : "as is"}</span>
+            </button>
+          );
+        })}
+      </div>
+      {out ? sizeNotes(out).map((t) => <span key={t} className="text-xs text-orange-text leading-[1.45]">{t}</span>)
+        : <span className="text-xs text-faint">Sizes follow image {n}'s shape. Add it to see them in pixels.</span>}
+    </div>
   );
 }
 

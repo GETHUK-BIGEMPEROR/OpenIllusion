@@ -40,7 +40,61 @@ export interface EngineInfo {
   kind: "cloud" | "local";
   source: string | null;
   /** Local templates can name and hint their prompt box. */
-  prompt?: { label?: string; hint?: string } | null;
+  prompt?: { label?: string; hint?: string; required?: boolean } | null;
+  /** Sample prompts, shown as chips. */
+  examples?: string[];
+  tips?: string[];
+  tags?: string[];
+  /** What each image slot is for. */
+  inputs?: { slot: string; label?: string; hint?: string }[];
+  /** Model files and node types a local template needs in ComfyUI. */
+  requires?: { models: { name: string; folder: string; url?: string | null }[]; nodes: string[] };
+  /** The fixed text wrapped around the user's prompt (local templates that declare it). */
+  instruction?: { start?: string; end?: string } | null;
+  /** shipped with the app, or from the user's templates folder. */
+  origin?: "shipped" | "user" | null;
+  /** A shipped template the user changed; can be reset. */
+  edited?: boolean;
+  /** Tile poster URL: the user's pick, else the one the template ships with. */
+  cover?: string | null;
+  /** Optional short muted loop played over the poster. */
+  cover_video?: string | null;
+  /** Poster width / height, so the wall lays out before images load. */
+  cover_aspect?: number | null;
+  /** True when the user picked the cover, so it can be reset. */
+  cover_custom?: boolean;
+  /** How the app crops and sizes images before the run (openillusion/prep.py). */
+  size?: SizeSpec | null;
+  /** What the template opens with: a prompt, and a sample for each slot (assets like uploads). */
+  defaults?: { prompt: string; inputs: (Asset & { slot: string })[] };
+}
+
+/** A template's size options. px: about px x px pixels at the picture's shape; 0 keeps its own size. */
+export interface SizeSpec {
+  options: { label: string; px: number }[];
+  default: string;
+  multiple: number;
+  /** The image whose shape sets the output, e.g. "image:1". */
+  follows: string;
+}
+
+/** What prep will do to one image: the kept box in source pixels and the size it ends at. */
+export interface PrepPlan {
+  source: [number, number];
+  box: [number, number, number, number];
+  width: number;
+  height: number;
+}
+
+export interface TemplatePatch {
+  label?: string;
+  blurb?: string;
+  tags?: string[];
+  examples?: string[];
+  tips?: string[];
+  prompt?: { label?: string; hint?: string };
+  default_prompt?: string;
+  instruction?: { start?: string; end?: string };
 }
 
 export interface MissingModel {
@@ -289,6 +343,8 @@ export interface SpecInput {
   duration?: number;
   max_height?: number;
   label?: string;
+  /** Kept part of the image as fractions [x, y, w, h]. */
+  crop?: [number, number, number, number];
 }
 
 export class HttpError extends Error {
@@ -330,6 +386,10 @@ export const api = {
   settings: () => req<Settings>("GET", "/settings"),
   saveSettings: (s: Partial<Settings> & { api_key?: string; local_token?: string }) => req<Settings>("POST", "/settings", s),
   engines: (mode?: Mode, reload = false) => req<EngineInfo[]>("GET", `/engines?${qs({ mode, reload: reload ? 1 : undefined })}`),
+  setCover: (engine: string, from: { asset: string } | { generation: string }) => req<EngineInfo>("PUT", "/cover", { engine, ...from }),
+  resetCover: (engine: string) => req<EngineInfo>("DELETE", `/cover?${qs({ engine })}`),
+  editTemplate: (engine: string, patch: TemplatePatch) => req<EngineInfo>("PATCH", "/templates", { engine, ...patch }),
+  resetTemplate: (engine: string) => req<EngineInfo>("DELETE", `/templates?${qs({ engine })}`),
   catalog: () => req<{ id: string; provider: string; model: string }[]>("GET", "/catalog"),
   schema: (model: string) => req<{ schema: any; input_modalities: string[]; output_modalities: string[]; version: string; authored: boolean }>("GET", `/schema?model=${encodeURIComponent(model)}`),
   upload: (file: File) => {
@@ -338,7 +398,7 @@ export const api = {
     return req<Asset>("POST", "/upload", fd);
   },
   frame: (asset: string, t: number) => req<Asset>("POST", "/frame", { asset, t }),
-  compose: (spec: Spec) => req<{ template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[]; role_sentences: string }>("POST", "/compose", spec),
+  compose: (spec: Spec) => req<{ template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[]; role_sentences: string; prep?: Record<string, PrepPlan> }>("POST", "/compose", spec),
   estimate: (spec: Spec) => req<Estimate>("POST", "/estimate", spec),
   localCheck: (spec: Spec, fresh = false) => req<LocalCheck>("POST", "/local/check", { ...spec, fresh }),
   startProxy: () => req<{ ok: boolean; reason?: string | null; local: LocalStatus }>("POST", "/local/proxy/start"),

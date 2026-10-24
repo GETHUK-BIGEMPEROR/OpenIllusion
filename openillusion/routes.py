@@ -204,6 +204,85 @@ def register(routes: web.RouteTableDef) -> None:
         out = [engines.describe(e) for e in engines.ENGINES.values() if not mode or e.mode == mode]
         return web.json_response(out)
 
+    # A template's card image: GET serves it, PUT sets it from an upload or a
+    # generation's result, DELETE goes back to the one the template ships with.
+
+    @routes.get(API + "/cover")
+    async def get_cover(request):
+        e = engines.ENGINES.get(request.query.get("engine", ""))
+        f = engines.cover_file(e, video=bool(request.query.get("video"))) if e else None
+        if f is None:
+            return err(404, "No cover")
+        return web.FileResponse(f, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+    @routes.get(API + "/templates/input")
+    async def template_input(request):
+        try:
+            f = engines.default_input(request.query.get("engine", ""), request.query.get("slot", ""))
+        except FileNotFoundError:
+            return err(404, "No sample")
+        return web.FileResponse(f, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+    @routes.put(API + "/cover")
+    async def put_cover(request):
+        b = await body(request)
+        e = engines.ENGINES.get(b.get("engine", ""))
+        if e is None:
+            return err(404, "No such template")
+        loop: Path | None = None
+        if b.get("generation"):
+            try:
+                m = store.get(b["generation"])
+            except (FileNotFoundError, ValueError):
+                return err(404, "Generation not found")
+            if not (m.result and m.result.poster):
+                return err(409, "This generation has no result to use yet")
+            src = store.folder(m.id) / m.result.poster
+            if m.result.kind == "video" and m.result.file:
+                loop = store.folder(m.id) / m.result.file
+        elif b.get("asset"):
+            asset = str(b["asset"])
+            src = paths.uploads_dir() / asset
+            if Path(asset).name != asset or not src.is_file():
+                return err(404, "Upload not found")
+        else:
+            return err(400, "Send an asset or a generation")
+        try:
+            await asyncio.to_thread(engines.set_cover, e.id, src, loop)
+        except Exception as ex:
+            return err(422, f"Couldn't make a cover from that file: {ex}")
+        return web.json_response(engines.describe(e))
+
+    @routes.delete(API + "/cover")
+    async def delete_cover(request):
+        e = engines.ENGINES.get(request.query.get("engine", ""))
+        if e is None:
+            return err(404, "No such template")
+        engines.clear_cover(e.id)
+        return web.json_response(engines.describe(e))
+
+    # Editing a template's text: saved as an override in the user's templates
+    # folder, so the shipped file never changes. DELETE goes back to it.
+
+    @routes.patch(API + "/templates")
+    async def patch_template(request):
+        b = await body(request)
+        try:
+            e = engines.edit_template(str(b.pop("engine", "")), b)
+        except KeyError:
+            return err(404, "No such template")
+        except ValueError as ex:
+            return err(422, str(ex))
+        return web.json_response(engines.describe(e))
+
+    @routes.delete(API + "/templates")
+    async def reset_template(request):
+        try:
+            e = engines.reset_template(request.query.get("engine", ""))
+        except KeyError:
+            return err(409, "This template has no edits to undo")
+        return web.json_response(engines.describe(e))
+
     @routes.get(API + "/catalog")
     async def catalog(request):
         now = time.time()
@@ -297,9 +376,15 @@ def register(routes: web.RouteTableDef) -> None:
     async def compose(request):
         spec = await body(request)
         try:
-            return web.json_response(engines.compose(_norm_spec(spec)))
+            spec = _norm_spec(spec)
+            out = engines.compose(spec)
         except (KeyError, ValueError) as e:
             return err(400, str(e))
+        try:  # what prep will do to each image; the studio shows it
+            out["prep"] = {slot: pl.to_dict() for slot, pl in (await asyncio.to_thread(jobs.input_plans, spec)).items()}
+        except (FileNotFoundError, ValueError, OSError):
+            out["prep"] = {}
+        return web.json_response(out)
 
     @routes.post(API + "/estimate")
     async def estimate(request):

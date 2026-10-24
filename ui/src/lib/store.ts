@@ -26,7 +26,16 @@ export interface RefSlot extends Media {
   contains_person: boolean;
   consent: boolean;
   publicUrl?: string;
+  /** Template input this image fills (1 = image:1). Unset: its place in the tray decides. */
+  slot?: number;
+  /** Kept part of the image as fractions [x, y, w, h]; the server crops before the run. */
+  crop?: [number, number, number, number];
+  /** One of the template's sample inputs, not the user's own. */
+  sample?: boolean;
 }
+
+/** Which image:N a tray entry is sent as. */
+export const slotOf = (r: Pick<RefSlot, "slot">, i: number) => r.slot ?? i + 1;
 
 export interface VideoSlot extends Media {
   trim: [number, number];
@@ -55,10 +64,21 @@ export interface StudioState {
   selected: string[]; // starred variants (edit)
   returnRole: string | null; // "Edit this frame": role it returns to Motion as
   group: string[]; // the generations of the last run (variants)
+  /** The template whose samples and default prompt this draft was opened with (filled once). */
+  seeded?: string;
 }
 
-const blankStudio = (mode: Mode): StudioState => ({
-  engine: mode === "motion" ? "minimax/minimax-h3" : "bfl/flux-3-image",
+/** What belongs to one template's draft. Engine-independent studio settings (variants, session) stay put. */
+const DRAFT_KEYS = ["title", "video", "refs", "prompt", "params", "boxes", "raw", "forked_from", "chain", "tags", "current", "group", "selected", "returnRole", "seeded"] as const;
+
+/** A studio on a template, from scratch: the draft is cleared, the run history and variant count stay. */
+const fresh = (prev: StudioState, engine: string): StudioState => {
+  const blank = blankStudio();
+  return { ...prev, ...Object.fromEntries(DRAFT_KEYS.map((k) => [k, blank[k]])), engine };
+};
+
+const blankStudio = (): StudioState => ({
+  engine: "", // filled from Settings' default, else the mode's first template (useStudio)
   title: "",
   video: null,
   refs: [],
@@ -75,6 +95,7 @@ const blankStudio = (mode: Mode): StudioState => ({
   selected: [],
   returnRole: null,
   group: [],
+  seeded: "",
 });
 
 export const fromAsset = (a: Asset): Media => ({ ...a });
@@ -97,7 +118,8 @@ interface AppState {
   search: string;
   toasts: Toast[];
   setStudio: (mode: Mode, patch: Partial<StudioState> | ((s: StudioState) => Partial<StudioState>)) => void;
-  resetStudio: (mode: Mode) => void;
+  /** Open a template with a fresh draft, even when it is the one already open. */
+  openTemplate: (mode: Mode, engine: string) => void;
   loadGeneration: (m: Manifest, opts?: { engine?: string; dropVideo?: boolean }) => Mode;
   setQueue: (open: boolean) => void;
   share: (id: string | null) => void;
@@ -122,16 +144,22 @@ const safeStorage = createJSONStorage(() => {
 export const useApp = create<AppState>()(
   persist(
     (set, get) => ({
-      motion: blankStudio("motion"),
-      edit: blankStudio("edit"),
+      motion: blankStudio(),
+      edit: blankStudio(),
       queueOpen: false,
       shareFor: null,
       review: null,
       search: "",
       toasts: [],
       setStudio: (mode, patch) =>
-        set((s) => ({ [mode]: { ...s[mode], ...(typeof patch === "function" ? patch(s[mode]) : patch) } }) as Partial<AppState>),
-      resetStudio: (mode) => set({ [mode]: blankStudio(mode) } as Partial<AppState>),
+        set((s) => {
+          const prev = s[mode];
+          const p = typeof patch === "function" ? patch(prev) : patch;
+          // Another template starts from scratch: nothing carries over from the last one.
+          const switched = !!prev.engine && !!p.engine && p.engine !== prev.engine;
+          return { [mode]: switched ? { ...fresh(prev, p.engine!), ...p } : { ...prev, ...p } } as Partial<AppState>;
+        }),
+      openTemplate: (mode, engine) => set((s) => ({ [mode]: fresh(s[mode], engine) }) as Partial<AppState>),
       loadGeneration: (m, opts = {}) => {
         // Remix: every input and setting goes back into the studio.
         const mode = m.mode;
@@ -171,9 +199,12 @@ export const useApp = create<AppState>()(
                 publicUrl: v.url ?? undefined,
               }
             : null;
+        const prev = get()[mode];
+        const engine = opts.engine ?? m.engine.model;
         const next: StudioState = {
-          ...blankStudio(mode),
-          engine: opts.engine ?? m.engine.model,
+          ...blankStudio(),
+          variants: prev.variants,
+          engine,
           title: m.title,
           video,
           refs,
@@ -203,6 +234,13 @@ export const useApp = create<AppState>()(
       name: "openillusion.studio.v1",
       storage: safeStorage,
       partialize: (s) => ({ motion: s.motion, edit: s.edit }),
+      // v2: the built-in cloud engines were removed; drafts pointing at one start without an engine.
+      version: 2,
+      migrate: (old, from) => {
+        const st = old as Partial<AppState>;
+        if (from < 2) for (const m of ["motion", "edit"] as const) if (st[m] && !st[m]!.engine.startsWith("local/")) st[m] = { ...st[m]!, engine: "" };
+        return st as AppState;
+      },
     },
   ),
 );

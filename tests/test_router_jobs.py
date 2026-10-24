@@ -35,8 +35,8 @@ class FakeRouter:
                 return httpx.Response(422, headers={"X-Comfy-Error-Type": "invalid_input", "content-type": "application/json"},
                                       json={"detail": [{"loc": ["body", "duration"], "msg": "must be ≤ 15", "type": "less_than_equal"}]})
             body = json.loads(request.content)
-            assert body["content"][1]["image_url"]["url"].startswith("data:image/")
-            assert body["content"][-1]["video_url"]["url"].startswith("data:video/mp4;base64,")
+            assert body["images"][0].startswith("data:image/")
+            assert body["video_url"].startswith("data:video/mp4;base64,")
             return httpx.Response(201, json={"request_id": "r1", "status": "IN_QUEUE", "queue_position": 2})
         if path.endswith("/status"):
             self.polls += 1
@@ -65,7 +65,7 @@ def uploads(tmp_path):
 
 def motion_spec():
     return {
-        "engine": "minimax/minimax-h3",
+        "engine": "acme/any-router-model",  # no template: the generic schema-form path
         "inputs": [
             {"slot": "image:1", "role": "character", "asset": "ref.png", "license": "own-image"},
             {"slot": "video:1", "role": "motion", "asset": "clip.mp4", "trim": [1, 4], "duration": 5,

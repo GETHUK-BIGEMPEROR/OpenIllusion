@@ -14,14 +14,18 @@ tab shows and what a generation stores; ``materialize`` swaps tokens for real da
 from __future__ import annotations
 
 import copy
+import functools
 import json
 import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import quote
 
-from . import media, paths
+from PIL import Image
+
+from . import media, paths, prep
 
 log = logging.getLogger("openillusion")
 
@@ -61,7 +65,20 @@ class Engine:
     outputs: list[str] = field(default_factory=list)
     hints: dict = field(default_factory=dict)
     source: str | None = None
-    prompt: dict | None = None  # local templates: {label, hint} for the prompt box
+    prompt: dict | None = None  # local templates: {label, hint, required} for the prompt box
+    examples: list[str] = field(default_factory=list)  # prompts that are known to work
+    tips: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    inputs: list[dict] = field(default_factory=list)  # what each image/video slot is for: {slot, label, hint}
+    data: dict | None = None  # the template file as loaded (local templates)
+    path: Path | None = None
+    origin: str = "shipped"  # shipped (in the package) | user (the user's templates folder)
+    edited: bool = False  # a user file overrides a shipped template with the same id
+    cover: Path | None = None  # poster the template ships with; the user can override it
+    cover_video: Path | None = None  # optional short loop shown over the poster
+    size: dict | None = None  # how inputs are cropped and sized before the run (see prep.py)
+    default_prompt: str = ""  # what the prompt box opens with
+    default_inputs: dict[str, Path] = field(default_factory=dict)  # sample media each slot opens with, by slot
 
 
 def role_sentences(inputs: list[dict]) -> str:
@@ -117,56 +134,6 @@ def _videos(inputs):
     return [i for i in inputs if i["slot"].startswith("video:")]
 
 
-def build_h3(spec: dict) -> dict:
-    p = spec.get("params", {})
-    content: list[dict] = [{"type": "text", "text": spec.get("prompt", "")}]
-    for i in _images(spec["inputs"]):
-        content.append({"type": "image_url", "image_url": {"url": "{{%s}}" % i["slot"]}, "role": "reference_image"})
-    # Recast keeps the clip's motion; Swap edits the clip itself (base_video).
-    video_role = "base_video" if p.get("motion_mode") == "swap" else "reference_video"
-    for v in _videos(spec["inputs"]):
-        content.append({"type": "video_url", "video_url": {"url": "{{%s}}" % v["slot"]}, "role": video_role})
-    body: dict[str, Any] = {
-        "content": content,
-        "duration": int(p.get("duration", 8)),
-        "resolution": p.get("resolution", "768P"),
-    }
-    if p.get("ratio") and p["ratio"] != "adaptive":
-        body["ratio"] = p["ratio"]
-    if p.get("seed") not in (None, "", -1):
-        body["seed"] = int(p["seed"])
-    if p.get("aigc_watermark"):
-        body["aigc_watermark"] = True
-    return body
-
-
-def build_genjutsu(spec: dict) -> dict:
-    p = spec.get("params", {})
-    body: dict[str, Any] = {
-        "video_url": "{{video:1|url}}",
-        "image_urls": ["{{%s|url}}" % i["slot"] for i in _images(spec["inputs"])],
-        "resolution": p.get("resolution", "720p"),
-    }
-    if spec.get("prompt"):
-        body["prompt"] = spec["prompt"]
-    return body
-
-
-def build_flux3(spec: dict) -> dict:
-    p = spec.get("params", {})
-    body: dict[str, Any] = {
-        "prompt": prompt_with_boxes(spec.get("prompt", ""), spec.get("boxes", [])),
-        "aspect_ratio": p.get("aspect_ratio", "auto"),
-        "resolution": p.get("resolution", "1k"),
-        "grounding": bool(p.get("grounding", False)),
-        "safety_tolerance": int(p.get("safety_tolerance", 2)),
-    }
-    imgs = _images(spec["inputs"])
-    if imgs:
-        body["images"] = ["{{%s|b64}}" % i["slot"] for i in imgs]
-    return body
-
-
 def build_generic(spec: dict) -> dict:
     """Any model: the schema form's values, plus prompt and media where the
     schema has obvious fields for them. The Raw tab covers the rest."""
@@ -219,6 +186,10 @@ def build_local(e: "Engine", spec: dict) -> dict:
             value = p[name]
             if name == "seed" and (value in (None, "") or int(value) < 0):
                 value, cast_ok = SEED_TOKEN, False
+        elif key in ("size.width", "size.height"):  # the prepared output size, for workflows that make their own canvas
+            value = (spec.get("size_px") or {}).get(key[len("size."):])
+            if value is None:
+                continue
         elif ":" in key:  # a media slot
             value, cast_ok = ("{{%s}}" % key if key in slots else None), False
         else:
@@ -259,7 +230,7 @@ def _is_link(v: Any) -> bool:
     return isinstance(v, list) and len(v) == 2 and isinstance(v[0], str) and isinstance(v[1], int)
 
 
-def load_template(data: dict) -> "Engine":
+def load_template(data: dict, base: Path | None = None) -> "Engine":
     if data.get("format") != "openillusion.template":
         raise ValueError("not a openillusion.template")
     tid = data["id"]
@@ -274,6 +245,13 @@ def load_template(data: dict) -> "Engine":
         params=data.get("params", []), curated=True, kind="local",
         workflow=data["workflow"], bindings=data.get("bindings", {}), outputs=[str(o) for o in data.get("outputs", [])],
         hints=data.get("hints", {}), source=data.get("source"), prompt=data.get("prompt"),
+        examples=list(data.get("examples", [])), tips=list(data.get("tips", [])), tags=list(data.get("tags", [])),
+        inputs=list(data.get("inputs", [])),
+        cover=(base / data["cover"]) if base and data.get("cover") else None,
+        cover_video=(base / data["cover_video"]) if base and data.get("cover_video") else None,
+        size=prep.spec_of(data.get("size")),
+        default_prompt=str((data.get("defaults") or {}).get("prompt") or ""),
+        default_inputs={str(k): (base / v) for k, v in ((data.get("defaults") or {}).get("inputs") or {}).items()} if base else {},
     )
     e.build = lambda spec, _e=e: build_local(_e, spec)
     return e
@@ -284,103 +262,114 @@ def template_dirs() -> list[Path]:
 
 
 def load_templates() -> dict[str, "Engine"]:
+    """Shipped templates, then the user's folder; a user file with the same id overrides."""
     out: dict[str, Engine] = {}
-    for d in template_dirs():
+    shipped, user = template_dirs()
+    for d, origin in ((shipped, "shipped"), (user, "user")):
         if not d.is_dir():
             continue
         for f in sorted(d.glob("*.json")):
             try:
-                e = load_template(json.loads(f.read_text("utf-8")))
-                out[e.id] = e
+                data = json.loads(f.read_text("utf-8"))
+                e = load_template(data, base=f.parent)
             except (ValueError, KeyError) as ex:
                 log.warning("OpenIllusion: skipped template %s: %s", f.name, ex)
+                continue
+            e.data, e.path, e.origin = data, f, origin
+            e.edited = origin == "user" and e.id in out and out[e.id].origin == "shipped"
+            out[e.id] = e
     return out
 
 
-SEG = "segmented"
+# ---- editing templates ---------------------------------------------------------
+# Edits never touch the shipped file: the whole template is written to the user's
+# templates folder, which overrides it by id. Resetting deletes that copy.
 
-ENGINES: dict[str, Engine] = {
-    e.id: e
-    for e in [
-        Engine(
-            id="minimax/minimax-h3",
-            mode="motion",
-            label="MiniMax H3",
-            provider="minimax",
-            blurb="Reference-to-video. Keeps the motion of your clip, recasts it from your references. Native stereo audio.",
-            max_images=9,
-            needs_video=True,
-            video_window=(2.0, 15.0),
-            params=[
-                {"key": "duration", "label": "Duration", "type": "int", "min": 4, "max": 15, "default": 8, "unit": "s"},
-                {"key": "resolution", "label": "Resolution", "type": SEG, "options": ["768P", "2K"], "default": "768P"},
-                {"key": "ratio", "label": "Aspect", "type": SEG, "options": ["adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"], "default": "adaptive"},
-                {"key": "seed", "label": "Seed", "type": "seed", "default": -1},
-                {"key": "aigc_watermark", "label": "AIGC watermark", "type": "bool", "default": False},
-            ],
-            build=build_h3,
-        ),
-        Engine(
-            id="higgsfield/higgsfield-genjutsu-motion-transfer-v1.0",
-            mode="motion",
-            label="Genjutsu Motion Transfer",
-            provider="higgsfield",
-            blurb="Higgsfield's motion-transfer model. Takes public URLs only, so each input needs a link.",
-            max_images=8,
-            min_images=1,
-            needs_video=True,
-            video_window=(4.0, 30.0),
-            url_only=True,
-            params=[
-                {"key": "resolution", "label": "Resolution", "type": SEG, "options": ["480p", "720p", "1080p"], "default": "720p"},
-            ],
-            build=build_genjutsu,
-        ),
-        Engine(
-            id="bfl/flux-3-image",
-            mode="edit",
-            label="FLUX 3",
-            provider="bfl",
-            blurb="Edit 1–10 images from an instruction. Boxes ride at the end of the prompt as JSON.",
-            max_images=10,
-            params=[
-                {"key": "aspect_ratio", "label": "Aspect", "type": SEG, "options": ["auto", "1:1", "4:5", "3:4", "2:3", "9:16", "16:9", "3:2", "4:3", "21:9"], "default": "auto"},
-                {"key": "resolution", "label": "Resolution", "type": SEG, "options": ["768sq", "1k", "1.5k", "2k", "4k"], "default": "1k"},
-                {"key": "grounding", "label": "Web grounding", "type": "bool", "default": False},
-                {"key": "safety_tolerance", "label": "Safety tolerance", "type": "int", "min": 0, "max": 4, "default": 2},
-            ],
-            build=build_flux3,
-        ),
-        Engine(
-            id="qwen/qwen-image-3.0", mode="edit", label="Qwen-Image 3.0", provider="qwen",
-            blurb="Form generated from the model's Router schema.", max_images=4, build=build_generic, curated=False,
-        ),
-        Engine(
-            id="google/nano-banana-2", mode="edit", label="Nano Banana 2", provider="google",
-            blurb="Form generated from the model's Router schema.", max_images=10, build=build_generic, curated=False,
-        ),
-        Engine(
-            id="openai/gpt-image-2.5-sunburst", mode="edit", label="GPT Image 2.5", provider="openai",
-            blurb="Form generated from the model's Router schema.", max_images=10, build=build_generic, curated=False,
-        ),
-        Engine(
-            id="byteplus/seedream-5-0-260128", mode="edit", label="Seedream 5", provider="byteplus",
-            blurb="Form generated from the model's Router schema.", max_images=10, build=build_generic, curated=False,
-        ),
-        Engine(
-            id="kling/kling-image-o1", mode="edit", label="Kling Image O1", provider="kling",
-            blurb="Form generated from the model's Router schema.", max_images=10, build=build_generic, curated=False,
-        ),
-        Engine(
-            id="bria/image-edit-relight", mode="edit", label="Bria Relight", provider="bria",
-            blurb="Utility. Form generated from the model's Router schema.", max_images=1, build=build_generic, curated=False,
-        ),
-        Engine(
-            id="bria/image-edit-replace-background", mode="edit", label="Bria Replace background", provider="bria",
-            blurb="Utility. Form generated from the model's Router schema.", max_images=1, build=build_generic, curated=False,
-        ),
-    ]
-}
+_TEXT_LIMIT = {"label": 80, "blurb": 400, "prompt_label": 40, "prompt_hint": 160, "instruction": 2000, "item": 240, "default_prompt": 400}
+
+
+def _clean(v: Any, limit: int) -> str:
+    if not isinstance(v, str):
+        raise ValueError("expected text")
+    v = v.strip()
+    if len(v) > limit:
+        raise ValueError(f"keep it under {limit} characters")
+    return v
+
+
+def _clean_list(v: Any, n: int = 20) -> list[str]:
+    if not isinstance(v, list) or len(v) > n:
+        raise ValueError(f"expected a list of up to {n} items")
+    return [x for x in (_clean(i, _TEXT_LIMIT["item"]) for i in v) if x]
+
+
+def instruction_of(e: Engine) -> dict | None:
+    """The fixed text wrapped around the user's prompt, for templates that declare where it lives."""
+    where = (e.data or {}).get("instruction")
+    if not where or not e.workflow:
+        return None
+    try:
+        return {k: e.workflow[str(n)]["inputs"][inp] for k, (n, inp) in where.items()}
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def edit_template(engine_id: str, patch: dict) -> Engine:
+    e = ENGINES.get(engine_id)
+    if e is None or e.kind != "local" or e.data is None or e.path is None:
+        raise KeyError(engine_id)
+    data = copy.deepcopy(e.data)
+    if "label" in patch:
+        data["label"] = _clean(patch["label"], _TEXT_LIMIT["label"]) or data["label"]
+    if "blurb" in patch:
+        data["blurb"] = _clean(patch["blurb"], _TEXT_LIMIT["blurb"])
+    for k in ("tags", "examples", "tips"):
+        if k in patch:
+            data[k] = _clean_list(patch[k])
+    if isinstance(patch.get("prompt"), dict):
+        pr = dict(data.get("prompt") or {})
+        if "label" in patch["prompt"]:
+            pr["label"] = _clean(patch["prompt"]["label"], _TEXT_LIMIT["prompt_label"]) or pr.get("label", "Prompt")
+        if "hint" in patch["prompt"]:
+            pr["hint"] = _clean(patch["prompt"]["hint"], _TEXT_LIMIT["prompt_hint"])
+        data["prompt"] = pr
+    if isinstance(patch.get("instruction"), dict):
+        where = data.get("instruction") or {}
+        for k, v in patch["instruction"].items():
+            if k not in where:
+                raise ValueError(f"this template has no {k!r} instruction")
+            if not isinstance(v, str) or len(v) > _TEXT_LIMIT["instruction"]:
+                raise ValueError(f"keep the instruction under {_TEXT_LIMIT['instruction']} characters")
+            n, inp = where[k]
+            data["workflow"][str(n)]["inputs"][inp] = v  # untrimmed: spaces at the joins are part of the sentence
+    if "default_prompt" in patch:
+        data["defaults"] = {**(data.get("defaults") or {}), "prompt": _clean(patch["default_prompt"], _TEXT_LIMIT["default_prompt"])}
+    # Media the template ships with stays where it is.
+    for k in ("cover", "cover_video"):
+        if data.get(k):
+            data[k] = str((e.path.parent / data[k]).resolve())
+    if (data.get("defaults") or {}).get("inputs"):
+        data["defaults"]["inputs"] = {k: str((e.path.parent / v).resolve()) for k, v in data["defaults"]["inputs"].items()}
+    dst = e.path if e.origin == "user" else paths.user_root() / "templates" / (re.sub(r"[^A-Za-z0-9._-]+", "__", e.id) + ".json")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+    reload_templates()
+    return ENGINES[e.id]
+
+
+def reset_template(engine_id: str) -> Engine:
+    e = ENGINES.get(engine_id)
+    if e is None or not e.edited or e.path is None:
+        raise KeyError(engine_id)
+    e.path.unlink(missing_ok=True)
+    reload_templates()
+    return ENGINES[engine_id]
+
+
+# Templates live in templates/local/*.json (shipped) and the user's templates
+# folder. Each one is added after it has been run end to end; any other Router
+# model is still reachable through ``get`` with a form built from its schema.
+ENGINES: dict[str, Engine] = {}
 
 
 def reload_templates() -> None:
@@ -409,7 +398,127 @@ def describe(e: Engine) -> dict:
         "max_images": e.max_images, "min_images": e.min_images, "needs_video": e.needs_video,
         "video_window": e.video_window, "fps_window": e.fps_window, "url_only": e.url_only,
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
+        "examples": e.examples, "tips": e.tips, "tags": e.tags, "inputs": e.inputs, "requires": requirements(e),
+        "instruction": instruction_of(e), "origin": e.origin, "edited": e.edited, "size": e.size,
+        "defaults": defaults_info(e),
+        **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),
     }
+
+
+def requirements(e: Engine) -> dict:
+    """What a local template needs in ComfyUI: model files by folder, and node types."""
+    if e.kind != "local" or not e.workflow:
+        return {"models": [], "nodes": []}
+    hinted = e.hints.get("models", {})
+    models = sorted(
+        {(v, hinted.get(v, {}).get("folder", "")) for n in e.workflow.values() for v in n.get("inputs", {}).values()
+         if isinstance(v, str) and v.endswith((".safetensors", ".ckpt", ".pt", ".pth", ".gguf"))}
+    )
+    return {
+        "models": [{"name": m, "folder": f, "url": hinted.get(m, {}).get("url")} for m, f in models],
+        "nodes": sorted({n["class_type"] for n in e.workflow.values()}),
+    }
+
+
+# ---- covers ------------------------------------------------------------------
+# A template's tile in the Library: a poster image, plus an optional short muted
+# loop. The user's choice (saved under covers/) wins over the one the template
+# ships with; neither is required.
+
+COVER_SIDE = 960
+COVER_LOOP_SECONDS = 8.0
+_VIDEO_EXT = {".mp4", ".mov", ".webm", ".m4v"}
+
+
+def user_cover(engine_id: str, ext: str = ".webp") -> Path:
+    return paths.user_root() / "covers" / (re.sub(r"[^A-Za-z0-9._-]+", "__", engine_id) + ext)
+
+
+def cover_files(e: Engine) -> tuple[Path | None, Path | None]:
+    """(poster, loop) for this template, either may be missing."""
+    own = user_cover(e.id)
+    if own.is_file():
+        loop = user_cover(e.id, ".mp4")
+        return own, loop if loop.is_file() else None
+    poster = e.cover if e.cover and e.cover.is_file() else None
+    loop = e.cover_video if e.cover_video and e.cover_video.is_file() else None
+    return poster, loop
+
+
+def cover_file(e: Engine, video: bool = False) -> Path | None:
+    return cover_files(e)[1 if video else 0]
+
+
+@functools.lru_cache(maxsize=256)
+def _aspect(path: str, _mtime: int) -> float:
+    with Image.open(path) as img:
+        return round(img.width / max(1, img.height), 4)
+
+
+@functools.lru_cache(maxsize=256)
+def _dims(path: str, _mtime: int) -> tuple[int, int]:
+    return media.image_size(path)
+
+
+def default_input(engine_id: str, slot: str) -> Path:
+    """The sample file a template opens a slot with."""
+    e = ENGINES.get(engine_id)
+    p = e.default_inputs.get(slot) if e else None
+    if p is None or not p.is_file():
+        raise FileNotFoundError(f"{engine_id} has no sample for {slot}")
+    return p
+
+
+def defaults_info(e: Engine) -> dict:
+    """What a template opens with: its prompt, and a sample for each slot that has one.
+    Samples are assets like uploads (``tpl:<engine>|<slot>``), so runs and remixes treat them the same."""
+    inputs = []
+    for slot, p in e.default_inputs.items():
+        if not p.is_file():
+            continue
+        v = p.stat().st_mtime_ns // 1_000_000
+        w, h = _dims(str(p), v)
+        inputs.append({
+            "slot": slot, "asset": f"tpl:{e.id}|{slot}", "name": p.name, "kind": "image", "width": w, "height": h,
+            "url": f"/api/templates/input?engine={quote(e.id, safe='')}&slot={quote(slot, safe='')}&v={v}",
+        })
+    return {"prompt": e.default_prompt, "inputs": inputs}
+
+
+def _cover_info(e: Engine) -> dict:
+    poster, loop = cover_files(e)
+    if poster is None:
+        return {"cover": None, "cover_video": None, "cover_aspect": None}
+    v = poster.stat().st_mtime_ns // 1_000_000
+    url = f"/api/cover?engine={quote(e.id, safe='')}&v={v}"
+    return {
+        "cover": url,
+        "cover_video": f"{url}&video=1" if loop else None,
+        "cover_aspect": _aspect(str(poster), v),
+    }
+
+
+def set_cover(engine_id: str, src: Path, loop: Path | None = None) -> Path:
+    """Make ``src`` this template's cover. A video becomes a short muted loop
+    plus its first frame as the poster; ``loop`` adds a loop to an image poster."""
+    dst = user_cover(engine_id)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    clip = loop or (src if src.suffix.lower() in _VIDEO_EXT else None)
+    poster = media.frame_at(src) if src.suffix.lower() in _VIDEO_EXT else media.open_image(src)
+    mp4 = user_cover(engine_id, ".mp4")
+    if clip is None:
+        mp4.unlink(missing_ok=True)
+    else:
+        tmp = mp4.with_suffix(".tmp.mp4")
+        media.transcode(clip, tmp, end=COVER_LOOP_SECONDS, max_height=720, max_bytes=4 * 1024 * 1024,
+                        min_fps=1, keep_audio=False)
+        tmp.replace(mp4)
+    return media.save_webp(poster, dst, max_side=COVER_SIDE)
+
+
+def clear_cover(engine_id: str) -> None:
+    user_cover(engine_id).unlink(missing_ok=True)
+    user_cover(engine_id, ".mp4").unlink(missing_ok=True)
 
 
 def compose(spec: dict) -> dict:
@@ -419,8 +528,17 @@ def compose(spec: dict) -> dict:
     imgs, vids = _images(spec["inputs"]), _videos(spec["inputs"])
     if len(imgs) > e.max_images:
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} takes at most {e.max_images} images"})
-    if len(imgs) < e.min_images:
-        warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} needs at least {e.min_images} image"})
+    given = {i.get("slot") for i in imgs}
+    named = [i for i in (e.inputs or [])[: e.min_images] if i.get("slot") and i.get("label")]
+    if named:
+        # Templates say which input is missing, in their own words.
+        for i in named:
+            if i["slot"] not in given:
+                label = i["label"].lower()
+                warnings.append({"field": "inputs", "level": "error", "text": f"Add {'an' if label[:1] in 'aeiou' else 'a'} {label}"})
+    elif len(imgs) < e.min_images:
+        n = e.min_images
+        warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} needs at least {n} image{'' if n == 1 else 's'}"})
     if e.needs_video and not vids:
         warnings.append({"field": "video", "level": "error", "text": "Add a driving video"})
     if e.video_window:
@@ -432,7 +550,8 @@ def compose(spec: dict) -> dict:
         for i in spec["inputs"]:
             if not i.get("url"):
                 warnings.append({"field": i["slot"], "level": "error", "text": f"{e.label} takes public URLs only. Add a link for {i['slot']}."})
-    if not spec.get("prompt", "").strip() and (e.id in ("minimax/minimax-h3", "bfl/flux-3-image") or e.kind == "local"):
+    prompt_required = (e.prompt or {}).get("required", True)
+    if not spec.get("prompt", "").strip() and e.curated and prompt_required:  # raw Router models may not need one
         warnings.append({"field": "prompt", "level": "error", "text": "Write a prompt"})
     if spec.get("raw"):
         template = spec["raw"]
