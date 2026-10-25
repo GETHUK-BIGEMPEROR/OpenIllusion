@@ -217,8 +217,9 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.get(API + "/templates/input")
     async def template_input(request):
+        get = engines.default_poster if request.query.get("poster") else engines.default_input
         try:
-            f = engines.default_input(request.query.get("engine", ""), request.query.get("slot", ""))
+            f = get(request.query.get("engine", ""), request.query.get("slot", ""))
         except FileNotFoundError:
             return err(404, "No sample")
         return web.FileResponse(f, headers={"Cache-Control": "public, max-age=31536000, immutable"})

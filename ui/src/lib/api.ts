@@ -32,6 +32,8 @@ export interface EngineInfo {
   min_images: number;
   needs_video: boolean;
   video_window: [number, number] | null;
+  /** Local templates: the clip is re-encoded no taller than this. */
+  video_max_height?: number | null;
   fps_window: [number, number];
   url_only: boolean;
   params: ParamSpec[];

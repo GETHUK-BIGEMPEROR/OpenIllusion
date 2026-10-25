@@ -625,8 +625,9 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
             trim = raw.get("trim") or [0, 0]
             budget = int(media.REQUEST_MEDIA_BUDGET * 0.8)
             lo, hi = e.fps_window
+            max_h = min(int(raw.get("max_height") or 1080), e.video_max_height or 1080)
             info = media.transcode(src, folder / "driving" / "driving.mp4", start=float(trim[0] or 0), end=float(trim[1] or 0) or None,
-                                   max_bytes=budget, min_fps=lo, max_fps=hi, max_height=int(raw.get("max_height") or 1080))
+                                   max_bytes=budget, min_fps=lo, max_fps=hi, max_height=max_h)
             media.poster(folder / "driving" / "driving.mp4", folder / "driving" / "poster.webp")
             item.file, item.width, item.height, item.duration = "driving/driving.mp4", info["width"], info["height"], info["duration"]
             item.trim = [float(trim[0] or 0), float(trim[1] or 0)]

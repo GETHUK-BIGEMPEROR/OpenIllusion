@@ -44,6 +44,8 @@ export interface VideoSlot extends Media {
   contains_person: boolean;
   consent: boolean;
   publicUrl?: string;
+  /** The template's sample clip, not the user's own. */
+  sample?: boolean;
 }
 
 export interface StudioState {

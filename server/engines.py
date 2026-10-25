@@ -55,6 +55,7 @@ class Engine:
     needs_video: bool = False
     video_window: tuple[float, float] | None = None  # seconds
     fps_window: tuple[float, float] = (23.976, 60.0)
+    video_max_height: int | None = None  # the driving clip is re-encoded no taller than this
     url_only: bool = False
     params: list[dict] = field(default_factory=list)
     build: Callable[[dict], dict] | None = None
@@ -242,6 +243,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         needs_video=bool(data.get("needs_video", False)),
         video_window=tuple(data["video_window"]) if data.get("video_window") else None,
         fps_window=tuple(data.get("fps_window") or (1.0, 60.0)),
+        video_max_height=int(data["video_max_height"]) if data.get("video_max_height") else None,
         params=data.get("params", []), curated=True, kind="local",
         workflow=data["workflow"], bindings=data.get("bindings", {}), outputs=[str(o) for o in data.get("outputs", [])],
         hints=data.get("hints", {}), source=data.get("source"), prompt=data.get("prompt"),
@@ -396,7 +398,7 @@ def describe(e: Engine) -> dict:
     return {
         "id": e.id, "mode": e.mode, "label": e.label, "provider": e.provider, "blurb": e.blurb,
         "max_images": e.max_images, "min_images": e.min_images, "needs_video": e.needs_video,
-        "video_window": e.video_window, "fps_window": e.fps_window, "url_only": e.url_only,
+        "video_window": e.video_window, "fps_window": e.fps_window, "video_max_height": e.video_max_height, "url_only": e.url_only,
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
         "examples": e.examples, "tips": e.tips, "tags": e.tags, "inputs": e.inputs, "requires": requirements(e),
         "instruction": instruction_of(e), "origin": e.origin, "edited": e.edited, "size": e.size,
@@ -460,6 +462,11 @@ def _dims(path: str, _mtime: int) -> tuple[int, int]:
     return media.image_size(path)
 
 
+@functools.lru_cache(maxsize=64)
+def _clip(path: str, _mtime: int) -> dict:
+    return media.probe(path)
+
+
 def default_input(engine_id: str, slot: str) -> Path:
     """The sample file a template opens a slot with."""
     e = ENGINES.get(engine_id)
@@ -467,6 +474,16 @@ def default_input(engine_id: str, slot: str) -> Path:
     if p is None or not p.is_file():
         raise FileNotFoundError(f"{engine_id} has no sample for {slot}")
     return p
+
+
+def default_poster(engine_id: str, slot: str) -> Path:
+    """A still of a sample clip, made once and kept in the cache."""
+    src = default_input(engine_id, slot)
+    dst = paths.cache_dir() / "samples" / f"{re.sub(r'[^A-Za-z0-9._-]+', '__', engine_id + '|' + slot)}-{src.stat().st_mtime_ns}.webp"
+    if not dst.is_file():
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        media.poster(src, dst)
+    return dst
 
 
 def defaults_info(e: Engine) -> dict:
@@ -477,11 +494,16 @@ def defaults_info(e: Engine) -> dict:
         if not p.is_file():
             continue
         v = p.stat().st_mtime_ns // 1_000_000
-        w, h = _dims(str(p), v)
-        inputs.append({
-            "slot": slot, "asset": f"tpl:{e.id}|{slot}", "name": p.name, "kind": "image", "width": w, "height": h,
-            "url": f"/api/templates/input?engine={quote(e.id, safe='')}&slot={quote(slot, safe='')}&v={v}",
-        })
+        url = f"/api/templates/input?engine={quote(e.id, safe='')}&slot={quote(slot, safe='')}&v={v}"
+        item = {"slot": slot, "asset": f"tpl:{e.id}|{slot}", "name": p.name, "url": url}
+        if p.suffix.lower() in _VIDEO_EXT:
+            info = _clip(str(p), v)
+            item.update(kind="video", width=info["width"], height=info["height"], duration=info["duration"], fps=info["fps"],
+                        has_audio=info["has_audio"], poster=f"{url}&poster=1")
+        else:
+            w, h = _dims(str(p), v)
+            item.update(kind="image", width=w, height=h)
+        inputs.append(item)
     return {"prompt": e.default_prompt, "inputs": inputs}
 
 
@@ -529,7 +551,8 @@ def compose(spec: dict) -> dict:
     if len(imgs) > e.max_images:
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} takes at most {e.max_images} images"})
     given = {i.get("slot") for i in imgs}
-    named = [i for i in (e.inputs or [])[: e.min_images] if i.get("slot") and i.get("label")]
+    photos = [i for i in (e.inputs or []) if str(i.get("slot", "")).startswith("image:")]
+    named = [i for i in photos[: e.min_images] if i.get("label")]
     if named:
         # Templates say which input is missing, in their own words.
         for i in named:
@@ -540,7 +563,8 @@ def compose(spec: dict) -> dict:
         n = e.min_images
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} needs at least {n} image{'' if n == 1 else 's'}"})
     if e.needs_video and not vids:
-        warnings.append({"field": "video", "level": "error", "text": "Add a driving video"})
+        clip = next((i.get("label") for i in (e.inputs or []) if str(i.get("slot", "")).startswith("video:") and i.get("label")), "driving video")
+        warnings.append({"field": "video", "level": "error", "text": f"Add {'an' if clip[:1].lower() in 'aeiou' else 'a'} {clip.lower()}"})
     if e.video_window:
         for v in vids:
             d = v.get("trimmed_duration") or v.get("duration")

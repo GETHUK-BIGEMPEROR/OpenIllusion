@@ -124,8 +124,9 @@ def test_every_template_opens_ready_to_run():
             continue
         d = engines.describe(e)["defaults"]
         assert d["prompt"].strip(), e.id
-        assert [i["slot"] for i in d["inputs"]] == [f"image:{n}" for n in range(1, e.max_images + 1)], e.id
-        spec = {"engine": e.id, "prompt": d["prompt"], "params": {}, "inputs": [{"slot": i["slot"], "asset": i["asset"]} for i in d["inputs"]]}
+        want = [f"image:{n}" for n in range(1, e.max_images + 1)] + (["video:1"] if e.needs_video else [])
+        assert sorted(i["slot"] for i in d["inputs"]) == sorted(want), e.id
+        spec = {"engine": e.id, "prompt": d["prompt"], "params": {}, "inputs": [{"slot": i["slot"], "asset": i["asset"], "duration": i.get("duration")} for i in d["inputs"]]}
         assert not [w for w in engines.compose(spec)["warnings"] if w["level"] == "error"], e.id
 
 

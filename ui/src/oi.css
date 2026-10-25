@@ -220,6 +220,9 @@ kbd{font:500 10.5px/1 var(--mono);padding:4px 6px;border-radius:6px;border:1px s
 .slotrow b{display:block;font-size:13px;font-weight:500}
 .slotrow .sub{display:flex;align-items:center;gap:7px;margin-top:6px;font:500 11px var(--mono);color:var(--text-3)}
 .slotrow .sacts{display:flex;gap:2px}
+.slotrow .sth .dur{position:absolute;right:4px;bottom:4px;padding:0 4px;border-radius:5px;background:rgba(0,0,0,.6);font:500 10px/16px var(--mono);color:#fff}
+.slotrow .sth>.i{width:20px;height:20px;color:var(--text-2)}
+.cliprow{display:flex;flex-direction:column;gap:10px;margin-bottom:8px}
 .slotrow.empty{border:1.5px dashed var(--line-2);background:transparent;cursor:pointer}
 .slotrow.empty:hover{background:var(--raised);border-color:rgba(226,214,255,.3)}
 .slotrow.empty .sth{display:grid;place-items:center;color:var(--text-2);background:var(--raised)}

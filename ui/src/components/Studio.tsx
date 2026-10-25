@@ -34,9 +34,12 @@ export function useStudio(mode: Mode) {
     const e = engines.data?.find((x) => x.id === s.engine);
     if (!e || s.seeded === e.id) return;
     if (s.refs.length || s.prompt || s.video || !e.defaults) return set(mode, { seeded: e.id });
+    const clip = e.needs_video ? e.defaults.inputs.find((i) => i.slot === "video:1") : undefined;
+    const d = clip?.duration ?? 0;
     set(mode, {
       seeded: e.id,
       prompt: e.defaults.prompt,
+      video: clip ? { ...clip, trim: [0, e.video_window ? Math.min(d, e.video_window[1]) : d], sample: true, license: "stock", contains_person: false, consent: false } : null,
       refs: e.defaults.inputs.filter((i) => i.slot.startsWith("image:")).map((i) => {
         const n = Number(i.slot.split(":")[1]);
         return {

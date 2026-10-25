@@ -31,7 +31,7 @@ def generic_spec(engine="acme/any-router-model", **kw):
 TESTED = {HAT} | {f"local/qwen21-{n}" for n in (
     "outfit-swap", "relight", "background-swap", "hair", "expression",
     "glasses", "makeup", "restyle", "remove", "recolor", "product-shot", "hold-product", "weather", "restore",
-)}
+)} | {"local/minimax-h3-character-swap"}  # same card, 0.4 MP x 124 frames, 4 steps, ~10 min
 
 
 def test_only_tested_templates_ship():
@@ -43,7 +43,7 @@ def test_shipped_templates_wrap_the_prompt_and_name_their_inputs(tid):
     e = engines.ENGINES[tid]
     d = engines.describe(e)
     assert d["instruction"] and d["instruction"]["start"] and d["instruction"]["end"]
-    assert [i["slot"] for i in d["inputs"]] == [f"image:{n}" for n in range(1, e.max_images + 1)]
+    assert [i["slot"] for i in d["inputs"]] == ["video:1"] * e.needs_video + [f"image:{n}" for n in range(1, e.max_images + 1)]
     assert d["examples"] and d["tags"]
 
 
@@ -268,3 +268,34 @@ def test_reset_needs_an_edit_and_edit_needs_a_template():
         engines.reset_template(HAT)
     with pytest.raises(KeyError):
         engines.edit_template("local/nope", {"label": "x"})
+
+
+# ---- motion templates ----------------------------------------------------------
+
+SWAP = "local/minimax-h3-character-swap"
+
+
+def test_swap_needs_its_clip_and_character_by_name():
+    e = engines.ENGINES[SWAP]
+    w = engines.compose({"engine": SWAP, "inputs": [{"slot": "image:1", "asset": "a.png"}], "prompt": "the man", "params": {}})["warnings"]
+    assert [x["text"] for x in w] == ["Add a source clip"]
+    w = engines.compose({"engine": SWAP, "inputs": [{"slot": "video:1", "asset": "v.mp4", "duration": 5}], "prompt": "the man", "params": {}})["warnings"]
+    assert [x["text"] for x in w] == ["Add a character"]
+    c = engines.compose({"engine": SWAP, "inputs": [{"slot": "image:1", "asset": "a.png"}, {"slot": "video:1", "asset": "v.mp4", "duration": 5}],
+                         "prompt": "the man on the left", "params": {"megapixels": "0.3", "keep_audio": False, "strength": 0.8}})
+    assert c["warnings"] == []
+    t = c["template"]
+    assert t["1"]["inputs"]["image"] == "{{image:1}}" and t["2"]["inputs"]["file"] == "{{video:1}}"
+    assert t["20"]["inputs"]["string_b"] == "the man on the left"
+    assert t["4"]["inputs"]["megapixels"] == 0.3 and t["42"]["inputs"]["switch"] is False and t["11"]["inputs"]["strength_model"] == 0.8
+    assert e.fps_window == (24, 24) and e.video_max_height == 720
+
+
+def test_sample_clip_is_described_as_video_with_a_poster():
+    e = engines.ENGINES[SWAP]
+    d = {i["slot"]: i for i in engines.defaults_info(e)["inputs"]}
+    v = d["video:1"]
+    assert v["kind"] == "video" and v["duration"] > 2 and v["fps"] == 24 and v["poster"].endswith("&poster=1")
+    assert d["image:1"]["kind"] == "image"
+    p = engines.default_poster(SWAP, "video:1")
+    assert p.suffix == ".webp" and p.is_file() and p.parent.parent == engines.paths.cache_dir()
