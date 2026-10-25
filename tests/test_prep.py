@@ -3,7 +3,7 @@ import math
 import pytest
 from PIL import Image
 
-from openillusion import engines, jobs, paths, prep
+from server import engines, jobs, paths, prep
 
 QWEN = {"options": [{"label": "1K", "px": 1024}, {"label": "2K", "px": 2048}, {"label": "Original", "px": 0}],
         "default": "1K", "multiple": 32, "follows": "image:1"}
@@ -102,7 +102,7 @@ def test_exif_rotation_is_applied(tmp_path):
     exif = img.getexif()
     exif[0x0112] = 6  # rotate 90° clockwise to view
     img.save(paths.uploads_dir() / "phone.jpg", exif=exif)
-    from openillusion import media
+    from server import media
 
     assert media.image_size(paths.uploads_dir() / "phone.jpg") == (300, 400)
     assert media.open_image(paths.uploads_dir() / "phone.jpg").size == (300, 400)

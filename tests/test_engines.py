@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from openillusion import engines
+from server import engines
 
 from conftest import make_image, make_video
 
@@ -191,7 +191,7 @@ def test_shipped_cover_is_the_fallback(tmp_path, monkeypatch):
 
 
 def test_load_template_resolves_cover_next_to_it(tmp_path):
-    data = json.loads((engines.paths.package_root() / "templates" / "local" / "qwen21-add-hat.json").read_text("utf-8"))
+    data = json.loads((engines.paths.templates_dir() / "qwen21-add-hat.json").read_text("utf-8"))
     data["cover"] = "hat.webp"
     assert engines.load_template(data, base=tmp_path).cover == tmp_path / "hat.webp"
 

@@ -8,7 +8,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from openillusion import engines, paths, store  # noqa: E402
+from server import engines, paths, store  # noqa: E402
 
 FIX = Path(__file__).parent / "fixtures"
 

@@ -6,8 +6,8 @@ import json
 import httpx
 import pytest
 
-from openillusion import jobs, media, paths, settings, store
-from openillusion.router import Router, RouterError
+from server import jobs, media, paths, settings, store
+from server.router import Router, RouterError
 
 from conftest import make_video
 
@@ -146,7 +146,7 @@ def test_variants_group_under_parent(tmp_path, uploads, monkeypatch):
 
 def test_read_error_survives_html():
     resp = httpx.Response(502, text="<html>bad gateway</html>", headers={"X-Comfy-Request-Id": "abc"})
-    from openillusion.router import read_error
+    from server.router import read_error
 
     e = read_error(resp)
     assert e.status == 502 and e.request_id == "abc" and e.error_type == "internal_error"

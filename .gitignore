@@ -9,7 +9,7 @@ dist/
 
 # UI
 ui/node_modules/
-openillusion/static/
+server/static/
 
 # Editors / OS
 .vscode/

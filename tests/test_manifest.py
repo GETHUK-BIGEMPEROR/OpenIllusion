@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from openillusion import generation as sc
+from server import generation as sc
 
 
 def base(**kw):
@@ -65,7 +65,7 @@ def test_schema_file_is_current():
     from pathlib import Path
 
     f = Path(__file__).resolve().parent.parent / "schema" / "generation.v1.json"
-    assert json.loads(f.read_text("utf-8")) == json.loads(json.dumps(sc.json_schema())), "run: python -m openillusion.gen_schema"
+    assert json.loads(f.read_text("utf-8")) == json.loads(json.dumps(sc.json_schema())), "run: python -m server.gen_schema"
 
 
 def test_licenses_md_lists_every_input():

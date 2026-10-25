@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { PrepPlan, SizeSpec } from "./api";
 
 /**
- * Live previews of what openillusion/prep.py will do to each image. Same formulas, line for line;
+ * Live previews of what server/prep.py will do to each image. Same formulas, line for line;
  * the server's plans (from compose) replace these once they arrive.
  */
 

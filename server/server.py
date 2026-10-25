@@ -1,4 +1,4 @@
-"""The standalone OpenIllusion server: ``python -m openillusion`` or ``openillusion``.
+"""The standalone OpenIllusion server: ``python -m server`` or ``openillusion``.
 
 Serves the web app and its API on one port. Cloud runs go to Comfy Router
 with the user's key; local runs go to Comfy API v2 (comfy-api-proxy) in

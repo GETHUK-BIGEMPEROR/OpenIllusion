@@ -21,13 +21,13 @@ dependencies = [
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "numpy>=1.26"]
 
 [project.scripts]
-openillusion = "openillusion.server:main"
+openillusion = "server.server:main"
 
 [tool.setuptools.dynamic]
-version = { attr = "openillusion.__version__" }
+version = { attr = "server.__version__" }
 
 [tool.setuptools.packages.find]
-include = ["openillusion*"]
+include = ["server*"]
 
 [tool.setuptools.package-data]
-openillusion = ["templates/local/*.json", "templates/local/media/*", "static/**/*", "starters/**/*"]
+server = ["static/**/*"]

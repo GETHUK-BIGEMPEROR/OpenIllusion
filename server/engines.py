@@ -258,7 +258,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
 
 
 def template_dirs() -> list[Path]:
-    return [paths.package_root() / "templates" / "local", paths.user_root() / "templates"]
+    return [paths.templates_dir(), paths.user_root() / "templates"]
 
 
 def load_templates() -> dict[str, "Engine"]:

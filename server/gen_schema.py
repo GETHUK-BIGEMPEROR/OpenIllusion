@@ -1,6 +1,6 @@
 """Regenerate schema/generation.v1.json from the manifest model.
 
-    python -m openillusion.gen_schema
+    python -m server.gen_schema
 """
 
 import json

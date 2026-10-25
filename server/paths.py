@@ -67,12 +67,17 @@ def db_file() -> Path:
 
 
 def package_root() -> Path:
-    """The ``openillusion`` package folder (templates, built web app)."""
+    """The ``server`` package folder (Python code and the built web app in ``static/``)."""
     return Path(__file__).resolve().parent
 
 
 def repo_root() -> Path:
     return package_root().parent
+
+
+def templates_dir() -> Path:
+    """Shipped local templates: ``templates/local`` at the project root."""
+    return repo_root() / "templates" / "local"
 
 
 def _ensure(p: Path) -> Path:

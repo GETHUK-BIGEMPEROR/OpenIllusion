@@ -6,7 +6,7 @@ import json
 import httpx
 import pytest
 
-from openillusion import engines, jobs, local, media, paths, store
+from server import engines, jobs, local, media, paths, store
 
 from conftest import make_video
 
@@ -264,7 +264,7 @@ def test_upstream_seen_from_here():
 
 
 def _ensure_with(monkeypatch, upstream, comfy="http://127.0.0.1:8188", ours=False):
-    from openillusion import proxy, settings
+    from server import proxy, settings
 
     settings.save({"local_comfyui_url": comfy, "local_v2_url": "http://127.0.0.1:8189"})
 

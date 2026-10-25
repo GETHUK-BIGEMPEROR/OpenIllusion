@@ -1,6 +1,6 @@
 import type { Box } from "./api";
 
-// Mirrors openillusion/engines.py box_rows: fractions → FLUX 3 [ymin, xmin, ymax, xmax] in 0..1000.
+// Mirrors server/engines.py box_rows: fractions → FLUX 3 [ymin, xmin, ymax, xmax] in 0..1000.
 const q = (v: number) => Math.max(0, Math.min(1000, Math.round(v * 1000)));
 
 export function engineBoxes(boxes: Box[]): string {
