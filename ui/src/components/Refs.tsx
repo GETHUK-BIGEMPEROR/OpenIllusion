@@ -32,7 +32,19 @@ const byPosition = (refs: RefSlot[]) => refs.map(({ slot: _, ...r }) => r as Ref
 /** Add images to a studio's tray from outside it (a drop on the canvas or anywhere in the window). */
 export function addToTray(mode: Mode, assets: Asset[]) {
   const st = useApp.getState();
-  st.setStudio(mode, (s) => ({ refs: mode === "edit" ? withRefs(s.refs, assets, EDIT_ROLES, "base") : withRefs(s.refs, assets, ROLES, "character") }));
+  const [roles, def] = mode === "edit" ? [EDIT_ROLES, "base"] : [ROLES, "character"];
+  st.setStudio(mode, (s) => {
+    // Your photos take the place of the template's samples first, in slot order.
+    let refs = bySlot(s.refs);
+    const rest: Asset[] = [];
+    for (const a of assets) {
+      const i = refs.findIndex((r) => r.sample);
+      if (i < 0) { rest.push(a); continue; }
+      const [added] = withRefs([], [a], roles, def);
+      refs = refs.map((r, k) => (k === i ? { ...added, slot: r.slot, role: r.role } : r));
+    }
+    return { refs: rest.length ? withRefs(refs, rest, roles, def) : refs, current: null };
+  });
 }
 
 export function useUploader() {

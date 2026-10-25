@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS generations (
   created REAL, updated REAL,
   tags TEXT, has_driving INTEGER, ref_count INTEGER,
   poster TEXT, preview TEXT, result_kind TEXT,
-  starred INTEGER, parent TEXT, variant TEXT
+  starred INTEGER, parent TEXT, variant TEXT,
+  prompt TEXT, width INTEGER, height INTEGER, elapsed REAL, seed INTEGER
 );
 CREATE VIRTUAL TABLE IF NOT EXISTS generations_fts USING fts5(id UNINDEXED, title, prompt, tags, notes);
 """
@@ -43,8 +44,15 @@ def db() -> sqlite3.Connection:
         if _conn is None or _conn_path != f:
             _conn = sqlite3.connect(str(f), check_same_thread=False)
             _conn.row_factory = sqlite3.Row
+            # An index from before a column was added is rebuilt from the folders.
+            cols = {r[1] for r in _conn.execute("PRAGMA table_info(generations)")}
+            stale = bool(cols) and "seed" not in cols
+            if stale:
+                _conn.execute("DROP TABLE generations")
             _conn.executescript(SCHEMA)
             _conn_path = f
+            if stale:
+                reindex()
         return _conn
 
 
@@ -68,12 +76,17 @@ def index(m: sc.Manifest, shelf: str | None = None) -> None:
     has_driving = any(i.slot.startswith("video:") and (i.file or i.url) for i in m.inputs)
     refs = sum(1 for i in m.inputs if i.slot.startswith("image:"))
     res = m.result
+    w, h = _dims(generation_id=m.id, rel=(res.poster or res.file) if res else None)
+    if not w:
+        lead = next((i for i in m.inputs if i.slot == "image:1"), None)
+        w, h = (lead.width, lead.height) if lead else (None, None)
     row = (
         m.id, m.title, m.mode, m.engine.model, (res.provider if res else None) or m.engine.provider,
         m.status, m.outcome, shelf, m.created, time.time(),
         json.dumps(m.tags), int(has_driving), refs,
         res.poster if res else None, res.file if res else None, res.kind if res else None,
         int(m.starred), m.lineage.parent, m.variant,
+        m.prompt, w, h, res.elapsed if res else None, res.seed if res else None,
     )
     with _lock:
         c = db()
@@ -84,6 +97,19 @@ def index(m: sc.Manifest, shelf: str | None = None) -> None:
             (m.id, m.title, m.prompt, " ".join(m.tags), m.notes),
         )
         c.commit()
+
+
+def _dims(generation_id: str, rel: str | None) -> tuple[int | None, int | None]:
+    """Pixel size of a result image (header only), so walls lay out before media loads."""
+    if not rel:
+        return None, None
+    try:
+        from PIL import Image
+
+        with Image.open(folder(generation_id) / rel) as im:
+            return im.width, im.height
+    except Exception:
+        return None, None
 
 
 def save(m: sc.Manifest, shelf: str | None = None) -> sc.Manifest:

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 
 // Hash routes keep the app a single static page at /.
 export type Route =
-  | { name: "library"; shelf?: string; t?: string }
+  | { name: "explore"; t?: string }
+  | { name: "library"; shelf?: string }
   | { name: "motion" }
   | { name: "edit" }
   | { name: "generation"; id: string }
@@ -17,6 +18,7 @@ export function parse(hash: string): Route {
     case "motion":
       return { name: "motion" };
     case "edit":
+    case "create":
       return { name: "edit" };
     case "generation":
       return parts[1] ? { name: "generation", id: parts[1] } : { name: "library" };
@@ -24,8 +26,12 @@ export function parse(hash: string): Route {
       return { name: "settings" };
     case "connect":
       return { name: "connect" };
+    case "library":
+      // Templates used to be a Library shelf; old links land on Explore.
+      if (q.get("shelf") === "templates") return { name: "explore", t: q.get("t") ?? undefined };
+      return { name: "library", shelf: q.get("shelf") ?? undefined };
     default:
-      return { name: "library", shelf: q.get("shelf") ?? undefined, t: q.get("t") ?? undefined };
+      return { name: "explore", t: q.get("t") ?? undefined };
   }
 }
 
@@ -33,13 +39,12 @@ export function href(r: Route): string {
   switch (r.name) {
     case "generation":
       return `#/generation/${r.id}`;
-    case "library": {
-      const q = new URLSearchParams();
-      if (r.shelf) q.set("shelf", r.shelf);
-      if (r.t) q.set("t", r.t);
-      const s = q.toString();
-      return s ? `#/library?${s}` : "#/library";
-    }
+    case "edit":
+      return "#/create";
+    case "explore":
+      return r.t ? `#/explore?t=${encodeURIComponent(r.t)}` : "#/explore";
+    case "library":
+      return r.shelf && r.shelf !== "mine" ? `#/library?shelf=${r.shelf}` : "#/library";
     default:
       return `#/${r.name}`;
   }

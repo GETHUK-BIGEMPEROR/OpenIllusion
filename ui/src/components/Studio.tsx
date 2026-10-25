@@ -389,7 +389,7 @@ export function NoTemplates({ mode }: { mode: Mode }) {
     <Empty className="flex-1" icon={mode === "motion" ? <Motion size={18} /> : <Brush size={18} />} title={`No ${mode} templates yet`}
       action={<>
         {hasOther && <Button tone="primary" size="md" onClick={() => go({ name: other })}>Open {other === "edit" ? "Edit" : "Motion"} studio</Button>}
-        <Button size="md" onClick={() => go({ name: "library", shelf: "templates" })}>Browse templates</Button>
+        <Button size="md" onClick={() => go({ name: "explore" })}>Browse templates</Button>
       </>}>
       Templates are added one at a time, each after it has run end to end. Drop a template file into your templates folder and it shows up here.
     </Empty>
@@ -539,10 +539,11 @@ export function RawRequest({ s, set, spec, compose }: { s: StudioState; set: Set
   );
 }
 
-/** Sticky run footer: cost, anything blocking the run, then the one primary button. */
-export function RunCard({ s, set, spec, compose, estimate, label, times = 1, onRan, extra }: {
-  mode: Mode; s: StudioState; set: SetStudio; spec: Spec; compose?: { template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[] };
-  estimate?: Estimate | null; label: string; times?: number; onRan?: (ids: string[]) => void; extra?: ReactNode;
+type Composed = { template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[] };
+
+/** Everything that decides whether Run works, and Run itself. R runs from anywhere outside a text field. */
+export function useRunner({ s, set, spec, compose, estimate, onRan }: {
+  s: StudioState; set: SetStudio; spec: Spec; compose?: Composed; estimate?: Estimate | null; onRan?: (ids: string[]) => void;
 }) {
   const qc = useQueryClient();
   const toast = useApp((st) => st.toast);
@@ -587,17 +588,29 @@ export function RunCard({ s, set, spec, compose, estimate, label, times = 1, onR
     }
   };
 
+  const run_ = useRef(run);
+  run_.current = run;
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key.toLowerCase() === "r" && !document.querySelector("[role=dialog]")) {
         e.preventDefault();
-        run();
+        void run_.current();
       }
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
-  });
+  }, []);
+
+  return { run, busy, blocked, reasons, confirm, setConfirm, isLocal };
+}
+
+/** Sticky run footer: cost, anything blocking the run, then the one primary button. */
+export function RunCard({ s, set, spec, compose, estimate, label, times = 1, onRan, extra }: {
+  mode: Mode; s: StudioState; set: SetStudio; spec: Spec; compose?: Composed;
+  estimate?: Estimate | null; label: string; times?: number; onRan?: (ids: string[]) => void; extra?: ReactNode;
+}) {
+  const { run, busy, blocked, reasons, confirm, setConfirm, isLocal } = useRunner({ s, set, spec, compose, estimate, onRan });
 
   return (
     <div className="flex flex-col gap-2.5">

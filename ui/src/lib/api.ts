@@ -63,7 +63,7 @@ export interface EngineInfo {
   cover_aspect?: number | null;
   /** True when the user picked the cover, so it can be reset. */
   cover_custom?: boolean;
-  /** How the app crops and sizes images before the run (openillusion/prep.py). */
+  /** How the app crops and sizes images before the run (server/prep.py). */
   size?: SizeSpec | null;
   /** What the template opens with: a prompt, and a sample for each slot (assets like uploads). */
   defaults?: { prompt: string; inputs: (Asset & { slot: string })[] };
@@ -211,6 +211,12 @@ export interface GenerationRow {
   starred: boolean;
   parent: string | null;
   variant: string | null;
+  prompt: string | null;
+  /** Result size in pixels (else the main input's), so walls lay out before media loads. */
+  width: number | null;
+  height: number | null;
+  elapsed: number | null;
+  seed: number | null;
 }
 
 export interface Estimate {

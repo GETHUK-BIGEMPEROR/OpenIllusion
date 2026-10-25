@@ -37,7 +37,7 @@ export function TemplateHeader({ e }: { e: EngineInfo }) {
           className="mk-btn glass h-7 px-2.5 rounded-lg border-0 text-xs font-semibold text-white inline-flex items-center gap-1.5 hover:bg-black/60">
           <Refresh size={12} />Reset
         </button>
-        <button type="button" onClick={() => go({ name: "library", shelf: "templates", t: e.id })}
+        <button type="button" onClick={() => go({ name: "explore", t: e.id })}
           className="mk-btn glass h-7 px-2.5 rounded-lg border-0 text-xs font-semibold text-white inline-flex items-center gap-1.5 hover:bg-black/60">
           <ModeIcon size={12} />Change
         </button>

@@ -1,62 +1,91 @@
-import { useQueries } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { ABPlayer, typing } from "../components/ABPlayer";
-import { useEngine } from "../components/Engine";
-import { ArrowRight, Brush, External, Refresh, Star, Upload } from "../components/Icons";
-import { RegionCanvas } from "../components/RegionCanvas";
-import { addToTray, RefTray, useUploader } from "../components/Refs";
-import { TemplateHeader, TemplateSlots } from "../components/TemplateInputs";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { typing } from "../components/ABPlayer";
+import { CostPill } from "../components/bits";
+import { useEngine, ParamFields } from "../components/Engine";
+import { Compare, cx, I, jobProgress, QUEUED, Ring, useStatus, gpuName } from "../components/oi";
+import { addToTray, bySlot, RefTray, useUploader, withRefs } from "../components/Refs";
 import {
-  ActionBar, EmptyStage, EngineCard, invalidFields, OutcomeBar, PromptCard, RawRequest, RunCard, RunStatus, SessionStrip, StageBar, StageError,
-  NoTemplates, StageRunning, StudioLayout, useCompose, useCurrent, useStudio, type Fix,
+  invalidFields, LocalNeeds, NoTemplates, RawRequest, StageError, useCompose, useCurrent, useRunner, useStudio, type Fix,
 } from "../components/Studio";
-import { Badge, Button, Kbd, Section, Segmented, cx } from "../components/ui";
-import { StateBadge } from "../components/bits";
-import { api, fileUrl, type Manifest } from "../lib/api";
+import { tplCategory, tplModel, tplName } from "../components/TemplateCard";
+import { Spinner } from "../components/ui";
+import { api, fileUrl, type EngineInfo, type GenerationRow, type Job, type Manifest } from "../lib/api";
 import { EDIT_ROLES, errMsg, roleLabel } from "../lib/format";
-import { useElapsed, useJobs } from "../lib/live";
+import { isActive, useJobs } from "../lib/live";
 import { go } from "../lib/route";
-import { newKey, slotOf, useApp, type RefSlot } from "../lib/store";
-import { engineBoxes } from "../lib/boxes";
+import { newKey, slotOf, useApp, type RefSlot, type StudioState } from "../lib/store";
 import { aspectName, dimsText, plans, usePrepImages } from "../lib/size";
 
+type View = "input" | "result" | "compare" | "grid";
+type SetS = ReturnType<typeof useStudio>[1];
+
+const ACCEPT = "image/png,image/jpeg,image/webp";
+const FAILED = new Set(["failed", "moderated", "cancelled"]);
+const AREA = "Keep the edit inside this area";
+
+/** A template's sample for one slot, as a tray entry. */
+function sampleRef(e: EngineInfo, n: number): RefSlot | null {
+  const i = e.defaults?.inputs.find((x) => x.slot === `image:${n}`);
+  if (!i) return null;
+  return { ...i, key: newKey(), slot: n, sample: true, license: "stock", contains_person: false, consent: false, role: n === 1 ? "base" : "character" };
+}
+
+/** Create: the recipe on the left, the picture in the middle, the prompt and Run under it, this template's runs on the right. */
 export function EditStudio() {
   const [s, set] = useStudio("edit");
   const engine = useEngine("edit", s.engine);
   const { spec, compose, estimate } = useCompose("edit", s, engine);
-  const { generation: m, job, elapsed } = useCurrent(s.current);
+  const { generation: m, job } = useCurrent(s.current);
   const invalid = invalidFields(compose, job?.error);
   const share = useApp((st) => st.share);
   const toast = useApp((st) => st.toast);
   const setStudio = useApp((st) => st.setStudio);
   const { data: jobs = [] } = useJobs();
-  const [view, setView] = useState<"canvas" | "result">("canvas");
-  const { upload, busy } = useUploader();
+  const [view, setView] = useState<View>("input");
+  const [marking, setMarking] = useState(false);
 
-  const slots = engine?.inputs?.length ? engine.inputs : null;
   const base = s.refs.find((r, i) => slotOf(r, i) === 1);
   const images = usePrepImages(s.refs);
   const sized = engine?.size;
-  // What the server will do (from compose), else the same formula run here while it answers.
   const local = sized ? plans(sized, s.params.size, images) : {};
   const out = sized ? (compose?.prep?.[sized.follows] ?? local[sized.follows] ?? null) : null;
+
   const group = s.group.length ? s.group : s.current ? [s.current] : [];
   const variants = useQueries({ queries: group.map((id) => ({ queryKey: ["generation", id], queryFn: () => api.generation(id), retry: false })) });
   const vlist = variants.map((q) => q.data).filter(Boolean) as Manifest[];
+  const shown = (m && group.includes(m.id) ? m : null) ?? vlist.find((v) => v.id === s.current) ?? m ?? vlist[0] ?? null;
+  const shownJob = shown ? jobs.find((j) => j.id === shown.id) : job ?? undefined;
   const anyDone = vlist.some((v) => v.status === "done");
-  const shown = vlist.find((v) => v.id === s.current) ?? vlist[0];
-  const shownJob = shown ? jobs.find((j) => j.id === shown.id) : undefined;
-  const shownT = useElapsed(shownJob?.started ?? shownJob?.created, shownJob?.finished);
-  const running = vlist.some((v) => v.status === "running");
+  const live = !!shownJob && isActive(shownJob);
+  const done = shown?.status === "done" && !!shown.result?.file;
+  const failed = shown && !live && FAILED.has(shown.status) ? shown : null;
+  const area = s.boxes.find((b) => b.label === AREA);
 
+  // What the stage shows, given what exists.
+  const eff: View | "live" | "failed" | "empty" =
+    view === "grid" && group.length > 1 ? "grid"
+      : !shown || view === "input" ? (base ? "input" : "empty")
+      : live ? "live" : failed ? "failed" : !done ? (base ? "input" : "empty")
+      : view === "result" ? "result" : "compare";
+
+  // A run that finishes while you watch flips the stage to its result.
+  const prevState = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (job && job.state === "done") setView("result");
-  }, [job?.state]);
+    if (prevState.current && prevState.current !== "done" && job?.state === "done" && view === "input") setView("compare");
+    prevState.current = job?.state;
+  }, [job?.state, view]);
+
+  const runner = useRunner({
+    s, set, spec, compose, estimate,
+    onRan: (ids) => { set({ group: ids }); setView(ids.length > 1 ? "grid" : "compare"); setMarking(false); },
+  });
 
   const star = (id: string) => set((st) => ({ selected: st.selected.includes(id) ? st.selected.filter((x) => x !== id) : [...st.selected, id] }));
 
   const sendToMotion = () => {
-    const picks = (s.selected.length ? s.selected : s.current ? [s.current] : []).map((id) => vlist.find((v) => v.id === id)).filter((v): v is Manifest => !!v && v.status === "done" && !!v.result?.file);
+    const picks = (s.selected.length ? s.selected : s.current ? [s.current] : []).map((id) => vlist.find((v) => v.id === id) ?? (m?.id === id ? m : undefined))
+      .filter((v): v is Manifest => !!v && v.status === "done" && !!v.result?.file);
     if (!picks.length) return toast({ text: "Star a finished variant first.", tone: "warn" });
     const role = s.returnRole ?? "character";
     setStudio("motion", (mo) => {
@@ -74,27 +103,29 @@ export function EditStudio() {
     try {
       const { ids } = await api.rerun(id);
       set((st) => ({ current: ids[0], group: ids, session: [...ids, ...st.session] }));
-      setView("result");
+      setView("compare");
     } catch (e) {
       toast({ text: errMsg(e), tone: "error" });
     }
   };
+  const remix = (g: Manifest) => {
+    useApp.getState().loadGeneration(g);
+    set({ current: null, group: [] });
+    setView("input");
+    toast({ text: "Loaded into a new draft. Change anything, then Run.", tone: "ok" });
+  };
 
+  // E exports what's on the stage.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if (typing(e) || e.metaKey || e.ctrlKey) return;
-      if (e.key.toLowerCase() === "e" && m?.status === "done") { e.preventDefault(); share(m.id); }
+      if (e.key.toLowerCase() === "e" && shown?.status === "done") { e.preventDefault(); share(shown.id); }
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
-  }, [m, share]);
+  }, [shown, share]);
 
-  const boxJson = engineBoxes(s.boxes);
-  const nBoxes = s.boxes.filter((b) => b.label.trim()).length;
-  const pickImage = () => document.querySelector<HTMLButtonElement>('[aria-label="Add reference image"], [aria-label^="Add a"]')?.click();
-
-  // Failure on the shown variant: plain words plus the fixes the engine suggested.
-  const failed = shown && ["failed", "moderated", "cancelled"].includes(shown.status) ? shown : null;
+  // Failure on the shown run: plain words plus the fixes the engine suggested.
   const fixes: Fix[] = [];
   if (failed) {
     const suggested = shownJob?.fixes ?? [];
@@ -107,139 +138,557 @@ export function EditStudio() {
       if (smaller) fixes.push({ label: `Use ${smaller.o.label} (${dimsText(smaller.p)})`, run: () => { set((st) => ({ params: { ...st.params, size: smaller.o.label }, raw: null })); toast({ text: `Size set to ${smaller.o.label}. Press Run.`, tone: "ok" }); } });
       else if (size) fixes.push({ label: "Use a smaller size", run: () => { const opts = size.options ?? []; const i = opts.indexOf(String(s.params[size.key] ?? size.default)); if (opts.length && i > 0) { set((st) => ({ params: { ...st.params, [size.key]: opts[i - 1] }, raw: null })); toast({ text: `${size.label} set to ${opts[i - 1]}. Press Run.`, tone: "ok" }); } else if (size.type === "int") { set((st) => ({ params: { ...st.params, [size.key]: size.min ?? size.default }, raw: null })); } } });
     }
-    if (suggested.includes("rerun") || failed.status !== "cancelled") fixes.push({ label: "Try again", run: () => rerun(failed.id), primary: true, icon: <Refresh size={13} /> });
+    if (suggested.includes("rerun") || failed.status !== "cancelled") fixes.push({ label: "Try again", run: () => rerun(failed.id), primary: true });
   }
-
-  const stage = !base ? (
-    slots ? (
-      <EmptyStage icon={<Brush size={20} />} title={`Add ${/^[aeiou]/i.test(slots[0].label ?? "") ? "an" : "a"} ${(slots[0].label ?? "image").toLowerCase()} to start`} onPick={pickImage}
-        onDrop={async (files) => addToTray("edit", await upload(files.slice(0, engine!.max_images), "image"))} busy={!!busy} meta="PNG, JPEG or WebP · up to 16 MP · 20 MB">
-        {slots[0].hint ?? "Click or drop an image."} Drop several to fill the inputs in order.
-      </EmptyStage>
-    ) : <EmptyStage icon={<Brush size={20} />} title="Add an image to edit" onPick={pickImage} onDrop={async (files) => addToTray("edit", await upload(files.slice(0, engine?.max_images ?? 10), "image"))} busy={!!busy}
-      meta="PNG, JPEG or WebP · up to 16 MP · 20 MB">
-      Click or drop an image. The first image in the tray is the canvas; draw boxes on it to point at what should change.
-    </EmptyStage>
-  ) : view === "canvas" || !shown ? (
-    <div className="relative flex-1 min-h-0 flex flex-col">
-      <RegionCanvas src={base.url} natural={{ width: base.width, height: base.height }} boxes={s.boxes} onChange={(boxes) => set({ boxes })} />
-      {out && (
-        <span className="glass absolute right-2.5 bottom-2.5 h-6 px-2 rounded-md text-xs leading-6 pointer-events-none" title={`OpenIllusion crops and sizes the ${out.source[0]}×${out.source[1]} photo to ${dimsText(out)} before the run`}>
-          <span className="text-white/70">Output </span><span className="font-mono tabular text-white">{dimsText(out)} · {aspectName(out)}</span>
-        </span>
-      )}
-    </div>
-  ) : (
-    <ABPlayer
-      a={{ kind: "image", src: base.url, label: "Before" }}
-      b={shown.status === "done" && shown.result?.file ? { kind: "image", src: fileUrl(shown.id, shown.result.file), label: "After", badge: shown.result.seed != null ? <Badge tone="glass" className="font-mono">seed {shown.result.seed}</Badge> : undefined } : { kind: "image", src: null, label: "After" }}
-      overlay={
-        shown.status === "running" && shownJob ? <StageRunning job={shownJob} t={shownT} compact={group.length > 1} />
-        : failed ? <div className="absolute inset-0 flex items-center justify-center p-4 bg-deep/70"><StageError state={failed.status} error={shownJob?.error ?? failed.result?.error} detail={shownJob?.detail} fixes={fixes} compact /></div>
-        : undefined
-      }
-    />
-  );
 
   if (!s.engine && !engine) return <NoTemplates mode="edit" />;
 
+  const canMark = eff === "input" && !!base;
+  const pickRun = (id: string) => { set({ current: id, group: [id] }); setView("compare"); };
+
   return (
-    <StudioLayout
-      left={
-        <>
-          {slots && engine ? (
-            <section aria-label="Template inputs" className="p-3 flex flex-col gap-2 border-b border-line">
-              <TemplateHeader e={engine} />
-              <TemplateSlots e={engine} refs={s.refs} onChange={(refs) => set({ refs })} roles={EDIT_ROLES} defaultRole="base" />
-            </section>
-          ) : (
-            <Section title="Images" meta={`${s.refs.length} / ${engine?.max_images ?? 10}`} data-own-drop>
-              <RefTray refs={s.refs} max={engine?.max_images ?? 10} roles={EDIT_ROLES} defaultRole="base" aspect="1 / 1" onChange={(refs) => set({ refs })} />
-              <p className="m-0 mt-2 text-xs text-faint">First image is the canvas. Drag to reorder.</p>
-            </Section>
-          )}
-          <PromptCard mode="edit" s={s} set={set} label={engine?.prompt?.label ?? "Instruction"} hint={engine?.prompt?.hint} examples={engine?.examples} noTokens={!!engine?.instruction} invalid={invalid.has("prompt")}>
-            {boxJson && (
-              <details className="group rounded-md border border-line">
-                <summary className="h-7 px-2 flex items-center gap-1.5 cursor-pointer text-xs text-muted hover:text-soft select-none">
-                  {nBoxes} region{nBoxes === 1 ? "" : "s"} appended as JSON
-                </summary>
-                <pre className="m-0 px-2 pb-2 font-mono text-xs2 leading-[1.6] text-soft whitespace-pre-wrap break-all">{boxJson}</pre>
-              </details>
-            )}
-          </PromptCard>
-        </>
-      }
-      center={
-        <>
-          <StageBar s={s} set={set}>
-            <RunStatus m={m} job={job} t={elapsed} />
-            {(anyDone || running || !!failed) && base && (
-              <Segmented label="Stage view" size="sm" value={view === "canvas" ? "Canvas" : "Result"} options={["Canvas", "Result"] as const} onChange={(v) => setView(v === "Canvas" ? "canvas" : "result")} cols={2} className="w-[150px] shrink-0" />
-            )}
-          </StageBar>
-          <div className="flex-1 min-h-0 p-3 flex flex-col gap-2">
-            {stage}
-            {group.length > 1 && (
-              <div role="listbox" aria-label="Variants" className="shrink-0 flex gap-1.5 overflow-x-auto">
-                {group.map((id, i) => {
-                  const v = vlist.find((x) => x.id === id);
-                  const j = jobs.find((x) => x.id === id);
-                  const on = s.current === id;
-                  const starred = s.selected.includes(id);
-                  const done = v?.status === "done" && v.result?.poster;
+    <div className="page studio">
+      <aside className="recipe" aria-label="Recipe">
+        <div className="recipe-scroll">
+          {engine ? <Hero e={engine} /> : <div className="thero"><div className="thero-img" /></div>}
+          <HistStrip engine={s.engine} current={s.current} jobs={jobs} onPick={pickRun} />
+          {engine?.kind === "local" && <div style={{ display: "grid", gap: 8 }}><LocalNeeds spec={spec} /></div>}
+
+          <section className="sec" aria-labelledby="sec-photos">
+            <div className="sec-h"><h4 id="sec-photos">Photos</h4><span className="mono">{engine?.inputs?.length ? `${engine.inputs.length} needed` : `${s.refs.length} / ${engine?.max_images ?? 10}`}</span></div>
+            {engine?.inputs?.length ? <Slots e={engine} refs={s.refs} onChange={(refs) => set({ refs, current: null })} />
+              : (
+                <div data-own-drop>
+                  <RefTray refs={s.refs} max={engine?.max_images ?? 10} roles={EDIT_ROLES} defaultRole="base" aspect="1 / 1" onChange={(refs) => set({ refs })} />
+                  <p className="help">First image is the canvas. Drag to reorder.</p>
+                </div>
+              )}
+          </section>
+
+          {sized && (
+            <section className="sec" aria-labelledby="sec-size">
+              <div className="sec-h"><h4 id="sec-size">Output size</h4>{out && <span className="mono">{dimsText(out)} · {aspectName(out)}</span>}</div>
+              <div className="sizes" role="group" aria-label="Output size" style={{ gridTemplateColumns: `repeat(${Math.min(sized.options.length, 4)},1fr)` }}>
+                {sized.options.map((o) => {
+                  const d = images.some((i) => i.slot === sized.follows) ? plans(sized, o.label, images)[sized.follows] : null;
+                  const cur = sized.options.some((x) => x.label === s.params.size) ? s.params.size : sized.default;
                   return (
-                    <div key={id} role="option" aria-selected={on} tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); set({ current: id }); setView("result"); } }}
-                      onClick={() => { set({ current: id }); setView("result"); }}
-                      className={cx("relative shrink-0 w-[92px] h-[92px] rounded-md overflow-hidden bg-raised cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-violet", on ? "ring-2 ring-text ring-offset-1 ring-offset-bg" : "opacity-85 hover:opacity-100")}>
-                      {done ? <img src={fileUrl(v!.id, v!.result!.poster!)} alt={`Variant ${i + 1}`} className="w-full h-full object-cover" /> : <div className={cx("w-full h-full", v?.status === "running" && "stage-shimmer")} />}
-                      <span className="glass absolute left-1 top-1 h-4 px-1 rounded text-[10px] font-mono leading-4">v{i + 1}</span>
-                      {j && j.state !== "done" && <span className="absolute left-1 bottom-1 scale-90 origin-bottom-left"><StateBadge job={j} /></span>}
-                      {done && (
-                        <button type="button" aria-pressed={starred} aria-label={starred ? `Unstar variant ${i + 1}` : `Star variant ${i + 1}`} onClick={(e) => { e.stopPropagation(); star(id); }}
-                          className={cx("mk-btn absolute right-1 top-1 w-6 h-6 rounded-md border-0 flex items-center justify-center", starred ? "bg-yellow text-ink" : "glass text-text")}>
-                          <Star size={12} filled={starred} />
-                        </button>
-                      )}
-                    </div>
+                    <button key={o.label} type="button" aria-pressed={cur === o.label} onClick={() => set((st) => ({ params: { ...st.params, size: o.label }, raw: null }))}>
+                      <b>{o.label}</b><span>{d ? dimsText(d) : o.px > 0 ? `~${o.px}²` : "as is"}</span>
+                    </button>
                   );
                 })}
               </div>
-            )}
+              <p className="help">Keeps your photo's shape. Cropped to a multiple of {sized.multiple}, never stretched.</p>
+            </section>
+          )}
+
+          <section className="sec" aria-labelledby="sec-var">
+            <div className="sec-h"><h4 id="sec-var">Variants</h4><span className="mono">one seed each</span></div>
+            <div className="vgrid" role="group" aria-label="Variants">
+              {[1, 2, 3, 4].map((v) => <button key={v} type="button" aria-pressed={s.variants === v} onClick={() => set({ variants: v })}>{v}</button>)}
+            </div>
+          </section>
+
+          <details className="adv">
+            <summary><I n="sliders" />Advanced<span className="mono">{advSummary(engine, s)}</span><I n="down" className="chev" /></summary>
+            <div className="adv-body">
+              {engine && <ParamFields params={engine.params} values={s.params} invalid={invalid} onChange={(k, v) => set((st) => ({ params: { ...st.params, [k]: v }, raw: null }))} />}
+              <div style={{ margin: "0 -14px -14px", borderTop: "1px solid var(--line)" }}><RawRequest s={s} set={set} spec={spec} compose={compose} /></div>
+            </div>
+          </details>
+        </div>
+      </aside>
+
+      <section className="stage" aria-label="Preview">
+        <div className="stage-top">
+          <div className="crumb">Create<span>/</span><b>{engine ? tplName(engine) : "…"}</b></div>
+          <span style={{ flex: 1 }} />
+          <div className="seg" role="group" aria-label="Preview mode">
+            <button type="button" aria-pressed={eff === "input" || eff === "empty"} onClick={() => setView("input")}>Input</button>
+            <button type="button" aria-pressed={eff === "result"} disabled={!done} onClick={() => setView("result")}>Result</button>
+            <button type="button" aria-pressed={eff === "compare"} disabled={!done} onClick={() => setView("compare")}><I n="compare" />Compare</button>
+            {group.length > 1 && <button type="button" aria-pressed={eff === "grid"} onClick={() => setView("grid")}><I n="grid" />All {group.length}</button>}
           </div>
-          {m && m.status === "done" && (
-            <ActionBar>
-              <OutcomeBar m={m} />
-              <span className="w-px h-5 bg-line mx-1 max-md:hidden" aria-hidden />
-              <Button size="sm" onClick={() => rerun(m.id)}><Refresh size={13} />Re-run</Button>
-              <Button size="sm" onClick={() => { useApp.getState().loadGeneration(m); set({ current: null, group: [] }); setView("canvas"); toast({ text: "Loaded into a new draft. Change anything, then Run.", tone: "ok" }); }}>Remix</Button>
-              <Button size="sm" tone="ghost" onClick={() => go({ name: "generation", id: m.id })}><External size={13} />Open</Button>
-              <Button size="sm" tone="contrast" onClick={() => share(m.id)} aria-keyshortcuts="E"><Upload size={13} />Export<Kbd className="ml-0.5">E</Kbd></Button>
-            </ActionBar>
+          <span style={{ flex: 1 }} />
+          {done && shown && (
+            <>
+              <button className="btn sm ghost" type="button" onClick={() => rerun(shown.id)} title="Same recipe, new seed"><I n="refresh" /><span className="lbl">Re-run</span></button>
+              <button className="btn sm ghost" type="button" onClick={() => remix(shown)} title="Load this run's inputs and settings as a new draft"><I n="remix" /><span className="lbl">Remix</span></button>
+              {anyDone && <button className="btn sm ghost" type="button" onClick={sendToMotion} title={`Lands in Motion's tray as ${roleLabel(s.returnRole ?? "character")}`}><I n="film" /><span className="lbl">{s.selected.length ? `Send ${s.selected.length} to Motion` : "To Motion"}</span></button>}
+              <button className="btn sm" type="button" onClick={() => share(shown.id)} aria-keyshortcuts="E" title="Export (E)"><I n="share" /><span className="lbl">Export</span></button>
+            </>
           )}
-          <SessionStrip mode="edit" s={s} set={set} onPick={(id) => { set({ group: [id] }); setView("result"); }} />
-        </>
-      }
-      right={
-        <>
-          <EngineCard mode="edit" s={s} set={set} engine={engine} invalid={invalid} />
-          <Section title="Variants" meta="Run in parallel">
-            <Segmented label="Variants" value={s.variants} options={[1, 2, 3, 4] as const} onChange={(variants) => set({ variants })} cols={4} />
-          </Section>
-          <RawRequest s={s} set={set} spec={spec} compose={compose} />
-        </>
-      }
-      run={
-        <RunCard mode="edit" s={s} set={set} spec={spec} compose={compose} estimate={estimate} times={s.variants}
-          label={s.variants > 1 ? `Run ${s.variants} variants` : "Run edit"}
-          onRan={(ids) => { set({ group: ids }); setView("result"); }}
-          extra={anyDone && (
-            <Button size="md" tone="ghost" className="w-full justify-between" onClick={sendToMotion} title={`Lands in Motion's tray as ${roleLabel(s.returnRole ?? "character")}. Lineage is kept on both.`}>
-              <span>{s.selected.length ? `Send ${s.selected.length} starred to Motion` : "Send result to Motion"}</span><ArrowRight size={14} />
-            </Button>
-          )}
-        />
-      }
-    />
+          <button className={cx("btn sm", marking ? "primary" : "ghost")} type="button" disabled={!canMark && !area}
+            onClick={() => (area ? set((st) => ({ boxes: st.boxes.filter((b) => b.label !== AREA) })) : setMarking(!marking))}
+            title="Drag on the photo to keep the edit inside one area">
+            <I n="area" /><span className="lbl">{area ? "Clear area" : marking ? "Drag on photo" : "Mark area"}</span>
+          </button>
+          <button className="icon-btn" type="button" aria-label="Open in Library" title="Open in Library" disabled={!shown} style={shown ? undefined : { opacity: 0.35 }}
+            onClick={() => shown && go({ name: "generation", id: shown.id })}><I n="expand" /></button>
+        </div>
+
+        <div className="canvas">
+          <Canvas eff={eff} s={s} set={set} engine={engine} base={base} out={out} shown={shown} job={shownJob} group={group} vlist={vlist} jobs={jobs}
+            marking={marking} setMarking={setMarking} fixes={fixes} onFocus={(id) => { set({ current: id }); setView("compare"); }} onStar={star} />
+        </div>
+
+        <Composer s={s} set={set} engine={engine} runner={runner} estimate={estimate} area={!!area}
+          clearArea={() => set((st) => ({ boxes: st.boxes.filter((b) => b.label !== AREA) }))} queued={jobs.filter(isActive).length} invalid={invalid.has("prompt")} />
+
+        <aside className="hist" aria-label="Runs of this template">
+          <HistList engine={s.engine} current={s.current} jobs={jobs} onPick={pickRun} />
+        </aside>
+      </section>
+    </div>
   );
 }
+
+function advSummary(e: EngineInfo | undefined, s: StudioState) {
+  const steps = e?.params.find((p) => p.key === "steps");
+  const seed = e?.params.find((p) => p.type === "seed");
+  const parts = [];
+  if (steps) parts.push(`${s.params.steps ?? steps.default} steps`);
+  if (seed) { const v = Number(s.params[seed.key] ?? -1); parts.push(v < 0 ? "random seed" : `seed ${v}`); }
+  if (s.raw) parts.push("edited JSON");
+  return parts.join(" · ");
+}
+
+/* ------------------------------------------------------------------ recipe */
+
+function Hero({ e }: { e: EngineInfo }) {
+  const [open, setOpen] = useState(false);
+  const openTemplate = useApp((s) => s.openTemplate);
+  const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
+  const status = useStatus();
+  const list = (engines.data ?? []).filter((x) => x.mode === "edit");
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const on = (ev: PointerEvent) => { if (!ref.current?.contains(ev.target as Node)) setOpen(false); };
+    const key = (ev: KeyboardEvent) => { if (ev.key === "Escape") setOpen(false); };
+    window.addEventListener("pointerdown", on);
+    window.addEventListener("keydown", key);
+    return () => { window.removeEventListener("pointerdown", on); window.removeEventListener("keydown", key); };
+  }, [open]);
+  const where = e.kind === "local" ? (gpuName(status.data?.local.gpu) ? `Your GPU` : "Local") : "Comfy Router";
+  return (
+    <div className="thero" ref={ref}>
+      <div className="thero-img">
+        {e.cover_video ? <video src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 22%" }} />
+          : e.cover ? <img src={e.cover} alt="" />
+          : <span aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 90% at 100% 0%,rgba(242,255,89,.18),transparent 60%),linear-gradient(160deg,#30233a,#1c1622)" }} />}
+        <div className="thero-cap"><h2>{tplName(e)}</h2><p><i className={cx("dot", e.kind !== "local" && "violet")} />{tplModel(e)} · {where}</p></div>
+      </div>
+      <button className="btn sm glass change" type="button" aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen(!open)}><I n="refresh" />Change</button>
+      {open && (
+        <div className="tmenu" role="listbox" aria-label="Templates">
+          {list.map((x) => (
+            <button key={x.id} type="button" role="option" aria-selected={x.id === e.id} aria-current={x.id === e.id}
+              onClick={() => { setOpen(false); if (x.id !== e.id) openTemplate("edit", x.id); }}>
+              {x.cover ? <img src={x.cover} alt="" /> : <span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="image" /></span>}
+              {tplName(x)}<small>{tplCategory(x)}</small>
+            </button>
+          ))}
+          <button type="button" onClick={() => { setOpen(false); openTemplate("edit", e.id); }}><span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="undo" /></span>Start over with the samples</button>
+          <button type="button" onClick={() => { setOpen(false); go({ name: "explore", t: e.id }); }}><span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="compass" /></span>Browse all on Explore</button>
+        </div>
+      )}
+      {e.blurb && <p className="thero-blurb">{e.blurb}</p>}
+    </div>
+  );
+}
+
+/** One row per input the template names. Click, drop, or bring the sample back. */
+function Slots({ e, refs, onChange }: { e: EngineInfo; refs: RefSlot[]; onChange: (refs: RefSlot[]) => void }) {
+  const { upload } = useUploader();
+  const [busy, setBusy] = useState<number | null>(null);
+  const at = (n: number) => refs.find((r, i) => slotOf(r, i) === n);
+  const fill = async (n: number, files: File[]) => {
+    const f = files.find((x) => /^image\//.test(x.type)) ?? files[0];
+    if (!f) return;
+    setBusy(n);
+    try {
+      const [asset] = await upload([f], "image");
+      if (!asset) return;
+      const rest = bySlot(refs).filter((r) => r.slot !== n);
+      const [added] = withRefs([], [asset], EDIT_ROLES, "base");
+      onChange(bySlot([...rest, { ...added, slot: n, role: n === 1 ? "base" : "character" }]));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const put = (n: number, r: RefSlot | null) => onChange(bySlot([...bySlot(refs).filter((x) => x.slot !== n), ...(r ? [r] : [])]));
+  return (
+    <div className="slots">
+      {(e.inputs ?? []).map((input, i) => (
+        <SlotRow key={input.slot} n={i + 1} label={input.label ?? `Image ${i + 1}`} hint={input.hint} r={at(i + 1)} busy={busy === i + 1}
+          sample={!!sampleRef(e, i + 1)} onFiles={(files) => fill(i + 1, files)} onClear={() => put(i + 1, null)} onSample={() => put(i + 1, sampleRef(e, i + 1))} />
+      ))}
+    </div>
+  );
+}
+
+function SlotRow({ n, label, hint, r, busy, sample, onFiles, onClear, onSample }: {
+  n: number; label: string; hint?: string; r?: RefSlot; busy: boolean; sample: boolean; onFiles: (f: File[]) => void; onClear: () => void; onSample: () => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const pick = () => input.current?.click();
+  const drop = {
+    onDragOver: (ev: React.DragEvent) => { if (ev.dataTransfer.types.includes("Files")) { ev.preventDefault(); ev.stopPropagation(); setOver(true); } },
+    onDragLeave: (ev: React.DragEvent) => { if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) setOver(false); },
+    onDrop: (ev: React.DragEvent) => { if (!ev.dataTransfer.files.length) return; ev.preventDefault(); ev.stopPropagation(); setOver(false); onFiles([...ev.dataTransfer.files]); },
+  };
+  const name = `Image ${n} · ${label}`;
+  const file = <input ref={input} type="file" accept={ACCEPT} hidden onChange={(ev) => { onFiles([...(ev.target.files ?? [])]); ev.target.value = ""; }} />;
+  if (!r?.url) {
+    return (
+      <div data-own-drop {...drop} className={cx("slotrow empty", over && "drag")} role="button" tabIndex={0} aria-label={`Add ${label.toLowerCase()} photo${hint ? `. ${hint}` : ""}`}
+        onClick={pick} onKeyDown={(ev) => { if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); pick(); } }}>
+        {file}
+        <span className="sth">{busy ? <Spinner size={16} /> : <I n="upload" />}</span>
+        <div className="st"><b>{name}</b><span className="sub" style={{ fontFamily: "var(--body)" }}>{hint ?? "Drop a photo or click to browse"}</span></div>
+        {sample && <button className="btn sm ghost" type="button" onClick={(ev) => { ev.stopPropagation(); onSample(); }}>Use sample</button>}
+      </div>
+    );
+  }
+  return (
+    <div data-own-drop {...drop} className={cx("slotrow", over && "drag")}>
+      {file}
+      <button className="sth" type="button" onClick={pick} aria-label={`Replace ${label.toLowerCase()} photo`}>
+        <img src={r.url} alt="" style={r.missing ? { opacity: 0.5 } : undefined} />
+        {busy && <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}><Spinner size={16} /></span>}
+      </button>
+      <div className="st">
+        <b>{name}</b>
+        <span className="sub">
+          {r.missing ? <span style={{ color: "var(--orange)" }}>File missing · replace it</span>
+            : r.sample ? <span className="tag-sample">SAMPLE</span> : <span style={{ color: "var(--mint)" }}>Your photo</span>}
+          {r.width && r.height ? `${r.width}×${r.height}` : ""}
+        </span>
+      </div>
+      <div className="sacts">
+        <button className="icon-btn sm" type="button" onClick={pick} aria-label={`Replace ${label.toLowerCase()} photo`} title="Replace"><I n="refresh" /></button>
+        <button className="icon-btn sm" type="button" onClick={onClear} aria-label={`Remove ${label.toLowerCase()} photo`} title="Remove"><I n="x" /></button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------- stage */
+
+function Canvas({ eff, s, set, engine, base, out, shown, job, group, vlist, jobs, marking, setMarking, fixes, onFocus, onStar }: {
+  eff: View | "live" | "failed" | "empty"; s: StudioState; set: SetS; engine?: EngineInfo; base?: RefSlot; out: { width: number; height: number } | null;
+  shown: Manifest | null; job?: Job; group: string[]; vlist: Manifest[]; jobs: Job[]; marking: boolean; setMarking: (v: boolean) => void; fixes: Fix[];
+  onFocus: (id: string) => void; onStar: (id: string) => void;
+}) {
+  const { upload, busy } = useUploader();
+  const [over, setOver] = useState(false);
+  const qc = useQueryClient();
+  const result = shown?.result?.file ? fileUrl(shown.id, shown.result.file) : null;
+  const size = useImageSize(result);
+  const ar = size ? size.w / size.h : out ? out.width / out.height : base?.width && base?.height ? base.width / base.height : 1;
+  const before = shown?.inputs.find((i) => i.slot === "image:1")?.file;
+  const beforeUrl = shown && before ? fileUrl(shown.id, before) : base?.url;
+
+  if (eff === "empty") {
+    const first = engine?.inputs?.[0]?.label ?? "photo";
+    return (
+      <div data-own-drop className={cx("empty", over && "drag")} style={{ padding: 20, borderRadius: 18, border: `1.5px dashed ${over ? "var(--violet)" : "var(--line-2)"}` }}
+        onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setOver(true); } }} onDragLeave={() => setOver(false)}
+        onDrop={async (e) => { if (!e.dataTransfer.files.length) return; e.preventDefault(); setOver(false); addToTray("edit", await upload([...e.dataTransfer.files].slice(0, engine?.max_images ?? 4), "image")); }}>
+        <div className="empty-ic">{busy ? <Spinner size={18} /> : <I n="image" />}</div>
+        <h3>Add {/^[aeiou]/i.test(first) ? "an" : "a"} {first.toLowerCase()} photo</h3>
+        <p>Drop it here or on the Image 1 row. Several photos fill the inputs in order.</p>
+        {engine && sampleRef(engine, 1) && <button className="btn" type="button" onClick={() => set((st) => ({ refs: bySlot([...bySlot(st.refs).filter((r) => r.slot !== 1), sampleRef(engine, 1)!]) }))}>Use sample</button>}
+      </div>
+    );
+  }
+
+  if (eff === "grid") {
+    const rows = group.length > 2 ? 2 : 1;
+    const a = ar;
+    return (
+      <div className="vstage" style={{ "--ar": a, "--cw": `min(calc((100cqw - 12px) / 2), calc((100cqh - ${(rows - 1) * 12}px) / ${rows} * ${a}))` } as CSSProperties}>
+        {group.map((id, i) => {
+          const v = vlist.find((x) => x.id === id);
+          const j = jobs.find((x) => x.id === id);
+          return <VCell key={id} n={i + 1} v={v} job={j} fallback={beforeUrl} starred={s.selected.includes(id)} onOpen={() => onFocus(id)} onStar={() => onStar(id)} />;
+        })}
+      </div>
+    );
+  }
+
+  if (eff === "live" && shown) {
+    const q = !!job && QUEUED.has(job.state);
+    const p = jobProgress(job);
+    const steps = job?.progress?.steps;
+    const step = job?.progress?.step;
+    const img = job?.preview ?? beforeUrl;
+    return (
+      <div className="frame live" style={{ "--ar": ar, "--p": p } as CSSProperties}>
+        {img && <img src={img} alt="" style={q || !job?.preview ? { filter: "blur(8px) saturate(.3) brightness(.55)" } : undefined} />}
+        <div className="noise" style={q ? { opacity: 0.18 } : undefined} />
+        <div className="hud"><div className="hud-in">
+          <Ring p={p} />
+          <b>{q ? "Waiting in queue" : job?.state === "downloading" ? "Saving result" : "Sampling"}</b>
+          <span>{q ? (job?.queue_position ? `#${job.queue_position} in queue` : "starts after the current run")
+            : step && steps ? `step ${step}/${steps}` : job?.progress?.nodes_total ? `node ${job.progress.nodes_done ?? 0}/${job.progress.nodes_total}` : job?.detail || "starting"}</span>
+        </div></div>
+        {job && <div className="corner r"><button className="btn sm glass" type="button" onClick={async () => { await api.cancel(job.id); qc.invalidateQueries({ queryKey: ["jobs"] }); }}>Cancel</button></div>}
+      </div>
+    );
+  }
+
+  if (eff === "failed" && shown) {
+    return (
+      <div className="frame" style={{ "--ar": ar } as CSSProperties}>
+        {beforeUrl && <img src={beforeUrl} alt="" style={{ filter: "saturate(.3) brightness(.4)" }} />}
+        <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "grid", placeItems: "center", padding: 16, background: "linear-gradient(rgba(255,107,126,.06),rgba(255,107,126,.14))", overflow: "auto" }}>
+          <StageError state={shown.status} error={job?.error ?? shown.result?.error} detail={job?.detail} fixes={fixes} compact />
+        </div>
+      </div>
+    );
+  }
+
+  if ((eff === "compare" || eff === "result") && shown?.result?.file) {
+    const after = fileUrl(shown.id, shown.result.file);
+    const dims = size ? `${size.w}×${size.h}` : "";
+    return (
+      <div className="frame" style={{ "--ar": ar } as CSSProperties}>
+        {eff === "compare" && beforeUrl ? <Compare before={beforeUrl} after={after} lb="Input" la="Result" /> : <img src={after} alt="Result" />}
+        {eff === "result" && <div className="corner r"><span className="pill mono">{dims}{shown.result.seed != null ? `${dims ? " · " : ""}seed ${shown.result.seed}` : ""}</span></div>}
+      </div>
+    );
+  }
+
+  if (!base) return null;
+  return <InputFrame base={base} out={out} s={s} set={set} marking={marking} setMarking={setMarking} />;
+}
+
+/** Pixel size of an image, once it loads. */
+function useImageSize(url: string | null) {
+  const [size, setSize] = useState<{ url: string; w: number; h: number } | null>(null);
+  useEffect(() => {
+    if (!url) return;
+    let live = true;
+    const img = new Image();
+    img.onload = () => { if (live && img.naturalWidth) setSize({ url, w: img.naturalWidth, h: img.naturalHeight }); };
+    img.src = url;
+    return () => { live = false; };
+  }, [url]);
+  return size && size.url === url ? size : null;
+}
+
+/** The input photo. With Mark area on, drag a rectangle; the edit stays inside it. */
+function InputFrame({ base, out, s, set, marking, setMarking }: { base: RefSlot; out: { width: number; height: number } | null; s: StudioState; set: SetS; marking: boolean; setMarking: (v: boolean) => void }) {
+  const el = useRef<HTMLDivElement>(null);
+  const [nat, setNat] = useState<{ w: number; h: number } | null>(base.width && base.height ? { w: base.width, h: base.height } : null);
+  const [draft, setDraft] = useState<[number, number, number, number] | null>(null);
+  useLayoutEffect(() => setNat(base.width && base.height ? { w: base.width, h: base.height } : null), [base.url, base.width, base.height]);
+  const area = s.boxes.find((b) => b.label === AREA);
+  const rect = draft ?? area?.rect ?? null;
+  const ar = nat ? nat.w / nat.h : 1;
+
+  const at = (e: { clientX: number; clientY: number }) => {
+    const r = el.current!.getBoundingClientRect();
+    return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))] as const;
+  };
+  const down = (e: React.PointerEvent) => {
+    if (!marking) return;
+    e.preventDefault();
+    el.current!.setPointerCapture(e.pointerId);
+    const [x0, y0] = at(e);
+    let box: [number, number, number, number] | null = null;
+    const move = (ev: PointerEvent) => {
+      const [x1, y1] = at(ev);
+      box = [Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)];
+      setDraft(box);
+    };
+    const up = () => {
+      el.current?.removeEventListener("pointermove", move);
+      el.current?.removeEventListener("pointerup", up);
+      el.current?.removeEventListener("pointercancel", up);
+      setDraft(null);
+      setMarking(false);
+      if (box && box[2] > 0.03 && box[3] > 0.03) {
+        const b = box;
+        set((st) => ({ boxes: [...st.boxes.filter((x) => x.label !== AREA), { id: newKey(), rect: b, label: AREA }] }));
+      }
+    };
+    el.current!.addEventListener("pointermove", move);
+    el.current!.addEventListener("pointerup", up);
+    el.current!.addEventListener("pointercancel", up);
+  };
+
+  return (
+    <div ref={el} className={cx("frame", marking && "marking")} style={{ "--ar": ar } as CSSProperties} onPointerDown={down}>
+      <img src={base.url} alt="Input" draggable={false} onLoad={(e) => { const i = e.currentTarget; if (!nat && i.naturalWidth) setNat({ w: i.naturalWidth, h: i.naturalHeight }); }} />
+      {rect ? (
+        <div className="region" style={{ left: `${rect[0] * 100}%`, top: `${rect[1] * 100}%`, width: `${rect[2] * 100}%`, height: `${rect[3] * 100}%` }}><span className="pill yellow">Area</span></div>
+      ) : marking ? <div className="tophint"><span className="pill yellow">Drag over the part you want changed</span></div> : null}
+      {s.boxes.filter((b) => b.label !== AREA && b.label.trim()).map((b) => (
+        <div key={b.id} className="region" style={{ left: `${b.rect[0] * 100}%`, top: `${b.rect[1] * 100}%`, width: `${b.rect[2] * 100}%`, height: `${b.rect[3] * 100}%`, boxShadow: "none", borderStyle: "dashed" }}><span className="pill">{b.label}</span></div>
+      ))}
+      {nat && <div className="corner l"><span className="pill mono">In {nat.w}×{nat.h}</span></div>}
+      {out && <div className="corner r"><span className="pill mono" title="OpenIllusion crops and sizes the photo to this before the run">Out {dimsText(out)} · {aspectName(out)}</span></div>}
+    </div>
+  );
+}
+
+function VCell({ n, v, job, fallback, starred, onOpen, onStar }: { n: number; v?: Manifest; job?: Job; fallback?: string; starred: boolean; onOpen: () => void; onStar: () => void }) {
+  const live = !!job && isActive(job);
+  const q = live && QUEUED.has(job!.state);
+  const p = jobProgress(job);
+  const done = v?.status === "done" && v.result?.file;
+  const failed = v && !live && FAILED.has(v.status);
+  const img = done ? fileUrl(v!.id, v!.result!.poster ?? v!.result!.file!) : job?.preview ?? fallback;
+  return (
+    <div className={cx("vcell", live && "live")} style={{ "--p": p } as CSSProperties} role="button" tabIndex={0} aria-label={`Variant ${n}`}
+      onClick={onOpen} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}>
+      {img && <img src={img} alt="" style={!done ? { filter: "blur(8px) saturate(.3) brightness(.55)" } : undefined} />}
+      {live && (
+        <>
+          <div className="noise" style={q ? { opacity: 0.18 } : undefined} />
+          <div className="hud"><div className="hud-in"><Ring p={p} sm /><span>{q ? "waiting" : job?.progress?.step && job.progress.steps ? `${job.progress.step}/${job.progress.steps}` : "starting"}</span></div></div>
+        </>
+      )}
+      {failed && <div className="gfail"><span className="ic"><I n="alert" /></span><b>{v!.status === "cancelled" ? "Cancelled" : "Failed"}</b></div>}
+      <div className="corner l"><span className="pill mono">{n}{v?.result?.seed != null ? ` · seed ${v.result.seed}` : ""}</span></div>
+      {done && (
+        <div className="corner r">
+          <button className={cx("icon-btn sm glass fav")} type="button" aria-pressed={starred} aria-label={starred ? `Unstar variant ${n}` : `Star variant ${n}`} title="Star to send to Motion"
+            onClick={(e) => { e.stopPropagation(); onStar(); }}><I n="star" /></button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- composer */
+
+function Composer({ s, set, engine, runner, estimate, area, clearArea, queued, invalid }: {
+  s: StudioState; set: SetS; engine?: EngineInfo; runner: ReturnType<typeof useRunner>; estimate?: ReturnType<typeof useCompose>["estimate"];
+  area: boolean; clearArea: () => void; queued: number; invalid: boolean;
+}) {
+  const ta = useRef<HTMLTextAreaElement>(null);
+  const status = useStatus();
+  useLayoutEffect(() => {
+    const t = ta.current;
+    if (!t) return;
+    t.style.height = "auto";
+    t.style.height = `${Math.min(t.scrollHeight, 140)}px`;
+  }, [s.prompt]);
+  const label = engine?.prompt?.label ?? "Instruction";
+  const def = engine?.defaults?.prompt ?? "";
+  const slots = engine?.inputs?.length ? engine.inputs : null;
+  const missingSlot = slots?.findIndex((_, i) => !s.refs.some((r, k) => slotOf(r, k) === i + 1 && r.url && !r.missing)) ?? -1;
+  const missing = slots && missingSlot >= 0 ? slots[missingSlot] : null;
+  const gpu = gpuName(status.data?.local.gpu);
+  const ideas = engine?.examples ?? [];
+  const thumbs = slots ? slots.map((_, i) => s.refs.find((r, k) => slotOf(r, k) === i + 1)) : s.refs.slice(0, 3);
+  const reasons = missing ? [] : runner.reasons;
+
+  return (
+    <div className="composer">
+      <div className="cx">
+        {!!ideas.length && (
+          <div className="cx-ex" role="group" aria-label="Prompt ideas">
+            <span className="lab">Try</span>
+            {ideas.map((x) => <button key={x} className="ex" type="button" aria-pressed={s.prompt === x} onClick={() => set({ prompt: x })}>{x}</button>)}
+          </div>
+        )}
+        <div className="cx-box" style={invalid && s.prompt.trim() ? { borderColor: "rgba(255,107,126,.6)" } : undefined}>
+          <div className="cx-ins" aria-hidden>
+            {thumbs.map((r, i) => (r?.url ? <img key={i} src={r.url} alt="" /> : <span key={i} className="ph"><I n="image" /></span>))}
+          </div>
+          <div className="cx-mid">
+            <label htmlFor="prompt">
+              {label}{engine?.prompt?.required === false && <span style={{ color: "var(--text-3)" }}>optional</span>}
+              {area && <span className="areachip">Only inside the area<button type="button" aria-label="Clear area" onClick={clearArea}><I n="x" /></button></span>}
+            </label>
+            <textarea ref={ta} id="prompt" rows={1} spellCheck value={s.prompt} placeholder={engine?.prompt?.hint ?? "Describe the change. Keep it to one clear instruction."}
+              onChange={(e) => set({ prompt: e.target.value })}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void runner.run(); } }} />
+          </div>
+          <button className="run" type="button" disabled={runner.blocked || !!missing} onClick={() => void runner.run()} aria-keyshortcuts="Control+Enter R">
+            {runner.busy ? <Spinner /> : <I n="zap" />}Run{s.variants > 1 ? ` ×${s.variants}` : ""}<kbd>↵</kbd>
+          </button>
+        </div>
+        <div className="cx-foot">
+          {runner.confirm ? (
+            <span className="warn" role="alertdialog" aria-label="Unknown cost">
+              <I n="alert" />Router can't price this run.
+              <button className="btn sm" type="button" onClick={() => void runner.run(true)} autoFocus>Run anyway</button>
+              <button className="btn sm ghost" type="button" onClick={() => runner.setConfirm(false)}>Cancel</button>
+            </span>
+          ) : missing ? (
+            <span className="warn"><I n="alert" />Add {/^[aeiou]/i.test(missing.label ?? "") ? "an" : "a"} {(missing.label ?? "photo").toLowerCase()} photo to run</span>
+          ) : reasons.length ? (
+            <span className="warn" title={reasons.join("\n")}><I n="alert" />{reasons[0]}{reasons.length > 1 ? ` · +${reasons.length - 1} more` : ""}</span>
+          ) : runner.isLocal ? (
+            <span className="rdy"><i className="dot" />Ready on {gpu ?? "your ComfyUI"}{queued ? ` · ${queued} in queue` : " · free"}</span>
+          ) : (
+            <span className="rdy" style={{ gap: 10 }}><i className="dot violet" />Comfy Router<CostPill estimate={estimate} times={s.variants} /></span>
+          )}
+          <span className="fspacer" />
+          <span className="hide-m">Sent exactly as typed</span>
+          <span className="mono hide-m">{s.prompt.length}</span>
+          {def && s.prompt !== def && <button className="btn sm ghost hide-m" type="button" onClick={() => set({ prompt: def })}><I n="undo" />Default prompt</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------- history */
+
+function useRuns(engine: string) {
+  return useQuery({
+    queryKey: ["generations", "runs", engine],
+    queryFn: () => api.generations({ model: engine, shelf: "mine" }),
+    enabled: !!engine,
+    refetchInterval: (q) => ((q.state.data ?? []).some((r) => r.status === "running") ? 5000 : false),
+  });
+}
+
+function HThumb({ g, on, job, onPick }: { g: GenerationRow; on: boolean; job?: Job; onPick: () => void }) {
+  const live = (!!job && isActive(job)) || g.status === "running";
+  const failed = !live && FAILED.has(g.status);
+  const img = (live && job?.preview) || (g.poster ? fileUrl(g.id, g.poster) : null);
+  return (
+    <button className={cx("hthumb", failed && "failed")} type="button" aria-current={on} onClick={onPick} style={{ "--p": jobProgress(job) } as CSSProperties}
+      aria-label={`${g.prompt || g.title}, ${live ? "running" : failed ? "failed" : "done"}`} title={g.prompt || g.title}>
+      {img ? <img src={img} alt="" style={live ? { filter: "blur(6px) saturate(.3)" } : undefined} /> : <span style={{ position: "absolute", inset: 0, background: "var(--raised)" }} />}
+      {live && <Ring p={jobProgress(job)} sm />}
+    </button>
+  );
+}
+
+function HistList({ engine, current, jobs, onPick }: { engine: string; current: string | null; jobs: Job[]; onPick: (id: string) => void }) {
+  const runs = useRuns(engine);
+  const list = runs.data ?? [];
+  return (
+    <>
+      <h5>Runs · {list.length}</h5>
+      <div className="hist-list">
+        {list.length ? list.slice(0, 60).map((g) => <HThumb key={g.id} g={g} on={g.id === current} job={jobs.find((j) => j.id === g.id)} onPick={() => onPick(g.id)} />)
+          : <p className="none">{runs.isLoading ? "…" : "Your runs of this template land here."}</p>}
+      </div>
+    </>
+  );
+}
+
+function HistStrip({ engine, current, jobs, onPick }: { engine: string; current: string | null; jobs: Job[]; onPick: (id: string) => void }) {
+  const runs = useRuns(engine);
+  const list = useMemo(() => (runs.data ?? []).slice(0, 30), [runs.data]);
+  if (!list.length) return null;
+  return (
+    <div className="hist-strip" aria-label="Runs of this template">
+      <span className="lab">Runs</span>
+      {list.map((g) => <HThumb key={g.id} g={g} on={g.id === current} job={jobs.find((j) => j.id === g.id)} onPick={() => onPick(g.id)} />)}
+    </div>
+  );
+}
+

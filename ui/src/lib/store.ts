@@ -113,6 +113,9 @@ interface AppState {
   motion: StudioState;
   edit: StudioState;
   queueOpen: boolean;
+  palette: boolean;
+  /** The Library wall's order, so the viewer can step through it. */
+  libList: string[];
   shareFor: string | null;
   review: ImportReview | null;
   search: string;
@@ -122,6 +125,8 @@ interface AppState {
   openTemplate: (mode: Mode, engine: string) => void;
   loadGeneration: (m: Manifest, opts?: { engine?: string; dropVideo?: boolean }) => Mode;
   setQueue: (open: boolean) => void;
+  setPalette: (open: boolean) => void;
+  setLibList: (ids: string[]) => void;
   share: (id: string | null) => void;
   setReview: (r: ImportReview | null) => void;
   setSearch: (q: string) => void;
@@ -147,6 +152,8 @@ export const useApp = create<AppState>()(
       motion: blankStudio(),
       edit: blankStudio(),
       queueOpen: false,
+      palette: false,
+      libList: [],
       shareFor: null,
       review: null,
       search: "",
@@ -219,7 +226,9 @@ export const useApp = create<AppState>()(
         set({ [mode]: next } as Partial<AppState>);
         return mode;
       },
-      setQueue: (queueOpen) => set({ queueOpen }),
+      setQueue: (queueOpen) => set({ queueOpen, ...(queueOpen ? { palette: false } : {}) }),
+      setPalette: (palette) => set({ palette, ...(palette ? { queueOpen: false } : {}) }),
+      setLibList: (libList) => set({ libList }),
       share: (shareFor) => set({ shareFor }),
       setReview: (review) => set({ review }),
       setSearch: (search) => set({ search }),

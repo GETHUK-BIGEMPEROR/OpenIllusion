@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 /** Tiles keep their media's shape, but only between 9:16 and 16:9: no strip is too tall or too flat. */
 export const clampAspect = (a?: number | null) => Math.min(16 / 9, Math.max(9 / 16, a || 4 / 5));
@@ -9,8 +9,8 @@ export const clampAspect = (a?: number | null) => Math.min(16 / 9, Math.max(9 / 
  * still even out when heights differ a lot. Heights come from each item's
  * aspect, so nothing jumps while media loads.
  */
-export function Masonry<T extends { key: string; aspect?: number | null }>({ items, render, label, minCol = 232, maxCols = 5, gap = 12 }: {
-  items: T[]; render: (item: T) => ReactNode; label: string; minCol?: number; maxCols?: number; gap?: number;
+export function Masonry<T extends { key: string; aspect?: number | null }>({ items, render, label, minCol = 232, maxCols = 5 }: {
+  items: T[]; render: (item: T) => ReactNode; label: string; minCol?: number; maxCols?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -23,7 +23,10 @@ export function Masonry<T extends { key: string; aspect?: number | null }>({ ite
     return () => ro.disconnect();
   }, []);
 
-  const cols = Math.max(2, Math.min(maxCols, Math.floor((width + gap) / (minCol + gap)) || 2));
+  // Narrow walls (phones) go to two tight columns.
+  const small = width > 0 && width < 560;
+  const gap = small ? 8 : 14;
+  const cols = small ? 2 : Math.max(2, Math.min(maxCols, Math.floor((width + gap) / (minCol + gap)) || 2));
   const columns = useMemo(() => {
     const colW = Math.max(1, (width - gap * (cols - 1)) / cols);
     const heights = new Array<number>(cols).fill(0);
@@ -38,9 +41,9 @@ export function Masonry<T extends { key: string; aspect?: number | null }>({ ite
   }, [items, cols, width, gap]);
 
   return (
-    <div ref={ref} role="list" aria-label={label} className="flex items-start" style={{ gap }}>
+    <div ref={ref} role="list" aria-label={label} className="wall" style={{ "--gap": `${gap}px` } as CSSProperties}>
       {columns.map((col, i) => (
-        <div key={i} className="flex-1 min-w-0 flex flex-col" style={{ gap }}>
+        <div key={i} className="col">
           {col.map((it) => <div role="listitem" key={it.key}>{render(it)}</div>)}
         </div>
       ))}

@@ -1,12 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { api, type EngineInfo, type TemplatePatch } from "../lib/api";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { api, type EngineInfo, type Spec, type TemplatePatch } from "../lib/api";
 import { errMsg } from "../lib/format";
+import { defaults } from "../lib/spec";
 import { useApp } from "../lib/store";
-import { ArrowRight, Brush, Close, External, ImageIcon, Motion, Refresh } from "./Icons";
 import { clampAspect } from "./Masonry";
-import { COVER_ACCEPT, useCoverActions } from "./TemplateCard";
-import { Badge, Button, Field, IconButton, Notice, Spinner, TextArea, TextInput } from "./ui";
+import { Compare, gpuName, I, useStatus } from "./oi";
+import { useLocalCheck } from "./Studio";
+import { COVER_ACCEPT, tplModel, tplName, useCoverActions } from "./TemplateCard";
+import { Spinner } from "./ui";
 
 interface Draft {
   label: string;
@@ -60,16 +62,23 @@ function patchOf(e: EngineInfo, d: Draft): TemplatePatch {
 // Unsaved edits survive switching to another template and back.
 const drafts = new Map<string, Draft>();
 
-/** Right-hand panel on the Templates shelf: everything about one template, editable in place. */
+const fill: CSSProperties = { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" };
+
+function Field({ id, label, help, children }: { id: string; label: string; help?: string; children: ReactNode }) {
+  return <div className="ofield"><label htmlFor={id}>{label}</label>{children}{help && <p className="help">{help}</p>}</div>;
+}
+
+/** Right-hand panel on Explore: everything about one template, editable in place. */
 export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo; locked: string | null; onUse: () => void; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useApp((s) => s.toast);
   const [d, setD] = useState<Draft>(() => drafts.get(e.id) ?? draftOf(e));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const editable = e.kind === "local" && !!e.origin;
+  const [editing, setEditing] = useState(() => drafts.has(e.id));
   const patch = patchOf(e, d);
   const dirty = Object.keys(patch).length > 0;
-  const editable = e.kind === "local" && !!e.origin;
 
   useEffect(() => {
     if (dirty) drafts.set(e.id, d);
@@ -83,6 +92,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
     setD(draftOf(next));
   };
   const save = async () => {
+    if (!dirty) return;
     if (!d.label.trim()) return setErr("Give the template a name.");
     setSaving(true);
     setErr(null);
@@ -115,7 +125,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") {
         ev.preventDefault();
         void save_.current();
-      } else if (ev.key === "Escape" && !(ev.target as HTMLElement)?.closest?.("input,textarea,[role=menu],[data-radix-popper-content-wrapper]")) {
+      } else if (ev.key === "Escape" && !useApp.getState().palette && !(ev.target as HTMLElement)?.closest?.("input,textarea,[role=menu],[data-radix-popper-content-wrapper]")) {
         onClose();
       }
     };
@@ -123,195 +133,192 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
     return () => window.removeEventListener("keydown", on);
   }, [onClose]);
 
-  const ModeIcon = e.mode === "motion" ? Motion : Brush;
   const sample = d.defaultPrompt.trim() || lines(d.examples)[0] || d.promptHint || "your prompt";
+  const samples = e.defaults?.inputs ?? [];
+  const lead = samples.find((x) => x.slot === "image:1");
+  const ar = Math.max(clampAspect(e.cover ? e.cover_aspect : lead?.width && lead?.height ? lead.width / lead.height : 4 / 5), 4 / 5);
+  const ideas = (e.examples ?? []).filter((x) => x !== e.defaults?.prompt);
 
   return (
-    <aside aria-label={`${e.label} details`} className="w-[392px] shrink-0 border-l border-line bg-bg flex flex-col min-h-0 animate-slide">
-      <header className="shrink-0 h-12 pl-4 pr-2 flex items-center gap-2 border-b border-line">
-        <ModeIcon size={15} className="text-muted shrink-0" />
-        <h2 className="m-0 text-base font-semibold truncate flex-1">{e.label}</h2>
-        {dirty && <span className="text-xs text-orange-text whitespace-nowrap" aria-live="polite">Unsaved</span>}
-        <IconButton label="Close details" onClick={onClose}><Close size={15} /></IconButton>
-      </header>
-
-      <div className="flex-1 min-h-0 overflow-y-auto scroll-y">
-        <div className="p-4 flex flex-col gap-4">
-          <CoverBox e={e} />
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge dot={e.kind === "local" ? "#F2FF59" : "#9A86F0"}>{e.kind}</Badge>
-            <Badge>{e.mode}</Badge>
-            {e.origin === "user" && !e.edited && <Badge>Your template</Badge>}
-            {e.edited && <Badge tone="orange">Edited</Badge>}
-            {(e.tags ?? []).map((t) => <Badge key={t} className="text-muted">#{t}</Badge>)}
-          </div>
-
-          {locked && <Notice tone="warn" title="Needs setup">{locked}</Notice>}
-          <Button tone="primary" onClick={onUse} className="w-full justify-center">
-            Open in {e.mode === "motion" ? "Motion" : "Edit"} studio<ArrowRight size={14} />
-          </Button>
-
-          {!editable ? (
-            <p className="m-0 text-sm text-muted leading-[1.5]">{e.blurb}</p>
-          ) : (
-            <>
-              <Group title="Details">
-                <Field label="Name" htmlFor="ti-label"><TextInput id="ti-label" value={d.label} onChange={set("label")} maxLength={80} /></Field>
-                <Field label="Description" htmlFor="ti-blurb">
-                  <TextArea id="ti-blurb" rows={3} value={d.blurb} onChange={set("blurb")} maxLength={400} className="text-sm resize-y" />
-                </Field>
-                <Field label="Tags" htmlFor="ti-tags" hint="Comma separated."><TextInput id="ti-tags" value={d.tags} onChange={set("tags")} /></Field>
-              </Group>
-
-              <Group title="Prompt box" aside={e.prompt?.required === false ? "Optional for this template" : undefined}>
-                <Field label="Default prompt" htmlFor="ti-pdef" hint="What the prompt box opens with. Tested with the samples under Inputs.">
-                  <TextArea id="ti-pdef" rows={2} value={d.defaultPrompt} onChange={set("defaultPrompt")} maxLength={400} className="text-sm resize-y" />
-                </Field>
-                <Field label="Label" htmlFor="ti-plabel"><TextInput id="ti-plabel" value={d.promptLabel} onChange={set("promptLabel")} maxLength={40} /></Field>
-                <Field label="Placeholder" htmlFor="ti-phint"><TextInput id="ti-phint" value={d.promptHint} onChange={set("promptHint")} maxLength={160} /></Field>
-                <Field label="Examples" htmlFor="ti-ex" hint="One per line. Shown as quick picks under the prompt.">
-                  <TextArea id="ti-ex" rows={fit(d.examples)} value={d.examples} onChange={set("examples")} className="text-sm resize-y" />
-                </Field>
-                <Field label="Tips" htmlFor="ti-tips" hint="One per line.">
-                  <TextArea id="ti-tips" rows={fit(d.tips)} value={d.tips} onChange={set("tips")} className="text-sm resize-y" />
-                </Field>
-              </Group>
-
-              {e.instruction && (
-                <Group title="Instruction" aside="Sent to the model around the prompt">
-                  {"start" in e.instruction && (
-                    <Field label="Before the prompt" htmlFor="ti-start">
-                      <TextArea id="ti-start" rows={3} value={d.start} onChange={set("start")} maxLength={2000} className="text-sm resize-y" />
-                    </Field>
-                  )}
-                  {"end" in e.instruction && (
-                    <Field label="After the prompt" htmlFor="ti-end">
-                      <TextArea id="ti-end" rows={5} value={d.end} onChange={set("end")} maxLength={2000} className="text-sm resize-y" />
-                    </Field>
-                  )}
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-xs text-muted">What the model reads</span>
-                    <p className="m-0 p-2.5 rounded-lg bg-surface border border-line text-sm leading-[1.55] text-soft whitespace-pre-wrap break-words">
-                      {d.start}<mark className="bg-yellow/15 text-yellow rounded px-0.5">{sample}</mark>{d.end}
-                    </p>
-                  </div>
-                </Group>
-              )}
-            </>
-          )}
-
-          {!!e.inputs?.length && (
-            <Group title="Inputs">
-              <ul className="m-0 p-0 list-none flex flex-col gap-2">
-                {e.inputs.map((i, n) => {
-                  const sampleIn = e.defaults?.inputs.find((x) => x.slot === i.slot);
-                  return (
-                    <li key={i.slot} className="flex gap-2.5 items-start">
-                      {sampleIn ? (
-                        <img src={sampleIn.url} alt={`Sample ${(i.label ?? "input").toLowerCase()}`} loading="lazy" className="w-11 h-11 shrink-0 rounded-md object-cover bg-raised ring-1 ring-inset ring-white/[0.06]" />
-                      ) : (
-                        <span className="w-5 h-5 shrink-0 rounded-md bg-active text-xs font-mono text-soft flex items-center justify-center">{n + 1}</span>
-                      )}
-                      <span className="flex flex-col min-w-0">
-                        <span className="text-sm text-text"><span className="font-mono text-xs text-faint">Image {n + 1} · </span>{i.label ?? i.slot}</span>
-                        {i.hint && <span className="text-xs text-muted">{i.hint}</span>}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Group>
-          )}
-
-          {!!e.requires?.models.length && (
-            <Group title="Needs in ComfyUI" aside={`${e.requires.nodes.length} node types`}>
-              <ul className="m-0 p-0 list-none flex flex-col gap-1.5">
-                {e.requires.models.map((m) => (
-                  <li key={m.name} className="flex items-center gap-2 min-w-0 text-sm">
-                    <span className="font-mono text-xs text-soft truncate" title={m.name}>{m.name}</span>
-                    {m.folder && <span className="shrink-0 text-xs text-faint">{m.folder}</span>}
-                    {m.url && (
-                      <a href={m.url} target="_blank" rel="noreferrer noopener" className="ml-auto shrink-0 text-muted hover:text-text" aria-label={`Download ${m.name}`}>
-                        <External size={13} />
-                      </a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              <details className="text-xs text-muted">
-                <summary className="cursor-pointer hover:text-soft select-none">Node types</summary>
-                <p className="m-0 mt-1.5 font-mono leading-[1.6] break-words">{e.requires.nodes.join(" · ")}</p>
-              </details>
-            </Group>
-          )}
-
-          <p className="m-0 text-xs text-faint leading-[1.5] break-words">
-            <span className="font-mono">{e.id}</span>
-            {e.source && <> · {e.source}</>}
-          </p>
-        </div>
+    <div className="insp" aria-label={`${tplName(e)} details`}>
+      <div className="insp-head">
+        <h2>Template</h2>
+        {dirty && <span className="hint" style={{ color: "var(--orange)", marginRight: "auto" }} aria-live="polite">Unsaved</span>}
+        {editable && (
+          <button className="btn sm ghost" type="button" onClick={() => setEditing(!editing)} aria-pressed={editing}>
+            <I n={editing ? "check" : "pencil"} />{editing ? "Done editing" : "Edit details"}
+          </button>
+        )}
+        <button className="icon-btn sm" type="button" aria-label="Close details" onClick={onClose}><I n="x" /></button>
       </div>
 
-      {editable && (dirty || e.edited || err) && (
-        <footer className="shrink-0 p-3 border-t border-line flex flex-col gap-2 bg-bg">
-          {err && <p role="alert" className="m-0 text-xs text-rose-text">{err}</p>}
-          <div className="flex items-center gap-2">
-            {e.edited && !dirty && (
-              <Button tone="ghost" size="sm" onClick={resetAll} disabled={saving}><Refresh size={13} />Reset to shipped</Button>
-            )}
-            {dirty && (
-              <>
-                <Button tone="ghost" size="sm" onClick={() => { setD(draftOf(e)); setErr(null); }} disabled={saving}>Discard</Button>
-                <Button tone="primary" size="sm" onClick={save} disabled={saving} className="ml-auto">
-                  {saving && <Spinner size={12} />}Save changes
-                </Button>
-              </>
-            )}
+      <div className="insp-body">
+        <div className="insp-hero" style={{ "--ar": ar } as CSSProperties}>
+          {e.cover_video ? <video key={e.cover_video} src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={fill} />
+            : e.cover && lead && !e.cover_custom ? <Compare before={lead.url} after={e.cover} lb="Sample" la="Result" />
+            : e.cover ? <img src={e.cover} alt="" style={fill} />
+            : <div className="empty" style={{ padding: 30 }}><div className="empty-ic"><I n="image" /></div><h3>No cover yet</h3></div>}
+        </div>
+
+        {editing ? (
+          <>
+            <Field id="ti-label" label="Name"><input className="input" id="ti-label" value={d.label} onChange={set("label")} maxLength={80} /></Field>
+            <Field id="ti-blurb" label="What it does"><textarea className="textarea" id="ti-blurb" rows={3} value={d.blurb} onChange={set("blurb")} maxLength={400} /></Field>
+            <Field id="ti-tags" label="Tags" help="Comma separated. Tags two or more templates share become filters on Explore."><input className="input" id="ti-tags" value={d.tags} onChange={set("tags")} /></Field>
+          </>
+        ) : (
+          <>
+            <div className="insp-title">
+              <h3>{tplName(e)}</h3>
+              <p>{tplModel(e)} · {e.mode === "motion" ? "Motion" : "Edit"} · {e.kind === "local" ? "Runs on your GPU" : "Runs on Comfy Router"}{e.edited ? " · Edited" : e.origin === "user" ? " · Yours" : ""}</p>
+            </div>
+            {e.blurb && <p className="insp-blurb">{e.blurb}</p>}
+          </>
+        )}
+        {locked && <div className="errbox"><b>Needs setup</b><p>{locked}</p></div>}
+
+        {!!e.inputs?.length && (
+          <div className="kv">
+            <div className="kv-h">Inputs<span>{e.inputs.length} photo{e.inputs.length > 1 ? "s" : ""}</span></div>
+            {e.inputs.map((x, n) => {
+              const sm = samples.find((y) => y.slot === x.slot);
+              return (
+                <div key={x.slot} className="inrow">
+                  {sm ? <img src={sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n="image" /></span>}
+                  <div><b>Image {n + 1} · {x.label ?? x.slot}</b><span>{x.hint ?? (sm ? "Sample included" : "Your photo")}</span></div>
+                </div>
+              );
+            })}
           </div>
-        </footer>
-      )}
-    </aside>
+        )}
+
+        <div className="kv">
+          <div className="kv-h">{d.promptLabel || "Prompt"}<span>{e.prompt?.required === false ? "Optional" : "Default"}</span></div>
+          {editing ? (
+            <>
+              <textarea className="textarea" aria-label="Default prompt" rows={2} value={d.defaultPrompt} onChange={set("defaultPrompt")} maxLength={400} />
+              <p className="help" style={{ marginTop: -4 }}>What the prompt box opens with. Tested with the samples above.</p>
+              <Field id="ti-plabel" label="Prompt label"><input className="input" id="ti-plabel" value={d.promptLabel} onChange={set("promptLabel")} maxLength={40} /></Field>
+              <Field id="ti-phint" label="Placeholder"><input className="input" id="ti-phint" value={d.promptHint} onChange={set("promptHint")} maxLength={160} /></Field>
+              <Field id="ti-ex" label="Ideas" help="One per line. Shown as Try chips over the prompt."><textarea className="textarea" id="ti-ex" rows={fit(d.examples)} value={d.examples} onChange={set("examples")} /></Field>
+              <Field id="ti-tips" label="Tips" help="One per line."><textarea className="textarea" id="ti-tips" rows={fit(d.tips)} value={d.tips} onChange={set("tips")} /></Field>
+            </>
+          ) : (
+            <>
+              <div className="quote">{e.defaults?.prompt || <span style={{ color: "var(--text-3)" }}>No default prompt</span>}</div>
+              {!!ideas.length && <div className="examples">{ideas.map((x) => <span key={x} className="ex">{x}</span>)}</div>}
+            </>
+          )}
+        </div>
+
+        {e.instruction && (editing || d.start || d.end) && (
+          <div className="kv">
+            <div className="kv-h">What the model reads</div>
+            {editing && "start" in e.instruction && (
+              <Field id="ti-start" label="Before the prompt"><textarea className="textarea" id="ti-start" rows={3} value={d.start} onChange={set("start")} maxLength={2000} /></Field>
+            )}
+            {editing && "end" in e.instruction && (
+              <Field id="ti-end" label="After the prompt"><textarea className="textarea" id="ti-end" rows={5} value={d.end} onChange={set("end")} maxLength={2000} /></Field>
+            )}
+            <p className="quote" style={{ margin: 0, fontSize: 12.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+              {d.start}<mark style={{ background: "rgba(242,255,89,.15)", color: "var(--yellow)", borderRadius: 4, padding: "0 2px" }}>{sample}</mark>{d.end}
+            </p>
+          </div>
+        )}
+
+        {!editing && !!e.tips?.length && (
+          <div className="kv"><div className="kv-h">Tips</div><ul className="help" style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>{e.tips.map((t) => <li key={t}>{t}</li>)}</ul></div>
+        )}
+        {!editing && !!e.tags?.length && <div className="kv"><div className="kv-h">Tags</div><div className="tags">{e.tags.map((t) => <span key={t} className="tag">{t}</span>)}</div></div>}
+
+        {e.kind === "local" && <Ready e={e} />}
+        <CoverBox e={e} />
+        <p className="help" style={{ wordBreak: "break-word" }}><span className="mono">{e.id}</span>{e.source && <> · {e.source}</>}</p>
+      </div>
+
+      <div className="insp-foot">
+        {err && <p role="alert" className="help" style={{ color: "var(--rose)", flexBasis: "100%", margin: 0 }}>{err}</p>}
+        {dirty ? (
+          <>
+            <button className="btn" type="button" onClick={() => { setD(draftOf(e)); setErr(null); }} disabled={saving}>Discard</button>
+            <button className="btn primary" type="button" style={{ flex: 1, justifyContent: "center" }} onClick={save} disabled={saving}>
+              {saving ? <Spinner size={13} /> : <I n="check" />}Save changes
+            </button>
+          </>
+        ) : (
+          <>
+            {e.edited && editing && <button className="btn" type="button" onClick={resetAll} disabled={saving}><I n="undo" />Reset to shipped</button>}
+            <button className="btn primary" type="button" style={{ flex: 1, justifyContent: "center" }} onClick={onUse}>Use template<I n="arrow" /></button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
-function Group({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
-  const id = useId();
+/** Whether this machine can run the template, checked with the template's own samples. */
+function Ready({ e }: { e: EngineInfo }) {
+  const spec = useMemo<Spec>(() => ({
+    engine: e.id, mode: e.mode, prompt: e.defaults?.prompt ?? "", params: defaults(e),
+    inputs: (e.defaults?.inputs ?? []).map((i) => ({ slot: i.slot, role: i.slot === "image:1" ? "base" : "character", asset: i.asset })),
+  }), [e]);
+  const check = useLocalCheck(spec);
+  const status = useStatus();
+  const c = check.data;
+  const local = status.data?.local;
+  const gpu = gpuName(local?.gpu);
+  const nodes = e.requires?.nodes.length ?? 0;
+  const row = (ok: boolean | null, text: string, meta?: string | null) => (
+    <div key={text}>
+      {ok == null ? <Spinner size={14} /> : <I n={ok ? "check" : "alert"} style={ok ? undefined : { color: "var(--orange)" }} />}
+      {text}{meta && <span className="mono">{meta}</span>}
+    </div>
+  );
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-3 pt-4 border-t border-line">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 id={id} className="m-0 text-xs2 uppercase tracking-wide font-semibold text-muted">{title}</h3>
-        {aside && <span className="text-xs text-faint">{aside}</span>}
+    <div className="kv">
+      <div className="kv-h">Ready to run</div>
+      <div className="checks">
+        {local && !local.comfyui ? row(false, "ComfyUI isn't answering", local.comfyui_url)
+          : !c ? row(null, check.isError ? "Couldn't check ComfyUI" : "Checking your ComfyUI")
+          : c.reachable === false ? row(false, c.message ?? "Couldn't reach ComfyUI")
+          : [
+            row(!c.missing_nodes.length, c.missing_nodes.length ? `${c.missing_nodes.length} node type${c.missing_nodes.length > 1 ? "s" : ""} missing` : "Custom nodes found", nodes ? `${nodes - c.missing_nodes.length} / ${nodes}` : null),
+            row(!c.missing_models.length, c.missing_models.length ? `${c.missing_models.length} model${c.missing_models.length > 1 ? "s" : ""} missing` : "Models in place", c.missing_models[0]?.value ?? null),
+            gpu ? row(true, "GPU", gpu) : null,
+          ]}
       </div>
-      {children}
-    </section>
+      {!!e.requires?.models.length && (
+        <details className="help">
+          <summary style={{ cursor: "pointer" }}>What it needs in ComfyUI</summary>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 16, display: "grid", gap: 4 }}>
+            {e.requires.models.map((m) => (
+              <li key={m.name} style={{ overflowWrap: "anywhere" }}>
+                <span className="mono">{m.name}</span>{m.folder && <> · {m.folder}</>}
+                {m.url && <> · <a href={m.url} target="_blank" rel="noreferrer noopener" style={{ color: "var(--violet)" }}>download</a></>}
+              </li>
+            ))}
+          </ul>
+          {!!nodes && <p className="mono" style={{ margin: "6px 0 0", overflowWrap: "anywhere" }}>{e.requires.nodes.join(" · ")}</p>}
+        </details>
+      )}
+    </div>
   );
 }
 
 function CoverBox({ e }: { e: EngineInfo }) {
   const file = useRef<HTMLInputElement>(null);
   const { busy, upload, reset } = useCoverActions(e);
-  const aspect = Math.max(clampAspect(e.cover ? e.cover_aspect : undefined), 4 / 5);
   return (
-    <div className="flex flex-col gap-2">
-      <div className="relative rounded-xl overflow-hidden bg-surface ring-1 ring-inset ring-white/[0.06] max-h-[300px]" style={{ aspectRatio: aspect }}>
-        {e.cover_video ? (
-          <video key={e.cover_video} src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden className="absolute inset-0 w-full h-full object-cover" />
-        ) : e.cover ? (
-          <img key={e.cover} src={e.cover} alt="" className="absolute inset-0 w-full h-full object-cover" />
-        ) : (
-          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-faint text-sm">
-            <ImageIcon size={22} />No cover yet
-          </span>
-        )}
-        {busy && <span className="absolute inset-0 bg-black/40 flex items-center justify-center"><Spinner size={18} /></span>}
-      </div>
+    <div className="kv">
+      <div className="kv-h">Cover</div>
       <input ref={file} type="file" accept={COVER_ACCEPT} hidden onChange={(ev) => { upload(ev.target.files?.[0]); ev.target.value = ""; }} />
-      <div className="flex items-center gap-2">
-        <Button size="sm" tone="secondary" onClick={() => file.current?.click()} disabled={busy}><ImageIcon size={13} />{e.cover ? "Change cover" : "Set cover"}</Button>
-        {e.cover_custom && <Button size="sm" tone="ghost" onClick={reset} disabled={busy}>Reset</Button>}
-        <span className="ml-auto text-xs text-faint">Image or ≤8 s video</span>
+      <div className="irow">
+        <button className="btn" type="button" style={{ flex: 1, justifyContent: "center" }} onClick={() => file.current?.click()} disabled={busy}>
+          {busy ? <Spinner size={13} /> : <I n="image" />}{e.cover ? "Choose cover" : "Set a cover"}
+        </button>
+        {e.cover_custom && <button className="btn ghost" type="button" onClick={reset} disabled={busy}>Use shipped</button>}
       </div>
+      <p className="help">Image, or a video up to 8 s. Any finished result can also become the cover from its menu.</p>
     </div>
   );
 }

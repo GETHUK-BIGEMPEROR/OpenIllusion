@@ -67,3 +67,28 @@ export const LICENSES: { id: string; label: string }[] = [
 export const randomSeed = () => Math.floor(Math.random() * 2 ** 31);
 
 export const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+const hm = (d: Date) => d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
+/** "Just now", "12 min ago", "3 h ago", "Yesterday 21:40", "Fri 14:20", "Mar 3". */
+export function ago(ts: number): string {
+  const s = Date.now() / 1000 - ts;
+  if (s < 60) return "Just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  const d = new Date(ts * 1000);
+  const g = dayGroup(ts);
+  if (g === "Today") return `${Math.floor(s / 3600)} h ago`;
+  if (g === "Yesterday") return `Yesterday ${hm(d)}`;
+  if (g === "Earlier this week") return `${d.toLocaleDateString(undefined, { weekday: "short" })} ${hm(d)}`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** The Library's day sections: Today, Yesterday, Earlier this week, then one per month. */
+export function dayGroup(ts: number): string {
+  const d = new Date(ts * 1000);
+  const days = Math.floor((new Date(new Date().toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return "Earlier this week";
+  return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
