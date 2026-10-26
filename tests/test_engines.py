@@ -31,7 +31,9 @@ def generic_spec(engine="acme/any-router-model", **kw):
 TESTED = {HAT} | {f"local/qwen21-{n}" for n in (
     "outfit-swap", "relight", "background-swap", "hair", "expression",
     "glasses", "makeup", "restyle", "remove", "recolor", "product-shot", "hold-product", "weather", "restore",
-)} | {"local/minimax-h3-character-swap"}  # same card, 0.4 MP x 124 frames, 4 steps, ~10 min
+    "cutout",  # 1 MP, 25 steps, ~2 min
+)} | {"local/minimax-h3-character-swap",  # same card, 0.4 MP x 124 frames, 4 steps, ~10 min
+     "local/minimax-h3-animate"}  # 0.4 MP x 124 frames, 4 steps, ~4 min
 
 
 def test_only_tested_templates_ship():
