@@ -12,6 +12,7 @@ import { Connect } from "./screens/Connect";
 import { EditStudio, MotionStudio } from "./screens/EditStudio";
 import { Explore } from "./screens/Explore";
 import { GenerationDetail } from "./screens/GenerationDetail";
+import { Builder, buildAction, workflowToBuilder } from "./screens/Builder";
 import { ImportReview } from "./screens/ImportReview";
 import { Library } from "./screens/Library";
 import { QueueDrawer } from "./screens/QueueDrawer";
@@ -53,11 +54,18 @@ export function App() {
     }
   }, [setReview, toast]);
 
+  // Create returns to whichever studio was open last.
+  useEffect(() => {
+    if (route.name === "edit" || route.name === "motion") useApp.setState({ lastStudio: route.name });
+  }, [route.name]);
+
   // Transient overlays never outlive the screen they were opened on.
   const routeKey = location.hash;
   useEffect(() => {
     const st = useApp.getState();
     if (st.shareFor) st.share(null);
+    if (st.queueOpen) st.setQueue(false);
+    if (st.palette) st.setPalette(false);
   }, [routeKey]);
 
   // First run goes to Connect until a key is saved or the user skips.
@@ -79,7 +87,7 @@ export function App() {
     return () => window.removeEventListener("paste", on);
   }, [setReview, toast]);
 
-  // The Import button in every page header.
+  // Library's Import button.
   useEffect(() => {
     const on = () => fileInput.current?.click();
     window.addEventListener("oi:import", on);
@@ -88,10 +96,11 @@ export function App() {
 
   const importPick = async (f?: File) => {
     if (!f) return;
+    if (await workflowToBuilder(f)) return;
     try {
       setReview(await api.importFile(f));
     } catch (e) {
-      toast({ text: errMsg(e), tone: "error" });
+      toast({ text: errMsg(e), tone: "error", action: buildAction(f) });
     }
   };
 
@@ -117,10 +126,11 @@ export function App() {
           {route.name === "edit" && <EditStudio />}
           {route.name === "generation" && <GenerationDetail key={route.id} id={route.id} />}
           {route.name === "settings" && <Settings />}
+          {route.name === "build" && <Builder />}
         </main>
         <TabBar route={route} />
       </div>
-      <input ref={fileInput} type="file" hidden accept=".illusion,.json,.png,.mp4,application/zip" onChange={(e) => { importPick(e.target.files?.[0]); e.target.value = ""; }} />
+      <input ref={fileInput} type="file" hidden accept=".illusion,.json,.png,.webp,.mp4,application/zip" onChange={(e) => { importPick(e.target.files?.[0]); e.target.value = ""; }} />
       <QueueDrawer />
       <Palette />
       <ShareSheet />

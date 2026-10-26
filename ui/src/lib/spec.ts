@@ -1,10 +1,10 @@
 import type { EngineInfo, Mode, Spec, SpecInput } from "./api";
+import { areaField, videoField } from "./fields";
 import { slotOf, type StudioState } from "./store";
 
 export function defaults(engine?: EngineInfo): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const p of engine?.params ?? []) if (p.default !== undefined) out[p.key] = p.default;
-  if (engine?.size) out.size = engine.size.default;
   return out;
 }
 
@@ -21,12 +21,14 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
       contains_person: r.contains_person,
       consent: r.consent,
       crop: r.crop,
+      size: r.size,
     });
   });
-  const takesVideo = !(engine?.kind === "local" && !engine.needs_video);
-  if (mode === "motion" && s.video && takesVideo) {
+  // A template takes a clip when it lists one; a raw Router model when it's opened for video.
+  const clip = engine?.fields?.length ? videoField(engine)?.key : mode === "motion" ? "video:1" : undefined;
+  if (clip && s.video) {
     inputs.push({
-      slot: "video:1",
+      slot: clip,
       role: "motion",
       asset: s.video.missing ? undefined : s.video.asset,
       url: s.video.publicUrl || undefined,
@@ -36,6 +38,8 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
       trim: s.video.trim,
       duration: s.video.duration,
       max_height: s.video.maxHeight,
+      crop: s.video.crop,
+      size: s.video.size,
     });
   }
   let raw: Record<string, unknown> | null = null;
@@ -52,10 +56,10 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
     title: s.title || undefined,
     inputs,
     prompt: s.prompt,
-    boxes: mode === "edit" ? s.boxes : [],
+    boxes: areaField(engine, mode) ? s.boxes : [],
     params: { ...defaults(engine), ...s.params },
     raw,
-    variants: mode === "edit" ? s.variants : 1,
+    variants: s.variants,
     forked_from: s.forked_from,
     chain: s.chain,
     tags: s.tags,

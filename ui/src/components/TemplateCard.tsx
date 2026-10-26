@@ -17,7 +17,7 @@ const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 export function tplCategory(e: Pick<EngineInfo, "tags" | "mode">) {
   const tags = e.tags ?? [];
   const t = tags.find((x) => BROAD.includes(x)) ?? tags[0];
-  return t ? cap(t) : e.mode === "motion" ? "Motion" : "Edit";
+  return t ? cap(t) : e.mode === "motion" ? "Video" : "Image";
 }
 
 /** Chips for the wall: tags at least two templates share, most used first. */

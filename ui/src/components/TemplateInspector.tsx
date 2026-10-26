@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { api, type EngineInfo, type Spec, type TemplatePatch } from "../lib/api";
+import { api, isMedia, type EngineInfo, type Field as InputField, type PromptIdea, type Spec, type TemplatePatch } from "../lib/api";
+import { fieldsOf, promptField, roleOf } from "../lib/fields";
 import { errMsg } from "../lib/format";
 import { defaults } from "../lib/spec";
 import { useApp } from "../lib/store";
@@ -10,35 +11,36 @@ import { useLocalCheck } from "./Studio";
 import { COVER_ACCEPT, tplModel, tplName, useCoverActions } from "./TemplateCard";
 import { Spinner } from "./ui";
 
+/** One input as the form holds it. `text` and `ideas` only for text inputs (the prompt). */
+interface InputDraft { label: string; hint: string; text?: string; ideas?: PromptIdea[] }
+
 interface Draft {
   label: string;
   blurb: string;
   tags: string;
-  promptLabel: string;
-  promptHint: string;
-  start: string;
-  end: string;
-  examples: string;
   tips: string;
-  defaultPrompt: string;
+  inputs: Record<string, InputDraft>;
 }
+
+const isText = (f: InputField) => f.type === "text";
+const textOf = (f: InputField) => (isText(f) && "default" in f && typeof f.default === "string" ? f.default : "");
+const ideasOf = (f: InputField): PromptIdea[] => ("examples" in f && f.examples) || [];
 
 const draftOf = (e: EngineInfo): Draft => ({
   label: e.label,
   blurb: e.blurb ?? "",
   tags: (e.tags ?? []).join(", "),
-  promptLabel: e.prompt?.label ?? "",
-  promptHint: e.prompt?.hint ?? "",
-  start: e.instruction?.start ?? "",
-  end: e.instruction?.end ?? "",
-  examples: (e.examples ?? []).join("\n"),
   tips: (e.tips ?? []).join("\n"),
-  defaultPrompt: e.defaults?.prompt ?? "",
+  inputs: Object.fromEntries(fieldsOf(e).map((f) => [f.key, {
+    label: f.label, hint: f.hint ?? "", ...(isText(f) ? { text: textOf(f), ideas: ideasOf(f) } : {}),
+  }])),
 });
 
+const slotName = (slot: string) => { const [k, n] = slot.split(":"); return `${k.charAt(0).toUpperCase()}${k.slice(1)} ${n}`; };
 const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
-const fit = (s: string) => Math.min(8, Math.max(3, s.split("\n").length + 1));
+const fit = (s: string, max = 8) => Math.min(max, Math.max(3, Math.ceil(s.length / 48) + s.split("\n").length));
 const commas = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Only what changed goes to the server, so an untouched field never gets rewritten. */
 function patchOf(e: EngineInfo, d: Draft): TemplatePatch {
@@ -47,14 +49,16 @@ function patchOf(e: EngineInfo, d: Draft): TemplatePatch {
   if (d.label !== base.label) p.label = d.label;
   if (d.blurb !== base.blurb) p.blurb = d.blurb;
   if (d.tags !== base.tags) p.tags = commas(d.tags);
-  if (d.examples !== base.examples) p.examples = lines(d.examples);
   if (d.tips !== base.tips) p.tips = lines(d.tips);
-  if (d.defaultPrompt !== base.defaultPrompt) p.default_prompt = d.defaultPrompt;
-  if (d.promptLabel !== base.promptLabel || d.promptHint !== base.promptHint) p.prompt = { label: d.promptLabel, hint: d.promptHint };
-  if (e.instruction && (d.start !== base.start || d.end !== base.end)) {
-    p.instruction = {};
-    if (d.start !== base.start) p.instruction.start = d.start;
-    if (d.end !== base.end) p.instruction.end = d.end;
+  for (const [key, x] of Object.entries(d.inputs)) {
+    const b = base.inputs[key];
+    if (!b) continue;
+    const ch: NonNullable<TemplatePatch["inputs"]>[string] = {};
+    if (x.label !== b.label) ch.label = x.label;
+    if (x.hint !== b.hint) ch.hint = x.hint;
+    if (x.text !== undefined && x.text !== b.text) ch.default = x.text;
+    if (x.ideas && !same(x.ideas, b.ideas)) ch.examples = x.ideas.filter((i) => i.text.trim());
+    if (Object.keys(ch).length) (p.inputs ??= {})[key] = ch;
   }
   return p;
 }
@@ -75,7 +79,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
   const [d, setD] = useState<Draft>(() => drafts.get(e.id) ?? draftOf(e));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const editable = e.kind === "local" && !!e.origin;
+  const editable = !!e.origin && (e.kind === "local" || !!e.built);
   const [editing, setEditing] = useState(() => drafts.has(e.id));
   const patch = patchOf(e, d);
   const dirty = Object.keys(patch).length > 0;
@@ -85,7 +89,8 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
     else drafts.delete(e.id);
   }, [e.id, d, dirty]);
 
-  const set = <K extends keyof Draft>(k: K) => (ev: { target: { value: string } }) => setD((x) => ({ ...x, [k]: ev.target.value }));
+  const set = <K extends "label" | "blurb" | "tags" | "tips">(k: K) => (ev: { target: { value: string } }) => setD((x) => ({ ...x, [k]: ev.target.value }));
+  const setIn = (key: string, ch: Partial<InputDraft>) => setD((x) => ({ ...x, inputs: { ...x.inputs, [key]: { ...x.inputs[key], ...ch } } }));
   const land = (next: EngineInfo) => {
     qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.map((x) => (x.id === next.id ? next : x)));
     drafts.delete(e.id);
@@ -116,6 +121,21 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
       setSaving(false);
     }
   };
+  const remove = async () => {
+    if (!window.confirm(`Delete ${e.label}? Its samples and cover go too. Generations you made with it stay.`)) return;
+    setSaving(true);
+    try {
+      await api.deleteTemplate(e.id);
+      qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.filter((x) => x.id !== e.id));
+      drafts.delete(e.id);
+      onClose();
+      toast({ text: `${e.label} deleted.`, tone: "ok" });
+    } catch (x) {
+      toast({ text: `Couldn't delete: ${errMsg(x)}`, tone: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
   const save_ = useRef(save);
   save_.current = save;
 
@@ -133,11 +153,14 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
     return () => window.removeEventListener("keydown", on);
   }, [onClose]);
 
-  const sample = d.defaultPrompt.trim() || lines(d.examples)[0] || d.promptHint || "your prompt";
   const samples = e.defaults?.inputs ?? [];
   const lead = samples.find((x) => x.slot === "image:1");
   const ar = Math.max(clampAspect(e.cover ? e.cover_aspect : lead?.width && lead?.height ? lead.width / lead.height : 4 / 5), 4 / 5);
-  const ideas = (e.examples ?? []).filter((x) => x !== e.defaults?.prompt);
+  const fields = fieldsOf(e);
+  const media = fields.filter(isMedia);
+  const texts = fields.length ? fields.filter(isText) : [];
+  const settings = fields.filter((f) => !isMedia(f) && !isText(f));
+  const rawPrompt = !fields.length ? promptField(e) : undefined;
 
   return (
     <div className="insp" aria-label={`${tplName(e)} details`}>
@@ -170,62 +193,80 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
           <>
             <div className="insp-title">
               <h3>{tplName(e)}</h3>
-              <p>{tplModel(e)} · {e.mode === "motion" ? "Motion" : "Edit"} · {e.kind === "local" ? "Runs on your GPU" : "Runs on Comfy Router"}{e.edited ? " · Edited" : e.origin === "user" ? " · Yours" : ""}</p>
+              <p>{tplModel(e)} · {e.mode === "motion" ? "Video" : "Image"} · {e.kind === "local" ? "Runs on your GPU" : "Runs on Comfy Router"}{e.edited ? " · Edited" : e.built ? " · Built by you" : e.origin === "user" ? " · Yours" : ""}</p>
             </div>
             {e.blurb && <p className="insp-blurb">{e.blurb}</p>}
           </>
         )}
         {locked && <div className="errbox"><b>Needs setup</b><p>{locked}</p></div>}
 
-        {!!e.inputs?.length && (
+        {!!media.length && (
           <div className="kv">
-            <div className="kv-h">Inputs<span>{e.inputs.length} photo{e.inputs.length > 1 ? "s" : ""}</span></div>
-            {e.inputs.map((x, n) => {
-              const sm = samples.find((y) => y.slot === x.slot);
-              return (
-                <div key={x.slot} className="inrow">
-                  {sm ? <img src={sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n="image" /></span>}
-                  <div><b>Image {n + 1} · {x.label ?? x.slot}</b><span>{x.hint ?? (sm ? "Sample included" : "Your photo")}</span></div>
+            <div className="kv-h">Inputs<span>{media.length} input{media.length > 1 ? "s" : ""}</span></div>
+            {media.map((f) => {
+              const sm = samples.find((y) => y.slot === f.key);
+              const x = d.inputs[f.key];
+              const thumb = sm ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : "image"} /></span>;
+              return editing && x ? (
+                <div key={f.key} className="inrow" style={{ alignItems: "start" }}>
+                  {thumb}
+                  <div style={{ display: "grid", gap: 6, flex: 1 }}>
+                    <input className="input" aria-label={`${slotName(f.key)} label`} value={x.label} maxLength={40} onChange={(ev) => setIn(f.key, { label: ev.target.value })} />
+                    <input className="input" aria-label={`${slotName(f.key)} hint`} placeholder="Hint shown on the empty input" value={x.hint} maxLength={160} onChange={(ev) => setIn(f.key, { hint: ev.target.value })} />
+                  </div>
+                </div>
+              ) : (
+                <div key={f.key} className="inrow">
+                  {thumb}
+                  <div><b>{slotName(f.key)} · {f.label}{f.required === false ? " · optional" : ""}</b><span>{f.hint ?? (sm ? "Sample included" : f.type === "video" ? "Your clip" : "Your photo")}</span></div>
                 </div>
               );
             })}
           </div>
         )}
 
-        <div className="kv">
-          <div className="kv-h">{d.promptLabel || "Prompt"}<span>{e.prompt?.required === false ? "Optional" : "Default"}</span></div>
-          {editing ? (
-            <>
-              <textarea className="textarea" aria-label="Default prompt" rows={2} value={d.defaultPrompt} onChange={set("defaultPrompt")} maxLength={400} />
-              <p className="help" style={{ marginTop: -4 }}>What the prompt box opens with. Tested with the samples above.</p>
-              <Field id="ti-plabel" label="Prompt label"><input className="input" id="ti-plabel" value={d.promptLabel} onChange={set("promptLabel")} maxLength={40} /></Field>
-              <Field id="ti-phint" label="Placeholder"><input className="input" id="ti-phint" value={d.promptHint} onChange={set("promptHint")} maxLength={160} /></Field>
-              <Field id="ti-ex" label="Ideas" help="One per line. Shown as Try chips over the prompt."><textarea className="textarea" id="ti-ex" rows={fit(d.examples)} value={d.examples} onChange={set("examples")} /></Field>
-              <Field id="ti-tips" label="Tips" help="One per line."><textarea className="textarea" id="ti-tips" rows={fit(d.tips)} value={d.tips} onChange={set("tips")} /></Field>
-            </>
-          ) : (
-            <>
-              <div className="quote">{e.defaults?.prompt || <span style={{ color: "var(--text-3)" }}>No default prompt</span>}</div>
-              {!!ideas.length && <div className="examples">{ideas.map((x) => <span key={x} className="ex">{x}</span>)}</div>}
-            </>
-          )}
-        </div>
-
-        {e.instruction && (editing || d.start || d.end) && (
+        {texts.map((f) => {
+          const x = d.inputs[f.key];
+          const ideas = ideasOf(f).filter((i) => i.text !== textOf(f));
+          return (
+            <div key={f.key} className="kv">
+              <div className="kv-h">{f.label}<span>{f.required === false ? "Optional" : "Default"}</span></div>
+              {editing && x ? (
+                <>
+                  <textarea className="textarea" aria-label={`Default ${f.label.toLowerCase()}`} rows={fit(x.text ?? "", 12)} value={x.text ?? ""} onChange={(ev) => setIn(f.key, { text: ev.target.value })} maxLength={4000} />
+                  <p className="help" style={{ marginTop: -4 }}>The whole text the workflow gets. The prompt box opens with it, and anyone can change any of it there.</p>
+                  <Field id={`ti-${f.key}-label`} label="Label"><input className="input" id={`ti-${f.key}-label`} value={x.label} onChange={(ev) => setIn(f.key, { label: ev.target.value })} maxLength={40} /></Field>
+                  <Field id={`ti-${f.key}-hint`} label="Placeholder"><input className="input" id={`ti-${f.key}-hint`} value={x.hint} onChange={(ev) => setIn(f.key, { hint: ev.target.value })} maxLength={160} /></Field>
+                  <IdeasEditor ideas={x.ideas ?? []} seed={x.text ?? ""} onChange={(ideas) => setIn(f.key, { ideas })} />
+                </>
+              ) : (
+                <>
+                  <div className="quote" style={{ whiteSpace: "pre-wrap" }}>{textOf(f) || <span style={{ color: "var(--text-3)" }}>Empty by default</span>}</div>
+                  {!!ideas.length && <div className="examples">{ideas.map((i) => <span key={i.label} className="ex" title={i.text}>{i.label}</span>)}</div>}
+                </>
+              )}
+            </div>
+          );
+        })}
+        {rawPrompt && (
           <div className="kv">
-            <div className="kv-h">What the model reads</div>
-            {editing && "start" in e.instruction && (
-              <Field id="ti-start" label="Before the prompt"><textarea className="textarea" id="ti-start" rows={3} value={d.start} onChange={set("start")} maxLength={2000} /></Field>
-            )}
-            {editing && "end" in e.instruction && (
-              <Field id="ti-end" label="After the prompt"><textarea className="textarea" id="ti-end" rows={5} value={d.end} onChange={set("end")} maxLength={2000} /></Field>
-            )}
-            <p className="quote" style={{ margin: 0, fontSize: 12.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-              {d.start}<mark style={{ background: "rgba(242,255,89,.15)", color: "var(--yellow)", borderRadius: 4, padding: "0 2px" }}>{sample}</mark>{d.end}
-            </p>
+            <div className="kv-h">Prompt<span>Default</span></div>
+            <div className="quote">{e.defaults?.prompt || <span style={{ color: "var(--text-3)" }}>No default prompt</span>}</div>
           </div>
         )}
 
+        {!!settings.length && (
+          <div className="kv">
+            <div className="kv-h">Settings<span>{settings.length}</span></div>
+            <div className="checks">
+              {settings.map((f) => (
+                <div key={f.key}>{f.label}<span className="mono">{"default" in f && f.default != null && f.default !== "" ? String(f.default) : "—"}{f.advanced ? " · advanced" : ""}</span></div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {editing && <Field id="ti-tips" label="Tips" help="One per line."><textarea className="textarea" id="ti-tips" rows={fit(d.tips)} value={d.tips} onChange={set("tips")} /></Field>}
         {!editing && !!e.tips?.length && (
           <div className="kv"><div className="kv-h">Tips</div><ul className="help" style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>{e.tips.map((t) => <li key={t}>{t}</li>)}</ul></div>
         )}
@@ -248,6 +289,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
         ) : (
           <>
             {e.edited && editing && <button className="btn" type="button" onClick={resetAll} disabled={saving}><I n="undo" />Reset to shipped</button>}
+            {e.built && editing && <button className="btn danger" type="button" onClick={remove} disabled={saving}><I n="trash" />Delete</button>}
             <button className="btn primary" type="button" style={{ flex: 1, justifyContent: "center" }} onClick={onUse}>Use template<I n="arrow" /></button>
           </>
         )}
@@ -260,7 +302,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
 function Ready({ e }: { e: EngineInfo }) {
   const spec = useMemo<Spec>(() => ({
     engine: e.id, mode: e.mode, prompt: e.defaults?.prompt ?? "", params: defaults(e),
-    inputs: (e.defaults?.inputs ?? []).map((i) => ({ slot: i.slot, role: i.slot === "image:1" ? "base" : "character", asset: i.asset })),
+    inputs: (e.defaults?.inputs ?? []).map((i) => ({ slot: i.slot, role: roleOf(e, i.slot), asset: i.asset })),
   }), [e]);
   const check = useLocalCheck(spec);
   const status = useStatus();
@@ -301,6 +343,29 @@ function Ready({ e }: { e: EngineInfo }) {
           {!!nodes && <p className="mono" style={{ margin: "6px 0 0", overflowWrap: "anywhere" }}>{e.requires.nodes.join(" · ")}</p>}
         </details>
       )}
+    </div>
+  );
+}
+
+/** Prompt ideas: a short name on the chip, the whole prompt it puts in the box. */
+function IdeasEditor({ ideas, seed, onChange }: { ideas: PromptIdea[]; seed: string; onChange: (ideas: PromptIdea[]) => void }) {
+  const put = (i: number, ch: Partial<PromptIdea>) => onChange(ideas.map((x, k) => (k === i ? { ...x, ...ch } : x)));
+  return (
+    <div className="ofield">
+      <label>Ideas</label>
+      {ideas.map((x, i) => (
+        <div key={i} style={{ display: "grid", gap: 6, padding: 10, border: "1px solid var(--line)", borderRadius: 10 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input className="input" aria-label={`Idea ${i + 1} name`} placeholder="Chip name" value={x.label} maxLength={40} onChange={(ev) => put(i, { label: ev.target.value })} />
+            <button className="icon-btn sm" type="button" aria-label={`Remove idea ${i + 1}`} onClick={() => onChange(ideas.filter((_, k) => k !== i))}><I n="x" /></button>
+          </div>
+          <textarea className="textarea" aria-label={`Idea ${i + 1} prompt`} rows={fit(x.text, 10)} value={x.text} maxLength={4000} onChange={(ev) => put(i, { text: ev.target.value })} />
+        </div>
+      ))}
+      {ideas.length < 12 && (
+        <button className="btn sm ghost" type="button" style={{ justifySelf: "start" }} onClick={() => onChange([...ideas, { label: "", text: seed }])}><I n="plus" />Add idea</button>
+      )}
+      <p className="help">Shown as Try chips over the prompt. Each one fills the box with its whole prompt. New ones start from the default.</p>
     </div>
   );
 }

@@ -1,0 +1,43 @@
+import { isMedia, type EngineInfo, type Field, type MediaType, type ParamSpec, type PromptIdea } from "./api";
+
+/**
+ * A template's inputs, read the same way everywhere. The studio draws whatever a template lists here;
+ * nothing is special-cased by template or by mode.
+ */
+
+export const fieldsOf = (e?: EngineInfo): Field[] => e?.fields ?? [];
+
+export type MediaField = Field & { type: MediaType };
+
+/** Photos and clips, in the template's order. */
+export const mediaFields = (e?: EngineInfo): MediaField[] => fieldsOf(e).filter(isMedia);
+
+export const videoField = (e?: EngineInfo): MediaField | undefined => mediaFields(e).find((f) => f.type === "video");
+
+export interface PromptField { key: "prompt"; label: string; hint?: string; required?: boolean; default?: string; examples?: PromptIdea[] }
+
+/** The template's prompt. Raw Router models have no fields and always take one. */
+export const promptField = (e?: EngineInfo): PromptField | undefined =>
+  e?.fields?.length ? (e.fields.find((f) => f.key === "prompt") as PromptField | undefined) : e ? { key: "prompt", label: "Prompt", examples: e.examples } : undefined;
+
+/** Settings: everything that isn't a photo, a clip or the prompt. `advanced` ones go under Advanced. */
+export function settingsOf(e?: EngineInfo): { main: ParamSpec[]; advanced: ParamSpec[] } {
+  if (!e?.fields?.length) return { main: [], advanced: e?.params ?? [] };
+  const all = e.fields.filter((f) => !isMedia(f) && f.key !== "prompt") as ParamSpec[];
+  return { main: all.filter((p) => !p.advanced), advanced: all.filter((p) => p.advanced) };
+}
+
+/** The input the output follows: it's what the stage shows and what gets cropped there. */
+export const leadSlot = (e?: EngineInfo): string => e?.size?.follows ?? videoField(e)?.key ?? "image:1";
+
+/** The photo input where an area can be marked, if the template takes one. Raw edit models always can, on Image 1. */
+export const areaField = (e?: EngineInfo, mode?: string): string | undefined =>
+  e?.fields?.length ? mediaFields(e).find((f) => f.type === "image" && f.area)?.key : mode === "edit" ? "image:1" : undefined;
+
+/** Role sentences for cloud models: a template can name it; otherwise the first photo of a photo template is the canvas. */
+export const roleOf = (e: EngineInfo | undefined, slot: string): string =>
+  mediaFields(e).find((f) => f.key === slot)?.role ?? (slot === "image:1" && !videoField(e) ? "base" : "character");
+
+export const slotNo = (slot: string) => Number(slot.split(":")[1]);
+
+export const article = (label: string) => `${/^[aeiou]/i.test(label) ? "an" : "a"} ${label.toLowerCase()}`;

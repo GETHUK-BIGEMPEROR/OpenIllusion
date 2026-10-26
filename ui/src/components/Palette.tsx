@@ -59,7 +59,7 @@ function PaletteBody({ close }: { close: () => void }) {
       .slice(0, 6)
       .map<Row>((g) => ({ key: `g:${g.id}`, group: "Generations", label: g.prompt || g.title, small: ago(g.created), img: g.poster ? fileUrl(g.id, g.poster) : null, icon: "image", run: () => go({ name: "generation", id: g.id }) }));
     const pages = PAGES.filter((p) => !s || p.label.toLowerCase().includes(s))
-      .map<Row>((p) => ({ key: `p:${p.label}`, group: "Go to", label: p.label, icon: p.icon, run: () => { location.hash = href(p.route); } }));
+      .map<Row>((p) => ({ key: `p:${p.label}`, group: "Go to", label: p.label, icon: p.icon, run: () => { location.hash = href(p.route.name === "edit" ? { name: useApp.getState().lastStudio } : p.route); } }));
     return [...tpl, ...gs, ...pages];
   }, [q, engines.data, gens.data, openTemplate]);
 

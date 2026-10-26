@@ -11,6 +11,7 @@ import { api, fileUrl, workflowUrl, type Manifest } from "../lib/api";
 import { ago, elapsed, errMsg, roleLabel, shortModel, stamp, LICENSES } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go, href } from "../lib/route";
+import { runName } from "../lib/runs";
 import { useApp } from "../lib/store";
 
 type Mode = "input" | "result" | "compare";
@@ -127,6 +128,7 @@ export function GenerationDetail({ id }: { id: string }) {
 
   const r = m.result;
   const tpl = templates.data?.find((e) => e.id === m.engine.model);
+  const { name } = runName({ title: m.title, model: m.engine.model, prompt: m.prompt }, templates.data);
   const video = m.inputs.find((i) => i.slot.startsWith("video:"));
   const isVideo = !!after && (r?.kind ?? "image") === "video";
   const live = !!job && isActive(job);
@@ -148,7 +150,7 @@ export function GenerationDetail({ id }: { id: string }) {
     stage = <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "0 16px 16px" }}><ABPlayer a={src} b={{ kind: "video", src: after, poster: r?.poster ? fileUrl(m.id, r.poster) : null, label: "Result" }} /></div>;
   } else {
     let inner: ReactNode;
-    if (after) inner = eff === "compare" && before ? <Compare before={before} after={after} lb="Input" la="Result" /> : <img src={eff === "input" && before ? before : after} alt={eff === "input" ? "Input" : "Result"} />;
+    if (after) inner = eff === "compare" && before ? <Compare before={before} after={after} lb="Input" la="Result" /> : <img src={eff === "input" && before ? before : after} alt={eff === "input" ? "Input" : "Result"} className={eff === "input" && before ? undefined : "alpha"} />;
     else if (live) {
       const qd = QUEUED.has(job!.state);
       const p = jobProgress(job);
@@ -184,11 +186,11 @@ export function GenerationDetail({ id }: { id: string }) {
     : m.status === "done" ? <span className="pill" style={{ background: "rgba(95,211,154,.14)", color: "var(--mint)" }}><I n="check" />Done</span> : null;
 
   return (
-    <div className="viewer" role="region" aria-label={m.title}>
+    <div className="viewer" role="region" aria-label={name}>
       <div className="v-stage">
         <div className="v-top">
           <button className="icon-btn" type="button" aria-label="Back to library" title="Back (Esc)" onClick={back}><I n="back" /></button>
-          <div className="t"><b>{m.prompt || m.title}</b>{tpl ? ` · ${tplName(tpl)}` : ""}{size ? <> · <span className="mono">{size.w}×{size.h}</span></> : null}</div>
+          <div className="t"><b>{name}</b>{tpl && name !== tplName(tpl) ? ` · ${tplName(tpl)}` : ""}{size ? <> · <span className="mono">{size.w}×{size.h}</span></> : null}</div>
           {list.length > 1 && <span className="mono hint">{at + 1} / {list.length}</span>}
           <button className="icon-btn" type="button" aria-label="Previous" disabled={at <= 0} style={at <= 0 ? { opacity: 0.3 } : undefined} onClick={() => step(-1)}><I n="left" /></button>
           <button className="icon-btn" type="button" aria-label="Next" disabled={at >= list.length - 1} style={at >= list.length - 1 ? { opacity: 0.3 } : undefined} onClick={() => step(1)}><I n="right" /></button>
@@ -208,7 +210,7 @@ export function GenerationDetail({ id }: { id: string }) {
       <aside className="v-info" aria-label="Details">
         <div className="v-body">
           <div className="v-title">
-            <EditableTitle value={m.title} onSave={(title) => save({ title })} />
+            <EditableTitle value={name} onSave={(title) => save({ title })} />
             <div className="v-status">
               {statusLine}<span title={stamp(m.created)}>{ago(m.created)}</span>
               {r?.elapsed ? <span className="mono">{elapsed(r.elapsed)}</span> : null}
@@ -247,7 +249,7 @@ export function GenerationDetail({ id }: { id: string }) {
                   return (
                     <div key={i.slot} className="inrow" title={`${i.slot} · ${lic}${i.contains_person ? " · person" : ""}`}>
                       {src ? <img src={src} alt="" style={i.file ? undefined : { opacity: 0.5 }} /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n="image" /></span>}
-                      <div><b>{roleLabel(i.role)}</b><span>{i.file ? (i.license === "stock" ? "Sample" : lic) : "Missing from this file"}{i.width && i.height ? ` · ${i.width}×${i.height}` : ""}</span></div>
+                      <div><b>{tpl?.inputs?.find((x) => x.slot === i.slot)?.label ?? slotLabel(i.slot, i.role)}</b><span>{i.file ? (i.license === "stock" ? "Sample" : "Your file") : "Missing from this file"}{i.width && i.height ? ` · ${i.width}×${i.height}` : ""}</span></div>
                     </div>
                   );
                 })}
@@ -308,6 +310,12 @@ export function GenerationDetail({ id }: { id: string }) {
       </aside>
     </div>
   );
+}
+
+/** "image:2" reads "Image 2"; a free-form tray falls back to its role. */
+function slotLabel(slot: string, role: string) {
+  const [kind, n] = slot.split(":");
+  return n && /^(image|video|audio)$/.test(kind) ? `${kind[0].toUpperCase()}${kind.slice(1)} ${n}` : roleLabel(role);
 }
 
 function MoreMenu({ close, children }: { close: () => void; children: ReactNode }) {
@@ -387,8 +395,8 @@ function Tags({ tags, onSave }: { tags: string[]; onSave: (t: string[]) => void 
 function Lineage({ m }: { m: Manifest }) {
   const links: { label: string; id: string }[] = [];
   if (m.lineage.forked_from) links.push({ label: "Remixed from", id: m.lineage.forked_from });
-  for (const c of m.lineage.chain) links.push({ label: "From Edit", id: c.split(":")[1] ?? c });
-  for (const c of m.lineage.sent_to) links.push({ label: "Sent to Motion", id: c });
+  for (const c of m.lineage.chain) links.push({ label: "From an image run", id: c.split(":")[1] ?? c });
+  for (const c of m.lineage.sent_to) links.push({ label: "Sent to Video", id: c });
   for (const v of m._variants ?? []) if (v.id !== m.id) links.push({ label: `Variant · ${v.title}`, id: v.id });
   if (!links.length) return null;
   return (

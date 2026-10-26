@@ -111,7 +111,7 @@ export function useStatus() {
   return useQuery({ queryKey: ["status"], queryFn: () => api.status(), refetchInterval: 30_000 });
 }
 
-/** Sticky page header: title, search (opens the palette), where runs go, Import. */
+/** Sticky page header: title, search (opens the palette), page actions, where runs go. */
 export function PageHead({ title, count, filters, actions }: { title: ReactNode; count?: number | null; filters?: ReactNode; actions?: ReactNode }) {
   const setPalette = useApp((s) => s.setPalette);
   const status = useStatus();
@@ -127,7 +127,6 @@ export function PageHead({ title, count, filters, actions }: { title: ReactNode;
         <div className="hactions">
           {actions}
           <a className="enginepill" href="#/settings" title={local.title}><i className={cx("dot", local.tone === "off" && "off")} style={dotStyle(local.tone)} /><b>Local</b>{local.text}</a>
-          <button className="btn" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))} title="Import a .illusion file, a PNG or MP4 with a recipe, or a generation JSON"><I n="import" />Import</button>
           <button className="icon-btn mob-only" type="button" aria-label="Search" onClick={() => setPalette(true)}><I n="search" /></button>
         </div>
       </div>

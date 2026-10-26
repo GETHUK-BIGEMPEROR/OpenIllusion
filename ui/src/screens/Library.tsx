@@ -100,7 +100,8 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
         </>
       )}
       <span className="fspacer" />
-      {!community && <span className="hint">Saved the moment each run finishes</span>}
+      <button className="btn" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))}
+        title="Bring in a run: a .illusion file, an OpenIllusion PNG or MP4, or a generation JSON"><I n="import" />Import</button>
       {!community && !!all.length && (
         <button className={cx("btn", picking && "primary")} type="button" onClick={() => { setPicking(!picking); setPicked(new Set()); }}>
           <I n="select" />{picking ? "Done" : "Select"}
@@ -220,7 +221,7 @@ function GenCard({ g, job, name, picking, picked, onPick }: { g: GenerationRow; 
           <div className="gfail">
             <span className="ic"><I n="alert" /></span>
             <b>{failText}</b>
-            <p>Open it to see what ComfyUI said.</p>
+            <p title={g.error ?? undefined}>{g.error ?? "Open it to see what went wrong."}</p>
             {!picking && <button className="btn sm" type="button" onClick={(e) => { e.stopPropagation(); void retry(); }}><I n="refresh" />Try again</button>}
           </div>
         )}
@@ -369,7 +370,7 @@ function Community() {
                 <article className="card gcard st-done" tabIndex={0} role="button" aria-label={`Review ${s.title ?? s.url}`} onClick={() => !busy && void open(s.url)}
                   onKeyDown={(e) => { if (e.key === "Enter") void open(s.url); }}>
                   <Media src={s.poster} ar={4 / 5}>{busy === s.url && <div className="hud"><div className="hud-in"><Spinner size={16} /></div></div>}</Media>
-                  <div className="ctop">{s.mode && <span className="pill">{s.mode === "motion" ? "Motion" : "Edit"}</span>}</div>
+                  <div className="ctop">{s.mode && <span className="pill">{s.mode === "motion" ? "Video" : "Image"}</span>}</div>
                   <div className="gprompt"><p>{s.title ?? s.url.split("/").pop()}</p><div className="meta">{s.model && <b>{s.model.split("/").pop()}</b>}{s.author && <span>by {s.author}</span>}</div></div>
                 </article>
               )} />

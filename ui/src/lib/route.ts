@@ -8,6 +8,7 @@ export type Route =
   | { name: "edit" }
   | { name: "generation"; id: string }
   | { name: "settings" }
+  | { name: "build" }
   | { name: "connect" };
 
 export function parse(hash: string): Route {
@@ -24,6 +25,8 @@ export function parse(hash: string): Route {
       return parts[1] ? { name: "generation", id: parts[1] } : { name: "library" };
     case "settings":
       return { name: "settings" };
+    case "build":
+      return { name: "build" };
     case "connect":
       return { name: "connect" };
     case "library":

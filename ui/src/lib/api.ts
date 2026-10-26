@@ -12,7 +12,7 @@ export type JobState =
 export interface ParamSpec {
   key: string;
   label: string;
-  type: "int" | "segmented" | "bool" | "seed" | "string" | "select" | "number";
+  type: "int" | "segmented" | "bool" | "seed" | "string" | "select" | "number" | "text";
   min?: number;
   max?: number;
   step?: number;
@@ -20,7 +20,26 @@ export interface ParamSpec {
   options?: string[];
   unit?: string;
   help?: string;
+  hint?: string;
+  /** Shown under Advanced rather than with the other settings. */
+  advanced?: boolean;
 }
+
+export type MediaType = "image" | "video" | "audio";
+
+/** A prompt idea: a short name on the chip, the whole prompt it puts in the box. */
+export interface PromptIdea { label: string; text: string }
+
+/**
+ * One thing a template takes, in the order the studio shows it. Photos and clips are keyed `image:N` / `video:N`,
+ * the prompt `prompt`, settings by name. `bind` says where the value goes in the workflow (or cloud body).
+ */
+export type Field = (
+  | { type: MediaType; size?: string; area?: boolean; window?: [number, number]; fps?: [number, number]; role?: string; sample?: (Asset & { slot: string }) | null }
+  | (Omit<ParamSpec, "key" | "label"> & { examples?: PromptIdea[] })
+) & { key: string; label: string; hint?: string; help?: string; required?: boolean; advanced?: boolean; bind?: unknown[][] };
+
+export const isMedia = (f: Field): f is Field & { type: MediaType } => f.type === "image" || f.type === "video" || f.type === "audio";
 
 export interface EngineInfo {
   id: string;
@@ -43,16 +62,16 @@ export interface EngineInfo {
   source: string | null;
   /** Local templates can name and hint their prompt box. */
   prompt?: { label?: string; hint?: string; required?: boolean } | null;
-  /** Sample prompts, shown as chips. */
-  examples?: string[];
+  /** Prompts known to work, shown as chips. */
+  examples?: PromptIdea[];
   tips?: string[];
   tags?: string[];
-  /** What each image slot is for. */
+  /** The photos and clips it takes (a view of `fields`). */
   inputs?: { slot: string; label?: string; hint?: string }[];
+  /** Everything it takes, in order: photos and clips, the prompt, settings. Empty for raw Router models. */
+  fields?: Field[];
   /** Model files and node types a local template needs in ComfyUI. */
   requires?: { models: { name: string; folder: string; url?: string | null }[]; nodes: string[] };
-  /** The fixed text wrapped around the user's prompt (local templates that declare it). */
-  instruction?: { start?: string; end?: string } | null;
   /** shipped with the app, or from the user's templates folder. */
   origin?: "shipped" | "user" | null;
   /** A shipped template the user changed; can be reset. */
@@ -69,15 +88,58 @@ export interface EngineInfo {
   size?: SizeSpec | null;
   /** What the template opens with: a prompt, and a sample for each slot (assets like uploads). */
   defaults?: { prompt: string; inputs: (Asset & { slot: string })[] };
+  /** Made in the template builder (can be deleted). */
+  built?: boolean;
+  /** Cloud templates: the Router model they send to. */
+  model?: string | null;
 }
 
-/** A template's size options. px: about px x px pixels at the picture's shape; 0 keeps its own size. */
+// ---- template builder --------------------------------------------------------
+
+export type MediaKind = "image" | "video" | "audio";
+export type BuildParamType = "int" | "number" | "bool" | "seed" | "select" | "string";
+
+/** A loader node a local template can ask the user to fill. */
+export interface BuildMedia { node: string; input: string; kind: MediaKind; title: string; class_type: string; value: string | null; slot: string; sample: Asset | null }
+/** A multiline text box in the workflow. */
+export interface BuildText { node: string; input: string; title: string; class_type: string; value: string; polarity: "positive" | "negative" | null }
+/** A widget value that could become a control. */
+export interface BuildParam {
+  node: string; input: string; title: string; class_type: string; value: unknown; type: BuildParamType;
+  min?: number | null; max?: number | null; step?: number | null; options?: (string | number)[]; help?: string | null; suggested: boolean;
+}
+export interface LocalCheckResult { ok: boolean; missing_nodes: { class_type: string; node_ids: string[] }[]; missing_models: { node_id: string; input: string; value: string }[]; bad_values: { node_id: string; class_type: string; input: string; value: unknown }[] }
+export interface WorkflowAnalysis {
+  token: string; source: string; format: "ui" | "api"; outputs: string[]; nodes: number; notes: string[];
+  media: BuildMedia[]; texts: BuildText[]; prompt: { node: string; input: string } | null; params: BuildParam[];
+  mode: Mode; check: LocalCheckResult;
+}
+export interface SchemaMedia { field: string; kind: MediaKind; many: boolean; max: number; required: boolean; title: string; help: string | null }
+export interface SchemaParam { field: string; title: string; help: string | null; required: boolean; value: unknown; type: BuildParamType; min?: number | null; max?: number | null; step?: number | null; options?: (string | number)[]; suggested: boolean }
+export interface SchemaAnalysis { model: string; version: string; input_modalities: string[]; output_modalities: string[]; media: SchemaMedia[]; prompt: { field: string; required: boolean } | null; params: SchemaParam[]; mode: Mode }
+
+export interface BuildPrompt { node?: string; input?: string; field?: string; label: string; hint: string; default: string; required: boolean; examples?: string[] }
+export interface BuildSpec {
+  kind: "local" | "cloud"; token?: string; model?: string; replace?: string;
+  label: string; blurb: string; mode: Mode; tags: string[];
+  media: { node?: string; input?: string; field?: string; many?: boolean; kind: MediaKind; label: string; hint: string; required: boolean; sample?: string | null }[];
+  prompt: BuildPrompt | null;
+  params: { node?: string; input?: string; field?: string; key?: string; type: BuildParamType; label: string; min?: number | null; max?: number | null; step?: number | null; options?: (string | number)[]; default?: unknown; help?: string | null }[];
+  fixed?: { node: string; input: string; value: unknown }[] | Record<string, unknown>;
+  outputs?: string[];
+  cover?: string | null;
+}
+
+/** How a template's inputs can be sized. px: about px x px pixels at the input's shape (mp = px² / 1e6); 0 keeps its own size. */
 export interface SizeSpec {
-  options: { label: string; px: number }[];
-  default: string;
+  options: { label: string; px: number; mp?: number }[];
   multiple: number;
-  /** The image whose shape sets the output, e.g. "image:1". */
+  /** The input whose size the output takes, e.g. "image:1" or "video:1". */
   follows: string;
+  /** Each input's default size (an option label); "Original" unless the template says otherwise. */
+  inputs: Record<string, string>;
+  /** The label of the option that keeps an input's own size. */
+  original: string;
 }
 
 /** What prep will do to one image: the kept box in source pixels and the size it ends at. */
@@ -86,17 +148,17 @@ export interface PrepPlan {
   box: [number, number, number, number];
   width: number;
   height: number;
+  /** The size option it ran at (recorded on generations). */
+  size?: string;
 }
 
 export interface TemplatePatch {
   label?: string;
   blurb?: string;
   tags?: string[];
-  examples?: string[];
   tips?: string[];
-  prompt?: { label?: string; hint?: string };
-  default_prompt?: string;
-  instruction?: { start?: string; end?: string };
+  /** Per input: its label and hint; for text inputs also the default and the ideas. */
+  inputs?: Record<string, { label?: string; hint?: string; default?: string; examples?: PromptIdea[] }>;
 }
 
 export interface MissingModel {
@@ -147,6 +209,8 @@ export interface InputItem {
   duration?: number | null;
   trim?: [number, number] | null;
   label?: string | null;
+  /** How it was cropped and sized for the run. */
+  prep?: PrepPlan | null;
 }
 
 export interface Box {
@@ -219,6 +283,8 @@ export interface GenerationRow {
   height: number | null;
   elapsed: number | null;
   seed: number | null;
+  /** Why it failed, one line; null unless failed. */
+  error: string | null;
 }
 
 export interface Estimate {
@@ -244,6 +310,9 @@ export interface Job {
   mode: Mode;
   model: string;
   provider: string;
+  /** Template id; model is what the provider runs. */
+  engine?: string;
+  prompt?: string;
   state: JobState;
   detail: string;
   created: number;
@@ -353,6 +422,8 @@ export interface SpecInput {
   label?: string;
   /** Kept part of the image as fractions [x, y, w, h]. */
   crop?: [number, number, number, number];
+  /** The size it runs at (a size option label). */
+  size?: string;
 }
 
 export class HttpError extends Error {
@@ -398,6 +469,15 @@ export const api = {
   resetCover: (engine: string) => req<EngineInfo>("DELETE", `/cover?${qs({ engine })}`),
   editTemplate: (engine: string, patch: TemplatePatch) => req<EngineInfo>("PATCH", "/templates", { engine, ...patch }),
   resetTemplate: (engine: string) => req<EngineInfo>("DELETE", `/templates?${qs({ engine })}`),
+  buildFromFile: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    return req<WorkflowAnalysis>("POST", "/builder/workflow", fd);
+  },
+  buildFromText: (text: string) => req<WorkflowAnalysis>("POST", "/builder/workflow", { text }),
+  buildSchema: (model: string) => req<SchemaAnalysis>("GET", `/builder/schema?${qs({ model })}`),
+  saveTemplate: (spec: BuildSpec) => req<EngineInfo>("POST", "/builder/save", spec),
+  deleteTemplate: (engine: string) => req<{ ok: boolean }>("DELETE", `/builder/template?${qs({ engine })}`),
   catalog: () => req<{ id: string; provider: string; model: string }[]>("GET", "/catalog"),
   schema: (model: string) => req<{ schema: any; input_modalities: string[]; output_modalities: string[]; version: string; authored: boolean }>("GET", `/schema?model=${encodeURIComponent(model)}`),
   upload: (file: File) => {
@@ -414,6 +494,7 @@ export const api = {
   jobs: () => req<Job[]>("GET", "/jobs"),
   cancel: (id: string) => req("POST", `/jobs/${id}/cancel`),
   clearJobs: () => req<Job[]>("POST", "/jobs/clear"),
+  dismissJob: (id: string) => req<Job[]>("POST", `/jobs/${id}/dismiss`),
   generations: (f: Record<string, unknown>) => req<GenerationRow[]>("GET", `/generations?${qs(f)}`),
   facets: () => req<{ models: string[]; shelves: Record<string, number>; tags: string[] }>("GET", "/facets"),
   generation: (id: string) => req<Manifest>("GET", `/generations/${id}`),

@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { EngineDropdown } from "../components/Engine";
 import { cx, EmptyBox, gpuName, I, PageHead } from "../components/oi";
 import { UpstreamWarning } from "../components/Studio";
 import { api, type Settings as S, type Status } from "../lib/api";
@@ -9,7 +8,6 @@ import { useApp } from "../lib/store";
 
 const NAV = [
   { id: "engines", label: "Engines" },
-  { id: "defaults", label: "Default templates" },
   { id: "runs", label: "Runs and storage" },
   { id: "community", label: "Community" },
   { id: "privacy", label: "Privacy" },
@@ -73,20 +71,6 @@ export function Settings() {
                 <div className="engines">
                   <LocalCard s={s} save={save} status={status.data} />
                   <CloudCard s={s} />
-                </div>
-              </Sec>
-
-              <Sec id="defaults" title="Default templates" desc="What each studio opens with when nothing is loaded.">
-                <div className="set-card">
-                  {(["edit", "motion"] as const).map((mode) => {
-                    const k = mode === "motion" ? "default_motion_engine" : "default_edit_engine";
-                    return (
-                      <div key={mode} className="ofield">
-                        <label>{mode === "motion" ? "Motion" : "Create"}</label>
-                        <EngineDropdown mode={mode} value={s[k]} onChange={(id) => { save({ [k]: id }); useApp.getState().setStudio(mode, { engine: id }); }} />
-                      </div>
-                    );
-                  })}
                 </div>
               </Sec>
 

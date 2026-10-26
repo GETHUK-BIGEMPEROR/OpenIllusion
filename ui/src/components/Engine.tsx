@@ -1,9 +1,8 @@
 import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { api, type EngineInfo, type Mode, type ParamSpec, type SizeSpec } from "../lib/api";
+import { api, type EngineInfo, type Mode, type ParamSpec } from "../lib/api";
 import { randomSeed } from "../lib/format";
-import { aspectName, dimsText, plans, sizeNotes, type Crop } from "../lib/size";
 import { Check, Chevron, Dice, Search } from "./Icons";
 import { IconButton, Segmented, Select, Slider, TextInput, Toggle, cx } from "./ui";
 
@@ -146,42 +145,6 @@ function EngineList({ list, value, pick }: { list: EngineInfo[]; value: string; 
   );
 }
 
-/** Output size in the picture's own pixels, one option per size the template offers, plus notes on upscaling, shape and memory. */
-export function SizeField({ size, value, images, onChange }: {
-  size: SizeSpec; value: unknown; images: { slot: string; width: number; height: number; crop?: Crop }[]; onChange: (v: string) => void;
-}) {
-  const current = size.options.some((o) => o.label === value) ? String(value) : size.default;
-  const lead = images.some((i) => i.slot === size.follows);
-  const at = (label: string) => (lead ? plans(size, label, images)[size.follows] : null);
-  const out = at(current);
-  const n = size.follows.split(":")[1];
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex justify-between items-baseline gap-2">
-        <span className="text-sm font-medium text-soft" title={`Images are cropped and sized by OpenIllusion before the run. The output follows image ${n}.`}>Size</span>
-        {out && <span className="font-mono text-xs tabular text-text">{dimsText(out)} · {aspectName(out)}</span>}
-      </div>
-      <div role="radiogroup" aria-label="Size" className="grid p-0.5 bg-bg border border-line rounded-lg gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.min(size.options.length, 4)}, minmax(0, 1fr))` }}>
-        {size.options.map((o) => {
-          const d = at(o.label);
-          const on = o.label === current;
-          return (
-            <button key={o.label} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.label)}
-              aria-label={`${o.label}${d ? `, ${d.width} by ${d.height}` : ""}`}
-              className={cx("mk-btn border-0 rounded-md px-1 py-1 flex flex-col items-center gap-px min-w-0",
-                on ? "bg-active text-text shadow-seg" : "bg-transparent text-muted hover:text-text")}>
-              <span className={cx("text-sm leading-[18px]", on && "font-medium")}>{o.label}</span>
-              <span className={cx("font-mono text-[10px] leading-3 tabular truncate max-w-full", on ? "text-soft" : "text-faint")}>{d ? dimsText(d) : o.px > 0 ? `~${o.px}²` : "as is"}</span>
-            </button>
-          );
-        })}
-      </div>
-      {out ? sizeNotes(out).map((t) => <span key={t} className="text-xs text-orange-text leading-[1.45]">{t}</span>)
-        : <span className="text-xs text-faint">Sizes follow image {n}'s shape. Add it to see them in pixels.</span>}
-    </div>
-  );
-}
-
 export function ParamFields({ params, values, onChange, invalid }: { params: ParamSpec[]; values: Record<string, unknown>; onChange: (key: string, v: unknown) => void; invalid?: Set<string> }) {
   if (!params.length) return <p className="m-0 text-sm text-muted">No settings for this engine. Anything else goes in the raw request.</p>;
   return (
@@ -227,6 +190,15 @@ export function ParamFields({ params, values, onChange, invalid }: { params: Par
             </div>
           );
         }
+        if (p.type === "text") {
+          return (
+            <div key={p.key} className="flex flex-col gap-1.5">
+              <label htmlFor={id}>{lbl}</label>
+              <textarea id={id} className="textarea" aria-invalid={bad || undefined} rows={3} value={v == null ? "" : String(v)} placeholder={p.hint} onChange={(e) => onChange(p.key, e.target.value)} />
+              {p.help && <span className="text-xs text-muted">{p.help}</span>}
+            </div>
+          );
+        }
         if (p.type === "seed") {
           const n = Number(v ?? -1);
           return (
@@ -240,7 +212,7 @@ export function ParamFields({ params, values, onChange, invalid }: { params: Par
         return (
           <div key={p.key} className="flex flex-col gap-1.5">
             <label htmlFor={id}>{lbl}</label>
-            <TextInput id={id} aria-invalid={bad || undefined} value={v == null ? "" : String(v)} onChange={(e) => onChange(p.key, p.type === "number" ? (e.target.value === "" ? undefined : Number(e.target.value)) : e.target.value)} className={cx("h-8 text-sm", p.type === "number" && "font-mono")} />
+            <TextInput id={id} aria-invalid={bad || undefined} value={v == null ? "" : String(v)} placeholder={p.hint} onChange={(e) => onChange(p.key, p.type === "number" ? (e.target.value === "" ? undefined : Number(e.target.value)) : e.target.value)} className={cx("h-8 text-sm", p.type === "number" && "font-mono")} />
             {p.help && <span className="text-xs text-muted">{p.help}</span>}
           </div>
         );

@@ -19,8 +19,24 @@ const pyRound = (x: number) => {
 /** About px x px pixels at the picture's shape, both sides on the multiple. px 0: its own size, trimmed down to the multiple. */
 export function target(w: number, h: number, px: number, m: number): Dims {
   if (px <= 0) return { width: Math.max(m, Math.floor(w / m) * m), height: Math.max(m, Math.floor(h / m) * m) };
+  const round = (v: number) => Math.max(m, pyRound(v / m) * m);
   const r = w / h;
-  return { width: Math.max(m, pyRound(Math.sqrt(px * px * r) / m) * m), height: Math.max(m, pyRound(Math.sqrt(px * px / r) / m) * m) };
+  const flip = r < 1;
+  const q = flip ? 1 / r : r;
+  const base = round(Math.sqrt((px * px) / q));
+  let best: [number, number] | null = null;
+  let score = Infinity;
+  for (let k = -4; k <= 4; k++) {
+    const short = base + k * m;
+    if (short < m) continue;
+    const long = round(short * q);
+    const area = Math.abs((short * long) / (px * px) - 1);
+    if (area > 0.12) continue;
+    const s = Math.abs(Math.log(long / short / q)) + 0.1 * area;
+    if (s < score) { best = [long, short]; score = s; }
+  }
+  if (!best) return { width: round(Math.sqrt(px * px * r)), height: round(Math.sqrt((px * px) / r)) };
+  return flip ? { width: best[1], height: best[0] } : { width: best[0], height: best[1] };
 }
 
 export function plan(w: number, h: number, px: number, m: number, crop?: Crop): PrepPlan {
@@ -46,17 +62,19 @@ export function plan(w: number, h: number, px: number, m: number, crop?: Crop): 
   return { source: [w, h], box: [x, y, x + kw, y + kh], ...out };
 }
 
-export const budget = (size: SizeSpec, choice?: unknown) =>
-  (size.options.find((o) => o.label === choice) ?? size.options.find((o) => o.label === size.default) ?? size.options[0]).px;
+/** An input as prep sees it: its pixel size, and the shape and size chosen for it. */
+export interface PrepInput { slot: string; width: number; height: number; crop?: Crop; size?: string }
 
-/** Plans for every image of a run; references share the budget (under "Original", the main picture's area). */
-export function plans(size: SizeSpec, choice: unknown, images: { slot: string; width: number; height: number; crop?: Crop }[]) {
-  const px = budget(size, choice);
+/** The size an input runs at: its own choice when it names an option, else the template's default for it. */
+export const choiceOf = (size: SizeSpec, slot: string, choice?: unknown) =>
+  size.options.some((o) => o.label === choice) ? String(choice) : size.inputs[slot] ?? size.original;
+
+export const budget = (size: SizeSpec, choice?: unknown) => size.options.find((o) => o.label === choice)?.px ?? 0;
+
+/** Plans for every input of a run, each at its own size. */
+export function plans(size: SizeSpec, inputs: PrepInput[]) {
   const out: Record<string, PrepPlan> = {};
-  const lead = images.find((i) => i.slot === size.follows);
-  if (lead) out[lead.slot] = plan(lead.width, lead.height, px, size.multiple, lead.crop);
-  const refPx = px || (lead ? pyRound(Math.sqrt(out[lead.slot].width * out[lead.slot].height)) : 0);
-  for (const i of images) if (!out[i.slot]) out[i.slot] = plan(i.width, i.height, refPx, size.multiple, i.crop);
+  for (const i of inputs) out[i.slot] = plan(i.width, i.height, budget(size, choiceOf(size, i.slot, i.size)), size.multiple, i.crop);
   return out;
 }
 
@@ -87,7 +105,7 @@ export function sizeNotes(p: PrepPlan): string[] {
 }
 
 /** A run's images with their pixel sizes and crops, as prep sees them. Sizes the upload didn't record are read from the files. */
-export function usePrepImages(refs: { url: string; width?: number; height?: number; slot?: number; crop?: Crop; missing?: boolean }[]) {
+export function usePrepImages(refs: { url: string; width?: number; height?: number; slot?: number; crop?: Crop; size?: string; missing?: boolean }[]) {
   const [read, setRead] = useState<Record<string, Dims>>({});
   const unknown = refs.filter((r) => r.url && !(r.width && r.height) && !read[r.url]).map((r) => r.url);
   useEffect(() => {
@@ -101,6 +119,23 @@ export function usePrepImages(refs: { url: string; width?: number; height?: numb
   }, [unknown.join("|")]);
   return refs.flatMap((r, i) => {
     const d = r.width && r.height ? { width: r.width, height: r.height } : read[r.url];
-    return d && !r.missing ? [{ slot: `image:${r.slot ?? i + 1}`, ...d, crop: r.crop }] : [];
+    return d && !r.missing ? [{ slot: `image:${r.slot ?? i + 1}`, ...d, crop: r.crop, size: r.size }] : [];
   });
+}
+
+/** Shapes the studio offers on top of the input's own. */
+export const SHAPES = [["Own", 0], ["9:16", 9 / 16], ["16:9", 16 / 9], ["1:1", 1], ["4:5", 4 / 5]] as const;
+
+/** The largest centred crop of a w x h picture at shape r (width / height), as fractions [x, y, w, h]. */
+export function shapeCrop(w: number, h: number, r: number): Crop {
+  if (w / h > r) { const cw = (h * r) / w; return [(1 - cw) / 2, 0, cw, 1]; }
+  const ch = w / r / h;
+  return [0, (1 - ch) / 2, 1, ch];
+}
+
+/** Which of SHAPES a crop gives ("Own" when there is none). */
+export function shapeOf(w: number, h: number, crop?: Crop): string {
+  if (!crop) return "Own";
+  const r = (crop[2] * w) / (crop[3] * h);
+  return SHAPES.find(([, x]) => x && Math.abs(r / x - 1) < 0.01)?.[0] ?? "Custom";
 }

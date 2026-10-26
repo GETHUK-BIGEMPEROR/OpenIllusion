@@ -7,6 +7,7 @@ import { useApp } from "../lib/store";
 import { Logo } from "./Logo";
 import { dotStyle, I, localState, useStatus } from "./oi";
 import { addToTray } from "./Refs";
+import { buildAction, workflowToBuilder } from "../screens/Builder";
 import { cx } from "./ui";
 
 export { gpuName, localState } from "./oi";
@@ -15,6 +16,7 @@ const NAV = [
   { name: "explore", label: "Explore", key: "1", icon: "compass" },
   { name: "edit", label: "Create", key: "2", icon: "wand" },
   { name: "library", label: "Library", key: "3", icon: "library" },
+  { name: "build", label: "Build", key: "4", icon: "graph" },
 ] as const;
 
 const section = (r: Route) => (r.name === "generation" ? "library" : r.name === "motion" ? "edit" : r.name);
@@ -31,6 +33,7 @@ export function Rail({ route }: { route: Route }) {
   const badge = useQueueBadge();
   const status = useStatus();
   const current = section(route);
+  const lastStudio = useApp((s) => s.lastStudio);
   const local = localState(status.data?.local);
   const cloudOn = !!status.data?.has_key && status.data.router.ok !== false;
 
@@ -40,7 +43,7 @@ export function Rail({ route }: { route: Route }) {
       const t = e.target as HTMLElement;
       if (e.metaKey || e.ctrlKey || e.altKey || t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
       const n = NAV.find((x) => x.key === e.key);
-      if (n && !document.querySelector("[role=dialog]")) go({ name: n.name });
+      if (n && !document.querySelector("[role=dialog]")) go({ name: n.name === "edit" ? useApp.getState().lastStudio : n.name });
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
@@ -50,7 +53,7 @@ export function Rail({ route }: { route: Route }) {
     <nav className="rail" aria-label="Main">
       <a className="logo" href={href({ name: "explore" })} aria-label="OpenIllusion home"><LogoMark /></a>
       {NAV.map((n) => (
-        <a key={n.name} className="nav-btn" href={href({ name: n.name })} aria-current={current === n.name ? "page" : undefined} title={`${n.label} (${n.key})`}>
+        <a key={n.name} className="nav-btn" href={href({ name: n.name === "edit" ? lastStudio : n.name })} aria-current={current === n.name ? "page" : undefined} title={`${n.label} (${n.key})`}>
           <I n={n.icon} />{n.label}
         </a>
       ))}
@@ -73,11 +76,12 @@ export function TabBar({ route }: { route: Route }) {
   const badge = useQueueBadge();
   const current = section(route);
   const cur = (n: string) => (current === n ? "page" : undefined);
+  const lastStudio = useApp((s) => s.lastStudio);
   return (
     <nav className="tabbar" aria-label="Main">
       <a className="tab" href={href({ name: "explore" })} aria-current={cur("explore")}><I n="compass" />Explore</a>
       <a className="tab" href={href({ name: "library" })} aria-current={cur("library")}><I n="library" />Library</a>
-      <a className="tab create" href={href({ name: "edit" })} aria-current={cur("edit")}><span className="fab"><I n="plus" /></span><span>Create</span></a>
+      <a className="tab create" href={href({ name: lastStudio })} aria-current={cur("edit")}><span className="fab"><I n="plus" /></span><span>Create</span></a>
       <button className="tab" type="button" onClick={() => setQueue(true)}><I n="layers" />Queue<span className="badge">{badge}</span></button>
       <a className="tab" href={href({ name: "settings" })} aria-current={cur("settings")}><I n="sliders" />Settings</a>
     </nav>
@@ -151,10 +155,14 @@ export function DropOverlay() {
           return;
         }
         if (f) {
+          if (await workflowToBuilder(f)) return;
           try {
             setReview(await api.importFile(f));
           } catch (err) {
-            if (!toTray) throw err;
+            if (!toTray) {
+              toast({ text: errMsg(err), tone: "error", action: buildAction(f) });
+              return;
+            }
             addToTray(studio, [await api.upload(f)]);
           }
         } else {
@@ -195,7 +203,7 @@ export function DropOverlay() {
         <Logo size={40} />
         <span className="text-lg font-semibold">{inStudio ? "Drop to add your photo" : "Drop to import"}</span>
         <span className="text-sm text-muted max-w-[420px]">
-          {inStudio ? "Photos fill the template's empty inputs in order. A .illusion file or an OpenIllusion PNG opens for review instead." : "A .illusion file, an OpenIllusion PNG or MP4, or a generation link. Nothing runs until you review it."}
+          {inStudio ? "Photos fill the template's empty inputs in order. A .illusion file or an OpenIllusion PNG opens for review instead." : "A .illusion file, an OpenIllusion PNG or MP4, a generation link, or a ComfyUI workflow to build a template from. Nothing runs until you review it."}
         </span>
       </div>
     </div>

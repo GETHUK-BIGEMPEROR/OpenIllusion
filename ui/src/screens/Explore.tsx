@@ -54,8 +54,8 @@ export function Explore({ t }: { t?: string }) {
   const filters = (
     <>
       <div className="seg" role="group" aria-label="Mode">
-        <button type="button" aria-pressed={mode === "edit"} onClick={() => { setMode("edit"); setTag(""); }}><I n="image" />Edit<span className="n">{count("edit")}</span></button>
-        <button type="button" aria-pressed={mode === "motion"} onClick={() => { setMode("motion"); setTag(""); }}><I n="film" />Motion<span className="n">{count("motion")}</span></button>
+        <button type="button" aria-pressed={mode === "edit"} onClick={() => { setMode("edit"); setTag(""); }}><I n="image" />Image<span className="n">{count("edit")}</span></button>
+        <button type="button" aria-pressed={mode === "motion"} onClick={() => { setMode("motion"); setTag(""); }}><I n="film" />Video<span className="n">{count("motion")}</span></button>
       </div>
       <span className="vsep" />
       <button className="chip" type="button" aria-pressed={!tag} onClick={() => setTag("")}>All</button>
@@ -70,7 +70,7 @@ export function Explore({ t }: { t?: string }) {
   );
 
   const empty = mode === "motion" && !ofMode.length
-    ? <EmptyBox icon="film" title="No motion templates yet" action={<button className="btn" type="button" onClick={() => setMode("edit")}>Show edit templates</button>}>Motion templates drive a photo with a reference video. They show up here once one is added and tested.</EmptyBox>
+    ? <EmptyBox icon="film" title="No motion templates yet" action={<button className="btn" type="button" onClick={() => setMode("edit")}>Show edit templates</button>}>Motion templates drive a photo with a reference video. Build one from a ComfyUI workflow, or wait for one to ship.</EmptyBox>
     : where === "cloud" && !status.data?.has_key
       ? <EmptyBox icon="cloud" title="Cloud templates need an API key" action={<a className="btn primary" href="#/settings">Add a key</a>}>Add a Comfy API key in Settings and cloud templates show up here.</EmptyBox>
       : <EmptyBox icon="search" title="Nothing here" action={<button className="btn" type="button" onClick={() => { setTag(""); setWhere("any"); }}>Show all</button>}>Try another category or clear the filter.</EmptyBox>;
@@ -78,7 +78,7 @@ export function Explore({ t }: { t?: string }) {
   return (
     <div className="page explore">
       <div className="scroll">
-        <PageHead title="Explore" filters={filters} />
+        <PageHead title="Explore" filters={filters} actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a cloud model"><I n="plus" />New template</a>} />
         {covers.length > 0 && <div className="aura" aria-hidden>{covers.map((e) => <img key={e.id} src={e.cover!} alt="" />)}</div>}
         <div className="wall-wrap">
           <div className="lede">

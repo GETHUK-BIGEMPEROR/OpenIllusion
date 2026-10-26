@@ -30,6 +30,8 @@ export interface RefSlot extends Media {
   slot?: number;
   /** Kept part of the image as fractions [x, y, w, h]; the server crops before the run. */
   crop?: [number, number, number, number];
+  /** The size it runs at (a size option label); unset means the template's default for its slot. */
+  size?: string;
   /** One of the template's sample inputs, not the user's own. */
   sample?: boolean;
 }
@@ -40,6 +42,10 @@ export const slotOf = (r: Pick<RefSlot, "slot">, i: number) => r.slot ?? i + 1;
 export interface VideoSlot extends Media {
   trim: [number, number];
   maxHeight?: number;
+  /** Kept part of every frame as fractions [x, y, w, h]; the server crops before the run. */
+  crop?: [number, number, number, number];
+  /** The size it runs at (a size option label); unset means the template's default for its slot. */
+  size?: string;
   license: string;
   contains_person: boolean;
   consent: boolean;
@@ -114,6 +120,8 @@ export interface Toast {
 interface AppState {
   motion: StudioState;
   edit: StudioState;
+  /** The studio last open, so Create returns to it (image or video). */
+  lastStudio: Mode;
   queueOpen: boolean;
   palette: boolean;
   /** The Library wall's order, so the viewer can step through it. */
@@ -153,6 +161,7 @@ export const useApp = create<AppState>()(
     (set, get) => ({
       motion: blankStudio(),
       edit: blankStudio(),
+      lastStudio: "edit",
       queueOpen: false,
       palette: false,
       libList: [],
@@ -183,6 +192,7 @@ export const useApp = create<AppState>()(
             url: i.file ? fileUrl(m.id, i.file) : i.thumb ?? "",
             thumb: i.thumb,
             missing: !i.file,
+            size: i.prep?.size,
             width: i.width ?? undefined,
             height: i.height ?? undefined,
             role: i.role,
@@ -202,6 +212,9 @@ export const useApp = create<AppState>()(
                 poster: fileUrl(m.id, "driving/poster.webp"),
                 duration: v.duration ?? undefined,
                 trim: [0, v.duration ?? 0],
+                size: v.prep?.size,
+                width: v.width ?? undefined,
+                height: v.height ?? undefined,
                 license: v.license,
                 contains_person: v.contains_person,
                 consent: v.consent,
@@ -214,7 +227,8 @@ export const useApp = create<AppState>()(
           ...blankStudio(),
           variants: prev.variants,
           engine,
-          title: m.title,
+          // A remix is a new run: it takes its template's name unless someone renames it.
+          title: "",
           video,
           refs,
           prompt: m.prompt,
@@ -244,7 +258,7 @@ export const useApp = create<AppState>()(
     {
       name: "openillusion.studio.v1",
       storage: safeStorage,
-      partialize: (s) => ({ motion: s.motion, edit: s.edit }),
+      partialize: (s) => ({ motion: s.motion, edit: s.edit, lastStudio: s.lastStudio }),
       // v2: the built-in cloud engines were removed; drafts pointing at one start without an engine.
       version: 2,
       migrate: (old, from) => {
