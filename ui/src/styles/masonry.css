@@ -1,0 +1,26 @@
+/* ---------- masonry ---------- */
+.wall-wrap{padding:18px 24px 56px;position:relative;z-index:1}
+.wall{display:flex;gap:var(--gap,14px);max-width:var(--wall-max);margin:0 auto;align-items:flex-start;min-height:200px}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--gap,14px)}
+.card{position:relative;border-radius:var(--r-lg);overflow:hidden;background:var(--raised);cursor:pointer;isolation:isolate;transition:transform .3s cubic-bezier(.2,.7,.2,1),box-shadow .3s;animation:rise .45s cubic-bezier(.2,.7,.2,1) both;outline-offset:3px}
+.card:hover{transform:translateY(-3px);box-shadow:0 22px 44px -20px rgba(0,0,0,.8)}
+.card::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:linear-gradient(140deg,rgba(242,255,89,.85),rgba(154,134,240,.55) 38%,transparent 66%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .3s;pointer-events:none;z-index:4}
+.card:hover::after,.card.sel::after{opacity:1}
+.card.sel::after{background:var(--yellow)}
+.media{position:relative;aspect-ratio:var(--ar,1);background:linear-gradient(105deg,var(--raised) 35%,#2a2333 50%,var(--raised) 65%) 0 0/300% 100%;animation:shimmer 1.3s linear infinite;overflow:hidden}
+.media.loaded{animation:none;background:var(--raised)}
+.media img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .45s,transform .7s cubic-bezier(.2,.7,.2,1)}
+.media.loaded img{opacity:1}
+.card:hover .media img{transform:scale(1.04)}
+.cap{position:absolute;inset:auto 0 0 0;padding:44px 14px 13px;background:linear-gradient(transparent,rgba(10,7,14,.55) 40%,rgba(10,7,14,.9));display:flex;align-items:flex-end;gap:10px;z-index:2}
+.cap-t{flex:1;min-width:0}
+.cap h3{margin:0;font:600 14px/1.25 var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cap p{margin:3px 0 0;font-size:11.5px;color:rgba(242,238,248,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctop{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:6px;align-items:center;z-index:3}
+.ctop .fspacer{flex:1}
+.go{width:34px;height:34px;border-radius:50%;background:var(--yellow);color:var(--on-yellow);display:grid;place-items:center;flex:none;opacity:0;transform:translateY(6px) scale(.9);transition:all .25s cubic-bezier(.2,.7,.2,1)}
+.go .i{width:17px;height:17px;stroke-width:2.2}
+.card:hover .go,.card:focus-visible .go{opacity:1;transform:none}
+.reveal{opacity:0;transition:opacity .2s}
+.card:hover .reveal,.card:focus-within .reveal,.card.sel .reveal{opacity:1}
+@media (hover:none){.go,.reveal{opacity:1;transform:none}}

@@ -1,0 +1,32 @@
+/* OpenIllusion design system: ink surfaces, yellow for the one action, violet for selection.
+   Layout follows the app's own width (container queries on .app), so desktop and phone run the same markup. */
+.app{container:app/size;position:relative;height:100%;width:100%;overflow:hidden;background:var(--bg);isolation:isolate;color:var(--text);font:400 14px/1.45 var(--body)}
+.app a{color:inherit;text-decoration:none}
+.app button{text-align:inherit}
+.app [hidden]{display:none!important}
+.app img{max-width:100%}
+:root{
+  /* Ink studio: violet-biased ink surfaces; yellow is the one action, violet marks selection, mint/orange/rose carry state.
+     Layout: rail + page on desktop, page + tab bar on phone; walls are left-first masonry, max 4 cols for templates. */
+  --bg:#0E0A13; --panel:#15101B; --raised:#1D1724; --field:#221B2A; --hover:#2D2638;
+  --line:rgba(226,214,255,.08); --line-2:rgba(226,214,255,.15);
+  --text:#F2EEF8; --text-2:#B4AAC2; --text-3:#80768E;
+  --yellow:#F2FF59; --violet:#9A86F0; --mint:#5FD39A; --orange:#FFA24C; --rose:#FF6B7E;
+  --on-yellow:#16101C;
+  --display:"Unbounded Variable","Sora Variable",system-ui,sans-serif;
+  --body:"Sora Variable",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono Variable",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --r:12px; --r-lg:18px; --wall-max:1320px;
+  color-scheme:dark;
+}
+.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@keyframes shimmer{to{background-position:-150% 0}}
+@keyframes fade{from{opacity:0}}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}}
+@keyframes up{from{transform:translateY(100%)}}
+@keyframes grain{0%{background-position:0 0}25%{background-position:-40px 20px}50%{background-position:30px -50px}75%{background-position:-20px -30px}100%{background-position:0 0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes sweep{from{transform:translateX(-120%) skewX(-20deg)}to{transform:translateX(320%) skewX(-20deg)}}
+@keyframes pulse{50%{opacity:.35}}

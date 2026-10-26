@@ -35,11 +35,6 @@ export const Queue = ({ size, ...p }: P) => (
     <path d="M8 6h13M8 12h13M8 18h13" /><circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" />
   </svg>
 );
-export const Sliders = ({ size, ...p }: P) => (
-  <svg {...base(size)} {...p}>
-    <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
-  </svg>
-);
 export const Search = ({ size = 15, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
 );
@@ -63,9 +58,6 @@ export const Dash = ({ size = 14, ...p }: P) => (
 );
 export const Chevron = ({ size = 16, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><path d="m6 9 6 6 6-6" /></svg>
-);
-export const ChevronRight = ({ size = 14, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><path d="m9 6 6 6-6 6" /></svg>
 );
 export const ArrowLeft = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
@@ -102,20 +94,11 @@ export const Link = ({ size = 14, ...p }: P) => (
 export const Copy = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><rect x="8" y="8" width="12" height="12" rx="3" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
 );
-export const Graph = ({ size = 14, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><rect x="3" y="4" width="7" height="6" rx="2" /><rect x="14" y="14" width="7" height="6" rx="2" /><path d="M10 7h3a2 2 0 0 1 2 2v5" /></svg>
-);
 export const Box = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><rect x="4" y="4" width="16" height="16" rx="3" strokeDasharray="3 3" /></svg>
 );
 export const Frame = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m3 15 5-4 4 3 3-2 6 4" /></svg>
-);
-export const Folder = ({ size = 14, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
-);
-export const Ban = ({ size = 18, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><circle cx="12" cy="12" r="9" /><path d="m6 6 12 12" /></svg>
 );
 export const AlertTriangle = ({ size = 16, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><path d="M10.3 4.3 2.9 17.5A2 2 0 0 0 4.6 20.5h14.8a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z" /><path d="M12 9.5v4M12 17h.01" /></svg>
@@ -141,14 +124,8 @@ export const Cloud = ({ size = 14, ...p }: P) => (
 export const Cpu = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><rect x="6" y="6" width="12" height="12" rx="2.5" /><path d="M10 10h4v4h-4zM9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" /></svg>
 );
-export const ImageIcon = ({ size = 16, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="9" cy="9.5" r="1.7" /><path d="m4 18 5.5-5 4 3.5L17 13l3 3" /></svg>
-);
 export const ArrowRight = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-);
-export const Sparkle = ({ size = 14, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><path d="M12 3.5 13.8 10l6.7 2-6.7 2L12 20.5 10.2 14l-6.7-2 6.7-2z" /></svg>
 );
 export const Compare = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M12 3v18" /></svg>
@@ -159,12 +136,6 @@ export const Columns = ({ size = 14, ...p }: P) => (
 export const Person = ({ size = 16, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><circle cx="12" cy="8" r="4" /><path d="M4.5 20.5c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" /></svg>
 );
-export const Shirt = ({ size = 16, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><path d="M9 3.5 4 6l-1.5 5 3.5 1.2V20.5h12V12.2l3.5-1.2L20 6l-5-2.5c-.6 1.6-1.6 2.5-3 2.5s-2.4-.9-3-2.5Z" /></svg>
-);
 export const Package = ({ size = 16, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" /><path d="m4 7.5 8 4.5 8-4.5M12 12v9" /></svg>
-);
-export const Landscape = ({ size = 16, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><path d="m2.5 19 6-9 4 6 2.5-3.5L21.5 19Z" /><circle cx="17" cy="6.5" r="2" /></svg>
 );

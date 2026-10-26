@@ -2,9 +2,11 @@
 
 Oct 23, 2026 · @Wang
 
+> **Status (Oct 26, 2026):** the product shipped as **OpenIllusion**, a standalone Python + React web app, not a ComfyUI node pack. It runs local templates against ComfyUI and cloud templates through Comfy Router. The architecture and node-pack sections below are the original plan, kept for history.
+
 ## TL;DR
 
-Build **Makimono** (working name): an open-source Motion + Edit studio that ships as a ComfyUI custom node pack, calls frontier models through Comfy Router with the user's own key, and turns every run into a shareable **scroll** — a portable bundle of references, prompt, model and settings that anyone can remix in the app or open directly in ComfyUI.
+Build **OpenIllusion**: an open-source Motion + Edit studio that ships as a ComfyUI custom node pack, calls frontier models through Comfy Router with the user's own key, and turns every run into a shareable **scroll** — a portable bundle of references, prompt, model and settings that anyone can remix in the app or open directly in ComfyUI.
 
 It does three things:
 
@@ -12,7 +14,7 @@ It does three things:
 2. **Edit** — 1–10 images plus an instruction (and optional boxes drawn on the canvas) become an edited image, which can be sent straight into Motion as the new cast.
 3. **Scrolls** — a local catalogue of past runs, and a file format to share them. No server, no accounts: the scroll travels as a file, a link, or embedded inside the output video itself.
 
-Why it can win: Genjutsu-style apps hide the recipe behind presets and credits; Makimono makes the recipe the product. The bundle format plus a ComfyUI "Load Scroll" node targets **Most Innovative** and **Most Viral**, while FLUX 3 as the edit core targets the **Built with FLUX** bonus. Deadline is **Oct 30, 9am PT** — seven days from today.
+Why it can win: Genjutsu-style apps hide the recipe behind presets and credits; OpenIllusion makes the recipe the product. The bundle format plus a ComfyUI "Load Scroll" node targets **Most Innovative** and **Most Viral**, while FLUX 3 as the edit core targets the **Built with FLUX** bonus. Deadline is **Oct 30, 9am PT** — seven days from today.
 
 ## Competition brief and compliance
 
@@ -43,7 +45,7 @@ Compliance checklist (from your rules plus the published page):
 
 ## Principles and positioning
 
-Makimono is an instrument, not a vending machine: it never promises a result, it shows exactly what was sent and what came back, and it makes the next experiment one click away. Whether a prompt works is the user's craft; our job is a fast, honest loop.
+OpenIllusion is an instrument, not a vending machine: it never promises a result, it shows exactly what was sent and what came back, and it makes the next experiment one click away. Whether a prompt works is the user's craft; our job is a fast, honest loop.
 
 1. **The recipe is visible.** Every run shows the model ID, provider, the exact request body, the pre-run cost estimate and the seed. A Raw tab lets power users edit the JSON directly.
 2. **No hidden prompt magic.** We never silently rewrite a prompt. Helpers (reference role sentences, FLUX 3 box JSON) insert visible, editable text.
@@ -52,7 +54,7 @@ Makimono is an instrument, not a vending machine: it never promises a result, it
 5. **Model-agnostic by schema.** Forms are generated from Router's published per-model JSON schemas, so a new model shows up without a release.
 6. **Remix over presets.** Presets are just scrolls other people made — open files, not a curated store.
 
-|  | Higgsfield Genjutsu | Makimono |
+|  | Higgsfield Genjutsu | OpenIllusion |
 | --- | --- | --- |
 | Where it runs | Higgsfield's cloud, their account | Your machine, inside your ComfyUI |
 | Billing | Higgsfield credits | Your Comfy credits via Router; estimate shown before every run |
@@ -128,11 +130,11 @@ The catalogue is a local library where every run is saved as a scroll automatica
 | Export | Opens the share sheet (Full, Light or Recipe-only) |
 | Open in ComfyUI | Loads the scroll's workflow into the ComfyUI canvas |
 
-**Storage.** One folder per scroll under ComfyUI's user directory (`user/default/makimono/scrolls/<id>/`), results in `output/makimono/`, and a SQLite index with FTS5 for search. Deleting a scroll moves it to a local trash for 7 days.
+**Storage.** One folder per scroll under ComfyUI's user directory (`user/default/openillusion/scrolls/<id>/`), results in `output/openillusion/`, and a SQLite index with FTS5 for search. Deleting a scroll moves it to a local trash for 7 days.
 
 ## Feature 4 — Scroll bundles (the unique point)
 
-A scroll is a portable, versioned bundle of one run's recipe and media that opens in Makimono, in any ComfyUI through our Load Scroll node, and even from the output video itself — so sharing needs no server of ours.
+A scroll is a portable, versioned bundle of one run's recipe and media that opens in OpenIllusion, in any ComfyUI through our Load Scroll node, and even from the output video itself — so sharing needs no server of ours.
 
 **Three sizes**
 
@@ -159,7 +161,7 @@ my-run.scroll
 
 ```json
 {
-  "format": "makimono.scroll",
+  "format": "openillusion.scroll",
   "version": 1,
   "id": "01JB8Z…",
   "title": "Hallway take → rainy rooftop",
@@ -180,7 +182,7 @@ my-run.scroll
 }
 ```
 
-**Recipe inside the output.** On save, the Recipe-only manifest is written into the result file: a PNG text chunk for images (the same mechanism ComfyUI uses to embed workflows) and a metadata tag on the MP4 via ffmpeg. Drop any Makimono output onto the app or onto ComfyUI and the recipe re-opens; missing media becomes empty slots with a "use your own" prompt. This is the viral loop: the thing people share already carries how it was made.
+**Recipe inside the output.** On save, the Recipe-only manifest is written into the result file: a PNG text chunk for images (the same mechanism ComfyUI uses to embed workflows) and a metadata tag on the MP4 via ffmpeg. Drop any OpenIllusion output onto the app or onto ComfyUI and the recipe re-opens; missing media becomes empty slots with a "use your own" prompt. This is the viral loop: the thing people share already carries how it was made.
 
 **Sharing paths, none hosted by us**
 
@@ -188,7 +190,7 @@ my-run.scroll
 - A link carrying a Recipe-only scroll in the URL fragment (`#scroll=<base64url>`), which browsers never send to a server.
 - A GitHub Gist or repo; the community index is just an `index.json` listing scroll URLs, shared by pull request.
 
-**ComfyUI node pack** (`ComfyUI-Makimono`, published to the Comfy Registry):
+**ComfyUI node pack** (`ComfyUI-OpenIllusion`, published to the Comfy Registry):
 
 - **Load Scroll** — input: a scroll file; outputs: IMAGE per reference, VIDEO, prompt STRING, model and params. Any ComfyUI user can drop a community scroll into their own graph.
 - **Save Scroll** — takes images, video, prompt and the output from any workflow and writes a scroll. Recipes flow both ways between the app and the canvas.
@@ -203,15 +205,15 @@ my-run.scroll
 
 ## Architecture and tech stack
 
-Makimono is one ComfyUI custom node pack: it serves the web app from ComfyUI's own server, calls Comfy Router with the user's key for partner models, and uses ComfyUI's executor for local workflows — so there is nothing to deploy and nothing for us to host.
+OpenIllusion is one ComfyUI custom node pack: it serves the web app from ComfyUI's own server, calls Comfy Router with the user's key for partner models, and uses ComfyUI's executor for local workflows — so there is nothing to deploy and nothing for us to host.
 
-&#91;embedded content: Makimono architecture · one local process, one cloud API\]
+&#91;embedded content: OpenIllusion architecture · one local process, one cloud API\]
 
-The browser talks only to Makimono's routes inside ComfyUI; the routes call Router, queue local workflows, and read and write scrolls on disk. The only thing that ever leaves the machine besides model calls is a scroll the user chooses to share.
+The browser talks only to OpenIllusion's routes inside ComfyUI; the routes call Router, queue local workflows, and read and write scrolls on disk. The only thing that ever leaves the machine besides model calls is a scroll the user chooses to share.
 
 | Layer | Choice | Why |
 | --- | --- | --- |
-| Packaging | ComfyUI custom node pack `ComfyUI-Makimono`: registers aiohttp routes on ComfyUI's `PromptServer`, serves the built app at `/makimono`, adds a sidebar button in the ComfyUI frontend | One install through ComfyUI Manager or `comfy node install`; literally built on ComfyUI |
+| Packaging | ComfyUI custom node pack `ComfyUI-OpenIllusion`: registers aiohttp routes on ComfyUI's `PromptServer`, serves the built app at `/openillusion`, adds a sidebar button in the ComfyUI frontend | One install through ComfyUI Manager or `comfy node install`; literally built on ComfyUI |
 | Frontend | Vite, React, TypeScript, Tailwind CSS, Radix UI primitives, Zustand, TanStack Query | Fast to build; accessible primitives |
 | Schema forms | Params rendered from each model's Router JSON schema (react-jsonschema-form or a small custom renderer) | Any Router model gets a form for free |
 | Backend | Python in the ComfyUI process: aiohttp, httpx (async), pydantic, jsonschema | No second server |
@@ -227,9 +229,9 @@ The browser talks only to Makimono's routes inside ComfyUI; the routes call Rout
 **Repo layout**
 
 ```
-ComfyUI-Makimono/
+ComfyUI-OpenIllusion/
 ├── __init__.py          registers routes, nodes and the web directory
-├── makimono/            router client, run engine, store, bundles
+├── openillusion/            router client, run engine, store, bundles
 ├── nodes/               Load Scroll, Save Scroll
 ├── ui/                  React source  →  built into web/
 ├── workflows/           UI + API JSON for every engine
@@ -262,7 +264,7 @@ Ship two curated defaults — MiniMax H3 for Motion and FLUX 3 for Edit — plus
 
 ## Design handoff
 
-Design Makimono as a calm, dark, media-first pro tool with one ritual flourish: the red seal stamped on a scroll when it is exported. The chrome recedes; the footage is the hero; the recipe is always one glance away.
+Design OpenIllusion as a calm, dark, media-first pro tool with one ritual flourish: the red seal stamped on a scroll when it is exported. The chrome recedes; the footage is the hero; the recipe is always one glance away.
 
 ### Visual direction — "ink and washi"
 
@@ -295,7 +297,7 @@ Left rail (64 px, icons + labels on hover): Library, Motion, Edit, Queue, Settin
 | # | Screen | Layout | Must show |
 | --- | --- | --- | --- |
 | 1 | Connect (first run) | Centered card on the ink background | Paste Comfy API key, Test (reads the Router catalog), local ComfyUI found or not, "Skip — browse starter scrolls" |
-| 2 | Library | Shelf tabs (Mine, Imported, Starter, Community), filter bar, responsive card grid | Scroll cards with hover-scrub, mode badge, model chip, outcome mark; full-window drop overlay "Drop a .scroll, a Makimono video or a link" |
+| 2 | Library | Shelf tabs (Mine, Imported, Starter, Community), filter bar, responsive card grid | Scroll cards with hover-scrub, mode badge, model chip, outcome mark; full-window drop overlay "Drop a .scroll, a OpenIllusion video or a link" |
 | 3 | Motion Studio | Three columns: inputs (320 px) · stage (fluid) · engine panel (320 px); session filmstrip at the bottom | Driving-video card with trimmer, reference tray with role chips, prompt with helper chips, A/B player, engine dropdown, schema-driven params, cost estimate, vermilion Run, Raw JSON toggle |
 | 4 | Edit Studio | Same three columns; the stage is a canvas with a region tool | Numbered boxes with labels, box JSON preview under the prompt, variant grid, Send to Motion |
 | 5 | Scroll detail | Hero result, recipe card on the right, inputs strip and lineage below | Exact prompt in mono, model and provider, params, seed, reported cost, notes, action bar: Remix (primary), Re-run, Swap engine, Export, Open in ComfyUI |
@@ -319,7 +321,7 @@ Scroll card · reference slot with role chip (Character, Outfit, Location, Style
 ### Paste-ready brief for Claude Design
 
 ```markdown
-Design a desktop web app called Makimono — an open-source Motion + Edit studio that runs inside ComfyUI.
+Design a desktop web app called OpenIllusion — an open-source Motion + Edit studio that runs inside ComfyUI.
 Users bring their own Comfy API key; every run is saved as a "scroll" (a shareable bundle of references, prompt, model and settings).
 
 Aesthetic: "ink and washi". Dark default: bg #0E0D0C, surface #171513, raised #23201D, line #34302B, text #F4EFE6, muted #A39A8C.
@@ -348,7 +350,7 @@ Each day ends on something that runs; if a day slips, cut from the bottom of the
 **Exit criteria**
 
 1. **Fri 23** — one H3 motion run and one FLUX 3 edit succeed from a script through `comfy-sdk`; Motion's default engine decided; repo public with LICENSE; signed up.
-2. **Sat 24** — the node pack loads in ComfyUI, `/makimono` serves the app, and a run started from the UI saves a scroll to disk.
+2. **Sat 24** — the node pack loads in ComfyUI, `/openillusion` serves the app, and a run started from the UI saves a scroll to disk.
 3. **Sun 25** — Motion Studio end to end: trimmer, role chips, queued run, A/B player.
 4. **Mon 26** — Edit Studio with region boxes and Send to Motion; Library with Remix and Swap engine.
 5. **Tue 27** — export and import of Full, Light and Recipe-only; recipe embedded in PNG and MP4; Load and Save Scroll nodes work in a graph.
@@ -364,8 +366,8 @@ A three-minute demo that opens on the viral loop, proves both features on the sp
 
 | Time | Beat | On screen |
 | --- | --- | --- |
-| 0:00–0:10 | Hook | Drag a Makimono output video onto the app; it unrolls into its full recipe. "This video knows how it was made." |
-| 0:10–0:25 | Why | Preset apps hide the recipe behind credits. Makimono runs in your ComfyUI with your key and shows everything. |
+| 0:00–0:10 | Hook | Drag a OpenIllusion output video onto the app; it unrolls into its full recipe. "This video knows how it was made." |
+| 0:10–0:25 | Why | Preset apps hide the recipe behind credits. OpenIllusion runs in your ComfyUI with your key and shows everything. |
 | 0:25–1:05 | Motion | Our own hallway take plus one character reference → MiniMax H3 via Router → A/B wipe; model, provider, elapsed time and cost on screen |
 | 1:05–1:35 | Edit | FLUX 3 edit with two region boxes on a frame → Send to Motion → second run |
 | 1:35–2:05 | Catalogue | Library, outcome marks, notes; Swap engine on the same inputs to compare models |
@@ -404,7 +406,6 @@ The biggest risk is the motion default: confirm on day one that MiniMax H3 on Ro
 
 - Can one entry win a main prize and a bonus? The page lists that question in its Q&A, but the answer didn't load when fetched — ask in the Comfy Discord.
 - Do Comfy Cloud asset URLs work as public inputs for Router providers?
-- Final product name — check "Makimono" for collisions on GitHub, the Comfy Registry and app stores.
 - Solo or team? Rules allow one submission per person; agree who submits.
 
 **Sources** (as of Oct 23, 2026)

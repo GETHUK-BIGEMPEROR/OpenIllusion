@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { Asset, Box, ImportReview, Manifest, Mode } from "./api";
+import type { Box, ImportReview, Manifest, Mode } from "./api";
 import { fileUrl } from "./api";
 
 export interface Media {
@@ -105,8 +105,6 @@ const blankStudio = (): StudioState => ({
   group: [],
   seeded: "",
 });
-
-export const fromAsset = (a: Asset): Media => ({ ...a });
 
 export const newKey = () => Math.random().toString(36).slice(2, 10);
 

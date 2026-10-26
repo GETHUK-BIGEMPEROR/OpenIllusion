@@ -56,38 +56,6 @@ export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTM
   },
 );
 
-export function Card({ className, children, ...p }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cx("bg-surface rounded-xl border border-line p-3 flex flex-col gap-3", className)} {...p}>
-      {children}
-    </div>
-  );
-}
-
-export function CardHead({ title, right, id }: { title: ReactNode; right?: ReactNode; id?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2 min-h-[20px]">
-      <h2 id={id} className="m-0 eyebrow">{title}</h2>
-      {right && <span className="text-xs text-muted">{right}</span>}
-    </div>
-  );
-}
-
-/** A block inside a side panel: eyebrow header, hairline between blocks. */
-export function Section({ title, meta, children, className, bodyClass, ...p }: Omit<HTMLAttributes<HTMLElement>, "title"> & { title?: ReactNode; meta?: ReactNode; bodyClass?: string }) {
-  return (
-    <section className={cx("px-4 py-3.5 border-b border-line last:border-b-0", className)} {...p}>
-      {(title || meta) && (
-        <div className="flex items-center justify-between gap-2 mb-2.5 min-h-[16px]">
-          {title && <h2 className="m-0 eyebrow">{title}</h2>}
-          {meta && <span className="text-xs text-muted truncate">{meta}</span>}
-        </div>
-      )}
-      <div className={cx("flex flex-col gap-3", bodyClass)}>{children}</div>
-    </section>
-  );
-}
-
 export function Mono({ className, ...p }: HTMLAttributes<HTMLSpanElement>) {
   return <span className={cx("font-mono", className)} {...p} />;
 }
@@ -109,14 +77,6 @@ export function Badge({ tone = "neutral", dot, className, children, ...p }: HTML
       {children}
     </span>
   );
-}
-
-export function Pill({ className, ...p }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cx("inline-flex items-center gap-1.5 rounded-md px-2 h-6 text-xs", className)} {...p} />;
-}
-
-export function Glass({ className, ...p }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cx("glass inline-flex items-center rounded-md px-2 h-[22px] text-xs", className)} {...p} />;
 }
 
 export function Segmented<T extends string | number>({
@@ -198,10 +158,6 @@ export const TextInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<
   return <input ref={ref} className={cx("field h-8 px-2.5 text-sm min-w-0", className)} {...p} />;
 });
 
-export const TextArea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(function TextArea({ className, ...p }, ref) {
-  return <textarea ref={ref} className={cx("field px-2.5 py-2 text-base leading-[1.5] min-w-0", className)} {...p} />;
-});
-
 const CHEVRON = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A39CAC' stroke-width='2'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E\")";
 export function Select({ className, style, ...p }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
@@ -221,10 +177,6 @@ export function Dot({ tone, pulse }: { tone: "ok" | "warn" | "bad" | "off" | "bu
       <span className="relative w-2 h-2 rounded-full" style={{ background: c }} />
     </span>
   );
-}
-
-export function Kbd({ children, className }: { children: ReactNode; className?: string }) {
-  return <kbd className={cx("inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 font-mono text-xs2 font-medium rounded-[5px] border opacity-60", className)} style={{ borderColor: "currentColor" }}>{children}</kbd>;
 }
 
 export function Empty({ title, children, action, icon, className }: { title: string; children?: ReactNode; action?: ReactNode; icon?: ReactNode; className?: string }) {
@@ -263,15 +215,4 @@ export function Notice({ tone = "info", title, children, actions, className, rol
       </div>
     </div>
   );
-}
-
-export function Divider({ className }: { className?: string }) {
-  return <span aria-hidden className={cx("block h-px bg-line", className)} />;
-}
-
-/** A row in a popover menu: a button, or a link when given href. */
-export function MenuItem({ children, onClick, href: to, download, icon, danger }: { children: ReactNode; onClick?: () => void; href?: string; download?: string; icon?: ReactNode; danger?: boolean }) {
-  const cls = cx("mk-btn h-8 px-2 rounded-md border-0 bg-transparent text-left text-sm inline-flex items-center gap-2 w-full", danger ? "text-rose-text hover:bg-rose/10" : "text-soft hover:bg-raised hover:text-text");
-  const inner = <><span className="w-4 flex justify-center text-muted">{icon}</span>{children}</>;
-  return to ? <a href={to} download={download} className={cls}>{inner}</a> : <button type="button" onClick={onClick} className={cls}>{inner}</button>;
 }

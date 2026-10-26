@@ -65,14 +65,3 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
     tags: s.tags,
   };
 }
-
-/** Insert text at the caret of a textarea, returning the new value. */
-export function insertAt(el: HTMLTextAreaElement | null, value: string, text: string): [string, number] {
-  if (!el) return [value ? `${value.trimEnd()} ${text}` : text, 0];
-  const a = el.selectionStart ?? value.length;
-  const b = el.selectionEnd ?? value.length;
-  const before = value.slice(0, a);
-  const pad = before && !before.endsWith(" ") && !before.endsWith("\n") ? " " : "";
-  const next = before + pad + text + value.slice(b);
-  return [next, a + pad.length + text.length];
-}

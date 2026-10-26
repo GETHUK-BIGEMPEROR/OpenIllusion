@@ -1,0 +1,15 @@
+/* OpenIllusion styles, one file per area. Order is the cascade: later files win ties,
+   and responsive.css overrides every area at medium and phone widths, so keep it near the end. */
+@import "./base.css";
+@import "./shell.css";
+@import "./common.css";
+@import "./masonry.css";
+@import "./explore.css";
+@import "./fields.css";
+@import "./studio.css";
+@import "./library.css";
+@import "./viewer.css";
+@import "./overlays.css";
+@import "./settings.css";
+@import "./responsive.css";
+@import "./builder.css";

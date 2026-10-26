@@ -1,6 +1,6 @@
 // Small shared pieces: cost line, outcome toggle/mark, mode and kind badges,
-// model chip, validation row, job state badge.
-import type { Estimate, Job, JobState, Outcome } from "../lib/api";
+// model chip, validation row.
+import type { Estimate, Outcome } from "../lib/api";
 import { money, OUTCOME, shortModel } from "../lib/format";
 import { AlertTriangle, Check, CheckCircle, Close, Dash, Info } from "./Icons";
 import { Badge, cx } from "./ui";
@@ -97,24 +97,3 @@ export function ValidationRow({ level, text, detail }: { level: "pass" | "warn" 
     </li>
   );
 }
-
-const STATE: Record<JobState, { label: string; tone: "neutral" | "orange" | "violet" | "mint" | "rose"; bg: string; fg: string }> = {
-  estimating: { label: "Estimating", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#D6D2DB" },
-  waiting: { label: "Waiting", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#D6D2DB" },
-  rate_limited: { label: "Waiting", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#D6D2DB" },
-  queued: { label: "Queued", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#D6D2DB" },
-  running: { label: "Running", tone: "orange", bg: "rgba(255,162,76,0.15)", fg: "#FFC48F" },
-  downloading: { label: "Saving", tone: "violet", bg: "rgba(154,134,240,0.15)", fg: "#BBAEF7" },
-  done: { label: "Done", tone: "mint", bg: "rgba(95,211,154,0.15)", fg: "#C3F0D8" },
-  failed: { label: "Failed", tone: "rose", bg: "rgba(255,107,126,0.15)", fg: "#FFB3BC" },
-  moderated: { label: "Moderated", tone: "rose", bg: "rgba(255,107,126,0.15)", fg: "#FFB3BC" },
-  cancelled: { label: "Cancelled", tone: "neutral", bg: "rgba(240,239,237,0.06)", fg: "#A39CAC" },
-};
-
-export function StateBadge({ job }: { job: Pick<Job, "state" | "queue_position"> }) {
-  const s = STATE[job.state];
-  const label = job.state === "queued" && job.queue_position ? `Queued · ${job.queue_position} ahead` : s.label;
-  return <Badge tone={s.tone}>{label}</Badge>;
-}
-
-export const stateTone = (s: JobState) => STATE[s];
