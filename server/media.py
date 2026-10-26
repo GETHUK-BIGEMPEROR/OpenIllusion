@@ -16,6 +16,8 @@ from pathlib import Path
 import av
 from PIL import Image, ImageOps, PngImagePlugin
 
+from . import prep
+
 RECIPE_KEY = "openillusion"  # PNG text chunk keyword and MP4 comment prefix
 MP4_PREFIX = "openillusion:"
 
@@ -55,20 +57,26 @@ def transcode(
     max_fps: float = 60.0,
     keep_audio: bool = True,
     metadata: dict | None = None,
+    plan: "prep.Plan | None" = None,
 ) -> dict:
     """Trim to [start, end) and re-encode as H.264/AAC MP4.
 
     The bitrate is chosen so the file lands under ``max_bytes`` when given.
-    Frame rate is clamped into the engine's accepted window.
+    Frame rate is clamped into the engine's accepted window. With a ``plan`` every
+    frame gets its crop and size, exactly like a photo; else the clip keeps its shape
+    and is scaled down to ``max_height``.
     """
     info = probe(src)
     end = info["duration"] if end is None or end <= 0 else min(end, info["duration"] or end)
     length = max(0.1, end - start)
 
-    h = min(max_height, info["height"] or max_height)
-    h -= h % 2
-    w = int(round((info["width"] or h) * h / max(1, info["height"] or h)))
-    w -= w % 2
+    if plan is not None:
+        w, h = plan.width, plan.height
+    else:
+        h = min(max_height, info["height"] or max_height)
+        h -= h % 2
+        w = int(round((info["width"] or h) * h / max(1, info["height"] or h)))
+        w -= w % 2
 
     fps = info["fps"] or 30.0
     fps = min(max(fps, min_fps), max_fps)
@@ -117,9 +125,18 @@ def transcode(
                     continue
                 if t >= end:
                     continue
+                if next_t > t + 1e-6 or next_t >= end:
+                    continue
+                if plan is not None and plan.trim_only:  # whole pixels, no resample: slice the frame
+                    l, t, r, b = (int(v) for v in plan.box)
+                    sized = av.VideoFrame.from_ndarray(frame.to_ndarray(format="rgb24")[t:b, l:r], format="rgb24").reformat(format="yuv420p")
+                elif plan is not None and not plan.identity:
+                    sized = av.VideoFrame.from_image(prep.apply(frame.to_image(), plan)).reformat(format="yuv420p")
+                else:
+                    sized = frame.reformat(width=w, height=h, format="yuv420p")
                 # Duplicate or drop frames to hit the target rate.
                 while next_t <= t + 1e-6 and next_t < end:
-                    f = frame.reformat(width=w, height=h, format="yuv420p")
+                    f = sized
                     f.pts = n
                     f.time_base = Fraction(1) / rate
                     for pkt in vout.encode(f):

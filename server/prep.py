@@ -1,25 +1,28 @@
-"""Input prep: crop and size images once, here, before any engine sees them.
+"""Input prep: crop and size photos and clips once, here, before any engine sees them.
 
-The studio decides (a crop rectangle per image, one size for the run); this module
-does the pixels. Every engine gets images that already have the size it should
-render at, so local workflows never resample them again and cloud engines get the
-same pictures the user saw.
+Every photo and clip a template takes has the same attributes: a shape (a crop
+rectangle, or none) and a size. The studio decides them per input; this module does
+the pixels. Engines get inputs already at the size they should render at, so local
+workflows never resample them again and cloud engines get what the user saw. A clip
+is planned like a photo from its frame size, and every frame gets the same crop and
+resample (media.transcode).
 
-A template opts in with a ``size`` block:
+Size is a pixel budget in megapixels at the input's own shape. "Original" keeps the
+input's own size, trimmed to the multiple, and is every input's default. A template
+can offer its own list, and give an input another default where the model needs it:
 
     "size": {
-      "options": [{"label": "1K", "px": 1024}, {"label": "Original", "px": 0}],
-      "default": "1K",
+      "options": [{"label": "1 MP", "mp": 1}, {"label": "Original", "mp": 0}],
       "multiple": 32,          # both sides end on a multiple of this
-      "follows": "image:1"     # the image whose shape sets the output
-    }
+      "follows": "image:1"     # the input whose size the output takes ("video:1" for clips)
+    },
+    "inputs": [{"slot": "image:1", "label": "Person", "size": "1 MP"}]
 
-``px`` is a pixel budget: about px x px pixels at the image's own shape. 0 keeps
-the image's own size, trimmed to the multiple. Other images get the same budget
-at their own shape, so a 16 MP product photo can't run the GPU out of memory.
+Templates without a block get GENERIC. Older templates give ``px`` (the side of the
+equal-area square) instead of ``mp``, or one ``default`` for the followed input.
 
-``ui/src/lib/size.ts`` mirrors ``target`` and ``plan`` for live previews; compose
-returns this module's plans, which the studio shows once they arrive.
+``ui/src/lib/size.ts`` mirrors ``target``, ``plan`` and ``plans`` for live previews;
+compose returns this module's plans, which the studio shows once they arrive.
 """
 
 from __future__ import annotations
@@ -43,25 +46,55 @@ class Plan:
     def identity(self) -> bool:
         return self.box == (0, 0, *self.source) and (self.width, self.height) == self.source
 
+    @property
+    def trim_only(self) -> bool:
+        """Cut on whole pixels with no resample (Original with a crop, or a trim to the multiple)."""
+        l, t, r, b = self.box
+        return not self.identity and (r - l, b - t) == (self.width, self.height) and all(v == int(v) for v in self.box)
+
     def to_dict(self) -> dict:
         return {"source": list(self.source), "box": [round(v, 2) for v in self.box], "width": self.width, "height": self.height}
 
 
-def spec_of(size: dict | None) -> dict | None:
-    """A template's size block with defaults filled in, or None when it has none."""
-    if not size or not size.get("options"):
-        return None
-    opts = [{"label": str(o["label"]), "px": int(o.get("px", 0))} for o in size["options"]]
+ORIGINAL = "Original"
+GENERIC = {"options": [{"mp": 0.5}, {"mp": 1}, {"mp": 2}, {"mp": 4}, {"label": ORIGINAL, "mp": 0}]}
+
+
+def spec_of(size: dict | None, inputs: list[dict] | None = None) -> dict:
+    """A template's size block with defaults filled in: the options (Original always among
+    them), the multiple, the input the output follows, and each input's default size."""
+    size = size if size and size.get("options") else {**GENERIC, **(size or {})}
+    opts = []
+    for o in size["options"]:
+        px = round(math.sqrt(float(o["mp"]) * 1e6)) if "mp" in o else int(o.get("px", 0))
+        mp = round(px * px / 1e6, 2)
+        opts.append({"label": str(o.get("label") or (f"{mp:g} MP" if px else ORIGINAL)), "px": px, "mp": mp})
+    if not any(o["px"] == 0 for o in opts):
+        opts.append({"label": ORIGINAL, "px": 0, "mp": 0})
     labels = [o["label"] for o in opts]
-    default = size.get("default") if size.get("default") in labels else labels[0]
-    return {"options": opts, "default": default, "multiple": int(size.get("multiple") or DEFAULT_MULTIPLE),
-            "follows": size.get("follows") or "image:1"}
+    original = next(o["label"] for o in opts if o["px"] == 0)
+    slots = [i["slot"] for i in inputs or [] if str(i.get("slot", "")).startswith(("image:", "video:"))]
+    follows = size.get("follows") or (slots[0] if slots else "image:1")
+    legacy = size.get("default") if size.get("default") in labels else None
+    defaults = {}
+    for i in inputs or []:
+        if i.get("slot") in slots:
+            defaults[i["slot"]] = i["size"] if i.get("size") in labels else legacy if i["slot"] == follows and legacy else original
+    if follows not in defaults:
+        defaults[follows] = legacy or original
+    return {"options": opts, "multiple": int(size.get("multiple") or DEFAULT_MULTIPLE), "follows": follows,
+            "inputs": defaults, "original": original}
+
+
+def choice_of(size: dict, slot: str, choice: str | None = None) -> str:
+    """The size an input runs at: its own choice when it names an option, else the template's default for it."""
+    labels = {o["label"] for o in size["options"]}
+    return choice if choice in labels else size["inputs"].get(slot, size["original"])
 
 
 def budget(size: dict, choice: str | None) -> int:
-    """The pixel budget for the chosen option (its label); unknown choices fall back to the default."""
-    by = {o["label"]: o["px"] for o in size["options"]}
-    return by.get(str(choice), by[size["default"]]) if choice is not None else by[size["default"]]
+    """The pixel budget for an option (its label); unknown labels mean Original."""
+    return next((o["px"] for o in size["options"] if o["label"] == choice), 0)
 
 
 def _round_mult(v: float, m: int) -> int:
@@ -70,11 +103,33 @@ def _round_mult(v: float, m: int) -> int:
 
 def target(w: float, h: float, px: int, multiple: int) -> tuple[int, int]:
     """Output size for a w x h picture: about px x px pixels at its shape, both sides on the multiple.
-    px 0 keeps its own size, trimmed down to the multiple so nothing is resampled."""
+    px 0 keeps its own size, trimmed down to the multiple so nothing is resampled.
+
+    Rounding each side on its own can bend the shape by 3% (16:9 at 1 MP would be 1344x736).
+    So a few short sides near the budget are tried, each with the long side that fits it best,
+    and the pair truest to the shape wins, as long as it stays within 12% of the budget.
+    """
     if px <= 0:
         return max(multiple, math.floor(w / multiple) * multiple), max(multiple, math.floor(h / multiple) * multiple)
     r = w / h
-    return _round_mult(math.sqrt(px * px * r), multiple), _round_mult(math.sqrt(px * px / r), multiple)
+    flip = r < 1
+    q = 1 / r if flip else r  # long side / short side
+    base = _round_mult(math.sqrt(px * px / q), multiple)
+    best, score = None, math.inf
+    for k in range(-4, 5):
+        short = base + k * multiple
+        if short < multiple:
+            continue
+        long = _round_mult(short * q, multiple)
+        area = abs(short * long / (px * px) - 1)
+        if area > 0.12:
+            continue
+        s = abs(math.log(long / short / q)) + 0.1 * area
+        if s < score:
+            best, score = (long, short), s
+    if best is None:
+        return _round_mult(math.sqrt(px * px * r), multiple), _round_mult(math.sqrt(px * px / r), multiple)
+    return (best[1], best[0]) if flip else best
 
 
 def _crop_box(w: int, h: int, crop: list | tuple | None) -> tuple[float, float, float, float]:
@@ -124,21 +179,13 @@ def apply(img: Image.Image, p: Plan) -> Image.Image:
     return img.resize((p.width, p.height), Image.LANCZOS, box=p.box)
 
 
-def plans(size: dict, choice: str | None, images: list[dict]) -> dict[str, Plan]:
-    """Plans for every image of a run. ``images``: [{slot, width, height, crop?}].
-
-    The followed image takes the chosen budget. Under "Original" (px 0) the others
-    take a budget equal to its area, so a reference is never bigger than the picture.
-    """
-    px = budget(size, choice)
-    m = size["multiple"]
+def plans(size: dict, inputs: list[dict], legacy: str | None = None) -> dict[str, Plan]:
+    """Plans for every input of a run, photos and clips alike, each at its own size.
+    ``inputs``: [{slot, width, height, crop?, size?}]. ``legacy``: a run-wide choice from
+    older drafts and generations, for the followed input when it names none itself."""
     out: dict[str, Plan] = {}
-    lead = next((i for i in images if i["slot"] == size["follows"]), None)
-    if lead:
-        out[lead["slot"]] = plan(lead["width"], lead["height"], px=px, multiple=m, crop=lead.get("crop"))
-    ref_px = px or (round(math.sqrt(out[lead["slot"]].width * out[lead["slot"]].height)) if lead else 0)
-    for i in images:
-        if i["slot"] in out:
-            continue
-        out[i["slot"]] = plan(i["width"], i["height"], px=ref_px, multiple=m, crop=i.get("crop"))
+    for i in inputs:
+        own = i.get("size") or (legacy if i["slot"] == size["follows"] else None)
+        px = budget(size, choice_of(size, i["slot"], own))
+        out[i["slot"]] = plan(i["width"], i["height"], px=px, multiple=size["multiple"], crop=i.get("crop"))
     return out

@@ -42,6 +42,8 @@ class Job:
     mode: str
     model: str
     provider: str
+    engine: str = ""  # template id; model is what the provider runs
+    prompt: str = ""
     state: str = "estimating"
     detail: str = ""
     created: float = field(default_factory=time.time)
@@ -112,6 +114,14 @@ class Manager:
     def list(self) -> list[dict]:
         return [j.to_dict() for j in sorted(self.jobs.values(), key=lambda j: j.created, reverse=True)]
 
+    def dismiss(self, job_id: str) -> bool:
+        j = self.jobs.get(job_id)
+        if j is None or j.state not in TERMINAL:
+            return False
+        self.jobs.pop(job_id)
+        self._persist()
+        return True
+
     def clear_finished(self) -> None:
         for k in [k for k, j in self.jobs.items() if j.state in TERMINAL]:
             self.jobs.pop(k, None)
@@ -129,6 +139,12 @@ class Manager:
         n = 0
         for d in saved:
             job = Job(**{k: v for k, v in d.items() if k in Job.__dataclass_fields__})
+            if not job.engine:  # saved before jobs carried their template and prompt
+                try:
+                    m = store.get(job.id)
+                    job.engine, job.prompt = m.engine.model, m.prompt
+                except Exception:
+                    pass
             self.jobs[job.id] = job
             if job.state not in TERMINAL:
                 self.tasks[job.id] = asyncio.ensure_future(self._run(job))
@@ -146,8 +162,8 @@ class Manager:
             m = prepare_generation(spec, parent=parent, variant_no=n + 1 if variants > 1 else None)
             e = engines.get(m.engine.model)
             job = Job(
-                id=m.id, title=m.title, mode=m.mode, model=m.engine.model, provider=e.provider,
-                parent=parent, poster=_poster_url(m), kind=e.kind,
+                id=m.id, title=m.title, mode=m.mode, model=engines.router_model(m.engine.model), provider=e.provider,
+                engine=m.engine.model, prompt=m.prompt, parent=parent, poster=_poster_url(m), kind=e.kind,
             )
             self.jobs[job.id] = job
             self.emit(job)
@@ -225,7 +241,7 @@ class Manager:
         if not job.estimate:
             self.set(job, "estimating", f"Asking Router for a price…")
             try:
-                job.estimate = await router.estimate(m.engine.model, body)
+                job.estimate = await router.estimate(engines.router_model(m.engine.model), body)
             except RouterError as e:
                 if e.status == 422:
                     raise
@@ -239,7 +255,7 @@ class Manager:
         # Submit, retrying rate limits with the same key.
         while not job.request_id:
             try:
-                sub = await router.submit(m.engine.model, body, idempotency_key=job.id)
+                sub = await router.submit(engines.router_model(m.engine.model), body, idempotency_key=job.id)
             except RouterError as e:
                 if e.status == 403 and e.error_type == "not_enabled":
                     job.sync = True
@@ -523,7 +539,8 @@ class Manager:
             m.status = state if state in ("done", "failed", "moderated", "cancelled") else m.status
             if error or state != "done":
                 m.result = m.result or sc.Result()
-                m.result.error = error or {"message": detail}
+                # The sentence the user saw goes with the raw error, so a failed run says why wherever it shows.
+                m.result.error = {**(error or {"message": detail}), "detail": detail}
                 m.result.elapsed = round(time.time() - (job.started or job.created), 1)
             store.save(m)
         except Exception:
@@ -555,17 +572,27 @@ def resolve_asset(ref: str) -> Path:
     return p
 
 
+def _clip_size(src: Path) -> tuple[int, int]:
+    info = media.probe(src)
+    return int(info["width"] or 0), int(info["height"] or 0)
+
+
 def input_plans(spec: dict) -> dict[str, prep.Plan]:
-    """How each image of a spec will be cropped and sized, from file headers alone."""
+    """How each photo and clip of a spec will be cropped and sized, from file headers alone."""
     e = engines.get(spec["engine"])
-    if not e.size:
-        return {}
-    images = []
+    shapes = []
     for i in spec.get("inputs", []):
-        if i["slot"].startswith("image:") and i.get("asset"):
+        if not i.get("asset"):
+            continue
+        if i["slot"].startswith("image:"):
             w, h = media.image_size(resolve_asset(i["asset"]))
-            images.append({"slot": i["slot"], "width": w, "height": h, "crop": i.get("crop")})
-    return prep.plans(e.size, (spec.get("params") or {}).get("size"), images)
+        elif i["slot"].startswith("video:"):
+            w, h = _clip_size(resolve_asset(i["asset"]))
+        else:
+            continue
+        if w and h:
+            shapes.append({"slot": i["slot"], "width": w, "height": h, "crop": i.get("crop"), "size": i.get("size")})
+    return prep.plans(e.size, shapes, (spec.get("params") or {}).get("size"))
 
 
 def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | None = None) -> sc.Manifest:
@@ -575,7 +602,7 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
     (folder / "refs").mkdir(parents=True, exist_ok=True)
     strip = settings.load().get("strip_exif", True)
     e = engines.get(spec["engine"])
-    if e.kind == "local" and any(p.get("type") == "seed" for p in e.params):
+    if (e.kind == "local" or e.data is not None) and any(p.get("type") == "seed" for p in e.params):
         seed = spec.setdefault("params", {}).get("seed")
         if seed in (None, "") or int(seed) < 0:
             spec["params"]["seed"] = random.randint(0, 2**31 - 1)
@@ -588,11 +615,17 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
         if raw["slot"].startswith("image:") and raw.get("asset"):
             img = media.open_image(resolve_asset(raw["asset"]))
             pictures[raw["slot"]] = media.strip_exif(img) if strip else img
-    plans = prep.plans(e.size, (spec.get("params") or {}).get("size"), [
-        {"slot": r["slot"], "width": pictures[r["slot"]].width, "height": pictures[r["slot"]].height, "crop": r.get("crop")}
-        for r in spec["inputs"] if r["slot"] in pictures
-    ]) if e.size else {}
-    if e.size and e.size["follows"] in plans:
+    shapes = [{"slot": r["slot"], "width": pictures[r["slot"]].width, "height": pictures[r["slot"]].height, "crop": r.get("crop"), "size": r.get("size")}
+              for r in spec["inputs"] if r["slot"] in pictures]
+    for r in spec["inputs"]:
+        if r["slot"].startswith("video:") and r.get("asset"):
+            w, h = _clip_size(resolve_asset(r["asset"]))
+            if w and h:
+                shapes.append({"slot": r["slot"], "width": w, "height": h, "crop": r.get("crop"), "size": r.get("size")})
+    plans = prep.plans(e.size, shapes, (spec.get("params") or {}).get("size"))
+    legacy = (spec.get("params") or {}).get("size")
+    chosen = lambda r: prep.choice_of(e.size, r["slot"], r.get("size") or (legacy if r["slot"] == e.size["follows"] else None))
+    if e.size["follows"] in plans:
         lead = plans[e.size["follows"]]
         spec["size_px"] = {"width": lead.width, "height": lead.height}
 
@@ -611,7 +644,7 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
             img = pictures[slot]
             if slot in plans:
                 img = prep.apply(img, plans[slot])
-                item.prep = plans[slot].to_dict()
+                item.prep = {**plans[slot].to_dict(), "size": chosen(raw)}
             ext = ".png" if img.mode == "RGBA" else ".jpg"
             rel = f"refs/ref-{img_n:02d}{ext}"
             if ext == ".png":
@@ -627,7 +660,9 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
             lo, hi = e.fps_window
             max_h = min(int(raw.get("max_height") or 1080), e.video_max_height or 1080)
             info = media.transcode(src, folder / "driving" / "driving.mp4", start=float(trim[0] or 0), end=float(trim[1] or 0) or None,
-                                   max_bytes=budget, min_fps=lo, max_fps=hi, max_height=max_h)
+                                   max_bytes=budget, min_fps=lo, max_fps=hi, max_height=max_h, plan=plans.get(slot))
+            if slot in plans:
+                item.prep = {**plans[slot].to_dict(), "size": chosen(raw)}
             media.poster(folder / "driving" / "driving.mp4", folder / "driving" / "poster.webp")
             item.file, item.width, item.height, item.duration = "driving/driving.mp4", info["width"], info["height"], info["duration"]
             item.trim = [float(trim[0] or 0), float(trim[1] or 0)]
@@ -704,12 +739,8 @@ def recipe_manifest(m: sc.Manifest, res: sc.Result | None = None) -> dict:
 
 
 def _auto_title(spec: dict) -> str:
-    p = " ".join((spec.get("prompt") or "").split())
-    for sentence in p.split("."):
-        s = sentence.strip()
-        if s and not s.lower().startswith(("image ", "video ")):
-            return (s[:48] + "…") if len(s) > 48 else s
-    return "Motion run" if engines.get(spec["engine"]).mode == "motion" else "Edit run"
+    """A run is named after its template; the prompt shows beside it."""
+    return engines.get(spec["engine"]).label.split(" · ")[0].strip() or "Untitled run"
 
 
 def _poster_url(m: sc.Manifest) -> str | None:

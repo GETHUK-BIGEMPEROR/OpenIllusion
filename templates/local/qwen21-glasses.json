@@ -1,76 +1,105 @@
 {
   "format": "openillusion.template",
-  "version": 1,
+  "version": 2,
   "id": "local/qwen21-glasses",
   "mode": "edit",
   "label": "Add glasses · Qwen Image 2.1",
   "provider": "qwen",
-  "blurb": "Puts glasses or sunglasses on the person in Image 1. Type only the glasses.",
+  "blurb": "Puts glasses or sunglasses on the person in Image 1.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
   "tags": [
     "accessory",
     "portrait"
   ],
-  "max_images": 1,
-  "min_images": 1,
-  "needs_video": false,
-  "inputs": [
-    {
-      "slot": "image:1",
-      "label": "Person",
-      "hint": "Face clearly visible, looking roughly at the camera."
-    }
-  ],
-  "prompt": {
-    "label": "Your glasses",
-    "hint": "Round tortoiseshell frames"
-  },
-  "defaults": {
-    "prompt": "round tortoiseshell frames",
-    "inputs": {
-      "image:1": "media/man-curly.jpg"
-    }
-  },
-  "instruction": {
-    "start": [
-      "20",
-      "string_a"
-    ],
-    "end": [
-      "22",
-      "string_b"
-    ]
-  },
-  "examples": [
-    "round tortoiseshell frames",
-    "thin gold aviator sunglasses",
-    "thick black rectangular frames",
-    "clear frames with light blue lenses"
-  ],
   "tips": [
     "Give the shape, color and material of the frames.",
     "Say 'sunglasses' for dark lenses."
   ],
-  "params": [
+  "inputs": [
+    {
+      "key": "image:1",
+      "type": "image",
+      "label": "Person",
+      "hint": "Face clearly visible, looking roughly at the camera.",
+      "required": true,
+      "size": "1 MP",
+      "area": true,
+      "default": "media/man-curly.jpg",
+      "bind": [
+        [
+          "11",
+          "image"
+        ]
+      ]
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "label": "Prompt",
+      "required": true,
+      "default": "Put glasses on the person in <image1>. The glasses: round tortoiseshell frames. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are.",
+      "examples": [
+        {
+          "label": "Tortoiseshell",
+          "text": "Put glasses on the person in <image1>. The glasses: round tortoiseshell frames. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are."
+        },
+        {
+          "label": "Gold aviators",
+          "text": "Put glasses on the person in <image1>. The glasses: thin gold aviator sunglasses. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are."
+        },
+        {
+          "label": "Black frames",
+          "text": "Put glasses on the person in <image1>. The glasses: thick black rectangular frames. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are."
+        },
+        {
+          "label": "Blue tint",
+          "text": "Put glasses on the person in <image1>. The glasses: clear frames with light blue lenses. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are."
+        }
+      ],
+      "bind": [
+        [
+          "5",
+          "prompt"
+        ]
+      ]
+    },
     {
       "key": "steps",
-      "label": "Steps",
       "type": "int",
+      "label": "Steps",
+      "help": "The official pipeline uses 40–50.",
+      "advanced": true,
       "min": 10,
       "max": 50,
       "default": 25,
-      "help": "The official pipeline uses 40–50."
+      "bind": [
+        [
+          "7",
+          "steps",
+          "int"
+        ]
+      ]
     },
     {
       "key": "seed",
-      "label": "Seed",
       "type": "seed",
-      "default": -1
+      "label": "Seed",
+      "advanced": true,
+      "default": -1,
+      "bind": [
+        [
+          "7",
+          "seed",
+          "int"
+        ]
+      ]
     },
     {
       "key": "cache",
-      "label": "Step cache",
       "type": "segmented",
+      "label": "Step cache",
+      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
+      "advanced": true,
       "options": [
         "cpu",
         "auto",
@@ -78,65 +107,39 @@
         "off"
       ],
       "default": "cpu",
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory."
+      "bind": [
+        [
+          "2",
+          "device"
+        ]
+      ]
     }
   ],
   "size": {
     "options": [
       {
-        "label": "1K",
-        "px": 1024
+        "label": "0.5 MP",
+        "mp": 0.5
       },
       {
-        "label": "1.5K",
-        "px": 1536
+        "label": "1 MP",
+        "mp": 1
       },
       {
-        "label": "2K",
-        "px": 2048
+        "label": "2 MP",
+        "mp": 2
+      },
+      {
+        "label": "4 MP",
+        "mp": 4
       },
       {
         "label": "Original",
-        "px": 0
+        "mp": 0
       }
     ],
-    "default": "1K",
     "multiple": 32,
     "follows": "image:1"
-  },
-  "bindings": {
-    "prompt": [
-      [
-        "21",
-        "string_b"
-      ]
-    ],
-    "image:1": [
-      [
-        "11",
-        "image"
-      ]
-    ],
-    "params.steps": [
-      [
-        "7",
-        "steps",
-        "int"
-      ]
-    ],
-    "params.seed": [
-      [
-        "7",
-        "seed",
-        "int"
-      ]
-    ],
-    "params.cache": [
-      [
-        "2",
-        "device"
-      ]
-    ]
   },
   "outputs": [
     "9"
@@ -200,45 +203,6 @@
         "title": "Image 1"
       }
     },
-    "20": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": "Put glasses on the person in <image1>. The glasses: ",
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (start)"
-      }
-    },
-    "21": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "20",
-          0
-        ],
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Your glasses"
-      }
-    },
-    "22": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "21",
-          0
-        ],
-        "string_b": ". They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are.",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (end)"
-      }
-    },
     "5": {
       "class_type": "TextEncodeQwenImage21",
       "inputs": {
@@ -250,10 +214,7 @@
           "4",
           0
         ],
-        "prompt": [
-          "22",
-          0
-        ],
+        "prompt": "Put glasses on the person in <image1>. The glasses: round tortoiseshell frames. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are.",
         "negative_prompt": "",
         "resolution": 0,
         "images.image_1": [

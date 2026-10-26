@@ -163,3 +163,22 @@ def test_key_never_leaves_in_public_settings():
     pub = settings.public()
     assert "api_key" not in pub and pub["key_hint"] == "…abcd"
     assert "secret" not in json.dumps(pub)
+
+
+def test_failed_run_keeps_its_reason_and_can_be_dismissed(tmp_path, uploads, monkeypatch):
+    fake = FakeRouter(b"", mode="invalid")
+    mgr, ids = run_with(fake, monkeypatch)
+    job = mgr.jobs[ids[0]]
+    row = next(r for r in store.query() if r["id"] == ids[0])
+    assert row["status"] == "failed" and row["error"] == job.detail
+    assert mgr.dismiss(ids[0]) and ids[0] not in mgr.jobs
+    assert store.get(ids[0]).status == "failed"  # the run itself stays in the Library
+
+
+def test_runs_are_named_after_their_template(tmp_path, uploads, monkeypatch):
+    fake = FakeRouter(make_video(tmp_path / "out.mp4", seconds=2).read_bytes())
+    mgr, ids = run_with(fake, monkeypatch)
+    m = store.get(ids[0])
+    job = mgr.jobs[ids[0]]
+    assert m.title == jobs.engines.get(m.engine.model).label.split(" · ")[0]
+    assert job.engine == m.engine.model and job.prompt == m.prompt

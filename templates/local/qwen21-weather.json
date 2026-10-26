@@ -1,6 +1,6 @@
 {
   "format": "openillusion.template",
-  "version": 1,
+  "version": 2,
   "id": "local/qwen21-weather",
   "mode": "edit",
   "label": "Season & weather · Qwen Image 2.1",
@@ -11,65 +11,94 @@
     "scene",
     "weather"
   ],
-  "max_images": 1,
-  "min_images": 1,
-  "needs_video": false,
-  "inputs": [
-    {
-      "slot": "image:1",
-      "label": "Scene",
-      "hint": "A landscape, street or city view."
-    }
-  ],
-  "prompt": {
-    "label": "Season or weather",
-    "hint": "Deep winter, heavy snowfall"
-  },
-  "defaults": {
-    "prompt": "deep winter, heavy snowfall",
-    "inputs": {
-      "image:1": "media/city.jpg"
-    }
-  },
-  "instruction": {
-    "start": [
-      "20",
-      "string_a"
-    ],
-    "end": [
-      "22",
-      "string_b"
-    ]
-  },
-  "examples": [
-    "deep winter, heavy snowfall",
-    "autumn, golden leaves, soft afternoon light",
-    "a thunderstorm, dark clouds and rain",
-    "blue hour, city lights coming on"
-  ],
   "tips": [
     "Combine a season with a light: 'winter, sunset'."
   ],
-  "params": [
+  "inputs": [
+    {
+      "key": "image:1",
+      "type": "image",
+      "label": "Scene",
+      "hint": "A landscape, street or city view.",
+      "required": true,
+      "size": "1 MP",
+      "area": true,
+      "default": "media/city.jpg",
+      "bind": [
+        [
+          "11",
+          "image"
+        ]
+      ]
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "label": "Prompt",
+      "required": true,
+      "default": "Change the season and weather in <image1> to: deep winter, heavy snowfall. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place.",
+      "examples": [
+        {
+          "label": "Snowfall",
+          "text": "Change the season and weather in <image1> to: deep winter, heavy snowfall. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place."
+        },
+        {
+          "label": "Autumn",
+          "text": "Change the season and weather in <image1> to: autumn, golden leaves, soft afternoon light. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place."
+        },
+        {
+          "label": "Thunderstorm",
+          "text": "Change the season and weather in <image1> to: a thunderstorm, dark clouds and rain. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place."
+        },
+        {
+          "label": "Blue hour",
+          "text": "Change the season and weather in <image1> to: blue hour, city lights coming on. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place."
+        }
+      ],
+      "bind": [
+        [
+          "5",
+          "prompt"
+        ]
+      ]
+    },
     {
       "key": "steps",
-      "label": "Steps",
       "type": "int",
+      "label": "Steps",
+      "help": "The official pipeline uses 40–50.",
+      "advanced": true,
       "min": 10,
       "max": 50,
       "default": 25,
-      "help": "The official pipeline uses 40–50."
+      "bind": [
+        [
+          "7",
+          "steps",
+          "int"
+        ]
+      ]
     },
     {
       "key": "seed",
-      "label": "Seed",
       "type": "seed",
-      "default": -1
+      "label": "Seed",
+      "advanced": true,
+      "default": -1,
+      "bind": [
+        [
+          "7",
+          "seed",
+          "int"
+        ]
+      ]
     },
     {
       "key": "cache",
-      "label": "Step cache",
       "type": "segmented",
+      "label": "Step cache",
+      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
+      "advanced": true,
       "options": [
         "cpu",
         "auto",
@@ -77,65 +106,39 @@
         "off"
       ],
       "default": "cpu",
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory."
+      "bind": [
+        [
+          "2",
+          "device"
+        ]
+      ]
     }
   ],
   "size": {
     "options": [
       {
-        "label": "1K",
-        "px": 1024
+        "label": "0.5 MP",
+        "mp": 0.5
       },
       {
-        "label": "1.5K",
-        "px": 1536
+        "label": "1 MP",
+        "mp": 1
       },
       {
-        "label": "2K",
-        "px": 2048
+        "label": "2 MP",
+        "mp": 2
+      },
+      {
+        "label": "4 MP",
+        "mp": 4
       },
       {
         "label": "Original",
-        "px": 0
+        "mp": 0
       }
     ],
-    "default": "1K",
     "multiple": 32,
     "follows": "image:1"
-  },
-  "bindings": {
-    "prompt": [
-      [
-        "21",
-        "string_b"
-      ]
-    ],
-    "image:1": [
-      [
-        "11",
-        "image"
-      ]
-    ],
-    "params.steps": [
-      [
-        "7",
-        "steps",
-        "int"
-      ]
-    ],
-    "params.seed": [
-      [
-        "7",
-        "seed",
-        "int"
-      ]
-    ],
-    "params.cache": [
-      [
-        "2",
-        "device"
-      ]
-    ]
   },
   "outputs": [
     "9"
@@ -199,45 +202,6 @@
         "title": "Image 1"
       }
     },
-    "20": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": "Change the season and weather in <image1> to: ",
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (start)"
-      }
-    },
-    "21": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "20",
-          0
-        ],
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Season or weather"
-      }
-    },
-    "22": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "21",
-          0
-        ],
-        "string_b": ". Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place.",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (end)"
-      }
-    },
     "5": {
       "class_type": "TextEncodeQwenImage21",
       "inputs": {
@@ -249,10 +213,7 @@
           "4",
           0
         ],
-        "prompt": [
-          "22",
-          0
-        ],
+        "prompt": "Change the season and weather in <image1> to: deep winter, heavy snowfall. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place.",
         "negative_prompt": "",
         "resolution": 0,
         "images.image_1": [

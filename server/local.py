@@ -163,6 +163,15 @@ class ComfyUI:
         _info_cache[self.base] = (time.time(), info)
         return info
 
+    async def input_file(self, name: str, limit: int = 200 * 1024 * 1024) -> bytes | None:
+        """A file from ComfyUI's input folder, or None when it isn't there."""
+        sub, _, fname = name.replace("\\", "/").rpartition("/")
+        async with httpx.AsyncClient(timeout=30.0, transport=self._transport) as c:
+            resp = await c.get(self.base + "/view", params={"filename": fname, "subfolder": sub, "type": "input"})
+        if resp.status_code != 200 or len(resp.content) > limit:
+            return None
+        return resp.content
+
     async def system_stats(self) -> dict:
         async with httpx.AsyncClient(timeout=4.0, transport=self._transport) as c:
             resp = await c.get(self.base + "/system_stats")

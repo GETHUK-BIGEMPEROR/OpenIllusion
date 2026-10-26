@@ -1,6 +1,6 @@
 {
   "format": "openillusion.template",
-  "version": 1,
+  "version": 2,
   "id": "local/qwen21-remove",
   "mode": "edit",
   "label": "Remove anything · Qwen Image 2.1",
@@ -11,66 +11,95 @@
     "cleanup",
     "photo"
   ],
-  "max_images": 1,
-  "min_images": 1,
-  "needs_video": false,
-  "inputs": [
-    {
-      "slot": "image:1",
-      "label": "Photo",
-      "hint": "Any photo."
-    }
-  ],
-  "prompt": {
-    "label": "What to remove",
-    "hint": "The people in the background"
-  },
-  "defaults": {
-    "prompt": "the arm in the mustard sweater and its hand",
-    "inputs": {
-      "image:1": "media/books-arm.jpg"
-    }
-  },
-  "instruction": {
-    "start": [
-      "20",
-      "string_a"
-    ],
-    "end": [
-      "22",
-      "string_b"
-    ]
-  },
-  "examples": [
-    "the hand and arm reaching in",
-    "the people in the background",
-    "all text and logos",
-    "the power lines in the sky"
-  ],
   "tips": [
     "Point at it by place or color: 'the red car on the left'.",
     "Remove one thing per run for the cleanest fill."
   ],
-  "params": [
+  "inputs": [
+    {
+      "key": "image:1",
+      "type": "image",
+      "label": "Photo",
+      "hint": "Any photo.",
+      "required": true,
+      "size": "1 MP",
+      "area": true,
+      "default": "media/books-arm.jpg",
+      "bind": [
+        [
+          "11",
+          "image"
+        ]
+      ]
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "label": "Prompt",
+      "required": true,
+      "default": "Completely remove the following from <image1>, every part of it: the arm in the mustard sweater and its hand. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is.",
+      "examples": [
+        {
+          "label": "Stray hand",
+          "text": "Completely remove the following from <image1>, every part of it: the hand and arm reaching in. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is."
+        },
+        {
+          "label": "Background people",
+          "text": "Completely remove the following from <image1>, every part of it: the people in the background. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is."
+        },
+        {
+          "label": "Text & logos",
+          "text": "Completely remove the following from <image1>, every part of it: all text and logos. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is."
+        },
+        {
+          "label": "Power lines",
+          "text": "Completely remove the following from <image1>, every part of it: the power lines in the sky. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is."
+        }
+      ],
+      "bind": [
+        [
+          "5",
+          "prompt"
+        ]
+      ]
+    },
     {
       "key": "steps",
-      "label": "Steps",
       "type": "int",
+      "label": "Steps",
+      "help": "The official pipeline uses 40–50.",
+      "advanced": true,
       "min": 10,
       "max": 50,
       "default": 25,
-      "help": "The official pipeline uses 40–50."
+      "bind": [
+        [
+          "7",
+          "steps",
+          "int"
+        ]
+      ]
     },
     {
       "key": "seed",
-      "label": "Seed",
       "type": "seed",
-      "default": -1
+      "label": "Seed",
+      "advanced": true,
+      "default": -1,
+      "bind": [
+        [
+          "7",
+          "seed",
+          "int"
+        ]
+      ]
     },
     {
       "key": "cache",
-      "label": "Step cache",
       "type": "segmented",
+      "label": "Step cache",
+      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
+      "advanced": true,
       "options": [
         "cpu",
         "auto",
@@ -78,65 +107,39 @@
         "off"
       ],
       "default": "cpu",
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory."
+      "bind": [
+        [
+          "2",
+          "device"
+        ]
+      ]
     }
   ],
   "size": {
     "options": [
       {
-        "label": "1K",
-        "px": 1024
+        "label": "0.5 MP",
+        "mp": 0.5
       },
       {
-        "label": "1.5K",
-        "px": 1536
+        "label": "1 MP",
+        "mp": 1
       },
       {
-        "label": "2K",
-        "px": 2048
+        "label": "2 MP",
+        "mp": 2
+      },
+      {
+        "label": "4 MP",
+        "mp": 4
       },
       {
         "label": "Original",
-        "px": 0
+        "mp": 0
       }
     ],
-    "default": "1K",
     "multiple": 32,
     "follows": "image:1"
-  },
-  "bindings": {
-    "prompt": [
-      [
-        "21",
-        "string_b"
-      ]
-    ],
-    "image:1": [
-      [
-        "11",
-        "image"
-      ]
-    ],
-    "params.steps": [
-      [
-        "7",
-        "steps",
-        "int"
-      ]
-    ],
-    "params.seed": [
-      [
-        "7",
-        "seed",
-        "int"
-      ]
-    ],
-    "params.cache": [
-      [
-        "2",
-        "device"
-      ]
-    ]
   },
   "outputs": [
     "9"
@@ -200,45 +203,6 @@
         "title": "Image 1"
       }
     },
-    "20": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": "Completely remove the following from <image1>, every part of it: ",
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (start)"
-      }
-    },
-    "21": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "20",
-          0
-        ],
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "What to remove"
-      }
-    },
-    "22": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "21",
-          0
-        ],
-        "string_b": ". Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is.",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (end)"
-      }
-    },
     "5": {
       "class_type": "TextEncodeQwenImage21",
       "inputs": {
@@ -250,10 +214,7 @@
           "4",
           0
         ],
-        "prompt": [
-          "22",
-          0
-        ],
+        "prompt": "Completely remove the following from <image1>, every part of it: the arm in the mustard sweater and its hand. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is.",
         "negative_prompt": "",
         "resolution": 0,
         "images.image_1": [

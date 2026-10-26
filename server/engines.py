@@ -17,6 +17,7 @@ import copy
 import functools
 import json
 import logging
+import random
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -66,20 +67,29 @@ class Engine:
     outputs: list[str] = field(default_factory=list)
     hints: dict = field(default_factory=dict)
     source: str | None = None
-    prompt: dict | None = None  # local templates: {label, hint, required} for the prompt box
-    examples: list[str] = field(default_factory=list)  # prompts that are known to work
+    prompt: dict | None = None  # {label, hint, required} of the template's prompt input, if it has one
+    examples: list[dict] = field(default_factory=list)  # prompts known to work: {label, text}
     tips: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
-    inputs: list[dict] = field(default_factory=list)  # what each image/video slot is for: {slot, label, hint}
+    inputs: list[dict] = field(default_factory=list)  # the media inputs: {slot, label, hint, size, role}
+    fields: list[dict] = field(default_factory=list)  # every input the template takes, in order (see load_template)
     data: dict | None = None  # the template file as loaded (local templates)
     path: Path | None = None
     origin: str = "shipped"  # shipped (in the package) | user (the user's templates folder)
     edited: bool = False  # a user file overrides a shipped template with the same id
     cover: Path | None = None  # poster the template ships with; the user can override it
     cover_video: Path | None = None  # optional short loop shown over the poster
-    size: dict | None = None  # how inputs are cropped and sized before the run (see prep.py)
+    size: dict | None = None  # how each input is cropped and sized before the run (see prep.py); filled in for every engine
     default_prompt: str = ""  # what the prompt box opens with
     default_inputs: dict[str, Path] = field(default_factory=dict)  # sample media each slot opens with, by slot
+    model: str | None = None  # cloud templates: the Router model the body is sent to
+    body: dict | None = None  # cloud templates: the request body, with media tokens and fixed values
+    built: bool = False  # made in the template builder
+
+    def __post_init__(self):
+        if self.size is None:
+            slots = self.inputs or [{"slot": f"image:{n}"} for n in range(1, max(self.max_images, 1) + 1)] + ([{"slot": "video:1"}] if self.needs_video else [])
+            self.size = prep.spec_of(None, slots)
 
 
 def role_sentences(inputs: list[dict]) -> str:
@@ -117,11 +127,33 @@ def box_rows(boxes: list[dict]) -> list[dict]:
     return rows
 
 
-def prompt_with_boxes(prompt: str, boxes: list[dict]) -> str:
-    rows = box_rows([b for b in boxes if b.get("label", "").strip()])
+def boxes_in_crop(boxes: list[dict], crop) -> list[dict]:
+    """Boxes are drawn on the whole photo; once it is cropped they are placed in the kept part."""
+    if not crop:
+        return boxes
+    cx, cy, cw, ch = (float(v) for v in crop)
+    clamp = lambda v: max(0.0, min(1.0, v))
+
+    def move(r):
+        if not r:
+            return r
+        x, y, w, h = (float(v) for v in r)
+        x0, y0 = clamp((x - cx) / cw), clamp((y - cy) / ch)
+        x1, y1 = clamp((x + w - cx) / cw), clamp((y + h - cy) / ch)
+        return [x0, y0, x1 - x0, y1 - y0]
+
+    return [{**b, "rect": move(b.get("rect")), "target": move(b.get("target"))} for b in boxes]
+
+
+def prompt_with_boxes(prompt: str, boxes: list[dict], crop=None) -> str:
+    rows = box_rows([b for b in boxes_in_crop(boxes, crop) if b.get("label", "").strip()])
     if not rows:
         return prompt
     return f"{prompt.rstrip()}\n{json.dumps(rows, separators=(', ', ': '))}"
+
+
+def _lead_crop(spec: dict):
+    return next((i.get("crop") for i in spec.get("inputs", []) if i.get("slot") == "image:1"), None)
 
 
 # ---- request builders -----------------------------------------------------
@@ -179,7 +211,7 @@ def build_local(e: "Engine", spec: dict) -> dict:
     for key, targets in e.bindings.items():
         cast_ok = True
         if key == "prompt":
-            value: Any = prompt_with_boxes(spec.get("prompt", ""), spec.get("boxes", []))
+            value: Any = prompt_with_boxes(spec.get("prompt", ""), spec.get("boxes", []), _lead_crop(spec))
         elif key.startswith("params."):
             name = key[len("params."):]
             if name not in p:
@@ -207,6 +239,63 @@ def build_local(e: "Engine", spec: dict) -> dict:
     return prune(wf)
 
 
+def build_cloud(e: "Engine", spec: dict) -> dict:
+    """A cloud template's body with the studio's fields written in.
+
+    Bindings are paths into the body. Media slots left empty are removed;
+    an array field that ends up empty is dropped.
+    """
+    body = copy.deepcopy(e.body or {})
+    p = spec.get("params", {})
+    slots = {i["slot"] for i in spec.get("inputs", [])}
+    drop: list[list] = []
+    for key, targets in e.bindings.items():
+        if key == "prompt":
+            value: Any = prompt_with_boxes(spec.get("prompt", ""), spec.get("boxes", []), _lead_crop(spec))
+        elif key.startswith("params."):
+            name = key[len("params."):]
+            if name not in p:
+                continue
+            value = p[name]
+            if name == "seed" and (value in (None, "") or int(value) < 0):
+                value = random.randint(0, 2**31 - 1)
+        elif ":" in key:
+            if key in slots:
+                continue  # the token is already in the body
+            drop.extend(targets)
+            continue
+        else:
+            continue
+        for path in targets:
+            _set(body, path, value)
+    # Highest indices first, so earlier positions stay valid.
+    for path in sorted(drop, key=lambda t: [str(x) if isinstance(x, str) else f"{x:08d}" for x in t], reverse=True):
+        _unset(body, path)
+    for k in [k for k, v in body.items() if v == []]:
+        del body[k]
+    return body
+
+
+def _set(body: Any, path: list, value: Any) -> None:
+    cur = body
+    for k in path[:-1]:
+        cur = cur[k]
+    cur[path[-1]] = value
+
+
+def _unset(body: Any, path: list) -> None:
+    try:
+        cur = body
+        for k in path[:-1]:
+            cur = cur[k]
+        if isinstance(cur, list):
+            cur.pop(path[-1])
+        else:
+            cur.pop(path[-1], None)
+    except (KeyError, IndexError, TypeError):
+        pass
+
+
 def prune(wf: dict) -> dict:
     gone = {nid for nid, n in wf.items() if n.get("_prune")}
     changed = True
@@ -231,31 +320,157 @@ def _is_link(v: Any) -> bool:
     return isinstance(v, list) and len(v) == 2 and isinstance(v[0], str) and isinstance(v[1], int)
 
 
+# ---- template files ------------------------------------------------------------
+# A template lists everything a run takes in ``inputs``, in the order the studio shows it:
+# photos and clips, the prompt, and settings. Each entry says what it is (``type``), how it
+# is presented (label, hint, default, …) and where its value goes (``bind``: node inputs of
+# the workflow, or paths into a cloud body). Nothing is written into the request that isn't
+# one of these inputs, so the prompt box holds the whole prompt the model reads.
+
+MEDIA = ("image", "video", "audio")
+FIELD_TYPES = {*MEDIA, "text", "string", "int", "number", "bool", "seed", "select", "segmented"}
+_PARAM_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+
+
+def upgrade(data: dict) -> dict:
+    """A template file in the current format (version 2).
+
+    Version 1 kept media slots, the prompt and settings apart, bindings in their own map,
+    and could hide fixed text around the prompt (``instruction`` nodes or ``prompt_wrap``).
+    That text is folded into the prompt's default and examples here, so it stays visible
+    and editable; the hidden copy in the workflow is emptied.
+    """
+    if int(data.get("version") or 1) >= 2:
+        return data
+    d = copy.deepcopy(data)
+    binds = d.pop("bindings", None) or {}
+    defaults = d.pop("defaults", None) or {}
+    samples = defaults.get("inputs") or {}
+    max_images, min_images = int(d.pop("max_images", 1)), int(d.pop("min_images", 0))
+    needs_video = bool(d.pop("needs_video", False))
+    window, fps, max_h = d.pop("video_window", None), d.pop("fps_window", None), d.pop("video_max_height", None)
+    named = d.pop("inputs", None) or [{"slot": f"image:{n}"} for n in range(1, max_images + 1)] + ([{"slot": "video:1"}] if needs_video else [])
+    fields: list[dict] = []
+    n_img = 0
+    for i in named:
+        kind, _, n = i["slot"].partition(":")
+        f: dict[str, Any] = {"key": i["slot"], "type": kind, "label": i.get("label") or f"{kind.capitalize()} {n}"}
+        if kind == "image":
+            n_img += 1
+            f["required"] = n_img <= min_images
+        elif kind == "video":
+            f["required"] = needs_video
+            f.update({k: v for k, v in (("window", window), ("fps", fps), ("max_height", max_h)) if v})
+        f.update({k: i[k] for k in ("hint", "size", "role") if i.get(k)})
+        if samples.get(i["slot"]):
+            f["default"] = samples[i["slot"]]
+        f["bind"] = binds.get(i["slot"], [])
+        fields.append(f)
+
+    pr = d.pop("prompt", None) or {}
+    wrap = d.pop("prompt_wrap", None) or {}
+    instr = d.pop("instruction", None) or {}
+    start, end = wrap.get("start", ""), wrap.get("end", "")
+    for part, (nid, inp) in instr.items() if not wrap and d.get("workflow") else ():
+        node = d["workflow"].get(str(nid))
+        if node is not None and isinstance(node["inputs"].get(inp), str):
+            if part == "start":
+                start = node["inputs"][inp]
+            elif part == "end":
+                end = node["inputs"][inp]
+            node["inputs"][inp] = ""
+    examples = d.pop("examples", None) or []
+    if "prompt" in binds and not pr.get("hidden"):
+        wrapped = bool(start or end)
+        f = {"key": "prompt", "type": "text", "label": "Prompt" if wrapped else pr.get("label") or "Prompt"}
+        if pr.get("hint") and not wrapped:
+            f["hint"] = pr["hint"]
+        f["required"] = True if wrapped else bool(pr.get("required", True))
+        f["default"] = f"{start}{defaults.get('prompt') or ''}{end}"
+        if examples:
+            f["examples"] = [{"label": x, "text": f"{start}{x}{end}"} if wrapped else x for x in examples]
+        f["bind"] = binds["prompt"]
+        fields.append(f)
+    for p in d.pop("params", None) or []:
+        fields.append({**p, "advanced": p.get("advanced", True), "bind": binds.get(f"params.{p['key']}", [])})
+    computed = {k: v for k, v in binds.items() if k.startswith("size.")}
+    if computed:
+        d["computed"] = computed
+    d["inputs"], d["version"] = fields, 2
+    return d
+
+
+def _examples(v: Any) -> list[dict]:
+    """Prompt ideas: plain strings, or {label, text} when the chip shows a short name for a long prompt."""
+    out = []
+    for x in v or []:
+        if isinstance(x, str) and x.strip():
+            out.append({"label": x.strip(), "text": x})
+        elif isinstance(x, dict) and isinstance(x.get("text"), str) and x["text"].strip():
+            out.append({"label": str(x.get("label") or x["text"]).strip(), "text": x["text"]})
+    return out
+
+
+def _field(f: Any) -> dict:
+    if not isinstance(f, dict) or f.get("type") not in FIELD_TYPES or not isinstance(f.get("key"), str):
+        raise ValueError(f"bad input {f!r:.80}")
+    key, t = f["key"], f["type"]
+    if t in MEDIA:
+        if not re.fullmatch(rf"{t}:\d+", key):
+            raise ValueError(f"a {t} input's key is {t}:<n>, not {key!r}")
+    elif not (key == "prompt" or _PARAM_KEY.match(key)) or re.match(r"^(image|video|audio)$", key):
+        raise ValueError(f"bad input key {key!r}")
+    out = {**f, "bind": [list(b) for b in f.get("bind") or []]}
+    out.setdefault("label", key)
+    if "examples" in f:
+        out["examples"] = _examples(f["examples"])
+    return out
+
+
 def load_template(data: dict, base: Path | None = None) -> "Engine":
     if data.get("format") != "openillusion.template":
         raise ValueError("not a openillusion.template")
+    data = upgrade(data)
+    cloud = data.get("kind") == "cloud"
     tid = data["id"]
-    if not tid.startswith("local/"):
-        tid = "local/" + tid
+    prefix = "cloud/" if cloud else "local/"
+    if not tid.startswith(prefix):
+        tid = prefix + tid
+    if cloud and not data.get("model"):
+        raise ValueError("a cloud template names its model")
+    fields = [_field(f) for f in data.get("inputs") or []]
+    if len({f["key"] for f in fields}) != len(fields):
+        raise ValueError("two inputs share a key")
+    media = [f for f in fields if f["type"] in MEDIA]
+    images = [f for f in media if f["type"] == "image"]
+    video = next((f for f in media if f["type"] == "video"), None)
+    text = next((f for f in fields if f["key"] == "prompt"), None)
+    bindings = dict(data.get("computed") or {})
+    for f in fields:
+        bindings[f["key"] if f["type"] in MEDIA or f["key"] == "prompt" else f"params.{f['key']}"] = f["bind"]
+    slots = [{"slot": f["key"], **{k: f[k] for k in ("label", "hint", "size", "role") if f.get(k)}} for f in media]
     e = Engine(
         id=tid, mode=data.get("mode", "edit"), label=data.get("label", tid), provider=data.get("provider", "local"),
-        blurb=data.get("blurb", ""), max_images=int(data.get("max_images", 1)), min_images=int(data.get("min_images", 0)),
-        needs_video=bool(data.get("needs_video", False)),
-        video_window=tuple(data["video_window"]) if data.get("video_window") else None,
-        fps_window=tuple(data.get("fps_window") or (1.0, 60.0)),
-        video_max_height=int(data["video_max_height"]) if data.get("video_max_height") else None,
-        params=data.get("params", []), curated=True, kind="local",
-        workflow=data["workflow"], bindings=data.get("bindings", {}), outputs=[str(o) for o in data.get("outputs", [])],
-        hints=data.get("hints", {}), source=data.get("source"), prompt=data.get("prompt"),
-        examples=list(data.get("examples", [])), tips=list(data.get("tips", [])), tags=list(data.get("tags", [])),
-        inputs=list(data.get("inputs", [])),
+        blurb=data.get("blurb", ""), max_images=len(images), min_images=sum(1 for f in images if f.get("required", True)),
+        needs_video=bool(video and video.get("required", True)),
+        video_window=tuple(video["window"]) if video and video.get("window") else None,
+        fps_window=tuple(video.get("fps") or (1.0, 60.0)) if video else (1.0, 60.0),
+        video_max_height=int(video["max_height"]) if video and video.get("max_height") else None,
+        params=[{k: v for k, v in f.items() if k != "bind"} for f in fields if f["type"] not in MEDIA and f["key"] != "prompt"],
+        curated=True, kind="cloud" if cloud else "local",
+        workflow=None if cloud else data["workflow"], bindings=bindings, outputs=[str(o) for o in data.get("outputs", [])],
+        model=data.get("model") if cloud else None, body=data.get("body") if cloud else None, built=bool(data.get("built")),
+        hints=data.get("hints", {}), source=data.get("source"),
+        prompt={k: text[k] for k in ("label", "hint", "required") if k in text} if text else None,
+        examples=text.get("examples", []) if text else [], tips=list(data.get("tips", [])), tags=list(data.get("tags", [])),
+        inputs=slots, fields=fields,
         cover=(base / data["cover"]) if base and data.get("cover") else None,
         cover_video=(base / data["cover_video"]) if base and data.get("cover_video") else None,
-        size=prep.spec_of(data.get("size")),
-        default_prompt=str((data.get("defaults") or {}).get("prompt") or ""),
-        default_inputs={str(k): (base / v) for k, v in ((data.get("defaults") or {}).get("inputs") or {}).items()} if base else {},
+        size=prep.spec_of(data.get("size"), slots),
+        default_prompt=str(text.get("default") or "") if text else "",
+        default_inputs={f["key"]: (base / f["default"]) for f in media if f.get("default")} if base else {},
     )
-    e.build = lambda spec, _e=e: build_local(_e, spec)
+    e.build = (lambda spec, _e=e: build_cloud(_e, spec)) if cloud else (lambda spec, _e=e: build_local(_e, spec))
     return e
 
 
@@ -287,7 +502,7 @@ def load_templates() -> dict[str, "Engine"]:
 # Edits never touch the shipped file: the whole template is written to the user's
 # templates folder, which overrides it by id. Resetting deletes that copy.
 
-_TEXT_LIMIT = {"label": 80, "blurb": 400, "prompt_label": 40, "prompt_hint": 160, "instruction": 2000, "item": 240, "default_prompt": 400}
+_TEXT_LIMIT = {"label": 80, "blurb": 400, "input_label": 40, "hint": 160, "item": 240, "text": 4000, "examples": 12}
 
 
 def _clean(v: Any, limit: int) -> str:
@@ -305,58 +520,82 @@ def _clean_list(v: Any, n: int = 20) -> list[str]:
     return [x for x in (_clean(i, _TEXT_LIMIT["item"]) for i in v) if x]
 
 
-def instruction_of(e: Engine) -> dict | None:
-    """The fixed text wrapped around the user's prompt, for templates that declare where it lives."""
-    where = (e.data or {}).get("instruction")
-    if not where or not e.workflow:
-        return None
-    try:
-        return {k: e.workflow[str(n)]["inputs"][inp] for k, (n, inp) in where.items()}
-    except (KeyError, TypeError, ValueError):
-        return None
+def _edit_input(f: dict, ch: Any) -> None:
+    """Label, hint, and for text inputs the default and the ideas. Where it binds and what it is stay as built."""
+    if not isinstance(ch, dict):
+        raise ValueError("expected an object per input")
+    if "label" in ch:
+        f["label"] = _clean(ch["label"], _TEXT_LIMIT["input_label"]) or f["label"]
+    if "hint" in ch:
+        hint = _clean(ch["hint"], _TEXT_LIMIT["hint"])
+        f.pop("hint", None)
+        if hint:
+            f["hint"] = hint
+    if ("default" in ch or "examples" in ch) and f["type"] != "text":
+        raise ValueError(f"{f['label']}: only text inputs take a default and ideas here")
+    if "default" in ch:
+        f["default"] = _clean(ch["default"], _TEXT_LIMIT["text"])
+    if "examples" in ch:
+        if not isinstance(ch["examples"], list) or len(ch["examples"]) > _TEXT_LIMIT["examples"]:
+            raise ValueError(f"up to {_TEXT_LIMIT['examples']} ideas")
+        rows = []
+        for x in ch["examples"]:
+            x = x if isinstance(x, dict) else {"text": x}
+            text = _clean(x.get("text", ""), _TEXT_LIMIT["text"])
+            if text:
+                rows.append({"label": _clean(x.get("label") or "", _TEXT_LIMIT["item"]) or text[:60], "text": text})
+        f["examples"] = rows
 
 
 def edit_template(engine_id: str, patch: dict) -> Engine:
     e = ENGINES.get(engine_id)
-    if e is None or e.kind != "local" or e.data is None or e.path is None:
+    if e is None or e.data is None or e.path is None:
         raise KeyError(engine_id)
-    data = copy.deepcopy(e.data)
+    data = upgrade(copy.deepcopy(e.data))
     if "label" in patch:
         data["label"] = _clean(patch["label"], _TEXT_LIMIT["label"]) or data["label"]
     if "blurb" in patch:
         data["blurb"] = _clean(patch["blurb"], _TEXT_LIMIT["blurb"])
-    for k in ("tags", "examples", "tips"):
+    for k in ("tags", "tips"):
         if k in patch:
             data[k] = _clean_list(patch[k])
-    if isinstance(patch.get("prompt"), dict):
-        pr = dict(data.get("prompt") or {})
-        if "label" in patch["prompt"]:
-            pr["label"] = _clean(patch["prompt"]["label"], _TEXT_LIMIT["prompt_label"]) or pr.get("label", "Prompt")
-        if "hint" in patch["prompt"]:
-            pr["hint"] = _clean(patch["prompt"]["hint"], _TEXT_LIMIT["prompt_hint"])
-        data["prompt"] = pr
-    if isinstance(patch.get("instruction"), dict):
-        where = data.get("instruction") or {}
-        for k, v in patch["instruction"].items():
-            if k not in where:
-                raise ValueError(f"this template has no {k!r} instruction")
-            if not isinstance(v, str) or len(v) > _TEXT_LIMIT["instruction"]:
-                raise ValueError(f"keep the instruction under {_TEXT_LIMIT['instruction']} characters")
-            n, inp = where[k]
-            data["workflow"][str(n)]["inputs"][inp] = v  # untrimmed: spaces at the joins are part of the sentence
-    if "default_prompt" in patch:
-        data["defaults"] = {**(data.get("defaults") or {}), "prompt": _clean(patch["default_prompt"], _TEXT_LIMIT["default_prompt"])}
-    # Media the template ships with stays where it is.
-    for k in ("cover", "cover_video"):
-        if data.get(k):
-            data[k] = str((e.path.parent / data[k]).resolve())
-    if (data.get("defaults") or {}).get("inputs"):
-        data["defaults"]["inputs"] = {k: str((e.path.parent / v).resolve()) for k, v in data["defaults"]["inputs"].items()}
+    if "inputs" in patch:
+        if not isinstance(patch["inputs"], dict):
+            raise ValueError("inputs: expected an object keyed by input")
+        by_key = {f["key"]: f for f in data["inputs"]}
+        for key, ch in patch["inputs"].items():
+            if key not in by_key:
+                raise ValueError(f"this template has no input {key!r}")
+            _edit_input(by_key[key], ch)
+    # Media the template ships with stays where it is; a user file is rewritten in place.
+    if e.origin != "user":
+        for k in ("cover", "cover_video"):
+            if data.get(k):
+                data[k] = str((e.path.parent / data[k]).resolve())
+        for f in data["inputs"]:
+            if f.get("type") in MEDIA and f.get("default"):
+                f["default"] = str((e.path.parent / f["default"]).resolve())
     dst = e.path if e.origin == "user" else paths.user_root() / "templates" / (re.sub(r"[^A-Za-z0-9._-]+", "__", e.id) + ".json")
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
     reload_templates()
     return ENGINES[e.id]
+
+
+def delete_template(engine_id: str) -> None:
+    """Remove a template made in the builder, with its media and custom cover."""
+    e = ENGINES.get(engine_id)
+    if e is None or not e.built or e.origin != "user" or e.edited or e.path is None:
+        raise KeyError(engine_id)
+    import shutil
+
+    media_dir = e.path.parent / "media" / e.path.stem
+    if media_dir.is_dir() and media_dir.parent == e.path.parent / "media":
+        shutil.rmtree(media_dir, ignore_errors=True)
+    for ext in (".webp", ".mp4"):
+        user_cover(e.id, ext).unlink(missing_ok=True)
+    e.path.unlink(missing_ok=True)
+    reload_templates()
 
 
 def reset_template(engine_id: str) -> Engine:
@@ -375,12 +614,18 @@ ENGINES: dict[str, Engine] = {}
 
 
 def reload_templates() -> None:
-    for k in [k for k, e in ENGINES.items() if e.kind == "local"]:
+    for k in [k for k, e in ENGINES.items() if e.data is not None]:
         ENGINES.pop(k)
     ENGINES.update(load_templates())
 
 
 reload_templates()
+
+
+def router_model(engine_id: str) -> str:
+    """The Router model a cloud engine id sends to: a template's model, else the id itself."""
+    e = ENGINES.get(engine_id)
+    return e.model if e is not None and e.model else engine_id
 
 
 def get(engine_id: str) -> Engine:
@@ -395,14 +640,19 @@ def get(engine_id: str) -> Engine:
 
 
 def describe(e: Engine) -> dict:
+    defaults = defaults_info(e)
+    samples = {i["slot"]: i for i in defaults["inputs"]}
+    # Every input in order, as the studio draws it. A photo or clip carries its sample as an asset, not a path.
+    fields = [{k: v for k, v in f.items() if not (f["type"] in MEDIA and k == "default")} | ({"sample": samples.get(f["key"])} if f["type"] in MEDIA else {})
+              for f in e.fields]
     return {
         "id": e.id, "mode": e.mode, "label": e.label, "provider": e.provider, "blurb": e.blurb,
         "max_images": e.max_images, "min_images": e.min_images, "needs_video": e.needs_video,
         "video_window": e.video_window, "fps_window": e.fps_window, "video_max_height": e.video_max_height, "url_only": e.url_only,
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
-        "examples": e.examples, "tips": e.tips, "tags": e.tags, "inputs": e.inputs, "requires": requirements(e),
-        "instruction": instruction_of(e), "origin": e.origin, "edited": e.edited, "size": e.size,
-        "defaults": defaults_info(e),
+        "examples": e.examples, "tips": e.tips, "tags": e.tags, "inputs": e.inputs, "fields": fields, "requires": requirements(e),
+        "origin": e.origin, "edited": e.edited, "size": e.size, "built": e.built, "model": e.model,
+        "defaults": defaults,
         **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),
     }
 
@@ -550,21 +800,16 @@ def compose(spec: dict) -> dict:
     imgs, vids = _images(spec["inputs"]), _videos(spec["inputs"])
     if len(imgs) > e.max_images:
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} takes at most {e.max_images} images"})
-    given = {i.get("slot") for i in imgs}
-    photos = [i for i in (e.inputs or []) if str(i.get("slot", "")).startswith("image:")]
-    named = [i for i in photos[: e.min_images] if i.get("label")]
-    if named:
+    given = {i.get("slot") for i in spec["inputs"]}
+    if e.fields:
         # Templates say which input is missing, in their own words.
-        for i in named:
-            if i["slot"] not in given:
-                label = i["label"].lower()
-                warnings.append({"field": "inputs", "level": "error", "text": f"Add {'an' if label[:1] in 'aeiou' else 'a'} {label}"})
+        for f in e.fields:
+            if f["type"] in MEDIA and f.get("required", True) and f["key"] not in given:
+                label = f["label"].lower()
+                warnings.append({"field": "video" if f["type"] == "video" else "inputs", "level": "error", "text": f"Add {'an' if label[:1] in 'aeiou' else 'a'} {label}"})
     elif len(imgs) < e.min_images:
         n = e.min_images
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} needs at least {n} image{'' if n == 1 else 's'}"})
-    if e.needs_video and not vids:
-        clip = next((i.get("label") for i in (e.inputs or []) if str(i.get("slot", "")).startswith("video:") and i.get("label")), "driving video")
-        warnings.append({"field": "video", "level": "error", "text": f"Add {'an' if clip[:1].lower() in 'aeiou' else 'a'} {clip.lower()}"})
     if e.video_window:
         for v in vids:
             d = v.get("trimmed_duration") or v.get("duration")
@@ -574,8 +819,8 @@ def compose(spec: dict) -> dict:
         for i in spec["inputs"]:
             if not i.get("url"):
                 warnings.append({"field": i["slot"], "level": "error", "text": f"{e.label} takes public URLs only. Add a link for {i['slot']}."})
-    prompt_required = (e.prompt or {}).get("required", True)
-    if not spec.get("prompt", "").strip() and e.curated and prompt_required:  # raw Router models may not need one
+    prompt_required = bool(e.prompt and e.prompt.get("required", True))  # raw Router models may not need one
+    if not spec.get("prompt", "").strip() and prompt_required:
         warnings.append({"field": "prompt", "level": "error", "text": "Write a prompt"})
     if spec.get("raw"):
         template = spec["raw"]

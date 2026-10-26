@@ -1,6 +1,6 @@
 {
   "format": "openillusion.template",
-  "version": 1,
+  "version": 2,
   "id": "local/qwen21-product-shot",
   "mode": "edit",
   "label": "Product shot · Qwen Image 2.1",
@@ -11,66 +11,95 @@
     "product",
     "ad"
   ],
-  "max_images": 1,
-  "min_images": 1,
-  "needs_video": false,
-  "inputs": [
-    {
-      "slot": "image:1",
-      "label": "Product",
-      "hint": "A clear photo of the product, ideally on a plain background."
-    }
-  ],
-  "prompt": {
-    "label": "Scene",
-    "hint": "On wet black rocks by a waterfall, misty morning"
-  },
-  "defaults": {
-    "prompt": "on wet black rocks by a waterfall, misty morning",
-    "inputs": {
-      "image:1": "media/sneaker.jpg"
-    }
-  },
-  "instruction": {
-    "start": [
-      "20",
-      "string_a"
-    ],
-    "end": [
-      "22",
-      "string_b"
-    ]
-  },
-  "examples": [
-    "on wet black rocks by a waterfall, misty morning",
-    "on a marble kitchen counter, soft window light",
-    "floating over a pastel gradient, studio light",
-    "on a sandy beach at sunset"
-  ],
   "tips": [
     "Describe the surface it stands on and the light.",
     "Plain-background product photos keep logos sharpest."
   ],
-  "params": [
+  "inputs": [
+    {
+      "key": "image:1",
+      "type": "image",
+      "label": "Product",
+      "hint": "A clear photo of the product, ideally on a plain background.",
+      "required": true,
+      "size": "1 MP",
+      "area": true,
+      "default": "media/sneaker.jpg",
+      "bind": [
+        [
+          "11",
+          "image"
+        ]
+      ]
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "label": "Prompt",
+      "required": true,
+      "default": "Place the product from <image1> in a new scene: on wet black rocks by a waterfall, misty morning. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo.",
+      "examples": [
+        {
+          "label": "Waterfall rocks",
+          "text": "Place the product from <image1> in a new scene: on wet black rocks by a waterfall, misty morning. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo."
+        },
+        {
+          "label": "Marble counter",
+          "text": "Place the product from <image1> in a new scene: on a marble kitchen counter, soft window light. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo."
+        },
+        {
+          "label": "Pastel float",
+          "text": "Place the product from <image1> in a new scene: floating over a pastel gradient, studio light. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo."
+        },
+        {
+          "label": "Beach sunset",
+          "text": "Place the product from <image1> in a new scene: on a sandy beach at sunset. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo."
+        }
+      ],
+      "bind": [
+        [
+          "5",
+          "prompt"
+        ]
+      ]
+    },
     {
       "key": "steps",
-      "label": "Steps",
       "type": "int",
+      "label": "Steps",
+      "help": "The official pipeline uses 40–50.",
+      "advanced": true,
       "min": 10,
       "max": 50,
       "default": 25,
-      "help": "The official pipeline uses 40–50."
+      "bind": [
+        [
+          "7",
+          "steps",
+          "int"
+        ]
+      ]
     },
     {
       "key": "seed",
-      "label": "Seed",
       "type": "seed",
-      "default": -1
+      "label": "Seed",
+      "advanced": true,
+      "default": -1,
+      "bind": [
+        [
+          "7",
+          "seed",
+          "int"
+        ]
+      ]
     },
     {
       "key": "cache",
-      "label": "Step cache",
       "type": "segmented",
+      "label": "Step cache",
+      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
+      "advanced": true,
       "options": [
         "cpu",
         "auto",
@@ -78,65 +107,39 @@
         "off"
       ],
       "default": "cpu",
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory."
+      "bind": [
+        [
+          "2",
+          "device"
+        ]
+      ]
     }
   ],
   "size": {
     "options": [
       {
-        "label": "1K",
-        "px": 1024
+        "label": "0.5 MP",
+        "mp": 0.5
       },
       {
-        "label": "1.5K",
-        "px": 1536
+        "label": "1 MP",
+        "mp": 1
       },
       {
-        "label": "2K",
-        "px": 2048
+        "label": "2 MP",
+        "mp": 2
+      },
+      {
+        "label": "4 MP",
+        "mp": 4
       },
       {
         "label": "Original",
-        "px": 0
+        "mp": 0
       }
     ],
-    "default": "1K",
     "multiple": 32,
     "follows": "image:1"
-  },
-  "bindings": {
-    "prompt": [
-      [
-        "21",
-        "string_b"
-      ]
-    ],
-    "image:1": [
-      [
-        "11",
-        "image"
-      ]
-    ],
-    "params.steps": [
-      [
-        "7",
-        "steps",
-        "int"
-      ]
-    ],
-    "params.seed": [
-      [
-        "7",
-        "seed",
-        "int"
-      ]
-    ],
-    "params.cache": [
-      [
-        "2",
-        "device"
-      ]
-    ]
   },
   "outputs": [
     "9"
@@ -200,45 +203,6 @@
         "title": "Image 1"
       }
     },
-    "20": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": "Place the product from <image1> in a new scene: ",
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (start)"
-      }
-    },
-    "21": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "20",
-          0
-        ],
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Scene"
-      }
-    },
-    "22": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "21",
-          0
-        ],
-        "string_b": ". Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo.",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (end)"
-      }
-    },
     "5": {
       "class_type": "TextEncodeQwenImage21",
       "inputs": {
@@ -250,10 +214,7 @@
           "4",
           0
         ],
-        "prompt": [
-          "22",
-          0
-        ],
+        "prompt": "Place the product from <image1> in a new scene: on wet black rocks by a waterfall, misty morning. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo.",
         "negative_prompt": "",
         "resolution": 0,
         "images.image_1": [

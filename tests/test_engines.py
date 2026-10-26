@@ -35,29 +35,37 @@ TESTED = {HAT} | {f"local/qwen21-{n}" for n in (
 
 
 def test_only_tested_templates_ship():
-    assert {e.id for e in engines.ENGINES.values()} == TESTED
+    assert {e.id for e in engines.ENGINES.values() if e.origin == "shipped"} == TESTED
 
 
 @pytest.mark.parametrize("tid", sorted(TESTED))
-def test_shipped_templates_wrap_the_prompt_and_name_their_inputs(tid):
+def test_shipped_templates_list_every_input_and_bind_it(tid):
     e = engines.ENGINES[tid]
+    raw = json.loads(e.path.read_text("utf-8"))
+    assert raw["version"] == 2 and "bindings" not in raw and "instruction" not in raw and "defaults" not in raw
     d = engines.describe(e)
-    assert d["instruction"] and d["instruction"]["start"] and d["instruction"]["end"]
-    assert [i["slot"] for i in d["inputs"]] == ["video:1"] * e.needs_video + [f"image:{n}" for n in range(1, e.max_images + 1)]
-    assert d["examples"] and d["tags"]
+    keys = [f["key"] for f in d["fields"]]
+    assert keys[: len(e.inputs)] == ["video:1"] * e.needs_video + [f"image:{n}" for n in range(1, e.max_images + 1)]
+    assert "prompt" in keys and all(f["bind"] for f in d["fields"])
+    # The whole prompt is the input: the workflow has no text of its own around it.
+    prompt = next(f for f in d["fields"] if f["key"] == "prompt")
+    node, inp = prompt["bind"][0]
+    assert e.workflow[node]["inputs"][inp] == prompt["default"] == e.default_prompt
+    assert not any(n["class_type"] == "StringConcatenate" for n in e.workflow.values())
+    assert d["examples"] and all(x["label"] and x["text"].startswith(prompt["default"][:12]) for x in d["examples"]) and d["tags"]
 
 
 def test_hat_template_writes_every_binding():
     spec = {
         "engine": HAT,
         "inputs": [{"slot": "image:1", "role": "base", "asset": "a.png"}],
-        "prompt": "red wool beanie",
+        "prompt": "Put a red wool beanie on the person in <image1>.",
         "params": {"size": "1K", "steps": "25", "seed": 7, "cache": "cpu"},
     }
     out = engines.compose(spec)
     wf = out["template"]
     assert not [w for w in out["warnings"] if w["level"] == "error"]
-    assert wf["21"]["inputs"]["string_b"] == "red wool beanie"
+    assert wf["5"]["inputs"]["prompt"] == "Put a red wool beanie on the person in <image1>."  # sent exactly as typed
     assert wf["11"]["inputs"]["image"] == "{{image:1}}"
     assert wf["5"]["inputs"]["resolution"] == 0  # images arrive already sized (prep.py)
     assert wf["7"]["inputs"]["steps"] == 25 and wf["7"]["inputs"]["seed"] == 7
@@ -218,9 +226,10 @@ def fresh_templates():
 def test_hat_describes_what_it_needs():
     d = engines.describe(engines.ENGINES[HAT])
     assert d["origin"] == "shipped" and d["edited"] is False
-    assert d["inputs"][0]["slot"] == "image:1"
+    assert d["inputs"][0]["slot"] == "image:1" and d["fields"][0]["sample"]["slot"] == "image:1"
     assert d["examples"] and d["tips"] and d["tags"]
-    assert d["instruction"]["start"].startswith("Put a hat on") and d["instruction"]["end"].startswith(". The hat")
+    assert d["defaults"]["prompt"].startswith("Put a hat on") and "The hat sits naturally" in d["defaults"]["prompt"]
+    assert [f["key"] for f in d["fields"] if f.get("advanced")] == ["steps", "seed", "cache"]
     names = {m["name"] for m in d["requires"]["models"]}
     assert any("qwen_image_2.1" in n for n in names)
     assert {"KSampler", "LoadImage", "SaveImage"} <= set(d["requires"]["nodes"])
@@ -231,15 +240,15 @@ def test_edit_writes_a_user_copy_and_reset_removes_it():
     shipped = engines.ENGINES[HAT].path
     before = shipped.read_text("utf-8")
     e = engines.edit_template(HAT, {
-        "label": "  Hat me  ", "tags": ["hat", " ", "fun"], "prompt": {"hint": "a top hat"},
-        "instruction": {"start": "Give <image1> this hat: "},
+        "label": "  Hat me  ", "tags": ["hat", " ", "fun"],
+        "inputs": {"prompt": {"hint": "a top hat", "default": "Give <image1> a top hat.", "examples": [{"label": "Top hat", "text": "Give <image1> a top hat."}, "Give <image1> a cap."]},
+                   "image:1": {"label": "Someone"}},
     })
     assert e.label == "Hat me" and e.tags == ["hat", "fun"] and e.prompt["hint"] == "a top hat"
-    assert e.origin == "user" and e.edited
-    assert engines.instruction_of(e)["start"] == "Give <image1> this hat: "  # trailing space kept
+    assert e.default_prompt == "Give <image1> a top hat." and e.inputs[0]["label"] == "Someone"
+    assert e.examples == [{"label": "Top hat", "text": "Give <image1> a top hat."}, {"label": "Give <image1> a cap.", "text": "Give <image1> a cap."}]
+    assert e.origin == "user" and e.edited and e.default_inputs["image:1"].is_file()  # the sample stays where it shipped
     assert shipped.read_text("utf-8") == before
-    # The edited sentence is what the workflow sends.
-    assert e.workflow["20"]["inputs"]["string_a"] == "Give <image1> this hat: "
 
     again = engines.edit_template(HAT, {"blurb": "Second edit"})
     assert again.path == e.path and again.label == "Hat me"
@@ -253,9 +262,11 @@ def test_edit_writes_a_user_copy_and_reset_removes_it():
 @pytest.mark.parametrize("patch", [
     {"label": "x" * 81},
     {"tags": "hat"},
-    {"examples": ["x"] * 21},
-    {"instruction": {"middle": "nope"}},
-    {"instruction": {"start": 3}},
+    {"inputs": {"prompt": {"examples": ["x"] * 13}}},
+    {"inputs": {"nope": {"label": "x"}}},
+    {"inputs": {"prompt": {"default": 3}}},
+    {"inputs": {"image:1": {"default": "other.png"}}},
+    {"inputs": ["prompt"]},
 ])
 def test_edit_rejects_bad_patches(patch):
     with pytest.raises(ValueError):
@@ -282,13 +293,15 @@ def test_swap_needs_its_clip_and_character_by_name():
     w = engines.compose({"engine": SWAP, "inputs": [{"slot": "video:1", "asset": "v.mp4", "duration": 5}], "prompt": "the man", "params": {}})["warnings"]
     assert [x["text"] for x in w] == ["Add a character"]
     c = engines.compose({"engine": SWAP, "inputs": [{"slot": "image:1", "asset": "a.png"}, {"slot": "video:1", "asset": "v.mp4", "duration": 5}],
-                         "prompt": "the man on the left", "params": {"megapixels": "0.3", "keep_audio": False, "strength": 0.8}})
+                         "prompt": "the man on the left", "params": {"keep_audio": False, "strength": 0.8}})
     assert c["warnings"] == []
     t = c["template"]
     assert t["1"]["inputs"]["image"] == "{{image:1}}" and t["2"]["inputs"]["file"] == "{{video:1}}"
-    assert t["20"]["inputs"]["string_b"] == "the man on the left"
-    assert t["4"]["inputs"]["megapixels"] == 0.3 and t["42"]["inputs"]["switch"] is False and t["11"]["inputs"]["strength_model"] == 0.8
-    assert e.fps_window == (24, 24) and e.video_max_height == 720
+    assert t["23"]["inputs"]["prompt"] == "the man on the left"
+    assert t["42"]["inputs"]["switch"] is False and t["11"]["inputs"]["strength_model"] == 0.8
+    # The app sizes the clip; the workflow takes its frames as they come.
+    assert "4" not in t and t["5"]["inputs"]["image"] == ["3", 0] and t["23"]["inputs"]["ref_videos.ref_video_0"] == ["3", 0]
+    assert e.fps_window == (24, 24) and e.size["follows"] == "video:1" and e.size["inputs"] == {"video:1": "0.4 MP", "image:1": "Original"}
 
 
 def test_sample_clip_is_described_as_video_with_a_poster():
@@ -299,3 +312,58 @@ def test_sample_clip_is_described_as_video_with_a_poster():
     assert d["image:1"]["kind"] == "image"
     p = engines.default_poster(SWAP, "video:1")
     assert p.suffix == ".webp" and p.is_file() and p.parent.parent == engines.paths.cache_dir()
+
+
+# ---- the template format ---------------------------------------------------------
+
+
+def test_version_1_files_load_with_their_hidden_text_moved_into_the_prompt():
+    wf = {"1": {"class_type": "LoadImage", "inputs": {"image": "x.png"}},
+          "2": {"class_type": "StringConcatenate", "inputs": {"string_a": "Give <image1> ", "string_b": "", "delimiter": ""}},
+          "3": {"class_type": "StringConcatenate", "inputs": {"string_a": ["2", 0], "string_b": ". Keep the rest.", "delimiter": ""}},
+          "4": {"class_type": "Encode", "inputs": {"text": ["3", 0], "steps": 20}}}
+    old = {"format": "openillusion.template", "id": "old", "mode": "edit", "max_images": 2, "min_images": 1,
+           "inputs": [{"slot": "image:1", "label": "Person", "size": "1 MP"}, {"slot": "image:2", "label": "Extra"}],
+           "prompt": {"label": "Your hat", "hint": "a cap"}, "examples": ["a cap"], "defaults": {"prompt": "a beret", "inputs": {"image:1": "p.png"}},
+           "instruction": {"start": ["2", "string_a"], "end": ["3", "string_b"]},
+           "params": [{"key": "steps", "label": "Steps", "type": "int", "default": 20}],
+           "bindings": {"image:1": [["1", "image"]], "prompt": [["2", "string_b"]], "params.steps": [["4", "steps", "int"]]},
+           "workflow": wf}
+    e = engines.load_template(old)
+    assert [(f["key"], f.get("required")) for f in e.fields] == [("image:1", True), ("image:2", False), ("prompt", True), ("steps", None)]
+    assert e.default_prompt == "Give <image1> a beret. Keep the rest."
+    assert e.examples == [{"label": "a cap", "text": "Give <image1> a cap. Keep the rest."}]
+    assert e.min_images == 1 and e.max_images == 2 and e.inputs[0] == {"slot": "image:1", "label": "Person", "size": "1 MP"}
+    wf = e.build({"inputs": [{"slot": "image:1"}], "prompt": "Give <image1> a cap.", "params": {"steps": 9}})
+    # The fixed text now lives in the prompt; the workflow's own copy is empty, so it isn't sent twice.
+    assert wf["2"]["inputs"]["string_a"] == "" and wf["2"]["inputs"]["string_b"] == "Give <image1> a cap." and wf["3"]["inputs"]["string_b"] == ""
+    assert wf["4"]["inputs"]["steps"] == 9 and "2" in wf
+    assert old["workflow"]["2"]["inputs"]["string_a"] == "Give <image1> "  # the file as loaded is left alone
+
+    wrapped = {"format": "openillusion.template", "id": "w", "kind": "cloud", "model": "a/b", "body": {"prompt": ""}, "built": True,
+               "prompt": {"label": "Prompt"}, "prompt_wrap": {"start": "Photo of "}, "defaults": {"prompt": "a cat"},
+               "bindings": {"prompt": [["prompt"]]}, "max_images": 0}
+    e = engines.load_template(wrapped)
+    assert e.default_prompt == "Photo of a cat" and e.build({"inputs": [], "prompt": "A dog", "params": {}})["prompt"] == "A dog"
+
+
+@pytest.mark.parametrize("bad", [
+    [{"key": "image:1", "type": "video"}],
+    [{"key": "Steps", "type": "int"}],
+    [{"key": "x", "type": "slider"}],
+    [{"key": "prompt", "type": "text"}, {"key": "prompt", "type": "text"}],
+])
+def test_bad_inputs_are_refused(bad):
+    with pytest.raises(ValueError):
+        engines.load_template({"format": "openillusion.template", "version": 2, "id": "x", "inputs": bad, "workflow": {}})
+
+
+def test_a_template_without_a_prompt_runs_without_one():
+    e = engines.load_template({"format": "openillusion.template", "version": 2, "id": "up", "workflow": {"1": {"class_type": "LoadImage", "inputs": {"image": ""}}},
+                               "inputs": [{"key": "image:1", "type": "image", "label": "Photo", "bind": [["1", "image"]]}]})
+    engines.ENGINES[e.id] = e
+    try:
+        w = engines.compose({"engine": e.id, "inputs": [{"slot": "image:1", "asset": "a.png"}], "prompt": "", "params": {}})["warnings"]
+        assert w == [] and e.prompt is None
+    finally:
+        engines.ENGINES.pop(e.id)

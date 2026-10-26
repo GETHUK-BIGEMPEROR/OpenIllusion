@@ -15,10 +15,18 @@ def qwen_node_size(w, h, res):
     return max(32, round(math.sqrt(res * res * ratio) / 32) * 32), max(32, round(math.sqrt(res * res / ratio) / 32) * 32)
 
 
-@pytest.mark.parametrize("w,h", [(1024, 1536), (2959, 3564), (4000, 3000), (1920, 1080), (640, 960), (3000, 1000), (777, 1333)])
-@pytest.mark.parametrize("px", [1024, 1536, 2048])
-def test_target_matches_the_qwen_node(w, h, px):
-    assert prep.target(w, h, px, 32) == qwen_node_size(w, h, px)
+@pytest.mark.parametrize("w,h", [(1024, 1536), (2959, 3564), (4000, 3000), (1920, 1080), (1080, 1920), (640, 960), (3000, 1000), (777, 1333), (1000, 1250)])
+@pytest.mark.parametrize("px", [447, 632, 1000, 1024, 1414, 2048])
+def test_target_keeps_the_shape_closer_than_the_qwen_node(w, h, px):
+    tw, th = prep.target(w, h, px, 32)
+    assert tw % 32 == 0 and th % 32 == 0 and abs(tw * th / px**2 - 1) <= 0.12
+    nw, nh = qwen_node_size(w, h, px)
+    assert abs(math.log(tw / th * h / w)) <= abs(math.log(nw / nh * h / w)) + 1e-9
+
+
+def test_common_shapes_stay_true_at_1_mp():
+    assert prep.target(1920, 1080, 1000, 32) == (1312, 736)
+    assert prep.target(1080, 1920, 1000, 32) == (736, 1312)
 
 
 def test_original_trims_to_the_multiple_without_resampling():
@@ -34,7 +42,7 @@ def test_original_trims_to_the_multiple_without_resampling():
 def test_resize_never_stretches():
     p = prep.plan(4000, 3000, px=1024, multiple=32)
     l, t, r, b = p.box
-    assert (p.width, p.height) == (1184, 896)
+    assert (p.width, p.height) == (1152, 864)  # exactly 4:3
     assert (r - l) / (b - t) == pytest.approx(p.width / p.height, rel=1e-9)
     assert 0 <= l and 0 <= t and r <= 4000 and b <= 3000
 
@@ -55,21 +63,34 @@ def test_prepared_images_are_left_alone():
     assert again.identity
 
 
-def test_references_share_the_budget():
-    imgs = [{"slot": "image:1", "width": 4000, "height": 3000}, {"slot": "image:2", "width": 6000, "height": 4000}]
-    plans = prep.plans(prep.spec_of(QWEN), "1K", imgs)
-    assert (plans["image:1"].width, plans["image:1"].height) == (1184, 896)
-    assert plans["image:2"].width * plans["image:2"].height <= 1.1 * 1024 * 1024
-    # Original: the reference gets the main picture's area, never its own 24 MP.
-    plans = prep.plans(prep.spec_of(QWEN), "Original", imgs)
-    lead = plans["image:1"]
-    assert (lead.width, lead.height) == (4000, 2976)
-    assert plans["image:2"].width * plans["image:2"].height <= 1.1 * lead.width * lead.height
+def test_every_input_has_its_own_size():
+    s = prep.spec_of(QWEN, [{"slot": "image:1", "size": "2K"}, {"slot": "image:2"}])
+    imgs = [{"slot": "image:1", "width": 4000, "height": 3000}, {"slot": "image:2", "width": 6000, "height": 4000, "size": "1K"}]
+    plans = prep.plans(s, imgs)
+    assert plans["image:1"].width * plans["image:1"].height == pytest.approx(2048**2, rel=0.12)  # its template default
+    assert (plans["image:2"].width, plans["image:2"].height) == (1248, 832)  # its own choice
+    # Nothing chosen and no template default: the input keeps its own size.
+    plans = prep.plans(s, [{"slot": "image:2", "width": 6000, "height": 4000}])
+    assert (plans["image:2"].width, plans["image:2"].height) == (5984, 4000)  # trimmed to the multiple, not resampled
 
 
-def test_unknown_choice_falls_back_to_default():
-    assert prep.budget(prep.spec_of(QWEN), "nope") == 1024
-    assert prep.budget(prep.spec_of(QWEN), None) == 1024
+def test_a_run_wide_size_from_older_drafts_sizes_the_followed_input():
+    s = prep.spec_of(QWEN, [{"slot": "image:1"}, {"slot": "image:2"}])
+    assert s["inputs"] == {"image:1": "1K", "image:2": "Original"}  # the old run-wide default lands on image:1
+    plans = prep.plans(s, [{"slot": "image:1", "width": 4000, "height": 3000}, {"slot": "image:2", "width": 800, "height": 600}], legacy="2K")
+    assert plans["image:1"].width > 2000 and (plans["image:2"].width, plans["image:2"].height) == (800, 576)
+
+
+def test_unknown_choice_falls_back_to_the_inputs_default():
+    s = prep.spec_of(QWEN, [{"slot": "image:1"}])
+    assert prep.choice_of(s, "image:1", "nope") == "1K" and prep.choice_of(s, "image:9") == "Original"
+    assert prep.budget(s, "Original") == 0 and prep.budget(s, "nope") == 0
+
+
+def test_templates_without_sizes_get_the_generic_list():
+    s = prep.spec_of(None, [{"slot": "video:1"}, {"slot": "image:1"}])
+    assert [o["label"] for o in s["options"]] == ["0.5 MP", "1 MP", "2 MP", "4 MP", "Original"]
+    assert s["follows"] == "video:1" and s["inputs"] == {"video:1": "Original", "image:1": "Original"}
 
 
 def _upload(name, size):
@@ -82,17 +103,18 @@ def test_runs_get_prepared_images_and_record_how():
         "engine": "local/qwen21-hold-product", "prompt": "",
         "inputs": [{"slot": "image:1", "role": "base", "asset": _upload("p.png", (3000, 4000)), "crop": [0, 0, 1, 0.75]},
                    {"slot": "image:2", "role": "reference", "asset": _upload("c.png", (5000, 5000))}],
-        "params": {"size": "1K", "steps": 4, "seed": 1},
+        "params": {"size": "1 MP", "steps": 4, "seed": 1},
     }
     planned = jobs.input_plans(spec)
     m = jobs.prepare_generation(spec)
     folder = paths.user_root() / "generations" / m.id
     one, two = m.inputs
     with Image.open(folder / one.file) as a, Image.open(folder / two.file) as b:
-        assert a.size == (1024, 1024)  # the top 3000x3000 of the portrait
-        assert b.size == (1024, 1024)
-    assert one.prep == planned["image:1"].to_dict() and one.prep["source"] == [3000, 4000]
-    assert (one.width, one.height) == (1024, 1024)
+        assert a.size == (992, 992)  # the top 3000x3000 of the portrait, at 1 MP
+        assert b.size == (992, 992)
+    assert one.prep == {**planned["image:1"].to_dict(), "size": "1 MP"} and one.prep["source"] == [3000, 4000]
+    assert two.prep["size"] == "1 MP"  # its template default
+    assert (one.width, one.height) == (992, 992)
     # The encoder takes images as they come: the app already sized them.
     assert m.request_template["5"]["inputs"]["resolution"] == 0
 
@@ -144,20 +166,20 @@ def test_samples_resolve_like_uploads():
 def test_a_run_on_samples_copies_them_into_the_generation():
     e = engines.ENGINES["local/qwen21-add-hat"]
     d = engines.describe(e)["defaults"]
-    m = jobs.prepare_generation({"engine": e.id, "prompt": d["prompt"], "params": {"size": "1K"},
+    m = jobs.prepare_generation({"engine": e.id, "prompt": d["prompt"], "params": {"size": "1 MP"},
                                  "inputs": [{"slot": "image:1", "asset": d["inputs"][0]["asset"]}]})
     with Image.open(paths.user_root() / "generations" / m.id / m.inputs[0].file) as img:
         assert img.size == (m.inputs[0].prep["width"], m.inputs[0].prep["height"])
-    assert m.prompt == "straw fedora with a black band"
+    assert m.prompt == e.default_prompt and "straw fedora with a black band" in m.prompt
 
 
 def test_default_prompt_is_editable_and_samples_stay_put():
-    e = engines.edit_template("local/qwen21-add-hat", {"default_prompt": "  red beret  "})
+    e = engines.edit_template("local/qwen21-add-hat", {"inputs": {"prompt": {"default": "  Put a red beret on <image1>.  "}}})
     d = engines.describe(e)["defaults"]
-    assert d["prompt"] == "red beret" and e.edited
+    assert d["prompt"] == "Put a red beret on <image1>." and e.edited
     assert jobs.resolve_asset(d["inputs"][0]["asset"]).name == "man-grey.jpg"  # still the shipped file
     engines.reset_template(e.id)
-    assert engines.describe(engines.ENGINES[e.id])["defaults"]["prompt"] == "straw fedora with a black band"
+    assert "straw fedora with a black band" in engines.describe(engines.ENGINES[e.id])["defaults"]["prompt"]
 
 
 def test_every_template_ships_its_cover_and_samples():
@@ -166,3 +188,39 @@ def test_every_template_ships_its_cover_and_samples():
             assert e.cover and e.cover.is_file(), e.id  # the result of running it on its defaults
             assert all(p.is_file() for p in e.default_inputs.values()), e.id
             assert engines.describe(e)["cover"], e.id
+
+
+def test_options_can_be_given_in_megapixels():
+    s = prep.spec_of({"options": [{"mp": 0.5}, {"label": "1 MP", "mp": 1}]}, [{"slot": "image:1", "size": "1 MP"}])
+    assert [o["label"] for o in s["options"]] == ["0.5 MP", "1 MP", "Original"]  # Original is always offered
+    assert [o["px"] for o in s["options"]] == [707, 1000, 0] and s["inputs"] == {"image:1": "1 MP"}
+    assert prep.target(1920, 1080, 1000, 32) == (1312, 736)
+
+
+def test_clips_are_cropped_and_sized_like_photos(tmp_path):
+    from server import media
+    from tests.conftest import make_video
+
+    src = make_video(tmp_path / "in.mp4", seconds=1.0, size=(640, 360))
+    p = prep.plan(640, 360, px=300, multiple=32, crop=[0.25, 0, 0.75, 1])  # a centred portrait-ish cut
+    info = media.transcode(src, tmp_path / "out.mp4", plan=p)
+    assert (info["width"], info["height"]) == (p.width, p.height)
+    assert media.probe(tmp_path / "out.mp4")["width"] == p.width
+
+
+def test_area_boxes_follow_the_crop():
+    from server import engines as en
+
+    b = en.boxes_in_crop([{"rect": [0.5, 0.25, 0.25, 0.25], "label": "hat"}], [0.25, 0, 0.5, 1])
+    assert b[0]["rect"] == [0.5, 0.25, 0.5, 0.25] and b[0]["target"] is None
+
+
+def test_clips_kept_at_their_own_size_are_cut_not_resampled(tmp_path):
+    from server import media
+    from tests.conftest import make_video
+
+    src = make_video(tmp_path / "in.mp4", seconds=1.0, size=(640, 360))
+    p = prep.plan(640, 360, px=0, multiple=32, crop=[0.25, 0, 0.5, 1])
+    assert p.trim_only and (p.width, p.height) == (320, 352)
+    info = media.transcode(src, tmp_path / "out.mp4", plan=p)
+    assert (info["width"], info["height"]) == (320, 352)

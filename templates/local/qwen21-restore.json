@@ -1,6 +1,6 @@
 {
   "format": "openillusion.template",
-  "version": 1,
+  "version": 2,
   "id": "local/qwen21-restore",
   "mode": "edit",
   "label": "Restore & colorize · Qwen Image 2.1",
@@ -11,65 +11,87 @@
     "restore",
     "photo"
   ],
-  "max_images": 1,
-  "min_images": 1,
-  "needs_video": false,
-  "inputs": [
-    {
-      "slot": "image:1",
-      "label": "Old photo",
-      "hint": "A black-and-white, sepia or faded photo. A phone photo of a print works."
-    }
-  ],
-  "prompt": {
-    "label": "Color notes (optional)",
-    "hint": "Navy suit, red tie",
-    "required": false
-  },
-  "defaults": {
-    "prompt": "brown hair, white t-shirt, natural skin tones",
-    "inputs": {
-      "image:1": "media/old-photo.jpg"
-    }
-  },
-  "instruction": {
-    "start": [
-      "20",
-      "string_a"
-    ],
-    "end": [
-      "22",
-      "string_b"
-    ]
-  },
-  "examples": [
-    "navy suit, red tie",
-    "bright summer day colors"
-  ],
   "tips": [
-    "Leave it empty and the colors are guessed.",
+    "Drop the Colors sentence and the colors are guessed.",
     "Name a few colors you know for the important parts."
   ],
-  "params": [
+  "inputs": [
+    {
+      "key": "image:1",
+      "type": "image",
+      "label": "Old photo",
+      "hint": "A black-and-white, sepia or faded photo. A phone photo of a print works.",
+      "required": true,
+      "size": "1 MP",
+      "area": true,
+      "default": "media/old-photo.jpg",
+      "bind": [
+        [
+          "11",
+          "image"
+        ]
+      ]
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "label": "Prompt",
+      "required": true,
+      "default": "Restore and colorize the old photo in <image1>. Colors: brown hair, white t-shirt, natural skin tones. Remove scratches, dust, stains and noise, recover sharp detail, and add natural, realistic colors to skin, hair, clothing and background. Keep the people, faces, identity, expressions, pose and composition exactly as they are.",
+      "examples": [
+        {
+          "label": "Navy suit",
+          "text": "Restore and colorize the old photo in <image1>. Colors: navy suit, red tie. Remove scratches, dust, stains and noise, recover sharp detail, and add natural, realistic colors to skin, hair, clothing and background. Keep the people, faces, identity, expressions, pose and composition exactly as they are."
+        },
+        {
+          "label": "Summer colors",
+          "text": "Restore and colorize the old photo in <image1>. Colors: bright summer day colors. Remove scratches, dust, stains and noise, recover sharp detail, and add natural, realistic colors to skin, hair, clothing and background. Keep the people, faces, identity, expressions, pose and composition exactly as they are."
+        }
+      ],
+      "bind": [
+        [
+          "5",
+          "prompt"
+        ]
+      ]
+    },
     {
       "key": "steps",
-      "label": "Steps",
       "type": "int",
+      "label": "Steps",
+      "help": "The official pipeline uses 40–50.",
+      "advanced": true,
       "min": 10,
       "max": 50,
       "default": 25,
-      "help": "The official pipeline uses 40–50."
+      "bind": [
+        [
+          "7",
+          "steps",
+          "int"
+        ]
+      ]
     },
     {
       "key": "seed",
-      "label": "Seed",
       "type": "seed",
-      "default": -1
+      "label": "Seed",
+      "advanced": true,
+      "default": -1,
+      "bind": [
+        [
+          "7",
+          "seed",
+          "int"
+        ]
+      ]
     },
     {
       "key": "cache",
-      "label": "Step cache",
       "type": "segmented",
+      "label": "Step cache",
+      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
+      "advanced": true,
       "options": [
         "cpu",
         "auto",
@@ -77,65 +99,39 @@
         "off"
       ],
       "default": "cpu",
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory."
+      "bind": [
+        [
+          "2",
+          "device"
+        ]
+      ]
     }
   ],
   "size": {
     "options": [
       {
-        "label": "1K",
-        "px": 1024
+        "label": "0.5 MP",
+        "mp": 0.5
       },
       {
-        "label": "1.5K",
-        "px": 1536
+        "label": "1 MP",
+        "mp": 1
       },
       {
-        "label": "2K",
-        "px": 2048
+        "label": "2 MP",
+        "mp": 2
+      },
+      {
+        "label": "4 MP",
+        "mp": 4
       },
       {
         "label": "Original",
-        "px": 0
+        "mp": 0
       }
     ],
-    "default": "1K",
     "multiple": 32,
     "follows": "image:1"
-  },
-  "bindings": {
-    "prompt": [
-      [
-        "21",
-        "string_b"
-      ]
-    ],
-    "image:1": [
-      [
-        "11",
-        "image"
-      ]
-    ],
-    "params.steps": [
-      [
-        "7",
-        "steps",
-        "int"
-      ]
-    ],
-    "params.seed": [
-      [
-        "7",
-        "seed",
-        "int"
-      ]
-    ],
-    "params.cache": [
-      [
-        "2",
-        "device"
-      ]
-    ]
   },
   "outputs": [
     "9"
@@ -199,45 +195,6 @@
         "title": "Image 1"
       }
     },
-    "20": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": "Restore and colorize the old photo in <image1>. ",
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (start)"
-      }
-    },
-    "21": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "20",
-          0
-        ],
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Color notes (optional)"
-      }
-    },
-    "22": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "21",
-          0
-        ],
-        "string_b": " Remove scratches, dust, stains and noise, recover sharp detail, and add natural, realistic colors to skin, hair, clothing and background. Keep the people, faces, identity, expressions, pose and composition exactly as they are.",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (end)"
-      }
-    },
     "5": {
       "class_type": "TextEncodeQwenImage21",
       "inputs": {
@@ -249,10 +206,7 @@
           "4",
           0
         ],
-        "prompt": [
-          "22",
-          0
-        ],
+        "prompt": "Restore and colorize the old photo in <image1>. Colors: brown hair, white t-shirt, natural skin tones. Remove scratches, dust, stains and noise, recover sharp detail, and add natural, realistic colors to skin, hair, clothing and background. Keep the people, faces, identity, expressions, pose and composition exactly as they are.",
         "negative_prompt": "",
         "resolution": 0,
         "images.image_1": [

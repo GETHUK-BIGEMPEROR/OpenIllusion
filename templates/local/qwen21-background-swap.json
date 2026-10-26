@@ -1,6 +1,6 @@
 {
   "format": "openillusion.template",
-  "version": 1,
+  "version": 2,
   "id": "local/qwen21-background-swap",
   "mode": "edit",
   "label": "Background swap · Qwen Image 2.1",
@@ -11,66 +11,95 @@
     "background",
     "portrait"
   ],
-  "max_images": 1,
-  "min_images": 1,
-  "needs_video": false,
-  "inputs": [
-    {
-      "slot": "image:1",
-      "label": "Person",
-      "hint": "A photo where the person is clearly separated from the background."
-    }
-  ],
-  "prompt": {
-    "label": "New background",
-    "hint": "A rainy Tokyo street at night, neon signs"
-  },
-  "defaults": {
-    "prompt": "a rainy Tokyo street at night, neon signs",
-    "inputs": {
-      "image:1": "media/man-grey.jpg"
-    }
-  },
-  "instruction": {
-    "start": [
-      "20",
-      "string_a"
-    ],
-    "end": [
-      "22",
-      "string_b"
-    ]
-  },
-  "examples": [
-    "a rainy Tokyo street at night, neon signs",
-    "a sunlit beach with palm trees",
-    "a minimal white photo studio",
-    "a snowy mountain ridge at sunrise"
-  ],
   "tips": [
     "Describe a place, not a style.",
     "Mention the time of day so the lighting follows."
   ],
-  "params": [
+  "inputs": [
+    {
+      "key": "image:1",
+      "type": "image",
+      "label": "Person",
+      "hint": "A photo where the person is clearly separated from the background.",
+      "required": true,
+      "size": "1 MP",
+      "area": true,
+      "default": "media/man-grey.jpg",
+      "bind": [
+        [
+          "11",
+          "image"
+        ]
+      ]
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "label": "Prompt",
+      "required": true,
+      "default": "Replace the background behind the person in <image1> with: a rainy Tokyo street at night, neon signs. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are.",
+      "examples": [
+        {
+          "label": "Tokyo at night",
+          "text": "Replace the background behind the person in <image1> with: a rainy Tokyo street at night, neon signs. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are."
+        },
+        {
+          "label": "Palm beach",
+          "text": "Replace the background behind the person in <image1> with: a sunlit beach with palm trees. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are."
+        },
+        {
+          "label": "White studio",
+          "text": "Replace the background behind the person in <image1> with: a minimal white photo studio. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are."
+        },
+        {
+          "label": "Snowy ridge",
+          "text": "Replace the background behind the person in <image1> with: a snowy mountain ridge at sunrise. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are."
+        }
+      ],
+      "bind": [
+        [
+          "5",
+          "prompt"
+        ]
+      ]
+    },
     {
       "key": "steps",
-      "label": "Steps",
       "type": "int",
+      "label": "Steps",
+      "help": "The official pipeline uses 40–50.",
+      "advanced": true,
       "min": 10,
       "max": 50,
       "default": 25,
-      "help": "The official pipeline uses 40–50."
+      "bind": [
+        [
+          "7",
+          "steps",
+          "int"
+        ]
+      ]
     },
     {
       "key": "seed",
-      "label": "Seed",
       "type": "seed",
-      "default": -1
+      "label": "Seed",
+      "advanced": true,
+      "default": -1,
+      "bind": [
+        [
+          "7",
+          "seed",
+          "int"
+        ]
+      ]
     },
     {
       "key": "cache",
-      "label": "Step cache",
       "type": "segmented",
+      "label": "Step cache",
+      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
+      "advanced": true,
       "options": [
         "cpu",
         "auto",
@@ -78,65 +107,39 @@
         "off"
       ],
       "default": "cpu",
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory."
+      "bind": [
+        [
+          "2",
+          "device"
+        ]
+      ]
     }
   ],
   "size": {
     "options": [
       {
-        "label": "1K",
-        "px": 1024
+        "label": "0.5 MP",
+        "mp": 0.5
       },
       {
-        "label": "1.5K",
-        "px": 1536
+        "label": "1 MP",
+        "mp": 1
       },
       {
-        "label": "2K",
-        "px": 2048
+        "label": "2 MP",
+        "mp": 2
+      },
+      {
+        "label": "4 MP",
+        "mp": 4
       },
       {
         "label": "Original",
-        "px": 0
+        "mp": 0
       }
     ],
-    "default": "1K",
     "multiple": 32,
     "follows": "image:1"
-  },
-  "bindings": {
-    "prompt": [
-      [
-        "21",
-        "string_b"
-      ]
-    ],
-    "image:1": [
-      [
-        "11",
-        "image"
-      ]
-    ],
-    "params.steps": [
-      [
-        "7",
-        "steps",
-        "int"
-      ]
-    ],
-    "params.seed": [
-      [
-        "7",
-        "seed",
-        "int"
-      ]
-    ],
-    "params.cache": [
-      [
-        "2",
-        "device"
-      ]
-    ]
   },
   "outputs": [
     "9"
@@ -200,45 +203,6 @@
         "title": "Image 1"
       }
     },
-    "20": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": "Replace the background behind the person in <image1> with: ",
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (start)"
-      }
-    },
-    "21": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "20",
-          0
-        ],
-        "string_b": "",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "New background"
-      }
-    },
-    "22": {
-      "class_type": "StringConcatenate",
-      "inputs": {
-        "string_a": [
-          "21",
-          0
-        ],
-        "string_b": ". Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are.",
-        "delimiter": ""
-      },
-      "_meta": {
-        "title": "Instruction (end)"
-      }
-    },
     "5": {
       "class_type": "TextEncodeQwenImage21",
       "inputs": {
@@ -250,10 +214,7 @@
           "4",
           0
         ],
-        "prompt": [
-          "22",
-          0
-        ],
+        "prompt": "Replace the background behind the person in <image1> with: a rainy Tokyo street at night, neon signs. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are.",
         "negative_prompt": "",
         "resolution": 0,
         "images.image_1": [

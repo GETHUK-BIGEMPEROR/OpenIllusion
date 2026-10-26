@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS generations (
   tags TEXT, has_driving INTEGER, ref_count INTEGER,
   poster TEXT, preview TEXT, result_kind TEXT,
   starred INTEGER, parent TEXT, variant TEXT,
-  prompt TEXT, width INTEGER, height INTEGER, elapsed REAL, seed INTEGER
+  prompt TEXT, width INTEGER, height INTEGER, elapsed REAL, seed INTEGER, error TEXT
 );
 CREATE VIRTUAL TABLE IF NOT EXISTS generations_fts USING fts5(id UNINDEXED, title, prompt, tags, notes);
 """
@@ -46,7 +46,7 @@ def db() -> sqlite3.Connection:
             _conn.row_factory = sqlite3.Row
             # An index from before a column was added is rebuilt from the folders.
             cols = {r[1] for r in _conn.execute("PRAGMA table_info(generations)")}
-            stale = bool(cols) and "seed" not in cols
+            stale = bool(cols) and "error" not in cols
             if stale:
                 _conn.execute("DROP TABLE generations")
             _conn.executescript(SCHEMA)
@@ -87,6 +87,7 @@ def index(m: sc.Manifest, shelf: str | None = None) -> None:
         res.poster if res else None, res.file if res else None, res.kind if res else None,
         int(m.starred), m.lineage.parent, m.variant,
         m.prompt, w, h, res.elapsed if res else None, res.seed if res else None,
+        _reason(m),
     )
     with _lock:
         c = db()
@@ -97,6 +98,17 @@ def index(m: sc.Manifest, shelf: str | None = None) -> None:
             (m.id, m.title, m.prompt, " ".join(m.tags), m.notes),
         )
         c.commit()
+
+
+def _reason(m: sc.Manifest) -> str | None:
+    """Why a run failed, in one line, for cards and lists."""
+    if m.status not in ("failed", "moderated") or not (m.result and m.result.error):
+        return None
+    e = m.result.error
+    if e.get("error_type") == "out_of_memory" or "out of memory" in str(e.get("message", "")).lower():
+        return "Your GPU ran out of memory. Try a smaller size or one variant at a time."
+    text = str(e.get("detail") or e.get("message") or e.get("error_type") or "")
+    return " ".join(text.split())[:240] or None
 
 
 def _dims(generation_id: str, rel: str | None) -> tuple[int | None, int | None]:

@@ -1,98 +1,486 @@
 {
   "format": "openillusion.template",
-  "version": 1,
+  "version": 2,
   "id": "local/minimax-h3-character-swap",
   "mode": "motion",
   "label": "Character swap · MiniMax H3",
   "provider": "minimax",
   "blurb": "Puts the character from Image 1 into Video 1 in place of one person. Their pose, timing, camera and scene stay; face, hair and outfit come from the photo.",
   "source": "akatz-ai/MiniMax-H3-Character-Swap-LoRA (native Ref2VA workflow, core nodes only) with the Ref2VA 4-step turbo LoRA",
-  "tags": ["swap", "character", "video", "lora"],
-  "max_images": 1,
-  "min_images": 1,
-  "needs_video": true,
-  "video_window": [2, 8],
-  "fps_window": [24, 24],
-  "video_max_height": 720,
-  "inputs": [
-    {"slot": "video:1", "label": "Source clip", "hint": "One continuous shot, 2–8 s. The person to replace should be clearly visible."},
-    {"slot": "image:1", "label": "Character", "hint": "Who goes in. Full body shows the outfit too; plain backgrounds work best."}
-  ],
-  "prompt": {"label": "Who to replace", "hint": "the woman in the grey coat"},
-  "defaults": {
-    "prompt": "the woman walking toward the camera",
-    "inputs": {"video:1": "media/walk-shopping.mp4", "image:1": "media/man-plaid.jpg"}
-  },
-  "instruction": {"start": ["20", "string_a"], "end": ["21", "string_b"]},
-  "examples": [
-    "the woman walking toward the camera",
-    "the person in the center of the frame",
-    "the man on the left",
-    "the dancer"
+  "tags": [
+    "swap",
+    "character",
+    "video",
+    "lora"
   ],
   "tips": [
     "Name the person by position or clothing; the rest of the scene is kept.",
     "Short clips with one clear subject swap cleanest. Hard cuts and heavy occlusion can drift.",
     "The clip is resampled to 24 fps and its length snaps down to the model's frame grid."
   ],
-  "params": [
-    {"key": "megapixels", "label": "Size", "type": "segmented", "options": ["0.2", "0.3", "0.4", "0.6"], "default": "0.4",
-     "help": "Megapixels of the output, at the clip's shape. 0.4 is about 864 × 480. Bigger needs more memory and time."},
-    {"key": "keep_audio", "label": "Keep the clip's sound", "type": "bool", "default": true,
-     "help": "On: the result carries the source soundtrack. Off: H3's own generated audio."},
-    {"key": "strength", "label": "Swap strength", "type": "number", "min": 0, "max": 1.5, "step": 0.05, "default": 1.0,
-     "help": "Character swap LoRA strength. 1 is what it was trained at; 0 is the plain H3 model."},
-    {"key": "steps", "label": "Steps", "type": "int", "min": 2, "max": 12, "default": 4, "help": "The turbo LoRA is trained for 4."},
-    {"key": "seed", "label": "Seed", "type": "seed", "default": -1}
+  "inputs": [
+    {
+      "key": "video:1",
+      "type": "video",
+      "label": "Source clip",
+      "hint": "One continuous shot, 2–8 s. The person to replace should be clearly visible.",
+      "required": true,
+      "size": "0.4 MP",
+      "window": [
+        2,
+        8
+      ],
+      "fps": [
+        24,
+        24
+      ],
+      "default": "media/walk-shopping.mp4",
+      "bind": [
+        [
+          "2",
+          "file"
+        ]
+      ]
+    },
+    {
+      "key": "image:1",
+      "type": "image",
+      "label": "Character",
+      "hint": "Who goes in. Full body shows the outfit too; plain backgrounds work best.",
+      "required": true,
+      "default": "media/man-plaid.jpg",
+      "bind": [
+        [
+          "1",
+          "image"
+        ]
+      ]
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "label": "Prompt",
+      "required": true,
+      "default": "Replace only the woman walking toward the camera in <Video 1> with the character in <Picture 1>. Keep the replacement character's identity, face, hair, outfit and art style from <Picture 1>. Preserve the source video's camera, framing, background, lighting, objects and all other people. Match the selected person's position, scale, pose and movement throughout the clip. Do not show the reference image's background.",
+      "examples": [
+        {
+          "label": "Walking woman",
+          "text": "Replace only the woman walking toward the camera in <Video 1> with the character in <Picture 1>. Keep the replacement character's identity, face, hair, outfit and art style from <Picture 1>. Preserve the source video's camera, framing, background, lighting, objects and all other people. Match the selected person's position, scale, pose and movement throughout the clip. Do not show the reference image's background."
+        },
+        {
+          "label": "Center person",
+          "text": "Replace only the person in the center of the frame in <Video 1> with the character in <Picture 1>. Keep the replacement character's identity, face, hair, outfit and art style from <Picture 1>. Preserve the source video's camera, framing, background, lighting, objects and all other people. Match the selected person's position, scale, pose and movement throughout the clip. Do not show the reference image's background."
+        },
+        {
+          "label": "Man on the left",
+          "text": "Replace only the man on the left in <Video 1> with the character in <Picture 1>. Keep the replacement character's identity, face, hair, outfit and art style from <Picture 1>. Preserve the source video's camera, framing, background, lighting, objects and all other people. Match the selected person's position, scale, pose and movement throughout the clip. Do not show the reference image's background."
+        },
+        {
+          "label": "The dancer",
+          "text": "Replace only the dancer in <Video 1> with the character in <Picture 1>. Keep the replacement character's identity, face, hair, outfit and art style from <Picture 1>. Preserve the source video's camera, framing, background, lighting, objects and all other people. Match the selected person's position, scale, pose and movement throughout the clip. Do not show the reference image's background."
+        }
+      ],
+      "bind": [
+        [
+          "23",
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "keep_audio",
+      "type": "bool",
+      "label": "Keep the clip's sound",
+      "help": "On: the result carries the source soundtrack. Off: H3's own generated audio.",
+      "advanced": false,
+      "default": true,
+      "bind": [
+        [
+          "42",
+          "switch",
+          "bool"
+        ]
+      ]
+    },
+    {
+      "key": "strength",
+      "type": "number",
+      "label": "Swap strength",
+      "help": "Character swap LoRA strength. 1 is what it was trained at; 0 is the plain H3 model.",
+      "advanced": false,
+      "min": 0,
+      "max": 1.5,
+      "step": 0.05,
+      "default": 1.0,
+      "bind": [
+        [
+          "11",
+          "strength_model",
+          "float"
+        ]
+      ]
+    },
+    {
+      "key": "steps",
+      "type": "int",
+      "label": "Steps",
+      "help": "The turbo LoRA is trained for 4.",
+      "advanced": true,
+      "min": 2,
+      "max": 12,
+      "default": 4,
+      "bind": [
+        [
+          "32",
+          "steps",
+          "int"
+        ]
+      ]
+    },
+    {
+      "key": "seed",
+      "type": "seed",
+      "label": "Seed",
+      "advanced": true,
+      "default": -1,
+      "bind": [
+        [
+          "30",
+          "noise_seed",
+          "int"
+        ]
+      ]
+    }
   ],
-  "bindings": {
-    "prompt": [["20", "string_b"]],
-    "image:1": [["1", "image"]],
-    "video:1": [["2", "file"]],
-    "params.megapixels": [["4", "megapixels", "float"]],
-    "params.keep_audio": [["42", "switch", "bool"]],
-    "params.strength": [["11", "strength_model", "float"]],
-    "params.steps": [["32", "steps", "int"]],
-    "params.seed": [["30", "noise_seed", "int"]]
+  "size": {
+    "options": [
+      {
+        "label": "0.2 MP",
+        "mp": 0.2
+      },
+      {
+        "label": "0.3 MP",
+        "mp": 0.3
+      },
+      {
+        "label": "0.4 MP",
+        "mp": 0.4
+      },
+      {
+        "label": "0.6 MP",
+        "mp": 0.6
+      }
+    ],
+    "multiple": 32,
+    "follows": "video:1"
   },
-  "outputs": ["44"],
+  "outputs": [
+    "44"
+  ],
   "hints": {
     "models": {
-      "minimax_h3_ref2va_pruned_int8_convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors"},
-      "h3_character_swap_v1.5.safetensors": {"folder": "loras", "url": "https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA/resolve/main/h3_character_swap_v1.5.safetensors"},
-      "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors": {"folder": "loras", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"},
-      "qwen3vl_32b_minimax_h3_int8_convrot.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/text_encoders"},
-      "minimax_h3_video_vae_int8_convrot.safetensors": {"folder": "vae", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors"},
-      "minimax_h3_audio_vae_fp32.safetensors": {"folder": "vae", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors"}
+      "minimax_h3_ref2va_pruned_int8_convrot.safetensors": {
+        "folder": "diffusion_models",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors"
+      },
+      "h3_character_swap_v1.5.safetensors": {
+        "folder": "loras",
+        "url": "https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA/resolve/main/h3_character_swap_v1.5.safetensors"
+      },
+      "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors": {
+        "folder": "loras",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
+      },
+      "qwen3vl_32b_minimax_h3_int8_convrot.safetensors": {
+        "folder": "text_encoders",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/text_encoders"
+      },
+      "minimax_h3_video_vae_int8_convrot.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors"
+      },
+      "minimax_h3_audio_vae_fp32.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors"
+      }
     },
     "nodes": {}
   },
   "workflow": {
-    "1": {"class_type": "LoadImage", "inputs": {"image": "{{image:1}}"}, "_meta": {"title": "Character · <Picture 1>"}},
-    "2": {"class_type": "LoadVideo", "inputs": {"file": "{{video:1}}"}, "_meta": {"title": "Source clip · <Video 1> · 24 fps"}},
-    "3": {"class_type": "GetVideoComponents", "inputs": {"video": ["2", 0]}},
-    "4": {"class_type": "ImageScaleToTotalPixels", "inputs": {"image": ["3", 0], "upscale_method": "lanczos", "megapixels": 0.4, "resolution_steps": 32}, "_meta": {"title": "Output size"}},
-    "5": {"class_type": "GetImageSize", "inputs": {"image": ["4", 0]}},
-    "6": {"class_type": "ComfyMathExpression", "inputs": {"expression": "max(5, a - (a - 5) % 17)", "values.a": ["5", 2]}, "_meta": {"title": "Frames · snap down to 17k+5"}},
-    "10": {"class_type": "UNETLoader", "inputs": {"unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors", "weight_dtype": "default"}},
-    "11": {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["10", 0], "lora_name": "h3_character_swap_v1.5.safetensors", "strength_model": 1.0}, "_meta": {"title": "Character swap LoRA"}},
-    "12": {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["11", 0], "lora_name": "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors", "strength_model": 1.0}, "_meta": {"title": "Turbo LoRA"}},
-    "13": {"class_type": "CLIPLoader", "inputs": {"clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors", "type": "minimax", "device": "default"}},
-    "14": {"class_type": "VAELoader", "inputs": {"vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"}},
-    "15": {"class_type": "VAELoader", "inputs": {"vae_name": "minimax_h3_audio_vae_fp32.safetensors"}},
-    "20": {"class_type": "StringConcatenate", "inputs": {"string_a": "Replace only ", "string_b": "", "delimiter": ""}, "_meta": {"title": "Who to replace"}},
-    "21": {"class_type": "StringConcatenate", "inputs": {"string_a": ["20", 0], "string_b": " in <Video 1> with the character in <Picture 1>. Keep the replacement character's identity, face, hair, outfit and art style from <Picture 1>. Preserve the source video's camera, framing, background, lighting, objects and all other people. Match the selected person's position, scale, pose and movement throughout the clip. Do not show the reference image's background.", "delimiter": ""}, "_meta": {"title": "Instruction (end)"}},
-    "23": {"class_type": "MiniMaxH3ReferenceToVideo", "inputs": {"clip": ["13", 0], "vae": ["14", 0], "audio_vae": ["15", 0], "prompt": ["21", 0], "width": ["5", 0], "height": ["5", 1], "length": ["6", 1], "ref_image_size": "match", "ref_images.ref_image_0": ["1", 0], "ref_videos.ref_video_0": ["4", 0]}},
-    "30": {"class_type": "RandomNoise", "inputs": {"noise_seed": 1}},
-    "31": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "res_multistep"}},
-    "32": {"class_type": "BasicScheduler", "inputs": {"model": ["12", 0], "scheduler": "simple", "steps": 4, "denoise": 1.0}},
-    "33": {"class_type": "BasicGuider", "inputs": {"model": ["12", 0], "conditioning": ["23", 0]}},
-    "34": {"class_type": "SamplerCustomAdvanced", "inputs": {"noise": ["30", 0], "guider": ["33", 0], "sampler": ["31", 0], "sigmas": ["32", 0], "latent_image": ["23", 1]}},
-    "40": {"class_type": "VAEDecode", "inputs": {"samples": ["34", 0], "vae": ["14", 0]}},
-    "41": {"class_type": "VAEDecodeAudio", "inputs": {"samples": ["34", 0], "vae": ["15", 0]}},
-    "42": {"class_type": "ComfySwitchNode", "inputs": {"switch": true, "on_true": ["3", 1], "on_false": ["41", 0]}, "_meta": {"title": "Sound · source or generated"}},
-    "43": {"class_type": "CreateVideo", "inputs": {"images": ["40", 0], "audio": ["42", 0], "fps": 24.0}},
-    "44": {"class_type": "SaveVideo", "inputs": {"video": ["43", 0], "filename_prefix": "openillusion/h3-swap", "format": "auto", "codec": "auto"}}
+    "1": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "{{image:1}}"
+      },
+      "_meta": {
+        "title": "Character · <Picture 1>"
+      }
+    },
+    "2": {
+      "class_type": "LoadVideo",
+      "inputs": {
+        "file": "{{video:1}}"
+      },
+      "_meta": {
+        "title": "Source clip · <Video 1> · 24 fps"
+      }
+    },
+    "3": {
+      "class_type": "GetVideoComponents",
+      "inputs": {
+        "video": [
+          "2",
+          0
+        ]
+      }
+    },
+    "5": {
+      "class_type": "GetImageSize",
+      "inputs": {
+        "image": [
+          "3",
+          0
+        ]
+      }
+    },
+    "6": {
+      "class_type": "ComfyMathExpression",
+      "inputs": {
+        "expression": "max(5, a - (a - 5) % 17)",
+        "values.a": [
+          "5",
+          2
+        ]
+      },
+      "_meta": {
+        "title": "Frames · snap down to 17k+5"
+      }
+    },
+    "10": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    "11": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "model": [
+          "10",
+          0
+        ],
+        "lora_name": "h3_character_swap_v1.5.safetensors",
+        "strength_model": 1.0
+      },
+      "_meta": {
+        "title": "Character swap LoRA"
+      }
+    },
+    "12": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "model": [
+          "11",
+          0
+        ],
+        "lora_name": "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+        "strength_model": 1.0
+      },
+      "_meta": {
+        "title": "Turbo LoRA"
+      }
+    },
+    "13": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    "14": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      }
+    },
+    "15": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    "23": {
+      "class_type": "MiniMaxH3ReferenceToVideo",
+      "inputs": {
+        "clip": [
+          "13",
+          0
+        ],
+        "vae": [
+          "14",
+          0
+        ],
+        "audio_vae": [
+          "15",
+          0
+        ],
+        "prompt": "Replace only the woman walking toward the camera in <Video 1> with the character in <Picture 1>. Keep the replacement character's identity, face, hair, outfit and art style from <Picture 1>. Preserve the source video's camera, framing, background, lighting, objects and all other people. Match the selected person's position, scale, pose and movement throughout the clip. Do not show the reference image's background.",
+        "width": [
+          "5",
+          0
+        ],
+        "height": [
+          "5",
+          1
+        ],
+        "length": [
+          "6",
+          1
+        ],
+        "ref_image_size": "match",
+        "ref_images.ref_image_0": [
+          "1",
+          0
+        ],
+        "ref_videos.ref_video_0": [
+          "3",
+          0
+        ]
+      }
+    },
+    "30": {
+      "class_type": "RandomNoise",
+      "inputs": {
+        "noise_seed": 1
+      }
+    },
+    "31": {
+      "class_type": "KSamplerSelect",
+      "inputs": {
+        "sampler_name": "res_multistep"
+      }
+    },
+    "32": {
+      "class_type": "BasicScheduler",
+      "inputs": {
+        "model": [
+          "12",
+          0
+        ],
+        "scheduler": "simple",
+        "steps": 4,
+        "denoise": 1.0
+      }
+    },
+    "33": {
+      "class_type": "BasicGuider",
+      "inputs": {
+        "model": [
+          "12",
+          0
+        ],
+        "conditioning": [
+          "23",
+          0
+        ]
+      }
+    },
+    "34": {
+      "class_type": "SamplerCustomAdvanced",
+      "inputs": {
+        "noise": [
+          "30",
+          0
+        ],
+        "guider": [
+          "33",
+          0
+        ],
+        "sampler": [
+          "31",
+          0
+        ],
+        "sigmas": [
+          "32",
+          0
+        ],
+        "latent_image": [
+          "23",
+          1
+        ]
+      }
+    },
+    "40": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "34",
+          0
+        ],
+        "vae": [
+          "14",
+          0
+        ]
+      }
+    },
+    "41": {
+      "class_type": "VAEDecodeAudio",
+      "inputs": {
+        "samples": [
+          "34",
+          0
+        ],
+        "vae": [
+          "15",
+          0
+        ]
+      }
+    },
+    "42": {
+      "class_type": "ComfySwitchNode",
+      "inputs": {
+        "switch": true,
+        "on_true": [
+          "3",
+          1
+        ],
+        "on_false": [
+          "41",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "Sound · source or generated"
+      }
+    },
+    "43": {
+      "class_type": "CreateVideo",
+      "inputs": {
+        "images": [
+          "40",
+          0
+        ],
+        "audio": [
+          "42",
+          0
+        ],
+        "fps": 24.0
+      }
+    },
+    "44": {
+      "class_type": "SaveVideo",
+      "inputs": {
+        "video": [
+          "43",
+          0
+        ],
+        "filename_prefix": "openillusion/h3-swap",
+        "format": "auto",
+        "codec": "auto"
+      }
+    }
   },
   "cover": "media/cover-character-swap.webp",
   "cover_video": "media/cover-character-swap.mp4"
