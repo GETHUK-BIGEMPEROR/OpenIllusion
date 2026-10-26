@@ -4,14 +4,14 @@ import { Masonry } from "../components/Masonry";
 import { EmptyBox, I, PageHead, useStatus } from "../components/oi";
 import { TemplateCard, tplChips } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
-import { api, type EngineInfo, type Mode } from "../lib/api";
+import { api, type EngineInfo } from "../lib/api";
 import { errMsg } from "../lib/format";
 import { go } from "../lib/route";
 import { useApp } from "../lib/store";
 
 type Where = "any" | "local" | "cloud";
 // Filters outlive a trip to Create and back.
-const last = { mode: "edit" as Mode, tag: "", where: "any" as Where };
+const last = { tag: "", where: "any" as Where };
 
 // Mixed shapes, so the placeholder wall looks like the one that replaces it.
 const SKELETON = [0.8, 0.75, 0.8, 1, 0.66, 0.8, 1.33, 0.75].map((aspect, i) => ({ key: String(i), aspect }));
@@ -21,19 +21,17 @@ export function Explore({ t }: { t?: string }) {
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const status = useStatus();
   const openTemplate = useApp((s) => s.openTemplate);
-  const [mode, setMode] = useState(last.mode);
   const [tag, setTag] = useState(last.tag);
   const [where, setWhere] = useState(last.where);
-  useEffect(() => { Object.assign(last, { mode, tag, where }); }, [mode, tag, where]);
+  useEffect(() => { Object.assign(last, { tag, where }); }, [tag, where]);
 
   const all = useMemo(() => engines.data ?? [], [engines.data]);
-  const ofMode = all.filter((e) => e.mode === mode);
-  const chips = useMemo(() => tplChips(ofMode), [ofMode]);
-  const shown = ofMode
+  // Photos and videos share one wall; the badge on each card says which it makes.
+  const chips = useMemo(() => tplChips(all), [all]);
+  const shown = all
     .filter((e) => (!tag || e.tags?.includes(tag)) && (where === "any" || e.kind === where))
     .sort((a, b) => Number(b.curated) - Number(a.curated) || Number(b.kind === "local") - Number(a.kind === "local"));
   const tiles = shown.map((e) => ({ key: e.id, aspect: e.cover ? e.cover_aspect : undefined, e }));
-  const count = (m: Mode) => all.filter((e) => e.mode === m).length;
 
   const locked = (e: EngineInfo) =>
     e.kind === "cloud" ? (status.data?.router.ok ? null : "Add a Comfy API key in Settings")
@@ -53,11 +51,6 @@ export function Explore({ t }: { t?: string }) {
 
   const filters = (
     <>
-      <div className="seg" role="group" aria-label="Mode">
-        <button type="button" aria-pressed={mode === "edit"} onClick={() => { setMode("edit"); setTag(""); }}><I n="image" />Image<span className="n">{count("edit")}</span></button>
-        <button type="button" aria-pressed={mode === "motion"} onClick={() => { setMode("motion"); setTag(""); }}><I n="film" />Video<span className="n">{count("motion")}</span></button>
-      </div>
-      <span className="vsep" />
       <button className="chip" type="button" aria-pressed={!tag} onClick={() => setTag("")}>All</button>
       {chips.map((c) => <button key={c.tag} className="chip" type="button" aria-pressed={tag === c.tag} onClick={() => setTag(tag === c.tag ? "" : c.tag)}>{c.label}</button>)}
       <span className="fspacer" />
@@ -69,9 +62,7 @@ export function Explore({ t }: { t?: string }) {
     </>
   );
 
-  const empty = mode === "motion" && !ofMode.length
-    ? <EmptyBox icon="film" title="No motion templates yet" action={<button className="btn" type="button" onClick={() => setMode("edit")}>Show edit templates</button>}>Motion templates drive a photo with a reference video. Build one from a ComfyUI workflow, or wait for one to ship.</EmptyBox>
-    : where === "cloud" && !status.data?.has_key
+  const empty = where === "cloud" && !status.data?.has_key
       ? <EmptyBox icon="cloud" title="Cloud templates need an API key" action={<a className="btn primary" href="#/settings">Add a key</a>}>Add a Comfy API key in Settings and cloud templates show up here.</EmptyBox>
       : <EmptyBox icon="search" title="Nothing here" action={<button className="btn" type="button" onClick={() => { setTag(""); setWhere("any"); }}>Show all</button>}>Try another category or clear the filter.</EmptyBox>;
 

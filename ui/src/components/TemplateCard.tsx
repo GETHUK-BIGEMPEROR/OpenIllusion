@@ -31,6 +31,7 @@ export function tplChips(list: EngineInfo[]) {
 export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: EngineInfo; selected?: boolean; locked?: string | null; onUse: () => void; onInspect: () => void }) {
   const n = e.inputs?.length ?? 0;
   const local = e.kind === "local";
+  const video = e.mode === "motion";
   return (
     <article className={cx("card tcard", selected && "sel")} tabIndex={0} role="button" aria-label={`Open ${tplName(e)}`}
       onClick={onUse} onKeyDown={(ev) => { if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); onUse(); } }}>
@@ -39,10 +40,11 @@ export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: Eng
       </Media>
       <div className="ctop">
         <span className="pill"><i className={cx("dot", !local && "violet")} />{local ? "Local" : "Cloud"}</span>
-        {n > 1 && <span className="pill">{n} photos</span>}
+        {n > 1 && <span className="pill">{n} inputs</span>}
         {locked && <span className="pill" title={locked} style={{ color: "#FFC48F" }}>Needs setup</span>}
         <span className="fspacer" />
         <button className="icon-btn sm glass reveal" type="button" aria-label={`Details for ${tplName(e)}`} onClick={(ev) => { ev.stopPropagation(); onInspect(); }}><I n="info" /></button>
+        <span className="pill" title={video ? "Makes a video" : "Makes a photo"}><I n={video ? "film" : "image"} />{video ? "Video" : "Photo"}</span>
       </div>
       <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)} · {tplCategory(e)}</p></div><span className="go"><I n="arrow" /></span></div>
     </article>
