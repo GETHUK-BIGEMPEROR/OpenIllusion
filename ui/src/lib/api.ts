@@ -140,6 +140,8 @@ export interface SizeSpec {
   inputs: Record<string, string>;
   /** The label of the option that keeps an input's own size. */
   original: string;
+  /** No input runs bigger than about cap x cap pixels (Original included); 0 when the cap is lifted in Settings. */
+  cap: number;
 }
 
 /** What prep will do to one image: the kept box in source pixels and the size it ends at. */
@@ -368,6 +370,7 @@ export interface Settings {
   max_parallel: number;
   community_indexes: string[];
   strip_exif: boolean;
+  uncap_size: boolean;
   grounding_default: boolean;
   confirm_unknown_cost: boolean;
   local_v2_url: string;

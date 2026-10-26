@@ -7,19 +7,20 @@ workflows never resample them again and cloud engines get what the user saw. A c
 is planned like a photo from its frame size, and every frame gets the same crop and
 resample (media.transcode).
 
-Size is a pixel budget in megapixels at the input's own shape. "Original" keeps the
-input's own size, trimmed to the multiple, and is every input's default. A template
-can offer its own list, and give an input another default where the model needs it:
+Size is a pixel budget in megapixels at the input's own shape. Every template offers
+the same steps, chosen by what it makes: photos up to 3 MP, videos up to 1.5 MP. That
+cap holds for every input, Original included (an input over it is scaled down to it).
+The uncap setting (``uncap_size``) adds bigger steps and lets Original run at full size;
+``limit`` applies it. "Original" keeps the input's own size, trimmed to the multiple,
+and is every input's default unless the template names another step for it:
 
     "size": {
-      "options": [{"label": "1 MP", "mp": 1}, {"label": "Original", "mp": 0}],
       "multiple": 32,          # both sides end on a multiple of this
       "follows": "image:1"     # the input whose size the output takes ("video:1" for clips)
     },
     "inputs": [{"slot": "image:1", "label": "Person", "size": "1 MP"}]
 
-Templates without a block get GENERIC. Older templates give ``px`` (the side of the
-equal-area square) instead of ``mp``, or one ``default`` for the followed input.
+Older templates give their own ``options`` (ignored now) or one ``default`` for the followed input.
 
 ``ui/src/lib/size.ts`` mirrors ``target``, ``plan`` and ``plans`` for live previews;
 compose returns this module's plans, which the studio shows once they arrive.
@@ -57,33 +58,41 @@ class Plan:
 
 
 ORIGINAL = "Original"
-GENERIC = {"options": [{"mp": 0.5}, {"mp": 1}, {"mp": 2}, {"mp": 4}, {"label": ORIGINAL, "mp": 0}]}
+# The steps every template offers, by what it makes, and the cap on any input of it (megapixels).
+STEPS = {"edit": (0.5, 1, 2, 3), "motion": (0.4, 0.75, 1, 1.5)}
+OVER = {"edit": (4, 6), "motion": (2, 3)}  # offered only when the cap is lifted
+CAP = {"edit": 3, "motion": 1.5}
 
 
-def spec_of(size: dict | None, inputs: list[dict] | None = None) -> dict:
-    """A template's size block with defaults filled in: the options (Original always among
-    them), the multiple, the input the output follows, and each input's default size."""
-    size = size if size and size.get("options") else {**GENERIC, **(size or {})}
-    opts = []
-    for o in size["options"]:
-        px = round(math.sqrt(float(o["mp"]) * 1e6)) if "mp" in o else int(o.get("px", 0))
-        mp = round(px * px / 1e6, 2)
-        opts.append({"label": str(o.get("label") or (f"{mp:g} MP" if px else ORIGINAL)), "px": px, "mp": mp})
-    if not any(o["px"] == 0 for o in opts):
-        opts.append({"label": ORIGINAL, "px": 0, "mp": 0})
+def _option(mp: float) -> dict:
+    return {"label": f"{mp:g} MP", "px": round(math.sqrt(mp * 1e6)), "mp": mp}
+
+
+def spec_of(size: dict | None, inputs: list[dict] | None = None, mode: str = "edit") -> dict:
+    """A template's size block with defaults filled in: the steps for what it makes (Original
+    last), the cap, the multiple, the input the output follows, and each input's default size."""
+    size = size or {}
+    mode = mode if mode in STEPS else "edit"
+    opts = [_option(mp) for mp in STEPS[mode]] + [{"label": ORIGINAL, "px": 0, "mp": 0}]
     labels = [o["label"] for o in opts]
-    original = next(o["label"] for o in opts if o["px"] == 0)
     slots = [i["slot"] for i in inputs or [] if str(i.get("slot", "")).startswith(("image:", "video:"))]
     follows = size.get("follows") or (slots[0] if slots else "image:1")
     legacy = size.get("default") if size.get("default") in labels else None
     defaults = {}
     for i in inputs or []:
         if i.get("slot") in slots:
-            defaults[i["slot"]] = i["size"] if i.get("size") in labels else legacy if i["slot"] == follows and legacy else original
+            defaults[i["slot"]] = i["size"] if i.get("size") in labels else legacy if i["slot"] == follows and legacy else ORIGINAL
     if follows not in defaults:
-        defaults[follows] = legacy or original
-    return {"options": opts, "multiple": int(size.get("multiple") or DEFAULT_MULTIPLE), "follows": follows,
-            "inputs": defaults, "original": original}
+        defaults[follows] = legacy or ORIGINAL
+    return {"options": opts, "more": [_option(mp) for mp in OVER[mode]], "cap": _option(CAP[mode])["px"],
+            "multiple": int(size.get("multiple") or DEFAULT_MULTIPLE), "follows": follows, "inputs": defaults, "original": ORIGINAL}
+
+
+def limit(size: dict, uncapped: bool) -> dict:
+    """The spec as runs see it: capped, or with the bigger steps offered and no cap."""
+    if not uncapped:
+        return size
+    return {**size, "options": size["options"][:-1] + size.get("more", []) + size["options"][-1:], "more": [], "cap": 0}
 
 
 def choice_of(size: dict, slot: str, choice: str | None = None) -> str:
@@ -144,14 +153,17 @@ def _crop_box(w: int, h: int, crop: list | tuple | None) -> tuple[float, float, 
     return x * w, y * h, (x + cw) * w, (y + ch) * h
 
 
-def plan(w: int, h: int, *, px: int, multiple: int, crop: list | tuple | None = None) -> Plan:
+def plan(w: int, h: int, *, px: int, multiple: int, crop: list | tuple | None = None, cap: int = 0) -> Plan:
     """What happens to one picture: the part of it kept, and the size it ends at.
+    ``cap``: no bigger than about cap x cap pixels; Original over it is scaled down to it.
 
     The kept part is the crop, trimmed evenly on its long side to the output's exact
     shape (rounding to the multiple shifts the shape by a few pixels; this never stretches).
     """
     l, t, r, b = _crop_box(w, h, crop)
     cw, ch = r - l, b - t
+    if cap and (px > cap or (px <= 0 and cw * ch > cap * cap)):
+        px = cap
     out_w, out_h = target(cw, ch, px, multiple)
     if not crop and w % multiple == 0 and h % multiple == 0 and abs(out_w - w) <= multiple and abs(out_h - h) <= multiple:
         # Already prepared (a rerun, a remix): rounding its shape again could move a side by one step.
@@ -187,5 +199,5 @@ def plans(size: dict, inputs: list[dict], legacy: str | None = None) -> dict[str
     for i in inputs:
         own = i.get("size") or (legacy if i["slot"] == size["follows"] else None)
         px = budget(size, choice_of(size, i["slot"], own))
-        out[i["slot"]] = plan(i["width"], i["height"], px=px, multiple=size["multiple"], crop=i.get("crop"))
+        out[i["slot"]] = plan(i["width"], i["height"], px=px, multiple=size["multiple"], crop=i.get("crop"), cap=size.get("cap", 0))
     return out

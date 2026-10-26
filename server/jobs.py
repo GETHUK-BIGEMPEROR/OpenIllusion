@@ -592,7 +592,7 @@ def input_plans(spec: dict) -> dict[str, prep.Plan]:
             continue
         if w and h:
             shapes.append({"slot": i["slot"], "width": w, "height": h, "crop": i.get("crop"), "size": i.get("size")})
-    return prep.plans(e.size, shapes, (spec.get("params") or {}).get("size"))
+    return prep.plans(engines.run_size(e), shapes, (spec.get("params") or {}).get("size"))
 
 
 def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | None = None) -> sc.Manifest:
@@ -622,11 +622,12 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
             w, h = _clip_size(resolve_asset(r["asset"]))
             if w and h:
                 shapes.append({"slot": r["slot"], "width": w, "height": h, "crop": r.get("crop"), "size": r.get("size")})
-    plans = prep.plans(e.size, shapes, (spec.get("params") or {}).get("size"))
+    size = engines.run_size(e)
+    plans = prep.plans(size, shapes, (spec.get("params") or {}).get("size"))
     legacy = (spec.get("params") or {}).get("size")
-    chosen = lambda r: prep.choice_of(e.size, r["slot"], r.get("size") or (legacy if r["slot"] == e.size["follows"] else None))
-    if e.size["follows"] in plans:
-        lead = plans[e.size["follows"]]
+    chosen = lambda r: prep.choice_of(size, r["slot"], r.get("size") or (legacy if r["slot"] == size["follows"] else None))
+    if size["follows"] in plans:
+        lead = plans[size["follows"]]
         spec["size_px"] = {"width": lead.width, "height": lead.height}
 
     items: list[sc.InputItem] = []

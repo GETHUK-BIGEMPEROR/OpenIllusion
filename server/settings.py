@@ -27,6 +27,8 @@ DEFAULTS: dict = {
     "max_parallel": 2,
     "community_indexes": [],
     "strip_exif": True,
+    # Photos run at up to 3 MP and videos at up to 1.5 MP unless this lifts the cap (see prep.py).
+    "uncap_size": False,
     "grounding_default": False,
     "confirm_unknown_cost": True,
     "onboarded": False,

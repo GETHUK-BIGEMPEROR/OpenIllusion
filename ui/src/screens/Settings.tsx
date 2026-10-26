@@ -85,6 +85,9 @@ export function Settings() {
                   <Trow title="Ask before unpriced runs" desc="When Router returns no estimate for a cloud run.">
                     <Switch label="Ask before unpriced runs" checked={s.confirm_unknown_cost} onChange={(v) => save({ confirm_unknown_cost: v })} />
                   </Trow>
+                  <Trow title="Lift the size cap" desc="Photos run at up to 3 MP and videos at up to 1.5 MP. Lifted, Original runs at full size and bigger steps appear. Big sizes are slow and can run out of GPU memory.">
+                    <Switch label="Lift the size cap" checked={s.uncap_size} onChange={(v) => { save({ uncap_size: v }).then((ok) => { if (ok) qc.invalidateQueries({ queryKey: ["engines"] }); }); }} />
+                  </Trow>
                 </div>
               </Sec>
 

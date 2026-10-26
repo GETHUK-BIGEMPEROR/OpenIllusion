@@ -153,24 +153,6 @@
     }
   ],
   "size": {
-    "options": [
-      {
-        "label": "0.2 MP",
-        "mp": 0.2
-      },
-      {
-        "label": "0.3 MP",
-        "mp": 0.3
-      },
-      {
-        "label": "0.4 MP",
-        "mp": 0.4
-      },
-      {
-        "label": "0.6 MP",
-        "mp": 0.6
-      }
-    ],
     "multiple": 32,
     "follows": "video:1"
   },

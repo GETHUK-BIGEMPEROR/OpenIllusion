@@ -5,8 +5,7 @@ from PIL import Image
 
 from server import engines, jobs, paths, prep
 
-QWEN = {"options": [{"label": "1K", "px": 1024}, {"label": "2K", "px": 2048}, {"label": "Original", "px": 0}],
-        "default": "1K", "multiple": 32, "follows": "image:1"}
+QWEN = {"default": "1 MP", "multiple": 32, "follows": "image:1"}
 
 
 def qwen_node_size(w, h, res):
@@ -64,33 +63,51 @@ def test_prepared_images_are_left_alone():
 
 
 def test_every_input_has_its_own_size():
-    s = prep.spec_of(QWEN, [{"slot": "image:1", "size": "2K"}, {"slot": "image:2"}])
-    imgs = [{"slot": "image:1", "width": 4000, "height": 3000}, {"slot": "image:2", "width": 6000, "height": 4000, "size": "1K"}]
+    s = prep.spec_of(QWEN, [{"slot": "image:1", "size": "2 MP"}, {"slot": "image:2"}])
+    imgs = [{"slot": "image:1", "width": 4000, "height": 3000}, {"slot": "image:2", "width": 6000, "height": 4000, "size": "1 MP"}]
     plans = prep.plans(s, imgs)
-    assert plans["image:1"].width * plans["image:1"].height == pytest.approx(2048**2, rel=0.12)  # its template default
-    assert (plans["image:2"].width, plans["image:2"].height) == (1248, 832)  # its own choice
-    # Nothing chosen and no template default: the input keeps its own size.
-    plans = prep.plans(s, [{"slot": "image:2", "width": 6000, "height": 4000}])
-    assert (plans["image:2"].width, plans["image:2"].height) == (5984, 4000)  # trimmed to the multiple, not resampled
+    assert plans["image:1"].width * plans["image:1"].height == pytest.approx(2e6, rel=0.12)  # its template default
+    assert plans["image:2"].width * plans["image:2"].height == pytest.approx(1e6, rel=0.12)  # its own choice
+    # Nothing chosen and no template default: the input keeps its own size, trimmed to the multiple, not resampled.
+    plans = prep.plans(s, [{"slot": "image:2", "width": 1600, "height": 1200}])
+    assert (plans["image:2"].width, plans["image:2"].height) == (1600, 1184)
 
 
 def test_a_run_wide_size_from_older_drafts_sizes_the_followed_input():
     s = prep.spec_of(QWEN, [{"slot": "image:1"}, {"slot": "image:2"}])
-    assert s["inputs"] == {"image:1": "1K", "image:2": "Original"}  # the old run-wide default lands on image:1
-    plans = prep.plans(s, [{"slot": "image:1", "width": 4000, "height": 3000}, {"slot": "image:2", "width": 800, "height": 600}], legacy="2K")
-    assert plans["image:1"].width > 2000 and (plans["image:2"].width, plans["image:2"].height) == (800, 576)
+    assert s["inputs"] == {"image:1": "1 MP", "image:2": "Original"}  # the old run-wide default lands on image:1
+    plans = prep.plans(s, [{"slot": "image:1", "width": 4000, "height": 3000}, {"slot": "image:2", "width": 800, "height": 600}], legacy="2 MP")
+    assert plans["image:1"].width > 1500 and (plans["image:2"].width, plans["image:2"].height) == (800, 576)
 
 
 def test_unknown_choice_falls_back_to_the_inputs_default():
     s = prep.spec_of(QWEN, [{"slot": "image:1"}])
-    assert prep.choice_of(s, "image:1", "nope") == "1K" and prep.choice_of(s, "image:9") == "Original"
+    assert prep.choice_of(s, "image:1", "nope") == "1 MP" and prep.choice_of(s, "image:9") == "Original"
     assert prep.budget(s, "Original") == 0 and prep.budget(s, "nope") == 0
 
 
-def test_templates_without_sizes_get_the_generic_list():
-    s = prep.spec_of(None, [{"slot": "video:1"}, {"slot": "image:1"}])
-    assert [o["label"] for o in s["options"]] == ["0.5 MP", "1 MP", "2 MP", "4 MP", "Original"]
+def test_every_template_gets_the_same_steps_for_what_it_makes():
+    s = prep.spec_of(None, [{"slot": "video:1"}, {"slot": "image:1"}], "motion")
+    assert [o["label"] for o in s["options"]] == ["0.4 MP", "0.75 MP", "1 MP", "1.5 MP", "Original"]
     assert s["follows"] == "video:1" and s["inputs"] == {"video:1": "Original", "image:1": "Original"}
+    s = prep.spec_of({"options": [{"label": "1K", "px": 1024}], "multiple": 32}, [{"slot": "image:1", "size": "1K"}])
+    assert [o["label"] for o in s["options"]] == ["0.5 MP", "1 MP", "2 MP", "3 MP", "Original"]  # a template's own list is ignored
+    assert s["inputs"] == {"image:1": "Original"}
+
+
+@pytest.mark.parametrize("mode,mp", [("edit", 3), ("motion", 1.5)])
+def test_inputs_are_capped_unless_the_cap_is_lifted(mode, mp):
+    s = prep.spec_of(None, [{"slot": "image:1"}], mode)
+    big = [{"slot": "image:1", "width": 6000, "height": 4000}]
+    p = prep.plans(s, big)["image:1"]
+    assert p.width * p.height == pytest.approx(mp * 1e6, rel=0.12) and p.width / p.height == pytest.approx(1.5, rel=0.03)  # Original, scaled down
+    small = prep.plans(s, [{"slot": "image:1", "width": 960, "height": 640}])["image:1"]
+    assert (small.width, small.height) == (960, 640)  # under the cap: untouched
+    free = prep.limit(s, True)
+    assert free["cap"] == 0 and len(free["options"]) == 7 and free["options"][-1]["label"] == "Original"
+    p = prep.plans(free, big)["image:1"]
+    assert (p.width, p.height) == (6000, 4000)  # full size
+    assert prep.limit(s, False) is s
 
 
 def _upload(name, size):
@@ -188,13 +205,6 @@ def test_every_template_ships_its_cover_and_samples():
             assert e.cover and e.cover.is_file(), e.id  # the result of running it on its defaults
             assert all(p.is_file() for p in e.default_inputs.values()), e.id
             assert engines.describe(e)["cover"], e.id
-
-
-def test_options_can_be_given_in_megapixels():
-    s = prep.spec_of({"options": [{"mp": 0.5}, {"label": "1 MP", "mp": 1}]}, [{"slot": "image:1", "size": "1 MP"}])
-    assert [o["label"] for o in s["options"]] == ["0.5 MP", "1 MP", "Original"]  # Original is always offered
-    assert [o["px"] for o in s["options"]] == [707, 1000, 0] and s["inputs"] == {"image:1": "1 MP"}
-    assert prep.target(1920, 1080, 1000, 32) == (1312, 736)
 
 
 def test_clips_are_cropped_and_sized_like_photos(tmp_path):

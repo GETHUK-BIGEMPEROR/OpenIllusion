@@ -26,7 +26,7 @@ from urllib.parse import quote
 
 from PIL import Image
 
-from . import media, paths, prep
+from . import media, paths, prep, settings
 
 log = logging.getLogger("openillusion")
 
@@ -89,7 +89,7 @@ class Engine:
     def __post_init__(self):
         if self.size is None:
             slots = self.inputs or [{"slot": f"image:{n}"} for n in range(1, max(self.max_images, 1) + 1)] + ([{"slot": "video:1"}] if self.needs_video else [])
-            self.size = prep.spec_of(None, slots)
+            self.size = prep.spec_of(None, slots, self.mode)
 
 
 def role_sentences(inputs: list[dict]) -> str:
@@ -466,7 +466,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         inputs=slots, fields=fields,
         cover=(base / data["cover"]) if base and data.get("cover") else None,
         cover_video=(base / data["cover_video"]) if base and data.get("cover_video") else None,
-        size=prep.spec_of(data.get("size"), slots),
+        size=prep.spec_of(data.get("size"), slots, data.get("mode", "edit")),
         default_prompt=str(text.get("default") or "") if text else "",
         default_inputs={f["key"]: (base / f["default"]) for f in media if f.get("default")} if base else {},
     )
@@ -639,6 +639,11 @@ def get(engine_id: str) -> Engine:
     )
 
 
+def run_size(e: Engine) -> dict:
+    """The engine's size spec under the current cap setting (see prep.limit)."""
+    return prep.limit(e.size, bool(settings.load().get("uncap_size")))
+
+
 def describe(e: Engine) -> dict:
     defaults = defaults_info(e)
     samples = {i["slot"]: i for i in defaults["inputs"]}
@@ -651,7 +656,7 @@ def describe(e: Engine) -> dict:
         "video_window": e.video_window, "fps_window": e.fps_window, "video_max_height": e.video_max_height, "url_only": e.url_only,
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
         "examples": e.examples, "tips": e.tips, "tags": e.tags, "inputs": e.inputs, "fields": fields, "requires": requirements(e),
-        "origin": e.origin, "edited": e.edited, "size": e.size, "built": e.built, "model": e.model,
+        "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "model": e.model,
         "defaults": defaults,
         **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),
     }

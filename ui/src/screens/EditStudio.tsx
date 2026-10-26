@@ -17,7 +17,7 @@ import { EDIT_ROLES, errMsg, ROLES, roleLabel } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go } from "../lib/route";
 import { newKey, slotOf, useApp, type RefSlot, type StudioState, type VideoSlot } from "../lib/store";
-import { aspectName, choiceOf, dimsText, megapixels, plans, SHAPES, shapeCrop, shapeOf, sizeNotes, usePrepImages, type Crop, type PrepInput } from "../lib/size";
+import { aspectName, choiceOf, dimsText, megapixels, plan, plans, SHAPES, shapeCrop, shapeOf, sizeNotes, usePrepImages, type Crop, type PrepInput } from "../lib/size";
 
 type View = "input" | "result" | "compare" | "grid";
 type SetS = ReturnType<typeof useStudio>[1];
@@ -500,6 +500,8 @@ function InputAttrs({ size, input, preview, staged, onChange }: {
   const shape = shapeOf(input.width, input.height, input.crop);
   const own = input.width / input.height;
   const notes = sizeNotes(p);
+  const capMp = +((size.cap ?? 0) ** 2 / 1e6).toFixed(1);
+  const capped = !!size.cap && plan(input.width, input.height, 0, size.multiple, input.crop).width > p.width;
   return (
     <div className={cx("attrs", open && "open")}>
       <button className="attrs-h" type="button" aria-expanded={open} onClick={() => setOpen(!open)} title="The shape and size this input runs at">
@@ -525,7 +527,7 @@ function InputAttrs({ size, input, preview, staged, onChange }: {
               <CropBox crop={input.crop} onChange={(crop) => onChange({ crop })} />
             </div>
           )}
-          <div className="sizes" role="group" aria-label="Size" style={{ gridTemplateColumns: `repeat(${size.options.length},minmax(0,1fr))` }}>
+          <div className="sizes" role="group" aria-label="Size" style={{ gridTemplateColumns: `repeat(${Math.min(size.options.length, 5)},minmax(0,1fr))` }}>
             {size.options.map((o) => (
               <button key={o.label} type="button" aria-pressed={choice === o.label} title={o.px ? `About ${o.label} at its shape` : "Its own pixels"} onClick={() => onChange({ size: o.label })}>
                 <b>{o.px ? o.label : "Own"}</b><span>{dimsText(plans(size, [{ ...input, size: o.label }])[input.slot])}</span>
@@ -533,7 +535,9 @@ function InputAttrs({ size, input, preview, staged, onChange }: {
             ))}
           </div>
           <p className="help">
-            {choice === size.original ? `Kept at its own pixels, trimmed to a multiple of ${size.multiple}.` : `About ${megapixels(p).toFixed(2)} MP at its shape. Never stretched.`}
+            {choice !== size.original ? `About ${megapixels(p).toFixed(2)} MP at its shape. Never stretched.`
+              : capped ? `Over the ${capMp} MP cap, so it runs at about ${megapixels(p).toFixed(2)} MP. Lift the cap in Settings.`
+              : `Kept at its own pixels, trimmed to a multiple of ${size.multiple}.`}
             {input.crop && staged ? " Drag the frame on the preview to choose what stays." : ""}
           </p>
           {notes.map((t) => <p key={t} className="help warn"><I n="alert" />{t}</p>)}

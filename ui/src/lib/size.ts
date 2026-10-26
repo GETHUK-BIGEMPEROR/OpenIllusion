@@ -39,7 +39,8 @@ export function target(w: number, h: number, px: number, m: number): Dims {
   return flip ? { width: best[1], height: best[0] } : { width: best[0], height: best[1] };
 }
 
-export function plan(w: number, h: number, px: number, m: number, crop?: Crop): PrepPlan {
+/** cap: no bigger than about cap x cap pixels; Original over it is scaled down to it. */
+export function plan(w: number, h: number, px: number, m: number, crop?: Crop, cap = 0): PrepPlan {
   let [l, t, r, b] = [0, 0, w, h];
   if (crop) {
     const x = Math.min(Math.max(crop[0], 0), 1), y = Math.min(Math.max(crop[1], 0), 1);
@@ -47,6 +48,7 @@ export function plan(w: number, h: number, px: number, m: number, crop?: Crop): 
     [l, t, r, b] = [x * w, y * h, (x + cw) * w, (y + ch) * h];
   }
   const cw = r - l, ch = b - t;
+  if (cap && (px > cap || (px <= 0 && cw * ch > cap * cap))) px = cap;
   const out = target(cw, ch, px, m);
   if (!crop && w % m === 0 && h % m === 0 && Math.abs(out.width - w) <= m && Math.abs(out.height - h) <= m) {
     return { source: [w, h], box: [0, 0, w, h], width: w, height: h };
@@ -74,7 +76,7 @@ export const budget = (size: SizeSpec, choice?: unknown) => size.options.find((o
 /** Plans for every input of a run, each at its own size. */
 export function plans(size: SizeSpec, inputs: PrepInput[]) {
   const out: Record<string, PrepPlan> = {};
-  for (const i of inputs) out[i.slot] = plan(i.width, i.height, budget(size, choiceOf(size, i.slot, i.size)), size.multiple, i.crop);
+  for (const i of inputs) out[i.slot] = plan(i.width, i.height, budget(size, choiceOf(size, i.slot, i.size)), size.multiple, i.crop, size.cap ?? 0);
   return out;
 }
 
