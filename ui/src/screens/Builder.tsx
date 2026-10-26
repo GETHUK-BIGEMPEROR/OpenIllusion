@@ -66,9 +66,12 @@ const human = (s: string) => {
   const t = s.split(".").pop()!.replace(/_/g, " ").trim();
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
+const cap = (t: string) => t.trim().charAt(0).toUpperCase() + t.trim().slice(1);
 const KIND_NOUN: Record<MediaKind, string> = { image: "Image", video: "Video", audio: "Audio" };
 const KIND_ICON: Record<MediaKind, "image" | "film" | "zap"> = { image: "image", video: "film", audio: "zap" };
-const fileTitle = (name: string) => human(name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").replace(/\s+/g, " "));
+// "image_qwen_image_2_1_background_removal.json" -> "Qwen image 2.1 background removal"
+const fileTitle = (name: string) => cap(name.replace(/\.[a-z0-9]+$/i, "").replace(/^(image|video|audio|utility|api|templates?)[-_]+/i, "")
+  .replace(/(\d)[-_](\d)(?![a-z0-9])/gi, "$1.$2").replace(/[-_]+/g, " ").replace(/\s+/g, " "));
 
 function mediaLabels<T extends { kind: MediaKind; title?: string; class_type?: string }>(rows: T[]): string[] {
   const n: Record<string, number> = {};
@@ -163,6 +166,12 @@ export function Builder() {
   const [saving, setSaving] = useState<"save" | "try" | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
+
+  // A sample added after the workflow is read becomes the cover when there is none yet.
+  const firstSample = media.find((m) => m.on && m.kind !== "audio" && m.sample)?.sample ?? null;
+  useEffect(() => {
+    if (firstSample) setDetails((d) => (d.cover ? d : { ...d, cover: firstSample }));
+  }, [firstSample?.asset]);
 
   const load = (s: Source, model?: string) => {
     const init = s.kind === "local" ? fromWorkflow(s.a) : fromSchema(s.a, model ?? s.a.model);

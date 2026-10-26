@@ -154,7 +154,9 @@ export function ParamFields({ params, values, onChange, invalid }: { params: Par
         const bad = invalid?.has(p.key);
         const id = `param-${p.key}`;
         const lbl = <span className={cx("text-sm font-medium", bad ? "text-rose-text" : "text-soft")} title={p.help}>{p.label}</span>;
-        if (p.type === "int" || p.type === "number" && p.min !== undefined) {
+        // A slider only when the range is short enough to aim at; 1..10000 steps gets a number box.
+        const slide = p.min !== undefined && p.max !== undefined && (p.max - p.min) / (p.step || 1) <= 1000;
+        if ((p.type === "int" || p.type === "number") && slide) {
           const n = Number(v ?? p.min ?? 0);
           return (
             <div key={p.key} className="flex flex-col gap-1.5">
@@ -212,7 +214,7 @@ export function ParamFields({ params, values, onChange, invalid }: { params: Par
         return (
           <div key={p.key} className="flex flex-col gap-1.5">
             <label htmlFor={id}>{lbl}</label>
-            <TextInput id={id} aria-invalid={bad || undefined} value={v == null ? "" : String(v)} placeholder={p.hint} onChange={(e) => onChange(p.key, p.type === "number" ? (e.target.value === "" ? undefined : Number(e.target.value)) : e.target.value)} className={cx("h-8 text-sm", p.type === "number" && "font-mono")} />
+            <TextInput id={id} aria-invalid={bad || undefined} value={v == null ? "" : String(v)} placeholder={p.hint} inputMode={p.type === "number" || p.type === "int" ? "decimal" : undefined} onChange={(e) => onChange(p.key, p.type === "number" || p.type === "int" ? (e.target.value === "" ? undefined : Number(e.target.value)) : e.target.value)} className={cx("h-8 text-sm", (p.type === "number" || p.type === "int") && "font-mono")} />
             {p.help && <span className="text-xs text-muted">{p.help}</span>}
           </div>
         );

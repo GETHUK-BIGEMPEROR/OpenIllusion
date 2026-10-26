@@ -375,10 +375,41 @@ def _nid_key(nid: str) -> tuple:
     return tuple(int(p) if p.isdigit() else 0 for p in nid.split(":"))
 
 
+# What an output node writes, read from the types wired into it. Templates make images and videos.
+OUTPUT_TYPES = (("VIDEO", "video"), ("IMAGE", "image"), ("MASK", "image"), ("AUDIO", "audio"),
+                ("FILE_3D", "3d"), ("MESH", "3d"), ("SVG", "svg"), ("STRING", "text"), ("*", "text"))
+OUTPUT_NOUN = {"audio": "audio", "3d": "a 3D model", "svg": "an SVG", "text": "text", "other": "files that aren't images or videos"}
+
+
+def output_kind(api: dict, nid: str, info: dict) -> str:
+    n = api[nid]
+    ct = n["class_type"]
+    if any(h in ct for h in ("Video", "WEBM")):
+        return "video"
+    specs = dict(_spec_inputs(info.get(ct) or {}))
+    wired = [specs.get(k) for k, v in n["inputs"].items() if _is_link(v)]
+    types = {t for s in wired if isinstance(s, (list, tuple)) and s and isinstance(s[0], str) for t in s[0].split(",")}
+    for t, kind in OUTPUT_TYPES:
+        if any(x == t or (t != "*" and x.startswith(t)) for x in types):
+            return kind
+    return "other"
+
+
+def _outputs(api: dict, info: dict) -> list[str]:
+    return [nid for nid, n in api.items() if (info.get(n["class_type"]) or {}).get("output_node")]
+
+
 def output_nodes(api: dict, info: dict) -> list[str]:
-    outs = [nid for nid, n in api.items() if (info.get(n["class_type"]) or {}).get("output_node")]
+    """The nodes whose image or video a run keeps: Save nodes, else Preview nodes."""
+    outs = [nid for nid in _outputs(api, info) if output_kind(api, nid, info) in ("image", "video")]
     saves = [nid for nid in outs if any(h in api[nid]["class_type"] for h in SAVE_HINTS)]
     return sorted(saves or [nid for nid in outs if "Preview" in api[nid]["class_type"]], key=_nid_key)
+
+
+def other_outputs(api: dict, info: dict) -> list[tuple[str, str]]:
+    """Output nodes that write something else (audio, 3D, text, model files): (node id, kind)."""
+    kinds = [(nid, output_kind(api, nid, info)) for nid in _outputs(api, info)]
+    return sorted([(nid, k) for nid, k in kinds if k not in ("image", "video")], key=lambda x: _nid_key(x[0]))
 
 
 def reachable(api: dict, outs: list[str]) -> dict:
@@ -434,8 +465,15 @@ def _label(name: str) -> str:
 def analyze(api: dict, info: dict, notes: list[str] | None = None) -> dict:
     """What a template could expose, with a suggested pick for each."""
     outs = output_nodes(api, info)
+    others = other_outputs(api, info)
     if not outs:
+        if others:
+            what = sorted({OUTPUT_NOUN.get(k, OUTPUT_NOUN["other"]) for _, k in others})
+            raise BuildError(f"This workflow saves {' and '.join(what)}, not an image or video. Templates make images and videos for now, so it can't become one.")
         raise BuildError("This workflow has no Save node, so a run would produce nothing. Add a Save Image or Save Video node in ComfyUI.")
+    notes = list(notes or [])
+    for nid, k in others:
+        notes.append(f"Left out {_title(api, nid)} (#{nid}): it saves {OUTPUT_NOUN.get(k, OUTPUT_NOUN['other'])}, and templates keep the image or video.")
     api = reachable(api, outs)
     cons = _consumers(api)
     media, texts, params = [], [], []

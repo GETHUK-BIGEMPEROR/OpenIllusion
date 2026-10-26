@@ -119,6 +119,44 @@ def test_no_save_node_is_refused():
         builder.analyze(api, INFO)
 
 
+OUT_INFO = {
+    **INFO,
+    "EmptyAudio": {"input": {"required": {}}},
+    "SaveAudio": {"input": {"required": {"audio": ["AUDIO", {}], "filename_prefix": ["STRING", {}]}}, "output_node": True},
+    "EmptyMesh": {"input": {"required": {}}},
+    "SaveGLB": {"input": {"required": {"mesh": ["MESH,FILE_3D_GLB,FILE_3D", {}], "filename_prefix": ["STRING", {}]}}, "output_node": True},
+    "PreviewAny": {"input": {"required": {"source": ["*", {}]}}, "output_node": True},
+}
+
+
+def test_output_kind_reads_the_wired_type():
+    api = {
+        "1": {"class_type": "LoadImage", "inputs": {"image": "a.png"}},
+        "2": {"class_type": "SaveImage", "inputs": {"images": ["1", 0], "filename_prefix": "x"}},
+        "3": {"class_type": "EmptyAudio", "inputs": {}},
+        "4": {"class_type": "SaveAudio", "inputs": {"audio": ["3", 0], "filename_prefix": "x"}},
+        "5": {"class_type": "EmptyMesh", "inputs": {}},
+        "6": {"class_type": "SaveGLB", "inputs": {"mesh": ["5", 0], "filename_prefix": "x"}},
+        "7": {"class_type": "PreviewAny", "inputs": {"source": ["1", 0]}},
+    }
+    assert [builder.output_kind(api, n, OUT_INFO) for n in ("2", "4", "6", "7")] == ["image", "audio", "3d", "text"]
+    assert builder.output_nodes(api, OUT_INFO) == ["2"]
+    a = builder.analyze(api, OUT_INFO)
+    assert a["outputs"] == ["2"] and "4" not in a["workflow"] and "6" not in a["workflow"]
+    assert len(a["notes"]) == 3 and "saves audio" in a["notes"][0]
+
+
+def test_workflow_without_an_image_or_video_is_refused():
+    api = {
+        "3": {"class_type": "EmptyAudio", "inputs": {}},
+        "4": {"class_type": "SaveAudio", "inputs": {"audio": ["3", 0], "filename_prefix": "x"}},
+        "5": {"class_type": "EmptyMesh", "inputs": {}},
+        "6": {"class_type": "SaveGLB", "inputs": {"mesh": ["5", 0], "filename_prefix": "x"}},
+    }
+    with pytest.raises(builder.BuildError, match="saves a 3D model and audio, not an image or video"):
+        builder.analyze(api, OUT_INFO)
+
+
 def test_api_json_and_png_are_read():
     api, _ = builder.ui_to_api(ui_graph(), INFO)
     got, ui = builder.read_workflow("w.json", json.dumps(api).encode())
