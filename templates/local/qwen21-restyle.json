@@ -24,7 +24,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/woman-red.jpg",
+      "default": "media/market-couple.jpg",
       "bind": [
         [
           "11",

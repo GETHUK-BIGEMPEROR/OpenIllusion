@@ -1,0 +1,254 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "id": "local/qwen21-create",
+  "mode": "edit",
+  "label": "Create a photo · Qwen Image 2.1",
+  "provider": "qwen",
+  "blurb": "Makes a picture from words alone: photos, product shots, posters with lettering, illustrations.",
+  "source": "ComfyUI template image_qwen_image_2_1_t2i (prompt enhancer left out)",
+  "tags": [
+    "create",
+    "photo",
+    "poster"
+  ],
+  "tips": [
+    "Say what's in the picture, then the style, light and lens. Concrete beats clever.",
+    "Put words you want on the image in quotes; Qwen spells them out.",
+    "Pick the shape and size under Output."
+  ],
+  "inputs": [
+    {
+      "key": "prompt",
+      "type": "text",
+      "label": "Prompt",
+      "required": true,
+      "default": "High quality photograph of a young Korean woman cycling along a Copenhagen canal street at golden hour, hair moving in the wind, a canvas tote in the front basket, colorful townhouses softly blurred behind her. Candid, warm natural light, shot on 35mm film.",
+      "examples": [
+        {
+          "label": "Golden-hour cyclist",
+          "text": "High quality photograph of a young Korean woman cycling along a Copenhagen canal street at golden hour, hair moving in the wind, a canvas tote in the front basket, colorful townhouses softly blurred behind her. Candid, warm natural light, shot on 35mm film."
+        },
+        {
+          "label": "Perfume ad",
+          "text": "High quality product photograph of a frosted glass perfume bottle with a brass cap on a slab of black marble, one white orchid beside it, dramatic side light, soft reflections, deep shadows, luxury advertising look."
+        },
+        {
+          "label": "Travel poster",
+          "text": "High quality minimalist travel poster of Mount Fuji at sunrise, flat geometric shapes, warm orange and pink gradient sky, a small red torii gate in the foreground, the bold sans-serif title \"FUJI\" across the top."
+        },
+        {
+          "label": "Food overhead",
+          "text": "High quality overhead photograph of a bowl of Nigerian jollof rice with fried plantains and grilled chicken on a colorful woven tablecloth, a glass of hibiscus drink beside it, bright natural daylight."
+        },
+        {
+          "label": "Watercolor",
+          "text": "High quality watercolor illustration of a cozy corner bookshop on a rainy evening, warm glowing windows, stacks of books in the display and a ginger cat asleep among them, soft loose brushwork."
+        }
+      ],
+      "bind": [
+        [
+          "459:452",
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "steps",
+      "type": "int",
+      "label": "Steps",
+      "advanced": true,
+      "min": 8,
+      "max": 40,
+      "default": 25,
+      "bind": [
+        [
+          "459:458",
+          "steps",
+          "int"
+        ]
+      ]
+    },
+    {
+      "key": "seed",
+      "type": "seed",
+      "label": "Seed",
+      "advanced": true,
+      "default": -1,
+      "bind": [
+        [
+          "459:458",
+          "seed",
+          "int"
+        ]
+      ]
+    },
+    {
+      "key": "cache",
+      "type": "segmented",
+      "label": "Step cache",
+      "advanced": true,
+      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
+      "options": [
+        "cpu",
+        "auto",
+        "gpu",
+        "off"
+      ],
+      "default": "cpu",
+      "bind": [
+        [
+          "459:480",
+          "device"
+        ]
+      ]
+    }
+  ],
+  "computed": {
+    "size.width": [
+      [
+        "459:456",
+        "width"
+      ]
+    ],
+    "size.height": [
+      [
+        "459:456",
+        "height"
+      ]
+    ]
+  },
+  "size": {
+    "multiple": 32,
+    "aspect": "4:5",
+    "default": "1 MP"
+  },
+  "outputs": [
+    "461"
+  ],
+  "hints": {
+    "models": {
+      "qwen_image_2.1_int8_convrot.safetensors": {
+        "folder": "diffusion_models",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/diffusion_models/qwen_image_2.1_int8_convrot.safetensors"
+      },
+      "qwen3vl_8b_int8_convrot.safetensors": {
+        "folder": "text_encoders",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3vl_8b_int8_convrot.safetensors"
+      },
+      "qwen_image_2.1_vae_bf16.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors"
+      }
+    },
+    "nodes": {}
+  },
+  "workflow": {
+    "459:451": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    "459:452": {
+      "class_type": "TextEncodeQwenImage21",
+      "inputs": {
+        "prompt": "High quality photograph of a young Korean woman cycling along a Copenhagen canal street at golden hour, hair moving in the wind, a canvas tote in the front basket, colorful townhouses softly blurred behind her. Candid, warm natural light, shot on 35mm film.",
+        "negative_prompt": "",
+        "resolution": 1024,
+        "clip": [
+          "459:453",
+          0
+        ]
+      }
+    },
+    "459:453": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+        "type": "qwen_image",
+        "device": "default"
+      }
+    },
+    "459:454": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+      }
+    },
+    "459:456": {
+      "class_type": "EmptyLatentImage",
+      "inputs": {
+        "width": 1088,
+        "height": 1376,
+        "batch_size": 1
+      }
+    },
+    "459:457": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "459:458",
+          0
+        ],
+        "vae": [
+          "459:454",
+          0
+        ]
+      }
+    },
+    "459:458": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 1,
+        "steps": 25,
+        "cfg": 1,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 1,
+        "model": [
+          "459:480",
+          0
+        ],
+        "positive": [
+          "459:452",
+          0
+        ],
+        "negative": [
+          "459:452",
+          1
+        ],
+        "latent_image": [
+          "459:456",
+          0
+        ]
+      }
+    },
+    "459:480": {
+      "class_type": "QwenImage21Cache",
+      "inputs": {
+        "device": "cpu",
+        "dtype": "default",
+        "model": [
+          "459:451",
+          0
+        ]
+      }
+    },
+    "461": {
+      "class_type": "SaveImageAdvanced",
+      "inputs": {
+        "filename_prefix": "openillusion/qwen21-create",
+        "format": "png",
+        "format.bit_depth": "8-bit",
+        "format.input_color_space": "sRGB",
+        "images": [
+          "459:457",
+          0
+        ]
+      }
+    }
+  },
+  "cover": "media/cover-create-photo.webp"
+}

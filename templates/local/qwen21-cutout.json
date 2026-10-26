@@ -24,7 +24,7 @@
       "hint": "Any photo with a clear subject: a person, a product, a pet.",
       "required": true,
       "size": "1 MP",
-      "default": "media/woman-portrait.jpg",
+      "default": "media/redhead-coat.jpg",
       "bind": [
         [
           "470",
@@ -37,11 +37,11 @@
       "type": "text",
       "label": "Prompt",
       "required": true,
-      "default": "Remove the background, and output a PNG image",
+      "default": "Remove the background and keep the whole subject: the person with all of their hair, clothing and accessories, nothing cropped away. Output a PNG image",
       "examples": [
         {
           "label": "Whole subject",
-          "text": "Remove the background, and output a PNG image"
+          "text": "Remove the background and keep the whole subject: the person with all of their hair, clothing and accessories, nothing cropped away. Output a PNG image"
         },
         {
           "label": "Product only",
@@ -228,7 +228,7 @@
     "459:474": {
       "class_type": "TextEncodeQwenImage21",
       "inputs": {
-        "prompt": "Remove the background, and output a PNG image",
+        "prompt": "Remove the background and keep the whole subject: the person with all of their hair, clothing and accessories, nothing cropped away. Output a PNG image",
         "negative_prompt": "",
         "resolution": 0,
         "clip": [

@@ -61,7 +61,7 @@ export function plan(w: number, h: number, px: number, m: number, crop?: Crop, c
   const scale = Math.max(out.width / cw, out.height / ch);
   const kw = out.width / scale, kh = out.height / scale;
   const x = l + (cw - kw) / 2, y = t + (ch - kh) / 2;
-  return { source: [w, h], box: [x, y, x + kw, y + kh], ...out };
+  return { source: [w, h], box: [Math.max(0, x), Math.max(0, y), Math.min(w, x + kw), Math.min(h, y + kh)], ...out };
 }
 
 /** An input as prep sees it: its pixel size, and the shape and size chosen for it. */
@@ -72,6 +72,19 @@ export const choiceOf = (size: SizeSpec, slot: string, choice?: unknown) =>
   size.options.some((o) => o.label === choice) ? String(choice) : size.inputs[slot] ?? size.original;
 
 export const budget = (size: SizeSpec, choice?: unknown) => size.options.find((o) => o.label === choice)?.px ?? 0;
+
+const ratioOf = (aspect: string) => { const [w, h] = aspect.split(":").map(Number); return w > 0 && h > 0 ? [w, h] : null; };
+
+/** The aspect as width / height ("4:5" -> 0.8). */
+export const aspectRatio = (aspect: string) => { const r = ratioOf(aspect); return r ? r[0] / r[1] : 1; };
+
+/** Templates without inputs: the canvas for a shape and a size, as server/prep.py canvas_size makes it. */
+export function canvasSize(size: SizeSpec, aspect?: unknown, choice?: unknown): Dims | null {
+  const c = size.canvas;
+  if (!c) return null;
+  const [w, h] = ratioOf(c.aspects.includes(String(aspect)) ? String(aspect) : c.aspect) ?? [1, 1];
+  return target(w, h, budget(size, choice) || budget(size, c.size), size.multiple);
+}
 
 /** Plans for every input of a run, each at its own size. */
 export function plans(size: SizeSpec, inputs: PrepInput[]) {

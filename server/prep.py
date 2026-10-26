@@ -22,6 +22,12 @@ and is every input's default unless the template names another step for it:
 
 Older templates give their own ``options`` (ignored now) or one ``default`` for the followed input.
 
+A template that takes no photo or clip (text to image, text to video) makes its own canvas:
+the studio picks a shape and a step, and ``canvas_size`` turns them into the width and
+height the workflow's ``size.width`` / ``size.height`` bindings receive. Same steps, same cap:
+
+    "size": {"multiple": 32, "aspect": "4:5", "default": "1 MP"}   # optional "aspects": [...]
+
 ``ui/src/lib/size.ts`` mirrors ``target``, ``plan`` and ``plans`` for live previews;
 compose returns this module's plans, which the studio shows once they arrive.
 """
@@ -62,6 +68,7 @@ ORIGINAL = "Original"
 STEPS = {"edit": (0.5, 1, 2, 3), "motion": (0.4, 0.75, 1, 1.5)}
 OVER = {"edit": (4, 6), "motion": (2, 3)}  # offered only when the cap is lifted
 CAP = {"edit": 3, "motion": 1.5}
+ASPECTS = ("1:1", "4:5", "3:4", "2:3", "9:16", "16:9", "3:2", "4:3")
 
 
 def _option(mp: float) -> dict:
@@ -73,9 +80,17 @@ def spec_of(size: dict | None, inputs: list[dict] | None = None, mode: str = "ed
     last), the cap, the multiple, the input the output follows, and each input's default size."""
     size = size or {}
     mode = mode if mode in STEPS else "edit"
+    slots = [i["slot"] for i in inputs or [] if str(i.get("slot", "")).startswith(("image:", "video:"))]
+    if not slots:  # nothing to follow: the studio picks the canvas
+        opts = [_option(mp) for mp in STEPS[mode]]
+        labels = [o["label"] for o in opts]
+        aspects = [a for a in size.get("aspects") or ASPECTS if _ratio(a)]
+        canvas = {"aspects": aspects, "aspect": size.get("aspect") if size.get("aspect") in aspects else aspects[0],
+                  "size": size.get("default") if size.get("default") in labels else labels[1]}
+        return {"options": opts, "more": [_option(mp) for mp in OVER[mode]], "cap": _option(CAP[mode])["px"],
+                "multiple": int(size.get("multiple") or DEFAULT_MULTIPLE), "follows": None, "inputs": {}, "original": ORIGINAL, "canvas": canvas}
     opts = [_option(mp) for mp in STEPS[mode]] + [{"label": ORIGINAL, "px": 0, "mp": 0}]
     labels = [o["label"] for o in opts]
-    slots = [i["slot"] for i in inputs or [] if str(i.get("slot", "")).startswith(("image:", "video:"))]
     follows = size.get("follows") or (slots[0] if slots else "image:1")
     legacy = size.get("default") if size.get("default") in labels else None
     defaults = {}
@@ -92,7 +107,27 @@ def limit(size: dict, uncapped: bool) -> dict:
     """The spec as runs see it: capped, or with the bigger steps offered and no cap."""
     if not uncapped:
         return size
-    return {**size, "options": size["options"][:-1] + size.get("more", []) + size["options"][-1:], "more": [], "cap": 0}
+    n = sum(1 for o in size["options"] if o["px"])  # the steps, before Original
+    return {**size, "options": size["options"][:n] + size.get("more", []) + size["options"][n:], "more": [], "cap": 0}
+
+
+def _ratio(aspect: str) -> tuple[float, float] | None:
+    try:
+        w, h = (float(v) for v in str(aspect).split(":"))
+        return (w, h) if w > 0 and h > 0 else None
+    except ValueError:
+        return None
+
+
+def canvas_size(size: dict, aspect: str | None, choice: str | None) -> tuple[int, int] | None:
+    """Width and height for a template without inputs: the picked shape at the picked step
+    (the template's defaults when either isn't offered)."""
+    c = size.get("canvas")
+    if not c:
+        return None
+    w, h = _ratio(aspect if aspect in c["aspects"] else c["aspect"])  # type: ignore[misc]
+    px = budget(size, choice) or budget(size, c["size"])
+    return target(w, h, px, size["multiple"])
 
 
 def choice_of(size: dict, slot: str, choice: str | None = None) -> str:
@@ -175,7 +210,7 @@ def plan(w: int, h: int, *, px: int, multiple: int, crop: list | tuple | None = 
     scale = max(out_w / cw, out_h / ch)
     kw, kh = out_w / scale, out_h / scale
     l, t = l + (cw - kw) / 2, t + (ch - kh) / 2
-    box = (l, t, l + kw, t + kh)
+    box = (max(0.0, l), max(0.0, t), min(float(w), l + kw), min(float(h), t + kh))  # float error can step a hair outside
     if all(abs(v - round(v)) < 1e-6 for v in box):
         box = tuple(float(round(v)) for v in box)
     return Plan(source=(w, h), box=box, width=out_w, height=out_h)  # type: ignore[arg-type]

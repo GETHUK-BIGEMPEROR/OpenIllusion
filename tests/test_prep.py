@@ -150,7 +150,8 @@ def test_exif_rotation_is_applied(tmp_path):
 def test_shipped_templates_declare_a_size():
     for e in engines.ENGINES.values():
         if e.kind == "local" and e.id.startswith("local/qwen21-"):
-            assert e.size and e.size["multiple"] == 32 and e.size["follows"] == "image:1", e.id
+            assert e.size and e.size["multiple"] == 32 and e.size["follows"] == ("image:1" if e.inputs else None), e.id
+            assert e.inputs or e.bindings.get("size.width"), e.id  # no input to follow: the canvas size is written in
             assert not any(p["key"] == "resolution" for p in e.params), e.id
 
 
@@ -173,7 +174,7 @@ def test_samples_resolve_like_uploads():
     e = engines.ENGINES["local/qwen21-hold-product"]
     a = engines.describe(e)["defaults"]["inputs"][1]
     assert a["asset"] == "tpl:local/qwen21-hold-product|image:2"
-    assert jobs.resolve_asset(a["asset"]).name == "camera.jpg"
+    assert jobs.resolve_asset(a["asset"]).name == "instant-camera.jpg"
     with pytest.raises(FileNotFoundError):
         jobs.resolve_asset("tpl:local/qwen21-hold-product|image:9")
     with pytest.raises(FileNotFoundError):
@@ -194,7 +195,7 @@ def test_default_prompt_is_editable_and_samples_stay_put():
     e = engines.edit_template("local/qwen21-add-hat", {"inputs": {"prompt": {"default": "  Put a red beret on <image1>.  "}}})
     d = engines.describe(e)["defaults"]
     assert d["prompt"] == "Put a red beret on <image1>." and e.edited
-    assert jobs.resolve_asset(d["inputs"][0]["asset"]).name == "man-grey.jpg"  # still the shipped file
+    assert jobs.resolve_asset(d["inputs"][0]["asset"]).name == "man-park.jpg"  # still the shipped file
     engines.reset_template(e.id)
     assert "straw fedora with a black band" in engines.describe(engines.ENGINES[e.id])["defaults"]["prompt"]
 
@@ -234,3 +235,23 @@ def test_clips_kept_at_their_own_size_are_cut_not_resampled(tmp_path):
     assert p.trim_only and (p.width, p.height) == (320, 352)
     info = media.transcode(src, tmp_path / "out.mp4", plan=p)
     assert (info["width"], info["height"]) == (320, 352)
+
+
+def test_templates_without_inputs_make_their_own_canvas():
+    s = prep.spec_of({"multiple": 32, "aspect": "4:5", "default": "1 MP"}, [], "edit")
+    assert s["follows"] is None and s["canvas"]["aspect"] == "4:5" and all(o["px"] for o in s["options"])  # no Original
+    w, h = prep.canvas_size(s, None, None)  # the template's defaults
+    assert w % 32 == 0 and h % 32 == 0 and w / h == pytest.approx(0.8, rel=0.03) and w * h == pytest.approx(1e6, rel=0.12)
+    w, h = prep.canvas_size(s, "16:9", "3 MP")
+    assert w / h == pytest.approx(16 / 9, rel=0.03) and w * h == pytest.approx(3e6, rel=0.12)
+    assert prep.canvas_size(s, "7:1", "6 MP") == prep.canvas_size(s, None, None)  # not offered: defaults
+    assert prep.canvas_size(prep.limit(s, True), "1:1", "6 MP")[0] > 2300  # offered once the cap is lifted
+    v = prep.spec_of({"aspect": "16:9"}, [], "motion")
+    assert [o["label"] for o in v["options"]] == ["0.4 MP", "0.75 MP", "1 MP", "1.5 MP"] and v["canvas"]["size"] == "0.75 MP"
+
+
+def test_the_kept_box_never_leaves_the_picture():
+    p = prep.plan(1088, 1376, px=632, multiple=32)  # float error once put the top at -1e-13
+    l, t, r, b = p.box
+    assert l >= 0 and t >= 0 and r <= 1088 and b <= 1376
+    prep.apply(Image.new("RGB", (1088, 1376)), p)

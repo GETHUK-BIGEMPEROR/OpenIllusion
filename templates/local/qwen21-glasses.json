@@ -24,7 +24,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/man-curly.jpg",
+      "default": "media/man-afro.jpg",
       "bind": [
         [
           "11",

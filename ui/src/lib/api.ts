@@ -134,8 +134,10 @@ export interface BuildSpec {
 export interface SizeSpec {
   options: { label: string; px: number; mp?: number }[];
   multiple: number;
-  /** The input whose size the output takes, e.g. "image:1" or "video:1". */
-  follows: string;
+  /** The input whose size the output takes, e.g. "image:1" or "video:1"; null when the template takes none. */
+  follows: string | null;
+  /** Templates without inputs: the shapes offered, and the default shape and size of the canvas. */
+  canvas?: { aspects: string[]; aspect: string; size: string };
   /** Each input's default size (an option label); "Original" unless the template says otherwise. */
   inputs: Record<string, string>;
   /** The label of the option that keeps an input's own size. */

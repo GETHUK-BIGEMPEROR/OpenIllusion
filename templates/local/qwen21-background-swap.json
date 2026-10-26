@@ -24,7 +24,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/man-grey.jpg",
+      "default": "media/woman-blazer.jpg",
       "bind": [
         [
           "11",

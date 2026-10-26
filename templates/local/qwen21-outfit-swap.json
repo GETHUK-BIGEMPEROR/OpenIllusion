@@ -24,7 +24,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/man-tee.jpg",
+      "default": "media/man-greytee.jpg",
       "bind": [
         [
           "11",
@@ -39,7 +39,7 @@
       "hint": "A product shot or a photo of someone wearing it.",
       "required": true,
       "size": "1 MP",
-      "default": "media/bomber-jacket.jpg",
+      "default": "media/bomber-flatlay.jpg",
       "bind": [
         [
           "12",

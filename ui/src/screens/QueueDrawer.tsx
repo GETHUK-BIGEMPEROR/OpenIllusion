@@ -95,7 +95,8 @@ function JobRow({ j, onOpen }: { j: Job; onOpen: () => void }) {
         if (fix === "trim" && s.video) return { video: { ...s.video, trim: [0, Math.min(10, s.video.duration ?? 10)] } };
         if (fix === "downscale" && s.video) return small ? { video: { ...s.video, size: small } } : { video: { ...s.video, maxHeight: 720 } };
         // The input the output follows goes to the smallest size.
-        if (small && sized) return sized.follows.startsWith("video:")
+        if (small && sized && !sized.follows) return { params: { ...s.params, out_size: small } };
+        if (small && sized?.follows) return sized.follows.startsWith("video:")
           ? { video: s.video ? { ...s.video, size: small } : null }
           : { refs: s.refs.map((r, i) => (`image:${r.slot ?? i + 1}` === sized.follows ? { ...r, size: small } : r)) };
         return {};

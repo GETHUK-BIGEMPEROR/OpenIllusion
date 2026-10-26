@@ -24,7 +24,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/man-grey.jpg",
+      "default": "media/man-park.jpg",
       "bind": [
         [
           "11",

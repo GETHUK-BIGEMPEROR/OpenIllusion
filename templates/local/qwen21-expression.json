@@ -23,7 +23,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/woman-portrait.jpg",
+      "default": "media/elder-woman.jpg",
       "bind": [
         [
           "11",

@@ -1,0 +1,408 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "id": "local/minimax-h3-create",
+  "mode": "motion",
+  "label": "Create a video · MiniMax H3",
+  "provider": "minimax",
+  "blurb": "Makes a short video with sound from words alone. Describe the scene, the action, the camera and the audio.",
+  "source": "ComfyUI template video_minimax_h3_t2v with the FL2V 4-step turbo LoRA and the int8 text encoder",
+  "tags": [
+    "create",
+    "video",
+    "scene"
+  ],
+  "tips": [
+    "One continuous shot works best: the scene, what happens, then how the camera moves.",
+    "An Audio: line in the prompt steers the generated sound.",
+    "Pick the shape and size under Output. Bigger and longer take proportionally more time."
+  ],
+  "inputs": [
+    {
+      "key": "prompt",
+      "type": "text",
+      "label": "Prompt",
+      "required": true,
+      "default": "Realistic cinematic footage. A slow aerial drone shot glides over a Norwegian fjord at sunrise, mist on still water, a small red cabin on the rocky shore, steep green cliffs. Audio: soft wind and distant birds.",
+      "examples": [
+        {
+          "label": "Fjord flyover",
+          "text": "Realistic cinematic footage. A slow aerial drone shot glides over a Norwegian fjord at sunrise, mist on still water, a small red cabin on the rocky shore, steep green cliffs. Audio: soft wind and distant birds."
+        },
+        {
+          "label": "Fisherman at dawn",
+          "text": "Realistic cinematic footage. An elderly fisherman in a yellow raincoat hauls a net onto a small wooden boat at dawn, waves rocking the boat, seagulls circling overhead, pale pink sky. Slow handheld push-in. Audio: waves against the hull, creaking wood, gulls."
+        },
+        {
+          "label": "Street dancer",
+          "text": "Realistic cinematic footage. A young dancer in a red hoodie breakdances on a wet Seoul side street at night, neon signs reflected in the puddles. Low-angle tracking shot circling the dancer. Audio: a hip-hop beat from a small speaker, city hum."
+        },
+        {
+          "label": "Wok fire",
+          "text": "Realistic cinematic footage. Close-up of a cook's hands tossing vegetables in a flaming wok in a busy restaurant kitchen, sparks and steam rising. Steady close shot, shallow depth of field. Audio: sizzling, clanging pans, kitchen chatter."
+        }
+      ],
+      "bind": [
+        [
+          "140:131",
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "seconds",
+      "type": "int",
+      "label": "Length",
+      "help": "Seconds of video. Longer takes proportionally more time.",
+      "min": 2,
+      "max": 8,
+      "default": 5,
+      "unit": "s",
+      "bind": [
+        [
+          "140:133",
+          "value",
+          "float"
+        ]
+      ]
+    },
+    {
+      "key": "steps",
+      "type": "int",
+      "label": "Steps",
+      "help": "The turbo LoRA is trained for 4.",
+      "advanced": true,
+      "min": 2,
+      "max": 12,
+      "default": 4,
+      "bind": [
+        [
+          "140:138",
+          "value",
+          "int"
+        ]
+      ]
+    },
+    {
+      "key": "seed",
+      "type": "seed",
+      "label": "Seed",
+      "advanced": true,
+      "default": -1,
+      "bind": [
+        [
+          "140:129",
+          "noise_seed",
+          "int"
+        ]
+      ]
+    }
+  ],
+  "computed": {
+    "size.width": [
+      [
+        "140:131",
+        "width"
+      ]
+    ],
+    "size.height": [
+      [
+        "140:131",
+        "height"
+      ]
+    ]
+  },
+  "size": {
+    "multiple": 32,
+    "aspect": "16:9",
+    "default": "0.4 MP"
+  },
+  "outputs": [
+    "92"
+  ],
+  "hints": {
+    "models": {
+      "minimax_h3_fl2va_pruned_int8_convrot.safetensors": {
+        "folder": "diffusion_models",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors"
+      },
+      "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors": {
+        "folder": "loras",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors"
+      },
+      "qwen3vl_32b_minimax_h3_int8_convrot.safetensors": {
+        "folder": "text_encoders",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
+      },
+      "minimax_h3_video_vae_int8_convrot.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors"
+      },
+      "minimax_h3_audio_vae_fp32.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    "nodes": {}
+  },
+  "workflow": {
+    "92": {
+      "class_type": "SaveVideo",
+      "inputs": {
+        "filename_prefix": "openillusion/h3-create",
+        "format": "auto",
+        "format.codec": "auto",
+        "video": [
+          "140:130",
+          0
+        ]
+      }
+    },
+    "140:119": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      }
+    },
+    "140:120": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    "140:121": {
+      "class_type": "VAEDecodeAudio",
+      "inputs": {
+        "samples": [
+          "140:125",
+          0
+        ],
+        "vae": [
+          "140:120",
+          0
+        ]
+      }
+    },
+    "140:122": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "140:125",
+          0
+        ],
+        "vae": [
+          "140:119",
+          0
+        ]
+      }
+    },
+    "140:123": {
+      "class_type": "KSamplerSelect",
+      "inputs": {
+        "sampler_name": "res_multistep"
+      }
+    },
+    "140:124": {
+      "class_type": "BasicScheduler",
+      "inputs": {
+        "scheduler": "simple",
+        "steps": [
+          "140:136",
+          0
+        ],
+        "denoise": 1,
+        "model": [
+          "140:135",
+          0
+        ]
+      }
+    },
+    "140:125": {
+      "class_type": "SamplerCustomAdvanced",
+      "inputs": {
+        "noise": [
+          "140:129",
+          0
+        ],
+        "guider": [
+          "140:126",
+          0
+        ],
+        "sampler": [
+          "140:123",
+          0
+        ],
+        "sigmas": [
+          "140:124",
+          0
+        ],
+        "latent_image": [
+          "140:131",
+          1
+        ]
+      }
+    },
+    "140:126": {
+      "class_type": "BasicGuider",
+      "inputs": {
+        "model": [
+          "140:135",
+          0
+        ],
+        "conditioning": [
+          "140:131",
+          0
+        ]
+      }
+    },
+    "140:127": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    "140:128": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    "140:129": {
+      "class_type": "RandomNoise",
+      "inputs": {
+        "noise_seed": 1
+      }
+    },
+    "140:130": {
+      "class_type": "CreateVideo",
+      "inputs": {
+        "fps": 24,
+        "bit_depth": 8,
+        "images": [
+          "140:122",
+          0
+        ],
+        "audio": [
+          "140:121",
+          0
+        ]
+      }
+    },
+    "140:131": {
+      "class_type": "MiniMaxH3ImageToVideo",
+      "inputs": {
+        "prompt": "Realistic cinematic footage. A slow aerial drone shot glides over a Norwegian fjord at sunrise, mist on still water, a small red cabin on the rocky shore, steep green cliffs. Audio: soft wind and distant birds.",
+        "width": 832,
+        "height": 480,
+        "length": [
+          "140:132",
+          1
+        ],
+        "clip": [
+          "140:128",
+          0
+        ],
+        "vae": [
+          "140:119",
+          0
+        ]
+      }
+    },
+    "140:132": {
+      "class_type": "ComfyMathExpression",
+      "inputs": {
+        "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+        "values.a": [
+          "140:133",
+          0
+        ]
+      }
+    },
+    "140:133": {
+      "class_type": "PrimitiveFloat",
+      "inputs": {
+        "value": 5
+      },
+      "_meta": {
+        "title": "Float (duration)"
+      }
+    },
+    "140:134": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "lora_name": "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+        "strength_model": 1,
+        "model": [
+          "140:127",
+          0
+        ]
+      }
+    },
+    "140:135": {
+      "class_type": "ComfySwitchNode",
+      "inputs": {
+        "switch": [
+          "140:139",
+          0
+        ],
+        "on_false": [
+          "140:127",
+          0
+        ],
+        "on_true": [
+          "140:134",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "If/Else Switch (Model)"
+      }
+    },
+    "140:136": {
+      "class_type": "ComfySwitchNode",
+      "inputs": {
+        "switch": [
+          "140:139",
+          0
+        ],
+        "on_false": [
+          "140:137",
+          0
+        ],
+        "on_true": [
+          "140:138",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "If/Else Switch (Steps)"
+      }
+    },
+    "140:137": {
+      "class_type": "PrimitiveInt",
+      "inputs": {
+        "value": 20
+      }
+    },
+    "140:138": {
+      "class_type": "PrimitiveInt",
+      "inputs": {
+        "value": 4
+      }
+    },
+    "140:139": {
+      "class_type": "PrimitiveBoolean",
+      "inputs": {
+        "value": true
+      },
+      "_meta": {
+        "title": "Boolean (Enable Lightning LoRA)"
+      }
+    }
+  },
+  "cover": "media/cover-create-video.webp",
+  "cover_video": "media/cover-create-video.mp4"
+}

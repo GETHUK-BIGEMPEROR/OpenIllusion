@@ -17,7 +17,7 @@ import { EDIT_ROLES, errMsg, ROLES, roleLabel } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go } from "../lib/route";
 import { newKey, slotOf, useApp, type RefSlot, type StudioState, type VideoSlot } from "../lib/store";
-import { aspectName, choiceOf, dimsText, megapixels, plan, plans, SHAPES, shapeCrop, shapeOf, sizeNotes, usePrepImages, type Crop, type PrepInput } from "../lib/size";
+import { aspectName, aspectRatio, canvasSize, choiceOf, dimsText, megapixels, plan, plans, SHAPES, shapeCrop, shapeOf, sizeNotes, usePrepImages, type Crop, type PrepInput } from "../lib/size";
 
 type View = "input" | "result" | "compare" | "grid";
 type SetS = ReturnType<typeof useStudio>[1];
@@ -36,7 +36,7 @@ const withInput = (slot: string, patch: { crop?: Crop; size?: string }) => (st: 
 function sampleRef(e: EngineInfo, slot: string): RefSlot | null {
   const i = e.defaults?.inputs.find((x) => x.slot === slot);
   if (!i) return null;
-  return { ...i, key: newKey(), slot: slotNo(slot), sample: true, license: "stock", contains_person: false, consent: false, role: roleOf(e, slot) };
+  return { ...i, key: newKey(), slot: slotNo(slot), sample: true, license: "generated", contains_person: false, consent: false, role: roleOf(e, slot) };
 }
 
 /** A template's sample clip, trimmed to fit its window. */
@@ -44,7 +44,7 @@ function sampleVideo(e: EngineInfo, slot: string): VideoSlot | null {
   const i = e.defaults?.inputs.find((x) => x.slot === slot);
   if (!i) return null;
   const d = i.duration ?? 0;
-  return { ...i, trim: [0, e.video_window ? Math.min(d, e.video_window[1]) : d], sample: true, license: "stock", contains_person: false, consent: false };
+  return { ...i, trim: [0, e.video_window ? Math.min(d, e.video_window[1]) : d], sample: true, license: "generated", contains_person: false, consent: false };
 }
 
 export const EditStudio = () => <CreateStudio mode="edit" />;
@@ -83,7 +83,9 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const sized = engine?.size;
   const local = sized ? plans(sized, images) : {};
   const planOf = (slot: string) => compose?.prep?.[slot] ?? local[slot] ?? null;
-  const out = sized ? planOf(sized.follows) : null;
+  // Templates without inputs make their own canvas: a shape and a size picked under Output.
+  const canvas = sized?.canvas ? canvasSize(sized, s.params.aspect, s.params.out_size) : null;
+  const out = canvas ?? (sized?.follows ? planOf(sized.follows) : null);
 
   const group = s.group.length ? s.group : s.current ? [s.current] : [];
   const variants = useQueries({ queries: group.map((id) => ({ queryKey: ["generation", id], queryFn: () => api.generation(id), retry: false })) });
@@ -101,7 +103,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
     view === "grid" && group.length > 1 ? "grid"
       : !shown || view === "input" ? (hasInput ? "input" : "empty")
       : live ? "live" : failed ? "failed" : !done ? (hasInput ? "input" : "empty")
-      : view === "result" ? "result" : "compare";
+      : view === "result" || canvas ? "result" : "compare";
 
   // A run that finishes while you watch flips the stage to its result.
   const prevState = useRef<string | undefined>(undefined);
@@ -171,7 +173,10 @@ function CreateStudio({ mode }: { mode: Mode }) {
         .map((o) => ({ o, p: plans(sized, [{ ...leadIn, size: o.label }])[leadIn.slot] }))
         .filter((x) => out && x.p.width * x.p.height < out.width * out.height)
         .sort((a, b) => b.p.width * b.p.height - a.p.width * a.p.height)[0] : undefined;
-      if (smaller && leadIn) fixes.push({ label: `Use ${smaller.o.label} (${dimsText(smaller.p)})`, run: () => { set(withInput(leadIn.slot, { size: smaller.o.label })); toast({ text: `Size set to ${smaller.o.label}. Press Run.`, tone: "ok" }); } });
+      const canvasAt = sized?.canvas ? sized.options.findIndex((o) => o.label === String(s.params.out_size ?? sized.canvas!.size)) : -1;
+      const smallerOut = canvasAt > 0 ? sized!.options[canvasAt - 1].label : null;
+      if (smallerOut) fixes.push({ label: `Use ${smallerOut}`, run: () => { setParam("out_size", smallerOut); toast({ text: `Output set to ${smallerOut}. Press Run.`, tone: "ok" }); } });
+      else if (smaller && leadIn) fixes.push({ label: `Use ${smaller.o.label} (${dimsText(smaller.p)})`, run: () => { set(withInput(leadIn.slot, { size: smaller.o.label })); toast({ text: `Size set to ${smaller.o.label}. Press Run.`, tone: "ok" }); } });
       else if (size) fixes.push({ label: "Use a smaller size", run: () => { const opts = size.options ?? []; const i = opts.indexOf(String(s.params[size.key] ?? size.default)); if (opts.length && i > 0) { set((st) => ({ params: { ...st.params, [size.key]: opts[i - 1] }, raw: null })); toast({ text: `${size.label} set to ${opts[i - 1]}. Press Run.`, tone: "ok" }); } else if (size.type === "int") { set((st) => ({ params: { ...st.params, [size.key]: size.min ?? size.default }, raw: null })); } } });
     }
     if (suggested.includes("trim") && s.video) {
@@ -197,6 +202,9 @@ function CreateStudio({ mode }: { mode: Mode }) {
           <HistStrip engine={s.engine} current={s.current} jobs={jobs} onPick={pickRun} />
           {engine?.kind === "local" && <div style={{ display: "grid", gap: 8 }}><LocalNeeds spec={spec} /></div>}
 
+          {sized?.canvas ? (
+            <OutputSize size={sized} aspect={String(s.params.aspect ?? sized.canvas.aspect)} choice={String(s.params.out_size ?? sized.canvas.size)} onChange={setParam} />
+          ) : (
           <section className="sec" aria-labelledby="sec-inputs">
             <div className="sec-h"><h4 id="sec-inputs">Inputs</h4><span className="mono">{media.length ? `${required} needed${media.length > required ? ` · ${media.length - required} optional` : ""}` : `${s.refs.length} / ${engine?.max_images ?? 10}`}</span></div>
             {engine && media.length ? (
@@ -213,6 +221,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
               </div>
             )}
           </section>
+          )}
 
           <PromptSection s={s} set={set} engine={engine} area={!!area} invalid={invalid.has("prompt")} onRun={() => void runner.run()}
             clearArea={() => set((st) => ({ boxes: st.boxes.filter((b) => b.label !== AREA) }))} />
@@ -244,7 +253,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
           <div className="seg" role="group" aria-label="Preview mode">
             <button type="button" aria-pressed={eff === "input" || eff === "empty"} onClick={() => setView("input")}>Input</button>
             <button type="button" aria-pressed={eff === "result"} disabled={!done} onClick={() => setView("result")}>Result</button>
-            <button type="button" aria-pressed={eff === "compare"} disabled={!done} onClick={() => setView("compare")}><I n="compare" />Compare</button>
+            {!canvas && <button type="button" aria-pressed={eff === "compare"} disabled={!done} onClick={() => setView("compare")}><I n="compare" />Compare</button>}
             {group.length > 1 && <button type="button" aria-pressed={eff === "grid"} onClick={() => setView("grid")}><I n="grid" />All {group.length}</button>}
           </div>
           <span style={{ flex: 1 }} />
@@ -268,7 +277,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
         </div>
 
         <div className="canvas">
-          <Canvas mode={mode} lead={lead} eff={eff} s={s} set={set} engine={engine} base={base} out={planOf(lead)} shown={shown} job={shownJob} group={group} vlist={vlist} jobs={jobs}
+          <Canvas mode={mode} lead={lead} eff={eff} s={s} set={set} engine={engine} base={base} out={canvas ?? planOf(lead)} shown={shown} job={shownJob} group={group} vlist={vlist} jobs={jobs}
             marking={marking} setMarking={setMarking} fixes={fixes} onFocus={(id) => { set({ current: id }); setView("compare"); }} onStar={star} />
         </div>
 
@@ -486,6 +495,28 @@ function SlotRow({ n, label, hint, optional, r, busy, sample, attrs, onFiles, on
   );
 }
 
+/** Templates that take no photo or clip pick their own canvas: a shape and a size, under the same cap as inputs. */
+function OutputSize({ size, aspect, choice, onChange }: { size: SizeSpec; aspect: string; choice: string; onChange: (k: string, v: string) => void }) {
+  const c = size.canvas!;
+  const dims = canvasSize(size, aspect, choice);
+  return (
+    <section className="sec" aria-labelledby="sec-out">
+      <div className="sec-h"><h4 id="sec-out">Output</h4>{dims && <span className="mono">{dimsText(dims)}</span>}</div>
+      <div className="sizes shapes" role="group" aria-label="Shape" style={{ gridTemplateColumns: `repeat(${Math.min(c.aspects.length, 4)},minmax(0,1fr))` }}>
+        {c.aspects.map((a) => (
+          <button key={a} type="button" aria-pressed={a === aspect} onClick={() => onChange("aspect", a)}><ShapeIcon r={aspectRatio(a)} /><b>{a}</b></button>
+        ))}
+      </div>
+      <div className="sizes" role="group" aria-label="Size" style={{ gridTemplateColumns: `repeat(${Math.min(size.options.length, 4)},minmax(0,1fr))` }}>
+        {size.options.map((o) => {
+          const d = canvasSize(size, aspect, o.label);
+          return <button key={o.label} type="button" aria-pressed={o.label === choice} onClick={() => onChange("out_size", o.label)}><b>{o.label}</b>{d && <span>{dimsText(d)}</span>}</button>;
+        })}
+      </div>
+    </section>
+  );
+}
+
 /**
  * What every photo and clip has: a shape (its own, or a crop to a common one) and a size (its own pixels, or a
  * megapixel budget at its shape). One line under the input; open it to change either. The input on the stage is
@@ -572,6 +603,19 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
   const beforeUrl = motion
     ? (shown && drove ? fileUrl(shown.id, "driving/poster.webp") : clip?.poster ?? undefined)
     : shown && before ? fileUrl(shown.id, before) : base?.url;
+
+  if (eff === "empty" && engine?.size?.canvas) {
+    return (
+      <div className="frame" style={{ "--ar": ar } as CSSProperties}>
+        <div className="empty" style={{ position: "absolute", inset: 0, display: "grid", placeContent: "center", justifyItems: "center", textAlign: "center", padding: 20 }}>
+          <div className="empty-ic"><I n={mode === "motion" ? "film" : "image"} /></div>
+          <h3>Describe it, then Run</h3>
+          <p>No photo needed: this template makes {mode === "motion" ? "a video" : "a picture"} from the prompt alone. The frame shows the shape picked under Output.</p>
+        </div>
+        {out && <div className="corner r"><span className="pill mono">Out {dimsText(out)}</span></div>}
+      </div>
+    );
+  }
 
   if (eff === "empty" && motion) {
     const sample = engine ? sampleVideo(engine, lead) : null;

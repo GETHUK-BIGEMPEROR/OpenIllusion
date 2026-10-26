@@ -25,7 +25,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/woman-red.jpg",
+      "default": "media/man-whitetee.jpg",
       "bind": [
         [
           "11",
@@ -40,7 +40,7 @@
       "hint": "A clear photo of the product.",
       "required": true,
       "size": "1 MP",
-      "default": "media/camera.jpg",
+      "default": "media/instant-camera.jpg",
       "bind": [
         [
           "12",

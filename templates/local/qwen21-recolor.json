@@ -24,7 +24,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/sneaker.jpg",
+      "default": "media/sneaker-canvas.jpg",
       "bind": [
         [
           "11",

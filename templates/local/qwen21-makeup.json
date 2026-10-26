@@ -23,7 +23,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/woman-blue.jpg",
+      "default": "media/woman-bareface.jpg",
       "bind": [
         [
           "11",

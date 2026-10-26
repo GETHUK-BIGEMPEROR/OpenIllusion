@@ -23,7 +23,7 @@
       "required": true,
       "size": "1 MP",
       "area": true,
-      "default": "media/city.jpg",
+      "default": "media/village-street.jpg",
       "bind": [
         [
           "11",

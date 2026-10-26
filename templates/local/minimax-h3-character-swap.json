@@ -34,7 +34,7 @@
         24,
         24
       ],
-      "default": "media/walk-shopping.mp4",
+      "default": "media/walk-street.mp4",
       "bind": [
         [
           "2",
@@ -48,7 +48,7 @@
       "label": "Character",
       "hint": "Who goes in. Full body shows the outfit too; plain backgrounds work best.",
       "required": true,
-      "default": "media/man-plaid.jpg",
+      "default": "media/man-mustard.jpg",
       "bind": [
         [
           "1",

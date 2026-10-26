@@ -249,7 +249,7 @@ export function GenerationDetail({ id }: { id: string }) {
                   return (
                     <div key={i.slot} className="inrow" title={`${i.slot} · ${lic}${i.contains_person ? " · person" : ""}`}>
                       {src ? <img src={src} alt="" style={i.file ? undefined : { opacity: 0.5 }} /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n="image" /></span>}
-                      <div><b>{tpl?.inputs?.find((x) => x.slot === i.slot)?.label ?? slotLabel(i.slot, i.role)}</b><span>{i.file ? (i.license === "stock" ? "Sample" : "Your file") : "Missing from this file"}{i.width && i.height ? ` · ${i.width}×${i.height}` : ""}</span></div>
+                      <div><b>{tpl?.inputs?.find((x) => x.slot === i.slot)?.label ?? slotLabel(i.slot, i.role)}</b><span>{i.file ? (i.license === "stock" ? "Sample" : i.license === "generated" ? "Generated" : "Your file") : "Missing from this file"}{i.width && i.height ? ` · ${i.width}×${i.height}` : ""}</span></div>
                     </div>
                   );
                 })}

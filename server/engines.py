@@ -208,6 +208,8 @@ def build_local(e: "Engine", spec: dict) -> dict:
     wf = copy.deepcopy(e.workflow or {})
     p = spec.get("params", {})
     slots = {i["slot"] for i in spec.get("inputs", [])}
+    # The output size: the prepared lead input's, or the canvas picked for a template without inputs.
+    size_px = spec.get("size_px") or dict(zip(("width", "height"), prep.canvas_size(run_size(e), p.get("aspect"), p.get("out_size")) or ()))
     for key, targets in e.bindings.items():
         cast_ok = True
         if key == "prompt":
@@ -220,7 +222,7 @@ def build_local(e: "Engine", spec: dict) -> dict:
             if name == "seed" and (value in (None, "") or int(value) < 0):
                 value, cast_ok = SEED_TOKEN, False
         elif key in ("size.width", "size.height"):  # the prepared output size, for workflows that make their own canvas
-            value = (spec.get("size_px") or {}).get(key[len("size."):])
+            value = size_px.get(key[len("size."):])
             if value is None:
                 continue
         elif ":" in key:  # a media slot
