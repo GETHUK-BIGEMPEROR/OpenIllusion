@@ -37,6 +37,8 @@ export interface PromptIdea { label: string; text: string }
 export type Field = (
   | { type: MediaType; size?: string; area?: boolean; window?: [number, number]; fps?: [number, number]; role?: string; sample?: (Asset & { slot: string }) | null }
   | (Omit<ParamSpec, "key" | "label"> & { examples?: PromptIdea[] })
+  /** A declared output size: the width and height it writes come from the shape and step picked under Output. */
+  | { type: "size"; aspect?: string; aspects?: string[]; default?: string }
 ) & { key: string; label: string; hint?: string; help?: string; required?: boolean; advanced?: boolean; bind?: unknown[][] };
 
 export const isMedia = (f: Field): f is Field & { type: MediaType } => f.type === "image" || f.type === "video" || f.type === "audio";
@@ -51,8 +53,6 @@ export interface EngineInfo {
   min_images: number;
   needs_video: boolean;
   video_window: [number, number] | null;
-  /** Local templates: the clip is re-encoded no taller than this. */
-  video_max_height?: number | null;
   fps_window: [number, number];
   url_only: boolean;
   params: ParamSpec[];
@@ -84,6 +84,8 @@ export interface EngineInfo {
   cover_aspect?: number | null;
   /** True when the user picked the cover, so it can be reset. */
   cover_custom?: boolean;
+  /** Built but not published: no cover until one of its own results becomes it. Hidden from the wall. */
+  draft?: boolean;
   /** How the app crops and sizes images before the run (server/prep.py). */
   size?: SizeSpec | null;
   /** What the template opens with: a prompt, and a sample for each slot (assets like uploads). */
@@ -99,8 +101,15 @@ export interface EngineInfo {
 export type MediaKind = "image" | "video" | "audio";
 export type BuildParamType = "int" | "number" | "bool" | "seed" | "select" | "string";
 
-/** A loader node a local template can ask the user to fill. */
-export interface BuildMedia { node: string; input: string; kind: MediaKind; title: string; class_type: string; value: string | null; slot: string; sample: Asset | null }
+/** Where a local template can take a photo or clip: a loader ComfyUI marks as one, or a setting that holds a file name (off until the author turns it on). */
+export interface BuildMedia {
+  node: string; input: string; kind: MediaKind; title: string; class_type: string; value: string | null; slot: string; sample: Asset | null;
+  found: "loader" | "setting"; suggested: boolean;
+}
+/** An output node that writes an image or a video: where a run's result can come from. */
+export interface BuildResult { node: string; title: string; class_type: string; kind: "image" | "video" }
+/** A node with a width and a height: where a declared output size can go. */
+export interface BuildSize { node: string; title: string; class_type: string; width: number; height: number }
 /** A multiline text box in the workflow. */
 export interface BuildText { node: string; input: string; title: string; class_type: string; value: string; polarity: "positive" | "negative" | null }
 /** A widget value that could become a control. */
@@ -113,6 +122,23 @@ export interface WorkflowAnalysis {
   token: string; source: string; format: "ui" | "api"; outputs: string[]; nodes: number; notes: string[];
   media: BuildMedia[]; texts: BuildText[]; prompt: { node: string; input: string } | null; params: BuildParam[];
   mode: Mode; check: LocalCheckResult;
+  /** Every node a result can come from; `outputs` holds the suggested one. */
+  results: BuildResult[];
+  /** Every node an output size can go to; `size` holds the suggested one, if any. */
+  sizes: BuildSize[]; size: { node: string } | null;
+  /** The shapes and steps a declared output size can offer, by mode. */
+  canvas: { aspects: string[]; steps: Record<Mode, string[]> };
+  /** Opened from a template: how that template set the workflow up. */
+  preset?: BuildPreset;
+}
+type At = { node: string; input: string };
+export interface BuildPreset {
+  base: string; label: string; blurb: string; tags: string[]; mode: Mode;
+  media: (At & { slot: string; label?: string; hint?: string; required?: boolean; window?: [number, number]; fps?: [number, number] })[];
+  prompt: (At & { label?: string; hint?: string; required?: boolean; default: string; examples: string[] }) | null;
+  params: (At & { key: string; label: string; default?: unknown; help?: string | null })[];
+  size: { node: string; label?: string; aspect?: string; default?: string } | null;
+  outputs: string[];
 }
 export interface SchemaMedia { field: string; kind: MediaKind; many: boolean; max: number; required: boolean; title: string; help: string | null }
 export interface SchemaParam { field: string; title: string; help: string | null; required: boolean; value: unknown; type: BuildParamType; min?: number | null; max?: number | null; step?: number | null; options?: (string | number)[]; suggested: boolean }
@@ -121,22 +147,27 @@ export interface SchemaAnalysis { model: string; version: string; input_modaliti
 export interface BuildPrompt { node?: string; input?: string; field?: string; label: string; hint: string; default: string; required: boolean; examples?: string[] }
 export interface BuildSpec {
   kind: "local" | "cloud"; token?: string; model?: string; replace?: string;
+  /** The template this one was built from: it keeps that one's sizing, tips and model hints. */
+  base?: string;
   label: string; blurb: string; mode: Mode; tags: string[];
-  media: { node?: string; input?: string; field?: string; many?: boolean; kind: MediaKind; label: string; hint: string; required: boolean; sample?: string | null }[];
+  media: {
+    node?: string; input?: string; field?: string; many?: boolean; kind: MediaKind; label: string; hint: string; required: boolean; sample?: string | null;
+    /** Clips: what the template accepts, checked before a run. Unset, the workflow's loader decides. */
+    window?: [number, number]; fps?: [number, number];
+  }[];
   prompt: BuildPrompt | null;
   params: { node?: string; input?: string; field?: string; key?: string; type: BuildParamType; label: string; min?: number | null; max?: number | null; step?: number | null; options?: (string | number)[]; default?: unknown; help?: string | null }[];
   fixed?: { node: string; input: string; value: unknown }[] | Record<string, unknown>;
   outputs?: string[];
-  cover?: string | null;
+  /** The node a declared output size writes width and height on, and the shape and step it opens at. */
+  size?: { node: string; aspect?: string; default?: string } | null;
 }
 
 /** How a template's inputs can be sized. px: about px x px pixels at the input's shape (mp = px² / 1e6); 0 keeps its own size. */
 export interface SizeSpec {
   options: { label: string; px: number; mp?: number }[];
   multiple: number;
-  /** The input whose size the output takes, e.g. "image:1" or "video:1"; null when the template takes none. */
-  follows: string | null;
-  /** Templates without inputs: the shapes offered, and the default shape and size of the canvas. */
+  /** A declared output size: the shapes offered, and the shape and step it opens at. Absent, the workflow sizes its own output. */
   canvas?: { aspects: string[]; aspect: string; size: string };
   /** Each input's default size (an option label); "Original" unless the template says otherwise. */
   inputs: Record<string, string>;
@@ -423,7 +454,6 @@ export interface SpecInput {
   consent?: boolean;
   trim?: [number, number];
   duration?: number;
-  max_height?: number;
   label?: string;
   /** Kept part of the image as fractions [x, y, w, h]. */
   crop?: [number, number, number, number];
@@ -436,6 +466,27 @@ export class HttpError extends Error {
     super(message);
   }
 }
+
+export interface TrashItem {
+  id: string;
+  title: string;
+  prompt: string;
+  mode: Mode;
+  model: string;
+  status: string;
+  starred: boolean;
+  created: number;
+  deleted: number;
+  purge_at: number;
+  poster: string | null;
+  preview: string | null;
+  result_kind: "image" | "video" | null;
+  width: number | null;
+  height: number | null;
+  bytes: number;
+}
+
+export type StorageBucket = "generations" | "trash" | "uploads" | "exports" | "cache";
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const init: RequestInit = { method, headers: {} };
@@ -470,7 +521,8 @@ export const api = {
   settings: () => req<Settings>("GET", "/settings"),
   saveSettings: (s: Partial<Settings> & { api_key?: string; local_token?: string }) => req<Settings>("POST", "/settings", s),
   engines: (mode?: Mode, reload = false) => req<EngineInfo[]>("GET", `/engines?${qs({ mode, reload: reload ? 1 : undefined })}`),
-  setCover: (engine: string, from: { asset: string } | { generation: string }) => req<EngineInfo>("PUT", "/cover", { engine, ...from }),
+  /** A finished run of the template becomes its cover; a draft's first one publishes it. */
+  setCover: (engine: string, generation: string) => req<EngineInfo>("PUT", "/cover", { engine, generation }),
   resetCover: (engine: string) => req<EngineInfo>("DELETE", `/cover?${qs({ engine })}`),
   editTemplate: (engine: string, patch: TemplatePatch) => req<EngineInfo>("PATCH", "/templates", { engine, ...patch }),
   resetTemplate: (engine: string) => req<EngineInfo>("DELETE", `/templates?${qs({ engine })}`),
@@ -480,8 +532,10 @@ export const api = {
     return req<WorkflowAnalysis>("POST", "/builder/workflow", fd);
   },
   buildFromText: (text: string) => req<WorkflowAnalysis>("POST", "/builder/workflow", { text }),
+  buildFromTemplate: (engine: string) => req<WorkflowAnalysis>("POST", "/builder/from-template", { engine }),
   buildSchema: (model: string) => req<SchemaAnalysis>("GET", `/builder/schema?${qs({ model })}`),
   saveTemplate: (spec: BuildSpec) => req<EngineInfo>("POST", "/builder/save", spec),
+  duplicateTemplate: (engine: string) => req<EngineInfo>("POST", "/templates/duplicate", { engine }),
   deleteTemplate: (engine: string) => req<{ ok: boolean }>("DELETE", `/builder/template?${qs({ engine })}`),
   catalog: () => req<{ id: string; provider: string; model: string }[]>("GET", "/catalog"),
   schema: (model: string) => req<{ schema: any; input_modalities: string[]; output_modalities: string[]; version: string; authored: boolean }>("GET", `/schema?model=${encodeURIComponent(model)}`),
@@ -499,14 +553,21 @@ export const api = {
   jobs: () => req<Job[]>("GET", "/jobs"),
   cancel: (id: string) => req("POST", `/jobs/${id}/cancel`),
   clearJobs: () => req<Job[]>("POST", "/jobs/clear"),
+  cancelAll: () => req<{ cancelled: number; jobs: Job[] }>("POST", "/jobs/cancel"),
   dismissJob: (id: string) => req<Job[]>("POST", `/jobs/${id}/dismiss`),
   generations: (f: Record<string, unknown>) => req<GenerationRow[]>("GET", `/generations?${qs(f)}`),
   facets: () => req<{ models: string[]; shelves: Record<string, number>; tags: string[] }>("GET", "/facets"),
   generation: (id: string) => req<Manifest>("GET", `/generations/${id}`),
   patch: (id: string, p: Partial<Pick<Manifest, "title" | "outcome" | "notes" | "tags" | "starred">>) => req<Manifest>("PATCH", `/generations/${id}`, p),
   remove: (id: string) => req("DELETE", `/generations/${id}`),
-  trash: () => req<{ id: string; title: string; deleted: number }[]>("GET", "/trash"),
+  trashMany: (ids: string[]) => req<{ moved: string[]; kept: string[]; trash_days: number }>("POST", "/generations/trash", { ids }),
+  trash: () => req<TrashItem[]>("GET", "/trash"),
   restore: (id: string) => req<Manifest>("POST", `/trash/${id}/restore`),
+  restoreMany: (ids: string[]) => req<{ restored: string[] }>("POST", "/trash/restore", { ids }),
+  purge: (id: string) => req<{ ok: boolean }>("DELETE", `/trash/${id}`),
+  emptyTrash: () => req<{ removed: number }>("DELETE", "/trash"),
+  storage: () => req<Record<StorageBucket, { bytes: number; items: number; path: string }>>("GET", "/storage"),
+  cleanStorage: (bucket: StorageBucket) => req<{ removed: number; bytes: number }>("POST", "/storage/clean", { bucket }),
   rerun: (id: string, engine?: string) => req<{ ids: string[] }>("POST", `/generations/${id}/rerun`, engine ? { engine } : {}),
   exportSizes: (id: string) => req<{ full: number; light: number; recipe: number; has_driving: boolean; link_ok: boolean }>("GET", `/generations/${id}/export/sizes`),
   recipe: (id: string) => req<{ recipe: Manifest; link: string; bytes: number }>("GET", `/generations/${id}/recipe`),
@@ -524,4 +585,7 @@ export const api = {
 };
 
 export const fileUrl = (id: string, rel: string) => `${API}/generations/${id}/file/${rel}`;
+export const trashFileUrl = (id: string, rel: string) => `${API}/trash/${id}/file/${rel}`;
+/** A local template as a ComfyUI workflow with its defaults; its samples land in ComfyUI's input folder. */
+export const templateWorkflowUrl = (engine: string) => `${API}/templates/workflow?engine=${encodeURIComponent(engine)}`;
 export const workflowUrl = (id: string) => `${API}/generations/${id}/workflow`;

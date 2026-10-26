@@ -1,5 +1,5 @@
 import type { EngineInfo, Mode, Spec, SpecInput } from "./api";
-import { areaField, videoField } from "./fields";
+import { areaField, clipSlots } from "./fields";
 import { slotOf, type StudioState } from "./store";
 
 export function defaults(engine?: EngineInfo): Record<string, unknown> {
@@ -24,22 +24,22 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
       size: r.size,
     });
   });
-  // A template takes a clip when it lists one; a raw Router model when it's opened for video.
-  const clip = engine?.fields?.length ? videoField(engine)?.key : mode === "motion" ? "video:1" : undefined;
-  if (clip && s.video) {
+  // One clip per video input the template lists; a raw Router model takes one when it's opened for video.
+  for (const slot of clipSlots(engine, mode)) {
+    const v = s.videos.find((x) => x.slot === slot);
+    if (!v) continue;
     inputs.push({
-      slot: clip,
+      slot,
       role: "motion",
-      asset: s.video.missing ? undefined : s.video.asset,
-      url: s.video.publicUrl || undefined,
-      license: s.video.license,
-      contains_person: s.video.contains_person,
-      consent: s.video.consent,
-      trim: s.video.trim,
-      duration: s.video.duration,
-      max_height: s.video.maxHeight,
-      crop: s.video.crop,
-      size: s.video.size,
+      asset: v.missing ? undefined : v.asset,
+      url: v.publicUrl || undefined,
+      license: v.license,
+      contains_person: v.contains_person,
+      consent: v.consent,
+      trim: v.trim,
+      duration: v.duration,
+      crop: v.crop,
+      size: v.size,
     });
   }
   let raw: Record<string, unknown> | null = null;

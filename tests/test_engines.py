@@ -304,7 +304,7 @@ def test_swap_needs_its_clip_and_character_by_name():
     assert t["42"]["inputs"]["switch"] is False and t["11"]["inputs"]["strength_model"] == 0.8
     # The app sizes the clip; the workflow takes its frames as they come.
     assert "4" not in t and t["5"]["inputs"]["image"] == ["3", 0] and t["23"]["inputs"]["ref_videos.ref_video_0"] == ["3", 0]
-    assert e.fps_window == (24, 24) and e.size["follows"] == "video:1" and e.size["inputs"] == {"video:1": "0.4 MP", "image:1": "Original"}
+    assert e.fps_window == (24, 24) and e.size["inputs"] == {"video:1": "0.4 MP", "image:1": "Original"}
 
 
 def test_sample_clip_is_described_as_video_with_a_poster():

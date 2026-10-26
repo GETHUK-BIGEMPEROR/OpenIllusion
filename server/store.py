@@ -113,15 +113,7 @@ def _reason(m: sc.Manifest) -> str | None:
 
 def _dims(generation_id: str, rel: str | None) -> tuple[int | None, int | None]:
     """Pixel size of a result image (header only), so walls lay out before media loads."""
-    if not rel:
-        return None, None
-    try:
-        from PIL import Image
-
-        with Image.open(folder(generation_id) / rel) as im:
-            return im.width, im.height
-    except Exception:
-        return None, None
+    return _dims_at(folder(generation_id), rel)
 
 
 def save(m: sc.Manifest, shelf: str | None = None) -> sc.Manifest:
@@ -233,8 +225,23 @@ def delete(generation_id: str) -> None:
         c.commit()
 
 
+def delete_many(ids: list[str]) -> list[str]:
+    """Move several generations to the trash; returns the ids that moved."""
+    moved = []
+    for gid in ids:
+        try:
+            if folder(gid).exists():
+                delete(gid)
+                moved.append(gid)
+        except (OSError, ValueError):
+            continue
+    return moved
+
+
 def restore(generation_id: str) -> sc.Manifest:
-    src = paths.trash_dir() / generation_id
+    src = trash_folder(generation_id)
+    if not src.exists():
+        raise FileNotFoundError(generation_id)
     dst = folder(generation_id)
     shutil.move(str(src), str(dst))
     (dst / ".deleted").unlink(missing_ok=True)
@@ -243,16 +250,71 @@ def restore(generation_id: str) -> sc.Manifest:
     return m
 
 
+def trash_folder(generation_id: str) -> Path:
+    folder(generation_id)  # same id rules
+    return paths.trash_dir() / generation_id
+
+
 def trash() -> list[dict]:
     out = []
-    for d in sorted(paths.trash_dir().iterdir()):
+    for d in paths.trash_dir().iterdir():
         try:
             m = sc.read(d)
             deleted = float((d / ".deleted").read_text("utf-8"))
         except Exception:
             continue
-        out.append({"id": m.id, "title": m.title, "deleted": deleted, "purge_at": deleted + TRASH_DAYS * 86400})
-    return out
+        res = m.result
+        w, h = (_dims_at(d, res.poster or res.file) if res else (None, None))
+        out.append({
+            "id": m.id, "title": m.title, "prompt": m.prompt, "mode": m.mode, "model": m.engine.model, "status": m.status,
+            "starred": m.starred, "created": m.created, "deleted": deleted, "purge_at": deleted + TRASH_DAYS * 86400,
+            "poster": res.poster if res else None, "preview": res.file if res else None, "result_kind": res.kind if res else None,
+            "width": w, "height": h, "bytes": dir_size(d),
+        })
+    return sorted(out, key=lambda t: t["deleted"], reverse=True)
+
+
+def purge(generation_id: str) -> bool:
+    """Delete one trashed generation for good."""
+    d = trash_folder(generation_id)
+    if not d.exists():
+        return False
+    shutil.rmtree(d)
+    return True
+
+
+def empty_trash() -> int:
+    n = 0
+    for d in list(paths.trash_dir().iterdir()):
+        try:
+            shutil.rmtree(d) if d.is_dir() else d.unlink()
+            n += 1
+        except OSError:
+            continue
+    return n
+
+
+def dir_size(p: Path) -> int:
+    total = 0
+    for f in p.rglob("*"):
+        try:
+            if f.is_file():
+                total += f.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def _dims_at(base: Path, rel: str | None) -> tuple[int | None, int | None]:
+    if not rel:
+        return None, None
+    try:
+        from PIL import Image
+
+        with Image.open(base / rel) as im:
+            return im.width, im.height
+    except Exception:
+        return None, None
 
 
 def purge_trash(now: float | None = None) -> int:

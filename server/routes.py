@@ -16,7 +16,7 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from . import __version__, builder, bundle, engines, jobs, local, media, paths, proxy, settings, store
+from . import __version__, builder, bundle, engines, jobs, local, media, paths, proxy, settings, storage, store
 from . import generation as sc
 from .router import Router, RouterError
 
@@ -204,8 +204,9 @@ def register(routes: web.RouteTableDef) -> None:
         out = [engines.describe(e) for e in engines.ENGINES.values() if not mode or e.mode == mode]
         return web.json_response(out)
 
-    # A template's card image: GET serves it, PUT sets it from an upload or a
-    # generation's result, DELETE goes back to the one the template ships with.
+    # A template's card image: GET serves it, PUT sets it from a finished run of
+    # that template (a cover always shows what it really makes), DELETE goes back
+    # to the one it ships with. A built template's first cover publishes it.
 
     @routes.get(API + "/cover")
     async def get_cover(request):
@@ -230,24 +231,18 @@ def register(routes: web.RouteTableDef) -> None:
         e = engines.ENGINES.get(b.get("engine", ""))
         if e is None:
             return err(404, "No such template")
-        loop: Path | None = None
-        if b.get("generation"):
-            try:
-                m = store.get(b["generation"])
-            except (FileNotFoundError, ValueError):
-                return err(404, "Generation not found")
-            if not (m.result and m.result.poster):
-                return err(409, "This generation has no result to use yet")
-            src = store.folder(m.id) / m.result.poster
-            if m.result.kind == "video" and m.result.file:
-                loop = store.folder(m.id) / m.result.file
-        elif b.get("asset"):
-            asset = str(b["asset"])
-            src = paths.uploads_dir() / asset
-            if Path(asset).name != asset or not src.is_file():
-                return err(404, "Upload not found")
-        else:
-            return err(400, "Send an asset or a generation")
+        if not b.get("generation"):
+            return err(400, "Send the generation whose result becomes the cover")
+        try:
+            m = store.get(b["generation"])
+        except (FileNotFoundError, ValueError):
+            return err(404, "Generation not found")
+        if m.engine.model != e.id:
+            return err(409, "Only a run of this template can be its cover")
+        if m.status != "done" or not (m.result and m.result.poster):
+            return err(409, "This run has no finished result to use yet")
+        src = store.folder(m.id) / m.result.poster
+        loop = store.folder(m.id) / m.result.file if m.result.kind == "video" and m.result.file else None
         try:
             await asyncio.to_thread(engines.set_cover, e.id, src, loop)
         except Exception as ex:
@@ -274,6 +269,14 @@ def register(routes: web.RouteTableDef) -> None:
             return err(404, "No such template")
         except ValueError as ex:
             return err(422, str(ex))
+        return web.json_response(engines.describe(e))
+
+    @routes.post(API + "/templates/duplicate")
+    async def duplicate_template(request):
+        try:
+            e = await asyncio.to_thread(engines.duplicate_template, str((await body(request)).get("engine", "")))
+        except KeyError:
+            return err(404, "No such template")
         return web.json_response(engines.describe(e))
 
     @routes.delete(API + "/templates")
@@ -339,6 +342,64 @@ def register(routes: web.RouteTableDef) -> None:
         a.pop("workflow")
         return web.json_response({"token": token, "source": name, "format": fmt, **a})
 
+    @routes.post(API + "/builder/from-template")
+    async def builder_from_template(request):
+        """Open a local template in the builder: its workflow read like a dropped one, plus how the template set it up."""
+        b = await body(request)
+        e = engines.ENGINES.get(str(b.get("engine") or ""))
+        if e is None or e.kind != "local" or not e.workflow:
+            return err(404, "Only local templates have a workflow to build from")
+        comfy = local.ComfyUI()
+        try:
+            info = await comfy.object_info(fresh=True)
+        except httpx.HTTPError:
+            return err(503, f"ComfyUI isn't reachable at {comfy.base}. The builder reads node definitions from it, so start ComfyUI and try again.")
+        wf = engines.defaults_workflow(e, every_input=True)
+        engines.fill_media(wf, {i["slot"]: (e.default_inputs[i["slot"]].name if i["slot"] in e.default_inputs else "example.png") for i in e.inputs})
+        try:
+            a = builder.analyze(wf, info)
+        except builder.BuildError as ex:
+            return err(422, str(ex))
+        slug = e.id.split("/", 1)[-1]
+        token = builder.put_draft(a["workflow"], f"{slug}.json")
+        # Each loader opens with the template's sample.
+        where = {(str(t[0]), t[1]): slot for slot, binds in e.bindings.items() if ":" in slot for t in binds}
+        for m in a["media"]:
+            slot = where.get((m["node"], m["input"]))
+            src = e.default_inputs.get(slot) if slot else None
+            m["sample"] = None
+            if src and src.is_file():
+                raw = src.read_bytes()
+                asset = hashlib.sha256(raw).hexdigest()[:24] + src.suffix.lower()
+                dst = paths.uploads_dir() / asset
+                if not dst.exists():
+                    dst.write_bytes(raw)
+                m["sample"] = {"asset": asset, "name": src.name, **await asyncio.to_thread(asset_info, dst)}
+        a.pop("workflow")
+        return web.json_response({"token": token, "source": f"{slug}.json", "format": "api", **a, "preset": builder.preset(e)})
+
+    @routes.get(API + "/templates/workflow")
+    async def template_workflow(request):
+        """A local template as a ComfyUI workflow (API format) with its defaults. Its samples are put in
+        ComfyUI's input folder, so the file runs as is when dropped into ComfyUI."""
+        e = engines.ENGINES.get(request.query.get("engine", ""))
+        if e is None or e.kind != "local" or not e.workflow:
+            return err(404, "Only local templates have a workflow")
+        slug = e.id.split("/", 1)[-1]
+        wf = engines.defaults_workflow(e)
+        comfy, names = local.ComfyUI(), {}
+        for slot, src in e.default_inputs.items():
+            if not src.is_file():
+                continue
+            names[slot] = f"openillusion_{slug}_{slot.replace(':', '')}{src.suffix.lower()}"
+            try:
+                names[slot] = await comfy.upload_input(src, names[slot])
+            except (httpx.HTTPError, KeyError, ValueError):
+                pass  # still a valid file; ComfyUI points at the missing input when it's opened
+        engines.fill_media(wf, names)
+        return web.Response(text=json.dumps(wf, indent=2, ensure_ascii=False), content_type="application/json",
+                            headers={"Content-Disposition": f'attachment; filename="{slug}.json"', "Cache-Control": "no-store"})
+
     @routes.get(API + "/builder/schema")
     async def builder_schema(request):
         model = request.query.get("model", "")
@@ -371,12 +432,14 @@ def register(routes: web.RouteTableDef) -> None:
                 except httpx.HTTPError:
                     return err(503, "ComfyUI isn't reachable, so the workflow can't be checked. Start it and save again.")
                 data = builder.assemble_local(b, draft, info)
+                base = engines.ENGINES.get(str(b.get("base") or ""))
+                if base is not None and base.data:
+                    builder.inherit(data, base.data, base.label)
             samples = {}
             for m in builder._media_rows(b.get("media") or []):
                 if m.get("sample"):
                     samples[m["slot"]] = jobs.resolve_asset(str(m["sample"]))
-            cover = jobs.resolve_asset(str(b["cover"])) if b.get("cover") else None
-            tid = builder.save(data, samples, cover, replace=replace, taken=set(engines.ENGINES))
+            tid = builder.save(data, samples, replace=replace, taken=set(engines.ENGINES))
         except (builder.BuildError, KeyError, ValueError) as e:
             return err(422, str(e))
         engines.reload_templates()
@@ -548,6 +611,11 @@ def register(routes: web.RouteTableDef) -> None:
         jobs.MANAGER.dismiss(request.match_info["id"])
         return web.json_response(jobs.MANAGER.list())
 
+    @routes.post(API + "/jobs/cancel")
+    async def cancel_all_jobs(request):
+        n = await jobs.MANAGER.cancel_all()
+        return web.json_response({"cancelled": n, "jobs": jobs.MANAGER.list()})
+
     @routes.post(API + "/jobs/clear")
     async def clear_jobs(request):
         jobs.MANAGER.clear_finished()
@@ -563,6 +631,7 @@ def register(routes: web.RouteTableDef) -> None:
             shelf=q.get("shelf") or None, q=q.get("q") or None, mode=q.get("mode") or None,
             model=q.get("model") or None, outcome=q.get("outcome") or None, tag=q.get("tag") or None,
             has_driving=None if hd in (None, "") else hd == "1",
+            limit=min(20000, int(q["limit"])) if q.get("limit", "").isdigit() and int(q["limit"]) > 0 else 200,
         )
         return web.json_response(rows)
 
@@ -597,22 +666,85 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.delete(API + "/generations/{id}")
     async def delete_generation(request):
-        store.delete(request.match_info["id"])
-        library_changed(request.match_info["id"])
+        gid = request.match_info["id"]
+        if gid in jobs.MANAGER.active_ids():
+            return err(409, "This run is still going. Cancel it first.")
+        try:
+            store.delete(gid)
+        except ValueError:
+            return err(404, "Generation not found")
+        library_changed(gid)
         return web.json_response({"ok": True, "trash_days": store.TRASH_DAYS})
+
+    # Bulk: Clear all, clear a day, and Select → Move to trash. Runs still going are kept.
+    @routes.post(API + "/generations/trash")
+    async def trash_many(request):
+        ids = [str(i) for i in (await body(request)).get("ids") or []]
+        active = jobs.MANAGER.active_ids()
+        moved = await asyncio.to_thread(store.delete_many, [i for i in ids if i not in active])
+        if moved:
+            library_changed(*moved)
+        return web.json_response({"moved": moved, "kept": [i for i in ids if i in active], "trash_days": store.TRASH_DAYS})
 
     @routes.get(API + "/trash")
     async def list_trash(request):
-        return web.json_response(store.trash())
+        return web.json_response(await asyncio.to_thread(store.trash))
 
     @routes.post(API + "/trash/{id}/restore")
     async def restore(request):
         try:
             m = store.restore(request.match_info["id"])
-        except FileNotFoundError:
+        except (FileNotFoundError, ValueError):
             return err(404, "Not in the trash")
         library_changed(m.id)
         return web.json_response(sc.dump(m))
+
+    @routes.post(API + "/trash/restore")
+    async def restore_many(request):
+        ids = [str(i) for i in (await body(request)).get("ids") or []]
+        back = []
+        for i in ids:
+            try:
+                back.append(store.restore(i).id)
+            except (FileNotFoundError, ValueError, OSError):
+                continue
+        if back:
+            library_changed(*back)
+        return web.json_response({"restored": back})
+
+    @routes.delete(API + "/trash/{id}")
+    async def purge_one(request):
+        try:
+            ok = await asyncio.to_thread(store.purge, request.match_info["id"])
+        except ValueError:
+            ok = False
+        return web.json_response({"ok": ok}) if ok else err(404, "Not in the trash")
+
+    @routes.delete(API + "/trash")
+    async def empty_trash(request):
+        return web.json_response({"removed": await asyncio.to_thread(store.empty_trash)})
+
+    @routes.get(API + "/trash/{id}/file/{path:.+}")
+    async def trash_file(request):
+        try:
+            base = store.trash_folder(request.match_info["id"])
+        except ValueError:
+            return err(404, "Not found")
+        return _safe_file(base, request.match_info["path"])
+
+    # ---- storage -----------------------------------------------------------------
+
+    @routes.get(API + "/storage")
+    async def storage_usage(request):
+        return web.json_response(await asyncio.to_thread(storage.usage))
+
+    @routes.post(API + "/storage/clean")
+    async def storage_clean(request):
+        try:
+            out = await asyncio.to_thread(storage.clean, str((await body(request)).get("bucket", "")))
+        except ValueError as e:
+            return err(422, str(e))
+        return web.json_response(out)
 
     @routes.get(API + "/generations/{id}/file/{path:.+}")
     async def generation_file(request):

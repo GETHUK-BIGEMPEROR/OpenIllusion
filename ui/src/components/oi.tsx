@@ -27,13 +27,25 @@ export function Ring({ p, sm }: { p: number; sm?: boolean }) {
   );
 }
 
-/** Tile media: a shimmer at the right shape until the picture arrives, then a fade in. */
+/** Tile media: a shimmer at the right shape until the picture arrives, then a fade in.
+ *  A loop is only mounted near the viewport (its poster stands in elsewhere): every <video>
+ *  holds a connection, and a wall of them starves the API calls the page makes. */
 export function Media({ src, video, poster, ar, children, imgStyle }: {
   src?: string | null; video?: string | null; poster?: string | null; ar: number; children?: ReactNode; imgStyle?: CSSProperties;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const [near, setNear] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
   const vid = useRef<HTMLVideoElement>(null);
   useEffect(() => setLoaded(false), [src, video]);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || !video) return;
+    const io = new IntersectionObserver(([en]) => setNear(en.isIntersecting), { rootMargin: "300px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [video]);
+  const live = !!video && near;
   // Loops play while on screen only.
   useEffect(() => {
     const v = vid.current;
@@ -41,15 +53,16 @@ export function Media({ src, video, poster, ar, children, imgStyle }: {
     const io = new IntersectionObserver(([en]) => (en.isIntersecting ? v.play().catch(() => {}) : v.pause()), { threshold: 0.35 });
     io.observe(v);
     return () => io.disconnect();
-  }, [video]);
+  }, [live]);
   const done = () => setLoaded(true);
+  const still = video ? poster : src;
   return (
-    <div className={cx("media", (loaded || (!src && !video)) && "loaded")} style={{ "--ar": ar } as CSSProperties}>
-      {video ? (
-        <video ref={vid} src={video} poster={poster ?? undefined} muted loop playsInline preload="metadata" aria-hidden onLoadedData={done} onError={done}
+    <div ref={box} className={cx("media", (loaded || (!src && !video)) && "loaded")} style={{ "--ar": ar } as CSSProperties}>
+      {live ? (
+        <video ref={vid} src={video!} poster={poster ?? undefined} muted loop playsInline preload="metadata" aria-hidden onLoadedData={done} onError={done}
           style={{ width: "100%", height: "100%", objectFit: "cover", opacity: loaded ? 1 : 0, transition: "opacity .45s", ...imgStyle }} />
-      ) : src ? (
-        <img src={src} alt="" loading="lazy" decoding="async" draggable={false} onLoad={done} onError={done} style={imgStyle} />
+      ) : still ? (
+        <img src={still} alt="" loading="lazy" decoding="async" draggable={false} onLoad={done} onError={done} style={imgStyle} />
       ) : null}
       {children}
     </div>

@@ -45,3 +45,48 @@
 .toast.err .i{color:var(--rose)}
 .toast .btn{height:28px}
 .toast:not(:has(.btn)){padding-right:16px}
+
+/* ---------- confirm ---------- */
+/* One dialog for every destructive action: a fanned stack of what goes, plain words, Cancel focused. */
+.cf-scrim{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.confirm{width:min(400px,calc(100% - 24px));padding:26px 22px 18px;display:grid;justify-items:center;text-align:center;gap:0;overflow:hidden;animation:cf-in .26s cubic-bezier(.2,.9,.25,1.15);isolation:isolate}
+@keyframes cf-in{from{opacity:0;transform:translate(-50%,-46%) scale(.96)}}
+.confirm h2{margin:0;font:600 18px/1.25 var(--display);letter-spacing:-.01em;max-width:320px}
+.cf-body{margin:8px 0 0;font-size:13px;line-height:1.55;color:var(--text-2);max-width:320px}
+.cf-art{position:relative;width:100%;height:132px;display:grid;place-items:center;margin:-4px 0 18px}
+.cf-glow{position:absolute;left:0;top:0;width:100%;height:200px;object-fit:cover;filter:blur(36px) saturate(1.4);opacity:.4;z-index:-1;transform:scale(1.4);pointer-events:none;-webkit-mask-image:linear-gradient(#000 25%,transparent 85%);mask-image:linear-gradient(#000 25%,transparent 85%)}
+.cf-stack{position:relative;width:96px;height:120px}
+.cf-stack img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:14px;border:2px solid var(--panel);box-shadow:0 14px 30px -10px rgba(0,0,0,.8);
+  z-index:calc(10 - var(--i));
+  transform:translateX(calc(var(--off) * 40px)) rotate(calc(var(--off) * 8deg)) scale(calc(1 - var(--i) * .03 - var(--i) * var(--i) * .02));
+  animation:cf-fan .42s cubic-bezier(.2,.9,.25,1.1) both;animation-delay:calc(var(--i) * 40ms)}
+@keyframes cf-fan{from{transform:none;opacity:0}}
+.cf-more{position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);z-index:20;font:600 11px/1 var(--mono);padding:5px 9px;border-radius:999px;background:var(--panel);border:1px solid var(--line-2);color:var(--text)}
+.cf-ic{width:54px;height:54px;border-radius:17px;display:grid;place-items:center;margin-bottom:16px;background:rgba(255,107,126,.12);color:var(--rose);box-shadow:inset 0 0 0 1px rgba(255,107,126,.25)}
+.confirm.neutral .cf-ic{background:var(--raised);color:var(--text);box-shadow:inset 0 0 0 1px var(--line-2)}
+.cf-ic .i{width:24px;height:24px}
+.cf-facts{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.cf-facts li{font:500 11.5px/1.2 var(--body);padding:6px 9px;border-radius:8px;background:var(--raised);color:var(--text-2)}
+.cf-opt{margin-top:14px;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:var(--raised);font-size:12.5px;color:var(--text-2);cursor:pointer;width:100%;text-align:left;transition:background .15s}
+.cf-opt:hover{background:var(--hover)}
+.cf-opt input{position:absolute;opacity:0;pointer-events:none}
+.cf-opt .box{width:18px;height:18px;border-radius:6px;border:1.5px solid var(--line-2);display:grid;place-items:center;color:transparent;flex:none;transition:background .15s,border-color .15s}
+.cf-opt .box .i{width:12px;height:12px;stroke-width:3}
+.cf-opt input:checked + .box{background:var(--rose);border-color:var(--rose);color:#1a0d12}
+.cf-opt input:focus-visible + .box{outline:2px solid var(--violet);outline-offset:2px}
+.cf-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;margin-top:20px}
+.cf-actions .btn{height:40px;border-radius:12px}
+.btn.cf-go{background:var(--rose);color:#1a0d12;border-color:transparent;font-weight:600}
+.btn.cf-go:hover{filter:brightness(1.07)}
+.btn.cf-go:disabled,.cf-actions .btn:disabled{opacity:.45;pointer-events:none}
+.cf-hold{position:relative;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:none}
+.cf-hold .fill{position:absolute;inset:0;background:rgba(255,255,255,.35);transform-origin:left;transform:scaleX(0)}
+.cf-hold.held .fill{transform:scaleX(1);transition:transform var(--hold) linear}
+.cf-hold .lbl{position:relative}
+@media (prefers-reduced-motion:reduce){.confirm,.cf-stack img{animation:none}}
+/* drop anywhere: a hint at the bottom, never over what you're aiming at */
+.dropcue{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:70;pointer-events:none;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:10px 16px;border-radius:999px;background:rgba(20,15,27,.92);border:1px solid rgba(154,134,240,.45);box-shadow:0 12px 40px rgba(0,0,0,.45);color:var(--text-2);font-size:12.5px;white-space:nowrap;animation:dropcue-in .16s ease-out}
+.dropcue b{color:var(--text);font-weight:500}
+.dropcue span{overflow:hidden;text-overflow:ellipsis}
+.dropcue svg{flex:none;width:16px;height:16px;color:var(--violet)}
+@keyframes dropcue-in{from{opacity:0;transform:translate(-50%,6px)}}

@@ -5,7 +5,7 @@ import { describeFailure } from "../lib/errors";
 import { errMsg, shortModel } from "../lib/format";
 import { useElapsed, useJobs } from "../lib/live";
 import { go, href } from "../lib/route";
-import { roleOf, videoField } from "../lib/fields";
+import { clipSlots, clipWindow, roleOf } from "../lib/fields";
 import { toSpec } from "../lib/spec";
 import { newKey, useApp, type StudioState } from "../lib/store";
 import { typing } from "./ABPlayer";
@@ -28,22 +28,28 @@ export function useStudio(mode: Mode) {
   useEffect(() => {
     const e = engines.data?.find((x) => x.id === s.engine);
     if (!e || s.seeded === e.id) return;
-    if (s.refs.length || s.prompt || s.video || !e.defaults) return set(mode, { seeded: e.id });
-    const clip = videoField(e) ? e.defaults.inputs.find((i) => i.slot === videoField(e)!.key) : undefined;
-    const d = clip?.duration ?? 0;
-    set(mode, {
-      seeded: e.id,
-      prompt: e.defaults.prompt,
-      video: clip ? { ...clip, trim: [0, e.video_window ? Math.min(d, e.video_window[1]) : d], sample: true, license: "generated", contains_person: false, consent: false } : null,
-      refs: e.defaults.inputs.filter((i) => i.slot.startsWith("image:")).map((i) => {
-        const n = Number(i.slot.split(":")[1]);
-        return {
-          ...i, key: newKey(), slot: n, sample: true, license: "generated", contains_person: false, consent: false, role: roleOf(e, i.slot),
-        };
-      }),
-    });
+    if (s.refs.length || s.prompt || s.videos.length || !e.defaults) return set(mode, { seeded: e.id });
+    set(mode, seedFrom(e));
   }, [mode, s.engine, s.seeded, engines.data, set]);
   return [s, (p: Partial<StudioState> | ((s: StudioState) => Partial<StudioState>)) => set(mode, p)] as const;
+}
+
+/** A fresh draft of ``e``: its samples in the slots and its default prompt in the box. */
+export function seedFrom(e: EngineInfo): Partial<StudioState> {
+  if (!e.defaults) return { seeded: e.id };
+  const slots = clipSlots(e, e.mode);
+  return {
+    seeded: e.id,
+    prompt: e.defaults.prompt,
+    videos: e.defaults.inputs.filter((i) => slots.includes(i.slot)).map((i) => {
+      const d = i.duration ?? 0;
+      const win = clipWindow(e, i.slot);
+      return { ...i, trim: [0, win ? Math.min(d, win[1]) : d] as [number, number], sample: true, license: "generated", contains_person: false, consent: false };
+    }),
+    refs: e.defaults.inputs.filter((i) => i.slot.startsWith("image:")).map((i) => ({
+      ...i, key: newKey(), slot: Number(i.slot.split(":")[1]), sample: true, license: "generated", contains_person: false, consent: false, role: roleOf(e, i.slot),
+    })),
+  };
 }
 
 type SetStudio = ReturnType<typeof useStudio>[1];

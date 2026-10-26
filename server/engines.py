@@ -56,7 +56,6 @@ class Engine:
     needs_video: bool = False
     video_window: tuple[float, float] | None = None  # seconds
     fps_window: tuple[float, float] = (23.976, 60.0)
-    video_max_height: int | None = None  # the driving clip is re-encoded no taller than this
     url_only: bool = False
     params: list[dict] = field(default_factory=list)
     build: Callable[[dict], dict] | None = None
@@ -79,7 +78,7 @@ class Engine:
     edited: bool = False  # a user file overrides a shipped template with the same id
     cover: Path | None = None  # poster the template ships with; the user can override it
     cover_video: Path | None = None  # optional short loop shown over the poster
-    size: dict | None = None  # how each input is cropped and sized before the run (see prep.py); filled in for every engine
+    size: dict | None = None  # how each input is cropped and sized before the run, and a declared output size (see prep.py); filled in for every engine
     default_prompt: str = ""  # what the prompt box opens with
     default_inputs: dict[str, Path] = field(default_factory=dict)  # sample media each slot opens with, by slot
     model: str | None = None  # cloud templates: the Router model the body is sent to
@@ -208,8 +207,6 @@ def build_local(e: "Engine", spec: dict) -> dict:
     wf = copy.deepcopy(e.workflow or {})
     p = spec.get("params", {})
     slots = {i["slot"] for i in spec.get("inputs", [])}
-    # The output size: the prepared lead input's, or the canvas picked for a template without inputs.
-    size_px = spec.get("size_px") or dict(zip(("width", "height"), prep.canvas_size(run_size(e), p.get("aspect"), p.get("out_size")) or ()))
     for key, targets in e.bindings.items():
         cast_ok = True
         if key == "prompt":
@@ -221,10 +218,11 @@ def build_local(e: "Engine", spec: dict) -> dict:
             value = p[name]
             if name == "seed" and (value in (None, "") or int(value) < 0):
                 value, cast_ok = SEED_TOKEN, False
-        elif key in ("size.width", "size.height"):  # the prepared output size, for workflows that make their own canvas
-            value = size_px.get(key[len("size."):])
-            if value is None:
-                continue
+        elif key == "size":  # a declared output size: the shape and step picked, as width and height
+            dims = prep.canvas_size(run_size(e), p.get("aspect"), p.get("out_size"))
+            for node, inp, side in (t for t in targets if str(t[0]) in wf):
+                wf[str(node)]["inputs"][inp] = dims[0] if side == "width" else dims[1]
+            continue
         elif ":" in key:  # a media slot
             value, cast_ok = ("{{%s}}" % key if key in slots else None), False
         else:
@@ -239,6 +237,29 @@ def build_local(e: "Engine", spec: dict) -> dict:
             cast = _CASTS.get(t[2]) if cast_ok and len(t) > 2 else None
             node["inputs"][t[1]] = cast(value) if cast else value
     return prune(wf)
+
+
+def defaults_workflow(e: "Engine", every_input: bool = False) -> dict:
+    """A local template's workflow with its defaults written in: the default prompt, each control
+    at its default and a fixed seed. Media slots keep their ``{{slot}}`` tokens (see fill_media).
+    Inputs without a sample are pruned unless ``every_input``."""
+    if e.kind != "local" or not e.workflow:
+        raise KeyError(e.id)
+    params = {p["key"]: p.get("default") for p in e.params if p.get("default") is not None}
+    for p in e.params:
+        if p.get("type") == "seed" and int(params.get(p["key"], -1)) < 0:
+            params[p["key"]] = random.randrange(2**31)
+    slots = [i["slot"] for i in e.inputs] if every_input else list(e.default_inputs)
+    return build_local(e, {"inputs": [{"slot": s} for s in slots], "prompt": e.default_prompt, "params": params})
+
+
+def fill_media(wf: dict, names: dict[str, str]) -> dict:
+    """Swap each ``{{slot}}`` token for a file name in ComfyUI's input folder."""
+    for n in wf.values():
+        for k, v in n.get("inputs", {}).items():
+            if isinstance(v, str) and v.startswith("{{") and v[2:-2] in names:
+                n["inputs"][k] = names[v[2:-2]]
+    return wf
 
 
 def build_cloud(e: "Engine", spec: dict) -> dict:
@@ -330,7 +351,7 @@ def _is_link(v: Any) -> bool:
 # one of these inputs, so the prompt box holds the whole prompt the model reads.
 
 MEDIA = ("image", "video", "audio")
-FIELD_TYPES = {*MEDIA, "text", "string", "int", "number", "bool", "seed", "select", "segmented"}
+FIELD_TYPES = {*MEDIA, "text", "string", "int", "number", "bool", "seed", "select", "segmented", "size"}
 _PARAM_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 
@@ -350,7 +371,8 @@ def upgrade(data: dict) -> dict:
     samples = defaults.get("inputs") or {}
     max_images, min_images = int(d.pop("max_images", 1)), int(d.pop("min_images", 0))
     needs_video = bool(d.pop("needs_video", False))
-    window, fps, max_h = d.pop("video_window", None), d.pop("fps_window", None), d.pop("video_max_height", None)
+    window, fps = d.pop("video_window", None), d.pop("fps_window", None)
+    d.pop("video_max_height", None)  # clips are sized like photos now
     named = d.pop("inputs", None) or [{"slot": f"image:{n}"} for n in range(1, max_images + 1)] + ([{"slot": "video:1"}] if needs_video else [])
     fields: list[dict] = []
     n_img = 0
@@ -362,7 +384,7 @@ def upgrade(data: dict) -> dict:
             f["required"] = n_img <= min_images
         elif kind == "video":
             f["required"] = needs_video
-            f.update({k: v for k, v in (("window", window), ("fps", fps), ("max_height", max_h)) if v})
+            f.update({k: v for k, v in (("window", window), ("fps", fps)) if v})
         f.update({k: i[k] for k in ("hint", "size", "role") if i.get(k)})
         if samples.get(i["slot"]):
             f["default"] = samples[i["slot"]]
@@ -402,6 +424,25 @@ def upgrade(data: dict) -> dict:
     return d
 
 
+def lift_computed(data: dict) -> dict:
+    """Older files wrote an output size through ``computed`` bindings and kept its shape and
+    step in the size block. That is a declared ``size`` input now; a file that still has the
+    old form gets one, with the same nodes."""
+    comp = data.get("computed") or {}
+    if not comp or any(f.get("type") == "size" for f in data.get("inputs") or []):
+        return data
+    d = copy.deepcopy(data)
+    comp = d.pop("computed")
+    size = d.get("size") or {}
+    bind = [[str(t[0]), t[1], side] for side in ("width", "height") for t in comp.get(f"size.{side}") or []]
+    if bind:
+        f = {"key": "size", "type": "size", "label": "Output size", "bind": bind}
+        f.update({k: size.pop(k) for k in ("aspect", "aspects", "default") if k in size})
+        d["inputs"] = [*(d.get("inputs") or []), f]
+    size.pop("follows", None)
+    return d
+
+
 def _examples(v: Any) -> list[dict]:
     """Prompt ideas: plain strings, or {label, text} when the chip shows a short name for a long prompt."""
     out = []
@@ -420,6 +461,9 @@ def _field(f: Any) -> dict:
     if t in MEDIA:
         if not re.fullmatch(rf"{t}:\d+", key):
             raise ValueError(f"a {t} input's key is {t}:<n>, not {key!r}")
+    elif t == "size":
+        if key != "size" or not f.get("bind") or any(len(b) != 3 or b[2] not in ("width", "height") for b in f["bind"]):
+            raise ValueError("a size input is keyed size and binds [node, input, width|height]")
     elif not (key == "prompt" or _PARAM_KEY.match(key)) or re.match(r"^(image|video|audio)$", key):
         raise ValueError(f"bad input key {key!r}")
     out = {**f, "bind": [list(b) for b in f.get("bind") or []]}
@@ -432,7 +476,7 @@ def _field(f: Any) -> dict:
 def load_template(data: dict, base: Path | None = None) -> "Engine":
     if data.get("format") != "openillusion.template":
         raise ValueError("not a openillusion.template")
-    data = upgrade(data)
+    data = lift_computed(upgrade(data))
     cloud = data.get("kind") == "cloud"
     tid = data["id"]
     prefix = "cloud/" if cloud else "local/"
@@ -447,9 +491,10 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
     images = [f for f in media if f["type"] == "image"]
     video = next((f for f in media if f["type"] == "video"), None)
     text = next((f for f in fields if f["key"] == "prompt"), None)
-    bindings = dict(data.get("computed") or {})
+    out = next((f for f in fields if f["type"] == "size"), None)
+    bindings = {}
     for f in fields:
-        bindings[f["key"] if f["type"] in MEDIA or f["key"] == "prompt" else f"params.{f['key']}"] = f["bind"]
+        bindings[f["key"] if f["type"] in (*MEDIA, "size") or f["key"] == "prompt" else f"params.{f['key']}"] = f["bind"]
     slots = [{"slot": f["key"], **{k: f[k] for k in ("label", "hint", "size", "role") if f.get(k)}} for f in media]
     e = Engine(
         id=tid, mode=data.get("mode", "edit"), label=data.get("label", tid), provider=data.get("provider", "local"),
@@ -457,8 +502,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         needs_video=bool(video and video.get("required", True)),
         video_window=tuple(video["window"]) if video and video.get("window") else None,
         fps_window=tuple(video.get("fps") or (1.0, 60.0)) if video else (1.0, 60.0),
-        video_max_height=int(video["max_height"]) if video and video.get("max_height") else None,
-        params=[{k: v for k, v in f.items() if k != "bind"} for f in fields if f["type"] not in MEDIA and f["key"] != "prompt"],
+        params=[{k: v for k, v in f.items() if k != "bind"} for f in fields if f["type"] not in (*MEDIA, "size") and f["key"] != "prompt"],
         curated=True, kind="cloud" if cloud else "local",
         workflow=None if cloud else data["workflow"], bindings=bindings, outputs=[str(o) for o in data.get("outputs", [])],
         model=data.get("model") if cloud else None, body=data.get("body") if cloud else None, built=bool(data.get("built")),
@@ -468,7 +512,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         inputs=slots, fields=fields,
         cover=(base / data["cover"]) if base and data.get("cover") else None,
         cover_video=(base / data["cover_video"]) if base and data.get("cover_video") else None,
-        size=prep.spec_of(data.get("size"), slots, data.get("mode", "edit")),
+        size=prep.spec_of(data.get("size"), slots, data.get("mode", "edit"), out),
         default_prompt=str(text.get("default") or "") if text else "",
         default_inputs={f["key"]: (base / f["default"]) for f in media if f.get("default")} if base else {},
     )
@@ -600,6 +644,51 @@ def delete_template(engine_id: str) -> None:
     reload_templates()
 
 
+def duplicate_template(engine_id: str) -> Engine:
+    """Copy a template into the user's folder as a new one they own: editable, deletable,
+    with its samples and cover copied alongside so it never depends on the original."""
+    e = ENGINES.get(engine_id)
+    if e is None or e.data is None or e.path is None:
+        raise KeyError(engine_id)
+    import shutil
+
+    data = upgrade(copy.deepcopy(e.data))
+    prefix = "cloud/" if e.kind == "cloud" else "local/"
+    base = re.sub(r"-copy(-\d+)?$", "", e.id.split("/", 1)[-1])
+    n, tid = 1, f"{prefix}{base}-copy"
+    while tid in ENGINES:
+        n += 1
+        tid = f"{prefix}{base}-copy-{n}"
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "__", tid)
+    root = paths.user_root() / "templates"
+    media_dir = root / "media" / stem
+    media_dir.mkdir(parents=True, exist_ok=True)
+
+    def take(rel: str) -> str:
+        src = (e.path.parent / rel).resolve()
+        if not src.is_file():
+            return rel
+        shutil.copyfile(src, media_dir / src.name)
+        return f"media/{stem}/{src.name}"
+
+    data["id"], data["built"] = tid, True
+    data["label"] = (e.label.split(" · ")[0] + " (copy)" + (" · " + e.label.split(" · ", 1)[1] if " · " in e.label else ""))[:_TEXT_LIMIT["label"]]
+    for k in ("cover", "cover_video"):
+        if data.get(k):
+            data[k] = take(data[k])
+    for f in data.get("inputs") or []:
+        if f.get("type") in MEDIA and f.get("default"):
+            f["default"] = take(f["default"])
+    (root / f"{stem}.json").write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+    poster, loop = user_cover(e.id), user_cover(e.id, ".mp4")
+    for src, dst in ((poster, user_cover(tid)), (loop, user_cover(tid, ".mp4"))):
+        if src.is_file():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+    reload_templates()
+    return ENGINES[tid]
+
+
 def reset_template(engine_id: str) -> Engine:
     e = ENGINES.get(engine_id)
     if e is None or not e.edited or e.path is None:
@@ -655,13 +744,18 @@ def describe(e: Engine) -> dict:
     return {
         "id": e.id, "mode": e.mode, "label": e.label, "provider": e.provider, "blurb": e.blurb,
         "max_images": e.max_images, "min_images": e.min_images, "needs_video": e.needs_video,
-        "video_window": e.video_window, "fps_window": e.fps_window, "video_max_height": e.video_max_height, "url_only": e.url_only,
+        "video_window": e.video_window, "fps_window": e.fps_window, "url_only": e.url_only,
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
         "examples": e.examples, "tips": e.tips, "tags": e.tags, "inputs": e.inputs, "fields": fields, "requires": requirements(e),
         "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "model": e.model,
         "defaults": defaults,
-        **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),
+        **_cover_info(e), "cover_custom": user_cover(e.id).is_file(), "draft": is_draft(e),
     }
+
+
+def is_draft(e: Engine) -> bool:
+    """A built template stays a draft until one of its own results becomes its cover."""
+    return e.built and cover_files(e)[0] is None
 
 
 def requirements(e: Engine) -> dict:
@@ -686,6 +780,9 @@ def requirements(e: Engine) -> dict:
 
 COVER_SIDE = 960
 COVER_LOOP_SECONDS = 8.0
+# Covers and samples are cached as immutable. Bump this to make browsers fetch them
+# again, e.g. after empty bodies were cached while aiohttp's sendfile was broken on Windows.
+CACHE_ERA = "&c=2"
 _VIDEO_EXT = {".mp4", ".mov", ".webm", ".m4v"}
 
 
@@ -751,7 +848,7 @@ def defaults_info(e: Engine) -> dict:
         if not p.is_file():
             continue
         v = p.stat().st_mtime_ns // 1_000_000
-        url = f"/api/templates/input?engine={quote(e.id, safe='')}&slot={quote(slot, safe='')}&v={v}"
+        url = f"/api/templates/input?engine={quote(e.id, safe='')}&slot={quote(slot, safe='')}&v={v}{CACHE_ERA}"
         item = {"slot": slot, "asset": f"tpl:{e.id}|{slot}", "name": p.name, "url": url}
         if p.suffix.lower() in _VIDEO_EXT:
             info = _clip(str(p), v)
@@ -769,7 +866,7 @@ def _cover_info(e: Engine) -> dict:
     if poster is None:
         return {"cover": None, "cover_video": None, "cover_aspect": None}
     v = poster.stat().st_mtime_ns // 1_000_000
-    url = f"/api/cover?engine={quote(e.id, safe='')}&v={v}"
+    url = f"/api/cover?engine={quote(e.id, safe='')}&v={v}{CACHE_ERA}"
     return {
         "cover": url,
         "cover_video": f"{url}&video=1" if loop else None,
@@ -800,6 +897,25 @@ def clear_cover(engine_id: str) -> None:
     user_cover(engine_id, ".mp4").unlink(missing_ok=True)
 
 
+def clip_limits(e: Engine, slot: str) -> tuple[tuple[float, float] | None, tuple[float, float]]:
+    """A video input's clip length (None: any) and frame rates: the input's own, else the template's."""
+    f = next((f for f in e.fields if f["key"] == slot), None)
+    if f is not None:
+        return (tuple(f["window"]) if f.get("window") else None), tuple(f.get("fps") or (1.0, 60.0))
+    return e.video_window, e.fps_window
+
+
+def clip_file(slot: str) -> str:
+    """Where a generation keeps the clip for a video input: video:1 at driving/driving.mp4, video:2 at driving/driving-2.mp4."""
+    n = slot.split(":")[1]
+    return "driving/driving.mp4" if n == "1" else f"driving/driving-{n}.mp4"
+
+
+def poster_file(clip: str) -> str:
+    """The poster next to a clip: driving/driving-2.mp4 -> driving/poster-2.webp."""
+    return clip.replace("/driving", "/poster", 1).rsplit(".", 1)[0] + ".webp"
+
+
 def compose(spec: dict) -> dict:
     """Studio state → request template plus warnings. Never rewrites the prompt."""
     e = get(spec["engine"])
@@ -817,11 +933,13 @@ def compose(spec: dict) -> dict:
     elif len(imgs) < e.min_images:
         n = e.min_images
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} needs at least {n} image{'' if n == 1 else 's'}"})
-    if e.video_window:
-        for v in vids:
-            d = v.get("trimmed_duration") or v.get("duration")
-            if d and not (e.video_window[0] - 0.05 <= d <= e.video_window[1] + 0.05):
-                warnings.append({"field": "video", "level": "error", "text": f"Trim the clip to {e.video_window[0]:g}–{e.video_window[1]:g} s (now {d:.1f} s)"})
+    for v in vids:
+        window, _ = clip_limits(e, v["slot"])
+        d = v.get("trimmed_duration") or v.get("duration")
+        if window and d and not (window[0] - 0.05 <= d <= window[1] + 0.05):
+            f = next((f for f in e.fields if f["key"] == v["slot"]), None)
+            what = f["label"].lower() if f and len(vids) > 1 else "the clip"
+            warnings.append({"field": "video", "level": "error", "text": f"Trim {what} to {window[0]:g}–{window[1]:g} s (now {d:.1f} s)"})
     if e.url_only:
         for i in spec["inputs"]:
             if not i.get("url"):

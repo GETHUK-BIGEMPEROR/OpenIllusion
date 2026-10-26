@@ -114,6 +114,15 @@ class Manager:
     def list(self) -> list[dict]:
         return [j.to_dict() for j in sorted(self.jobs.values(), key=lambda j: j.created, reverse=True)]
 
+    def active_ids(self) -> set[str]:
+        return {k for k, j in self.jobs.items() if j.state not in TERMINAL}
+
+    async def cancel_all(self) -> int:
+        n = 0
+        for k in list(self.active_ids()):
+            n += await self.cancel(k)
+        return n
+
     def dismiss(self, job_id: str) -> bool:
         j = self.jobs.get(job_id)
         if j is None or j.state not in TERMINAL:
@@ -592,7 +601,7 @@ def input_plans(spec: dict) -> dict[str, prep.Plan]:
             continue
         if w and h:
             shapes.append({"slot": i["slot"], "width": w, "height": h, "crop": i.get("crop"), "size": i.get("size")})
-    return prep.plans(engines.run_size(e), shapes, (spec.get("params") or {}).get("size"))
+    return prep.plans(engines.run_size(e), shapes)
 
 
 def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | None = None) -> sc.Manifest:
@@ -623,12 +632,8 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
             if w and h:
                 shapes.append({"slot": r["slot"], "width": w, "height": h, "crop": r.get("crop"), "size": r.get("size")})
     size = engines.run_size(e)
-    plans = prep.plans(size, shapes, (spec.get("params") or {}).get("size"))
-    legacy = (spec.get("params") or {}).get("size")
-    chosen = lambda r: prep.choice_of(size, r["slot"], r.get("size") or (legacy if r["slot"] == size["follows"] else None))
-    if size["follows"] in plans:
-        lead = plans[size["follows"]]
-        spec["size_px"] = {"width": lead.width, "height": lead.height}
+    plans = prep.plans(size, shapes)
+    chosen = lambda r: prep.choice_of(size, r["slot"], r.get("size"))
 
     items: list[sc.InputItem] = []
     img_n = 0
@@ -657,15 +662,16 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
         elif slot.startswith("video:") and src:
             (folder / "driving").mkdir(exist_ok=True)
             trim = raw.get("trim") or [0, 0]
-            budget = int(media.REQUEST_MEDIA_BUDGET * 0.8)
-            lo, hi = e.fps_window
-            max_h = min(int(raw.get("max_height") or 1080), e.video_max_height or 1080)
-            info = media.transcode(src, folder / "driving" / "driving.mp4", start=float(trim[0] or 0), end=float(trim[1] or 0) or None,
-                                   max_bytes=budget, min_fps=lo, max_fps=hi, max_height=max_h, plan=plans.get(slot))
+            clips = sum(1 for r in spec["inputs"] if r["slot"].startswith("video:") and r.get("asset"))
+            budget = int(media.REQUEST_MEDIA_BUDGET * 0.8 / max(clips, 1))
+            _, (lo, hi) = engines.clip_limits(e, slot)
+            rel = engines.clip_file(slot)
+            info = media.transcode(src, folder / rel, start=float(trim[0] or 0), end=float(trim[1] or 0) or None,
+                                   max_bytes=budget, min_fps=lo, max_fps=hi, plan=plans.get(slot))
             if slot in plans:
                 item.prep = {**plans[slot].to_dict(), "size": chosen(raw)}
-            media.poster(folder / "driving" / "driving.mp4", folder / "driving" / "poster.webp")
-            item.file, item.width, item.height, item.duration = "driving/driving.mp4", info["width"], info["height"], info["duration"]
+            media.poster(folder / rel, folder / engines.poster_file(rel))
+            item.file, item.width, item.height, item.duration = rel, info["width"], info["height"], info["duration"]
             item.trim = [float(trim[0] or 0), float(trim[1] or 0)]
             item.role = "motion"
         if item.file:
@@ -749,7 +755,7 @@ def _poster_url(m: sc.Manifest) -> str | None:
         return f"/api/generations/{m.id}/file/{m.result.poster}"
     for i in m.inputs:
         if i.slot.startswith("video:") and i.file:
-            return f"/api/generations/{m.id}/file/driving/poster.webp"
+            return f"/api/generations/{m.id}/file/{engines.poster_file(i.file)}"
     for i in m.inputs:
         if i.file:
             return f"/api/generations/{m.id}/file/{i.file}"

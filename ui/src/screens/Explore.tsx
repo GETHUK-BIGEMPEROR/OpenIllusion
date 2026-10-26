@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Masonry } from "../components/Masonry";
-import { EmptyBox, I, PageHead, useStatus } from "../components/oi";
-import { TemplateCard, tplChips } from "../components/TemplateCard";
+import { cx, EmptyBox, I, PageHead, useStatus } from "../components/oi";
+import { TemplateCard, tplChips, tplName } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
 import { api, type EngineInfo } from "../lib/api";
 import { errMsg } from "../lib/format";
@@ -25,7 +25,10 @@ export function Explore({ t }: { t?: string }) {
   const [where, setWhere] = useState(last.where);
   useEffect(() => { Object.assign(last, { tag, where }); }, [tag, where]);
 
-  const all = useMemo(() => engines.data ?? [], [engines.data]);
+  const every = useMemo(() => engines.data ?? [], [engines.data]);
+  // A draft stays off the wall until one of its results is published as its cover.
+  const all = useMemo(() => every.filter((e) => !e.draft), [every]);
+  const drafts = every.filter((e) => e.draft);
   // Photos and videos share one wall; the badge on each card says which it makes.
   const chips = useMemo(() => tplChips(all), [all]);
   const shown = all
@@ -40,7 +43,7 @@ export function Explore({ t }: { t?: string }) {
   const inspect = (id?: string) => go({ name: "explore", t: id });
 
   // The panel keeps showing the last template while it slides shut.
-  const open = all.find((e) => e.id === t);
+  const open = every.find((e) => e.id === t);
   const shownInPanel = useRef<EngineInfo | undefined>(undefined);
   if (open) shownInPanel.current = open;
   const panel = open ?? shownInPanel.current;
@@ -86,6 +89,7 @@ export function Explore({ t }: { t?: string }) {
             )}
           </div>
         </div>
+        {drafts.length > 0 && <Drafts list={drafts} selected={t} onUse={use} onInspect={(id) => inspect(id === t ? undefined : id)} />}
         <div className="wall-wrap" style={{ paddingTop: 4 }}>
           {engines.isLoading ? (
             <Masonry label="Loading templates" items={SKELETON} maxCols={4} minCol={250} render={(x) => <div aria-hidden className="card"><div className="media" style={{ "--ar": x.aspect } as CSSProperties} /></div>} />
@@ -102,5 +106,26 @@ export function Explore({ t }: { t?: string }) {
         {panel && <TemplateInspector key={panel.id} e={panel} locked={locked(panel)} onUse={() => use(panel)} onClose={close} />}
       </aside>
     </div>
+  );
+}
+
+/** Templates built but not published yet. Each one goes on the wall once a run of it becomes its cover. */
+function Drafts({ list, selected, onUse, onInspect }: { list: EngineInfo[]; selected?: string; onUse: (e: EngineInfo) => void; onInspect: (id: string) => void }) {
+  return (
+    <section className="wall-wrap drafts" aria-label="Drafts">
+      <div className="drafts-h"><b>Drafts</b><span>Run one, then publish a result. That result becomes its cover and puts it on the wall.</span></div>
+      <div className="drafts-row">
+        {list.map((e) => (
+          <div key={e.id} className={cx("draft", e.id === selected && "sel")}>
+            <button className="draft-go" type="button" onClick={() => onUse(e)} title="Open in Create">
+              <span className="draft-ic"><I n={e.mode === "motion" ? "film" : "image"} /></span>
+              <span className="draft-t"><b>{tplName(e)}</b><small>{e.kind === "local" ? "Local" : "Cloud"} · not published</small></span>
+              <span className="draft-run"><I n="play" />Run</span>
+            </button>
+            <button className="icon-btn sm" type="button" aria-label={`Details for ${tplName(e)}`} onClick={() => onInspect(e.id)}><I n="info" /></button>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

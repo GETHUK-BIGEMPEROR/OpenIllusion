@@ -14,6 +14,22 @@ export const mediaFields = (e?: EngineInfo): MediaField[] => fieldsOf(e).filter(
 
 export const videoField = (e?: EngineInfo): MediaField | undefined => mediaFields(e).find((f) => f.type === "video");
 
+/** The video inputs: a template's own, or video:1 for a raw Router model opened for video. */
+export const clipSlots = (e?: EngineInfo, mode?: string): string[] =>
+  e?.fields?.length ? mediaFields(e).filter((f) => f.type === "video").map((f) => f.key) : mode === "motion" ? ["video:1"] : [];
+
+/** The clip length a video input takes, if the template sets one. */
+export const clipWindow = (e: EngineInfo | undefined, slot: string): [number, number] | null => {
+  const f = mediaFields(e).find((x) => x.key === slot) as { window?: [number, number] } | undefined;
+  return f?.window ?? (e?.fields?.length ? null : e?.video_window ?? null);
+};
+
+/** The frame rates a video input takes; a fixed rate when both ends match. */
+export const clipFps = (e: EngineInfo | undefined, slot: string): [number, number] => {
+  const f = mediaFields(e).find((x) => x.key === slot) as { fps?: [number, number] } | undefined;
+  return f?.fps ?? (e?.fields?.length ? [1, 60] : e?.fps_window ?? [1, 60]);
+};
+
 export interface PromptField { key: "prompt"; label: string; hint?: string; required?: boolean; default?: string; examples?: PromptIdea[] }
 
 /** The template's prompt. Raw Router models have no fields and always take one. */
@@ -23,12 +39,12 @@ export const promptField = (e?: EngineInfo): PromptField | undefined =>
 /** Settings: everything that isn't a photo, a clip or the prompt. `advanced` ones go under Advanced. */
 export function settingsOf(e?: EngineInfo): { main: ParamSpec[]; advanced: ParamSpec[] } {
   if (!e?.fields?.length) return { main: [], advanced: e?.params ?? [] };
-  const all = e.fields.filter((f) => !isMedia(f) && f.key !== "prompt") as ParamSpec[];
+  const all = e.fields.filter((f) => !isMedia(f) && f.key !== "prompt" && f.type !== "size") as ParamSpec[];
   return { main: all.filter((p) => !p.advanced), advanced: all.filter((p) => p.advanced) };
 }
 
-/** The input the output follows: it's what the stage shows and what gets cropped there. */
-export const leadSlot = (e?: EngineInfo): string => e?.size?.follows ?? videoField(e)?.key ?? "image:1";
+/** The input the stage shows first and crops there: the clip if the template takes one, else its first photo. */
+export const leadSlot = (e?: EngineInfo): string => videoField(e)?.key ?? mediaFields(e).find((f) => f.type === "image")?.key ?? "image:1";
 
 /** The photo input where an area can be marked, if the template takes one. Raw edit models always can, on Image 1. */
 export const areaField = (e?: EngineInfo, mode?: string): string | undefined =>

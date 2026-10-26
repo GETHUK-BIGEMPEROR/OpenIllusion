@@ -26,3 +26,25 @@
 .card.picked{transform:scale(.97)}
 .bulk{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:6px;padding:6px 6px 6px 16px;border-radius:16px;background:#221B2A;border:1px solid var(--line-2);box-shadow:0 30px 60px -20px rgba(0,0,0,.9);animation:rise .25s;white-space:nowrap}
 .bulk b{font-size:13px;font-weight:500;margin-right:8px}
+/* Clear a day: rightmost in the day header, shown on hover or focus (always on touch). */
+.ghead .sub{font:400 12px var(--body);color:var(--text-3)}
+.gclear{margin-left:auto;align-self:center;height:26px;padding:0 9px 0 8px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;font:500 12px/1 var(--body);color:var(--text-3);opacity:0;transition:opacity .15s,background .15s,color .15s}
+.gclear .i{width:14px;height:14px}
+.lgroup:hover .gclear,.gclear:focus-visible{opacity:1}
+.gclear:hover{background:rgba(255,107,126,.12);color:var(--rose)}
+@media (hover:none){.gclear{opacity:1}}
+.pill .i{width:12px;height:12px}
+.trashlink{justify-self:center;display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px 0 14px;border-radius:12px;border:1px solid var(--line);color:var(--text-2);font-size:13px;transition:border-color .15s,color .15s,background .15s}
+.trashlink:hover{border-color:var(--line-2);color:var(--text);background:var(--raised)}
+.trashlink .i{width:15px;height:15px}
+.trashlink .mono{font-size:11.5px;color:var(--text-3)}
+.trashlink .sub{color:var(--text-3)}
+.trcard .media img{filter:saturate(.35) brightness(.7);transition:filter .25s}
+.trcard:hover .media img,.trcard:focus-within .media img{filter:saturate(.8) brightness(.85)}
+.trcard.busy{opacity:.5;pointer-events:none}
+.trcard .gprompt .meta .btn{color:var(--text)}
+.tdel:hover{color:var(--rose)}
+.trcard .meta .when{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trcard .meta .btn{flex:none}
+.gdel:hover{color:var(--rose)}
+@media (hover:none){.gcard .gdel{opacity:1}}

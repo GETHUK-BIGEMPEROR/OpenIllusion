@@ -1,11 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { I, PageHead, useStatus } from "../components/oi";
+import { isImage, isVideo, useFileDrop } from "../components/Drop";
 import { useUploader } from "../components/Refs";
 import { cx, Spinner } from "../components/ui";
 import {
-  api, type Asset, type BuildParamType, type BuildSpec, type MediaKind, type Mode, type SchemaAnalysis, type WorkflowAnalysis,
+  api, type Asset, type BuildParamType, type BuildPreset, type BuildSpec, type MediaKind, type Mode, type SchemaAnalysis, type WorkflowAnalysis,
 } from "../lib/api";
+import { confirm } from "../lib/confirm";
 import { errMsg } from "../lib/format";
 import { go } from "../lib/route";
 import { useApp } from "../lib/store";
@@ -26,6 +28,12 @@ interface MediaRow {
   field?: string;
   many?: boolean;
   max?: number;
+  /** Local: a loader ComfyUI marks as a file input, or a setting that holds a file name. */
+  found?: "loader" | "setting";
+  value?: string | null;
+  /** Clips: what the template accepts. Unset, the workflow's loader decides. */
+  window?: [number, number] | null;
+  fps?: [number, number] | null;
 }
 
 interface ParamRow {
@@ -46,6 +54,7 @@ interface ParamRow {
   node?: string;
   input?: string;
   field?: string;
+  key?: string; // the template's name for it, when opened from a template
 }
 
 interface PromptState {
@@ -56,7 +65,10 @@ interface PromptState {
   required: boolean;
 }
 
-interface Details { label: string; blurb: string; mode: Mode; tags: string; cover: Asset | null }
+interface Details { label: string; blurb: string; mode: Mode; tags: string }
+
+/** Local: the node a run's result comes from, and where a declared output size goes ("" when the workflow sizes itself). */
+interface OutputState { result: string; size: string; keep?: { label?: string; aspect?: string; default?: string } }
 
 type Source =
   | { kind: "local"; a: WorkflowAnalysis }
@@ -88,8 +100,9 @@ function mediaLabels<T extends { kind: MediaKind; title?: string; class_type?: s
 function fromWorkflow(a: WorkflowAnalysis) {
   const labels = mediaLabels(a.media);
   const media: MediaRow[] = a.media.map((m, i) => ({
-    key: `${m.node}|${m.input}`, on: true, kind: m.kind, label: labels[i], hint: "", required: true, sample: m.sample,
-    where: `${m.title} · #${m.node}`, node: m.node, input: m.input,
+    key: `${m.node}|${m.input}`, on: m.suggested, kind: m.kind, label: labels[i], hint: "", required: true, sample: m.sample,
+    where: m.found === "setting" ? `${m.title} · ${m.input} · #${m.node}` : `${m.title} · #${m.node}`, node: m.node, input: m.input,
+    found: m.found, value: m.value,
   }));
   const pick = a.prompt ? `${a.prompt.node}|${a.prompt.input}` : "";
   const text = a.texts.find((t) => `${t.node}|${t.input}` === pick);
@@ -99,8 +112,35 @@ function fromWorkflow(a: WorkflowAnalysis) {
     group: `${p.title} · #${p.node}`, name: p.input, min: p.min, max: p.max, step: p.step, options: p.options, help: p.help,
     suggested: p.suggested, node: p.node, input: p.input,
   }));
-  const details: Details = { label: fileTitle(a.source), blurb: "", mode: a.mode, tags: "", cover: a.media.find((m) => m.kind === "image")?.sample ?? null };
-  return { media, prompt, params, details };
+  const details: Details = { label: fileTitle(a.source), blurb: "", mode: a.mode, tags: "" };
+  const output: OutputState = { result: a.outputs[0] ?? "", size: a.size?.node ?? "" };
+  return a.preset ? withPreset(a.preset, { media, prompt, params, details, output }) : { media, prompt, params, details, output };
+}
+
+/** Opened from a template: start from what it asks for, with its names, hints and defaults. */
+function withPreset(p: BuildPreset, init: { media: MediaRow[]; prompt: PromptState; params: ParamRow[]; details: Details; output: OutputState }) {
+  const at = (x: { node: string; input: string }) => `${x.node}|${x.input}`;
+  const pm = new Map(p.media.map((m) => [at(m), m]));
+  const pp = new Map(p.params.map((x) => [at(x), x]));
+  return {
+    media: init.media.map((r) => {
+      const m = pm.get(r.key);
+      return m ? { ...r, on: true, label: m.label ?? r.label, hint: m.hint ?? "", required: m.required ?? true, window: m.window ?? null, fps: m.fps ?? null } : { ...r, on: false };
+    }),
+    output: {
+      result: p.outputs.find((o) => o) ?? init.output.result,
+      size: p.size?.node ?? "",
+      keep: p.size ? { label: p.size.label, aspect: p.size.aspect, default: p.size.default } : undefined,
+    },
+    prompt: p.prompt
+      ? { pick: at(p.prompt), label: p.prompt.label ?? "Prompt", hint: p.prompt.hint ?? "", def: p.prompt.default, required: p.prompt.required ?? true }
+      : { ...init.prompt, pick: "" },
+    params: init.params.map((r) => {
+      const x = pp.get(r.id);
+      return x ? { ...r, on: true, label: x.label, key: x.key, help: x.help ?? r.help } : { ...r, on: false };
+    }),
+    details: { label: p.label, blurb: p.blurb, mode: p.mode, tags: p.tags.join(", ") },
+  };
 }
 
 function fromSchema(a: SchemaAnalysis, model: string) {
@@ -113,8 +153,8 @@ function fromSchema(a: SchemaAnalysis, model: string) {
     id: p.field, on: p.suggested, label: p.title, type: p.type, value: p.value ?? null, orig: p.value ?? null, group: "Request",
     name: p.field, min: p.min, max: p.max, step: p.step, options: p.options, help: p.help, suggested: p.suggested, field: p.field,
   }));
-  const details: Details = { label: model.split("/").pop()!.replace(/[-_]+/g, " "), blurb: "", mode: a.mode, tags: "", cover: null };
-  return { media, prompt, params, details };
+  const details: Details = { label: model.split("/").pop()!.replace(/[-_]+/g, " "), blurb: "", mode: a.mode, tags: "" };
+  return { media, prompt, params, details, output: { result: "", size: "" } as OutputState };
 }
 
 // A workflow handed over from elsewhere (Import, a drop on another page).
@@ -152,7 +192,7 @@ export function looksLikeWorkflow(text: string): boolean {
 // ---- the page ------------------------------------------------------------------
 
 /** Build a template: drop a ComfyUI workflow (local) or pick a Router model (cloud), choose what people fill in, name it. */
-export function Builder() {
+export function Builder({ from }: { from?: string }) {
   const toast = useApp((s) => s.toast);
   const openTemplate = useApp((s) => s.openTemplate);
   const qc = useQueryClient();
@@ -162,16 +202,11 @@ export function Builder() {
   const [media, setMedia] = useState<MediaRow[]>([]);
   const [prompt, setPrompt] = useState<PromptState>({ pick: "", label: "", hint: "", def: "", required: true });
   const [params, setParams] = useState<ParamRow[]>([]);
-  const [details, setDetails] = useState<Details>({ label: "", blurb: "", mode: "edit", tags: "", cover: null });
+  const [details, setDetails] = useState<Details>({ label: "", blurb: "", mode: "edit", tags: "" });
+  const [output, setOutput] = useState<OutputState>({ result: "", size: "" });
   const [saving, setSaving] = useState<"save" | "try" | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
-
-  // A sample added after the workflow is read becomes the cover when there is none yet.
-  const firstSample = media.find((m) => m.on && m.kind !== "audio" && m.sample)?.sample ?? null;
-  useEffect(() => {
-    if (firstSample) setDetails((d) => (d.cover ? d : { ...d, cover: firstSample }));
-  }, [firstSample?.asset]);
 
   const load = (s: Source, model?: string) => {
     const init = s.kind === "local" ? fromWorkflow(s.a) : fromSchema(s.a, model ?? s.a.model);
@@ -180,6 +215,7 @@ export function Builder() {
     setPrompt(init.prompt);
     setParams(init.params);
     setDetails(init.details);
+    setOutput(init.output);
     setSaveErr(null);
     setTried(false);
   };
@@ -226,6 +262,19 @@ export function Builder() {
     }
   }, []);
 
+  // #/build?from=<template>: its workflow, set up the way that template has it.
+  useEffect(() => {
+    if (!from) return;
+    let live = true;
+    setReading(from.split("/").pop() ?? from);
+    setReadErr(null);
+    api.buildFromTemplate(from)
+      .then((a) => { if (live) load({ kind: "local", a }); })
+      .catch((e) => { if (live) setReadErr(errMsg(e)); })
+      .finally(() => { if (live) setReading(null); });
+    return () => { live = false; };
+  }, [from]);
+
   // Pasting a workflow anywhere on the start screen reads it.
   useEffect(() => {
     if (src) return;
@@ -246,30 +295,38 @@ export function Builder() {
     const p: string[] = [];
     if (!details.label.trim()) p.push("Give the template a name");
     if (src && !media.some((m) => m.on) && !prompt.pick) p.push("Ask for at least one input or a prompt");
-    if (media.filter((m) => m.on && m.kind === "video").length > 1) p.push("Templates take one video for now");
     if (media.some((m) => m.on && !m.label.trim())) p.push("Name every input");
     if (params.some((r) => r.on && !r.label.trim())) p.push("Name every control");
+    const bad = (v?: [number, number] | null) => !!v && !(v[0] > 0 && v[0] <= v[1]);
+    if (media.some((m) => m.on && (bad(m.window) || bad(m.fps)))) p.push("Clip limits run from a lowest to a highest value");
+    if (src?.kind === "local" && !output.result) p.push("Pick the node the result comes from");
     return p;
-  }, [details.label, media, prompt.pick, params, src]);
+  }, [details.label, media, prompt.pick, params, src, output.result]);
+
+  // Width and height on the output size's node belong to it, not to the controls.
+  const sizeOwns = (r: ParamRow) => !!output.size && r.node === output.size && (r.input === "width" || r.input === "height");
 
   const spec = (): BuildSpec | null => {
     if (!src) return null;
     const on = media.filter((m) => m.on);
-    const shown = params.filter((r) => r.on);
+    const shown = params.filter((r) => r.on && !sizeOwns(r));
     const base = {
       label: details.label.trim(), blurb: details.blurb.trim(), mode: details.mode,
       tags: details.tags.split(",").map((t) => t.trim()).filter(Boolean),
-      media: on.map((m) => ({ node: m.node, input: m.input, field: m.field, many: m.many, kind: m.kind, label: m.label.trim(), hint: m.hint.trim(), required: m.required, sample: m.sample?.asset ?? null })),
+      media: on.map((m) => ({
+        node: m.node, input: m.input, field: m.field, many: m.many, kind: m.kind, label: m.label.trim(), hint: m.hint.trim(), required: m.required, sample: m.sample?.asset ?? null,
+        ...(m.kind === "video" ? { window: m.window ?? undefined, fps: m.fps ?? undefined } : {}),
+      })),
       prompt: prompt.pick ? {
         label: prompt.label.trim() || "Prompt", hint: prompt.hint.trim(), default: prompt.def, required: prompt.required,
         ...(src.kind === "local" ? { node: prompt.pick.split("|")[0], input: prompt.pick.split("|")[1] } : { field: prompt.pick }),
       } : null,
-      params: shown.map((r) => ({ node: r.node, input: r.input, field: r.field, key: r.name.split(".").pop(), type: r.type, label: r.label.trim(), min: r.min, max: r.max, step: r.step, options: r.options, default: r.value, help: r.help })),
-      cover: details.cover?.asset ?? null,
+      params: shown.map((r) => ({ node: r.node, input: r.input, field: r.field, key: r.key ?? r.name.split(".").pop(), type: r.type, label: r.label.trim(), min: r.min, max: r.max, step: r.step, options: r.options, default: r.value, help: r.help })),
     };
     if (src.kind === "local") {
-      const fixed = params.filter((r) => !r.on && JSON.stringify(r.value) !== JSON.stringify(r.orig)).map((r) => ({ node: r.node!, input: r.input!, value: r.value }));
-      return { kind: "local", token: src.a.token, ...base, fixed };
+      const fixed = params.filter((r) => !r.on && !sizeOwns(r) && JSON.stringify(r.value) !== JSON.stringify(r.orig)).map((r) => ({ node: r.node!, input: r.input!, value: r.value }));
+      const size = output.size ? { node: output.size, ...(output.keep ?? {}) } : null;
+      return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...base, fixed, outputs: [output.result], size };
     }
     const fixed = Object.fromEntries(params.filter((r) => !r.on && r.value !== null && r.value !== undefined && r.value !== "" && JSON.stringify(r.value) !== JSON.stringify(r.orig)).map((r) => [r.field!, r.value]));
     return { kind: "cloud", model: src.a.model, ...base, fixed };
@@ -288,10 +345,10 @@ export function Builder() {
       if (then === "try") {
         openTemplate(e.mode, e.id);
         go({ name: e.mode });
-        toast({ text: `${e.label} saved. Run it once to check it works.`, tone: "ok" });
+        toast({ text: `${e.label} saved as a draft. Run it, then publish the result you like.`, tone: "ok" });
       } else {
         go({ name: "explore", t: e.id });
-        toast({ text: `${e.label} saved to Explore.`, tone: "ok" });
+        toast({ text: `${e.label} saved to your drafts. It goes on Explore once you publish a result.`, tone: "ok" });
       }
     } catch (e) {
       setSaveErr(errMsg(e));
@@ -300,16 +357,20 @@ export function Builder() {
     }
   };
 
-  const reset = () => {
-    if (src && !window.confirm("Start over? What you set here is lost.")) return;
+  const reset = async () => {
+    if (src) {
+      const res = await confirm({ tone: "neutral", icon: "undo", view: () => ({ title: "Start over?", body: "What you set up for this template is lost. Nothing is saved yet.", action: "Start over" }) });
+      if (!res.ok) return;
+    }
     setSrc(null);
     setReadErr(null);
+    if (from) go({ name: "build" });
   };
 
   return (
     <div className="page">
       <div className="scroll">
-        <PageHead title={src ? "New template" : "Build a template"} actions={src ? <button className="btn ghost" type="button" onClick={reset}><I n="undo" />Start over</button> : undefined} />
+        <PageHead title={src ? "New template" : "Build a template"} actions={src ? <button className="btn ghost" type="button" onClick={() => void reset()}><I n="undo" />Start over</button> : undefined} />
         {!src ? (
           <Start reading={reading} error={readErr} onFile={readFile} onModel={pickModel} />
         ) : (
@@ -318,19 +379,20 @@ export function Builder() {
               <SourceBar src={src} onReplace={reset} />
               <InputsSection src={src} rows={media} setRows={setMedia} />
               <PromptSection src={src} p={prompt} setP={setPrompt} />
-              <ControlsSection src={src} rows={params} setRows={setParams} />
-              <DetailsSection d={details} setD={setDetails} media={media} invalid={tried && !details.label.trim()} />
+              {src.kind === "local" && <OutputSection a={src.a} o={output} setO={setOutput} mode={details.mode} setMode={(mode) => setDetails((d) => ({ ...d, mode }))} />}
+              <ControlsSection n={src.kind === "local" ? 4 : 3} src={src} rows={params.filter((r) => !sizeOwns(r))} setRows={setParams} />
+              <DetailsSection n={src.kind === "local" ? 5 : 4} d={details} setD={setDetails} invalid={tried && !details.label.trim()} />
             </div>
             <aside className="bld-side">
-              <Preview details={details} media={media} prompt={prompt} params={params} kind={src.kind} />
+              <Preview details={details} media={media} prompt={prompt} params={params.filter((r) => !sizeOwns(r))} kind={src.kind} sized={output.size ? [output.keep?.aspect, output.keep?.default].filter(Boolean).join(" · ") || "shape · MP" : null} />
               <div className="bld-save">
                 {tried && problems.length > 0 && <ul className="bld-problems" role="alert">{problems.map((p) => <li key={p}><I n="alert" />{p}</li>)}</ul>}
                 {saveErr && <div className="errbox" role="alert"><b>Couldn't save</b><p>{saveErr}</p></div>}
                 <div className="bld-save-row">
-                  <button className="btn" type="button" disabled={!!saving} onClick={() => save("save")}>{saving === "save" ? <Spinner size={13} /> : <I n="check" />}Save</button>
-                  <button className="btn primary" type="button" disabled={!!saving} onClick={() => save("try")}>{saving === "try" ? <Spinner size={13} /> : <I n="play" />}Save and try it</button>
+                  <button className="btn" type="button" disabled={!!saving} onClick={() => save("save")}>{saving === "save" ? <Spinner size={13} /> : <I n="check" />}Save draft</button>
+                  <button className="btn primary" type="button" disabled={!!saving} onClick={() => save("try")}>{saving === "try" ? <Spinner size={13} /> : <I n="play" />}Save and run it</button>
                 </div>
-                <p className="help">Saved to your templates folder. Nothing runs and nothing installs until you press Run.</p>
+                <p className="help">Saved as a draft. It goes on Explore once you publish a result, and that result becomes its cover. Nothing runs and nothing installs until you press Run.</p>
               </div>
             </aside>
           </div>
@@ -359,7 +421,7 @@ function Start({ reading, error, onFile, onModel }: { reading: string | null; er
       onDrop={(e) => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files?.[0]; if (f) onFile(f); }}>
       <div className="bld-intro">
         <h2>Turn a workflow into a template.</h2>
-        <p>Pick what people drop in and type. Everything else stays as you set it. Templates show up on Explore next to the built-in ones.</p>
+        <p>Pick what people drop in and type. Everything else stays as you set it. Run it once and publish a result: it goes on Explore next to the built-in ones, with that result as its cover.</p>
       </div>
       {error && <div className="errbox bld-err" role="alert"><b>Couldn't read that</b><p>{error}</p></div>}
       <div className="bld-choices">
@@ -399,7 +461,7 @@ function Start({ reading, error, onFile, onModel }: { reading: string | null; er
       <ol className="bld-how">
         <li><b>1</b><span><strong>Bring a recipe.</strong> A workflow you trust, or a model.</span></li>
         <li><b>2</b><span><strong>Choose the inputs.</strong> Which pictures, which words, which knobs.</span></li>
-        <li><b>3</b><span><strong>Name it and try it.</strong> It opens in Create with its samples.</span></li>
+        <li><b>3</b><span><strong>Run it and publish.</strong> Your best result becomes the cover.</span></li>
       </ol>
     </div>
   );
@@ -442,7 +504,7 @@ function SourceBar({ src, onReplace }: { src: Source; onReplace: () => void }) {
         <span className="bc-ic local"><I n="graph" /></span>
         <div>
           <b className="mono">{a.source}</b>
-          <span>{a.nodes} nodes · {a.format === "ui" ? "converted from the saved workflow" : "API format"} · output {a.outputs.map((o) => `#${o}`).join(", ")}</span>
+          <span>{a.nodes} nodes · {a.preset ? "from the template, set up as it is" : a.format === "ui" ? "converted from the saved workflow" : "API format"}</span>
         </div>
         {missing ? <span className="pill rose"><I n="alert" />{missing} missing</span> : <span className="pill"><i className="dot" />Ready to run</span>}
         <button className="btn sm ghost" type="button" onClick={onReplace}>Change</button>
@@ -486,7 +548,7 @@ function InputsSection({ src, rows, setRows }: { src: Source; rows: MediaRow[]; 
 
   const local = src.kind === "local";
   return (
-    <Sec n={1} title="Inputs" desc={local ? "Every image and video loader in the workflow. Ask for it, or keep the file that's in the workflow." : "The media fields this model takes."}>
+    <Sec n={1} title="Inputs" desc={local ? "Every image and video loader in the workflow, and any setting that holds a file name. Ask for it, or keep the file that's in the workflow." : "The media fields this model takes."}>
       {!rows.length ? (
         <p className="bld-none">{local ? "This workflow loads no images or videos. People only type a prompt." : "This model takes no media. People only type a prompt."}</p>
       ) : (
@@ -496,24 +558,30 @@ function InputsSection({ src, rows, setRows }: { src: Source; rows: MediaRow[]; 
             const count = rows.filter((x) => x.field === r.field).length;
             return (
               <div key={r.key} className={cx("bld-mrow", !r.on && "off")}>
-                <label className="bld-thumb" title={r.sample ? "Replace the sample" : "Add a sample people start from"}>
-                  {r.sample ? <img src={r.sample.poster ?? r.sample.url} alt="" /> : <span><I n={KIND_ICON[r.kind]} /></span>}
-                  <span className="bld-thumb-cap">{r.sample ? "Sample" : "+ Sample"}</span>
-                  <input type="file" hidden accept={r.kind === "video" ? "video/*" : r.kind === "image" ? "image/*" : "*/*"} disabled={busy > 0} onChange={(e) => { void pickSample(r, e.target.files?.[0]); e.target.value = ""; }} />
-                </label>
+                <SampleThumb r={r} busy={busy > 0} onFile={(f) => void pickSample(r, f)} />
                 <div className="bld-mbody">
                   <div className="bld-mhead">
                     <span className="tag">{KIND_NOUN[r.kind]}</span>
+                    {r.found === "setting" && <span className="tag" title="Not a loader ComfyUI marks as one: a setting whose value is a file name. Turn it on to send a file name here.">File setting</span>}
                     <span className="mono bld-where">{r.where}</span>
                     {r.sample && <button className="bld-x" type="button" onClick={() => up(r.key, { sample: null })}>Remove sample</button>}
                   </div>
                   {r.on ? (
-                    <div className="bld-mfields">
-                      <input className="input" aria-label="Input name" placeholder="Name, like Photo or Outfit" value={r.label} maxLength={40} onChange={(e) => up(r.key, { label: e.target.value })} />
-                      <input className="input" aria-label="Hint" placeholder="Hint: what makes a good one" value={r.hint} maxLength={160} onChange={(e) => up(r.key, { hint: e.target.value })} />
-                    </div>
+                    <>
+                      <div className="bld-mfields">
+                        <input className="input" aria-label="Input name" placeholder="Name, like Photo or Outfit" value={r.label} maxLength={40} onChange={(e) => up(r.key, { label: e.target.value })} />
+                        <input className="input" aria-label="Hint" placeholder="Hint: what makes a good one" value={r.hint} maxLength={160} onChange={(e) => up(r.key, { hint: e.target.value })} />
+                      </div>
+                      {local && r.kind === "video" && (
+                        <div className="bld-limits">
+                          <Range label="Length" unit="s" value={r.window ?? null} max={600} onChange={(window) => up(r.key, { window })} />
+                          <Range label="Frame rate" unit="fps" value={r.fps ?? null} max={240} onChange={(fps) => up(r.key, { fps })} />
+                          <p className="help">Optional. Clips outside these get flagged before a run, and the frame rate is fitted in. Left empty, the clip goes in as trimmed and the workflow's loader decides the rest.</p>
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <p className="bld-kept">{local ? <>Keeps <code>{(src.a.media.find((m) => `${m.node}|${m.input}` === r.key)?.value) ?? "the workflow's file"}</code>. People don't see this input.</> : "Left out of the request."}</p>
+                    <p className="bld-kept">{local ? <>Keeps <code>{r.value ?? "the workflow's file"}</code>. {r.found === "setting" ? "Turn it on to ask for a file here." : "People don't see this input."}</> : "Left out of the request."}</p>
                   )}
                   <div className="bld-mfoot">
                     <Check checked={r.on} onChange={(v) => up(r.key, { on: v })}>Ask for it</Check>
@@ -546,6 +614,9 @@ function PromptSection({ src, p, setP }: { src: Source; p: PromptState; setP: (f
         <p className="bld-none">{src.kind === "local" ? "No text box in this workflow takes a prompt." : "This model has no prompt field."}</p>
       ) : (
         <div className="bld-card">
+          {src.kind === "local" && !p.pick && !src.a.prompt && src.a.texts.filter((t) => t.polarity !== "negative").length > 1 && (
+            <p className="bld-note"><I n="info" />More than one text box could be the prompt, so none is picked. Pick the one people write in.</p>
+          )}
           <div className="ofield">
             <label htmlFor="bp-pick">Prompt goes into</label>
             <select id="bp-pick" className="select" style={{ width: "100%" }} value={p.pick} onChange={(e) => choose(e.target.value)}>
@@ -572,7 +643,97 @@ function PromptSection({ src, p, setP }: { src: Source; p: PromptState; setP: (f
   );
 }
 
-function ControlsSection({ src, rows, setRows }: { src: Source; rows: ParamRow[]; setRows: (f: (r: ParamRow[]) => ParamRow[]) => void }) {
+/** Local: which node's image or video a run keeps, and whether people pick the output size or the workflow sets it. */
+function OutputSection({ a, o, setO, mode, setMode }: { a: WorkflowAnalysis; o: OutputState; setO: (f: (o: OutputState) => OutputState) => void; mode: Mode; setMode: (m: Mode) => void }) {
+  const node = a.sizes.find((s) => s.node === o.size);
+  const steps = a.canvas.steps[mode] ?? [];
+  const keep = (p: Partial<NonNullable<OutputState["keep"]>>) => setO((x) => ({ ...x, keep: { ...x.keep, ...p } }));
+  const pickResult = (id: string) => {
+    setO((x) => ({ ...x, result: id }));
+    const r = a.results.find((x) => x.node === id);
+    if (r) setMode(r.kind === "video" ? "motion" : "edit");
+  };
+  return (
+    <Sec n={3} title="Output" desc="What a run keeps, and its size. The workflow does the work; the template only writes what you set here.">
+      <div className="bld-card">
+        {!a.results.length ? (
+          <p className="bld-note warn"><I n="alert" />No node saves an image or a video. Add a Save Image or Save Video node in ComfyUI and load the workflow again.</p>
+        ) : (
+          <div className="ofield">
+            <label htmlFor="bo-result">Result comes from</label>
+            {a.results.length > 1 ? (
+              <select id="bo-result" className="select" style={{ width: "100%" }} value={o.result} onChange={(e) => pickResult(e.target.value)}>
+                {!o.result && <option value="">Pick a node</option>}
+                {a.results.map((r) => <option key={r.node} value={r.node}>{r.title} · {r.kind} · #{r.node}</option>)}
+              </select>
+            ) : <p className="bld-val-line mono" id="bo-result">{a.results[0].title} · {a.results[0].kind} · #{a.results[0].node}</p>}
+            {a.results.length > 1 && <p className="help">The other output nodes still run as the workflow has them; their files aren't kept.</p>}
+          </div>
+        )}
+        <div className="ofield">
+          <label>Output size</label>
+          <div className="seg" role="group" aria-label="Output size">
+            <button type="button" aria-pressed={!o.size} onClick={() => setO((x) => ({ ...x, size: "" }))}>Set by the workflow</button>
+            <button type="button" aria-pressed={!!o.size} disabled={!a.sizes.length} onClick={() => setO((x) => ({ ...x, size: x.size || a.size?.node || a.sizes[0]?.node || "" }))}>People pick it</button>
+          </div>
+          <p className="help">
+            {!a.sizes.length ? "No node here takes a width and a height, so the workflow sets the size."
+              : o.size ? "People pick a shape and a size in Create; the template writes width and height on this node and nothing else."
+              : "The result comes out the size the workflow makes it. With photo or video inputs, that usually follows them."}
+          </p>
+        </div>
+        {o.size && (
+          <>
+            <div className="ofield">
+              <label htmlFor="bo-node">Width and height go to</label>
+              <select id="bo-node" className="select" style={{ width: "100%" }} value={o.size} onChange={(e) => setO((x) => ({ ...x, size: e.target.value }))}>
+                {a.sizes.map((s) => <option key={s.node} value={s.node}>{s.title} · {s.width}×{s.height} · #{s.node}</option>)}
+              </select>
+            </div>
+            <div className="bld-2">
+              <div className="ofield">
+                <label htmlFor="bo-aspect">Opens at shape</label>
+                <select id="bo-aspect" className="select" style={{ width: "100%" }} value={o.keep?.aspect ?? ""} onChange={(e) => keep({ aspect: e.target.value || undefined })}>
+                  <option value="">Nearest to {node ? `${node.width}×${node.height}` : "the workflow's"}</option>
+                  {a.canvas.aspects.map((x) => <option key={x} value={x}>{x}</option>)}
+                </select>
+              </div>
+              <div className="ofield">
+                <label htmlFor="bo-step">Opens at size</label>
+                <select id="bo-step" className="select" style={{ width: "100%" }} value={o.keep?.default && steps.includes(o.keep.default) ? o.keep.default : ""} onChange={(e) => keep({ default: e.target.value || undefined })}>
+                  <option value="">Nearest to {node ? `${(node.width * node.height / 1e6).toFixed(1)} MP` : "the workflow's"}</option>
+                  {steps.map((x) => <option key={x} value={x}>{x}</option>)}
+                </select>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </Sec>
+  );
+}
+
+/** An optional lowest–highest pair; both empty means no limit. */
+function Range({ label, unit, value, max, onChange }: { label: string; unit: string; value: [number, number] | null; max: number; onChange: (v: [number, number] | null) => void }) {
+  const [lo, setLo] = useState(value ? String(value[0]) : "");
+  const [hi, setHi] = useState(value ? String(value[1]) : "");
+  const commit = (a: string, b: string) => {
+    setLo(a);
+    setHi(b);
+    onChange(a === "" && b === "" ? null : [parseFloat(a || b), parseFloat(b || a)]);
+  };
+  return (
+    <div className="bld-range">
+      <span>{label}</span>
+      <input className="input sm mono" type="number" min={0} max={max} step="any" placeholder="any" aria-label={`Lowest ${label.toLowerCase()}`} value={lo} onChange={(e) => commit(e.target.value, hi)} />
+      <span aria-hidden>to</span>
+      <input className="input sm mono" type="number" min={0} max={max} step="any" placeholder="any" aria-label={`Highest ${label.toLowerCase()}`} value={hi} onChange={(e) => commit(lo, e.target.value)} />
+      <span className="hint">{unit}</span>
+    </div>
+  );
+}
+
+function ControlsSection({ n, src, rows, setRows }: { n: number; src: Source; rows: ParamRow[]; setRows: (f: (r: ParamRow[]) => ParamRow[]) => void }) {
   const [all, setAll] = useState(false);
   const [q, setQ] = useState("");
   const up = (id: string, p: Partial<ParamRow>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
@@ -581,7 +742,7 @@ function ControlsSection({ src, rows, setRows }: { src: Source; rows: ParamRow[]
   const groups = shown.reduce<Record<string, ParamRow[]>>((g, r) => ((g[r.group] ??= []).push(r), g), {});
   const on = rows.filter((r) => r.on).length;
   return (
-    <Sec n={3} title="Controls" desc={src.kind === "local" ? "Settings people can change. The rest run with the value in the workflow; change one here to fix it without showing it." : "Request fields people can change. Hidden ones use the value you set, or the model's default."}
+    <Sec n={n} title="Controls" desc={src.kind === "local" ? "Settings people can change. The rest run with the value in the workflow; change one here to fix it without showing it." : "Request fields people can change. Hidden ones use the value you set, or the model's default."}
       aside={<span className="hint">{on} shown</span>}>
       {!rows.length ? <p className="bld-none">Nothing else to set.</p> : (
         <div className="bld-card bld-ctrls">
@@ -636,12 +797,10 @@ function ValueEdit({ r, onChange }: { r: ParamRow; onChange: (v: unknown) => voi
   return <input className="input sm bld-val" aria-label={r.name} value={r.value == null ? "" : String(r.value)} onChange={(e) => onChange(e.target.value)} />;
 }
 
-function DetailsSection({ d, setD, media, invalid }: { d: Details; setD: (f: (d: Details) => Details) => void; media: MediaRow[]; invalid: boolean }) {
-  const { upload, busy } = useUploader();
+function DetailsSection({ n, d, setD, invalid }: { n: number; d: Details; setD: (f: (d: Details) => Details) => void; invalid: boolean }) {
   const set = (k: "label" | "blurb" | "tags") => (e: { target: { value: string } }) => setD((x) => ({ ...x, [k]: e.target.value }));
-  const samples = media.filter((m) => m.sample && m.kind === "image").map((m) => m.sample!);
   return (
-    <Sec n={4} title="Details" desc="How it shows up on Explore.">
+    <Sec n={n} title="Details" desc="How it shows up on Explore.">
       <div className="bld-card">
         <div className="bld-2">
           <div className="ofield">
@@ -658,31 +817,31 @@ function DetailsSection({ d, setD, media, invalid }: { d: Details; setD: (f: (d:
         </div>
         <div className="ofield"><label htmlFor="bd-blurb">What it does</label><textarea id="bd-blurb" className="textarea" rows={2} value={d.blurb} maxLength={400} onChange={set("blurb")} placeholder="One or two sentences: what goes in, what comes out." /></div>
         <div className="ofield"><label htmlFor="bd-tags">Tags</label><input id="bd-tags" className="input" value={d.tags} onChange={set("tags")} placeholder="portrait, relight" /><p className="help">Comma separated. Tags two templates share become filters on Explore.</p></div>
-        <div className="ofield">
-          <label>Cover</label>
-          <div className="bld-covers">
-            {samples.map((s) => (
-              <button key={s.asset} type="button" className={cx("bld-cover", d.cover?.asset === s.asset && "on")} aria-pressed={d.cover?.asset === s.asset} onClick={() => setD((x) => ({ ...x, cover: s }))}><img src={s.url} alt="" /></button>
-            ))}
-            {d.cover && !samples.some((s) => s.asset === d.cover!.asset) && (
-              <button type="button" className="bld-cover on" aria-pressed><img src={d.cover.poster ?? d.cover.url} alt="" /></button>
-            )}
-            <label className="bld-cover add" title="Upload a cover">
-              {busy ? <Spinner size={14} /> : <I n="upload" />}
-              <input type="file" hidden accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; const [a] = await upload([f]); if (a) setD((x) => ({ ...x, cover: a })); }} />
-            </label>
-            {d.cover && <button type="button" className="bld-x" onClick={() => setD((x) => ({ ...x, cover: null }))}>No cover</button>}
-          </div>
-          <p className="help">A sample works for now. After a good run, open the result and use it as the cover.</p>
-        </div>
       </div>
     </Sec>
   );
 }
 
+/** A media input's sample: click to pick a file, or drop one on it. */
+function SampleThumb({ r, busy, onFile }: { r: MediaRow; busy: boolean; onFile: (f: File) => void }) {
+  const toast = useApp((s) => s.toast);
+  const fits = (f: File) => (r.kind === "audio" ? f.type.startsWith("audio/") : r.kind === "video" ? isVideo(f) : isImage(f));
+  const drop = useFileDrop((files) => onFile(files[0]), {
+    accept: fits, disabled: busy,
+    onReject: (files) => toast({ text: `${files[0].name} isn't ${r.kind === "image" ? "an image" : `a ${r.kind === "video" ? "video" : "sound"}`}.`, tone: "warn" }),
+  });
+  return (
+    <label className={cx("bld-thumb", drop.over && "drop")} title={r.sample ? "Replace the sample: click or drop a file" : "Add a sample people start from: click or drop a file"} {...drop.props}>
+      {busy ? <span><Spinner size={14} /></span> : r.sample ? <img src={r.sample.poster ?? r.sample.url} alt="" /> : <span><I n={KIND_ICON[r.kind]} /></span>}
+      <span className="bld-thumb-cap">{drop.over ? "Drop" : r.sample ? "Sample" : "+ Sample"}</span>
+      <input type="file" hidden accept={r.kind === "video" ? "video/*" : r.kind === "image" ? "image/*" : "audio/*"} disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+    </label>
+  );
+}
+
 // ---- preview -------------------------------------------------------------------
 
-function Preview({ details, media, prompt, params, kind }: { details: Details; media: MediaRow[]; prompt: PromptState; params: ParamRow[]; kind: "local" | "cloud" }) {
+function Preview({ details, media, prompt, params, kind, sized }: { details: Details; media: MediaRow[]; prompt: PromptState; params: ParamRow[]; kind: "local" | "cloud"; sized: string | null }) {
   const on = media.filter((m) => m.on);
   const ctrls = params.filter((r) => r.on);
   return (
@@ -690,7 +849,7 @@ function Preview({ details, media, prompt, params, kind }: { details: Details; m
       <div className="eyebrow">How it looks in Create</div>
       <div className="bp-card">
         <div className="bp-cover">
-          {details.cover ? <img src={details.cover.poster ?? details.cover.url} alt="" /> : <span><I n="image" /></span>}
+          <span className="bp-nocover"><I n="image" /><small>Your first published result</small></span>
           <span className="pill bp-kind"><i className={cx("dot", kind === "cloud" && "violet")} />{kind === "local" ? "Local" : "Cloud"}</span>
         </div>
         <div className="bp-body">
@@ -712,6 +871,7 @@ function Preview({ details, media, prompt, params, kind }: { details: Details; m
               <p className={prompt.def ? undefined : "ph"}>{prompt.def || prompt.hint || "Describe what you want"}</p>
             </div>
           )}
+          {sized && <div className="bp-ctrls"><div><span>Output size</span><span className="mono">{sized}</span></div></div>}
           {ctrls.length > 0 && (
             <div className="bp-ctrls">
               {ctrls.map((r) => <div key={r.id}><span>{r.label || human(r.name)}</span><span className="mono">{r.type === "seed" ? "random" : r.type === "bool" ? (r.value ? "on" : "off") : String(r.value ?? "default")}</span></div>)}

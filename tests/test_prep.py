@@ -5,7 +5,7 @@ from PIL import Image
 
 from server import engines, jobs, paths, prep
 
-QWEN = {"default": "1 MP", "multiple": 32, "follows": "image:1"}
+QWEN = {"multiple": 32}
 
 
 def qwen_node_size(w, h, res):
@@ -73,15 +73,16 @@ def test_every_input_has_its_own_size():
     assert (plans["image:2"].width, plans["image:2"].height) == (1600, 1184)
 
 
-def test_a_run_wide_size_from_older_drafts_sizes_the_followed_input():
-    s = prep.spec_of(QWEN, [{"slot": "image:1"}, {"slot": "image:2"}])
-    assert s["inputs"] == {"image:1": "1 MP", "image:2": "Original"}  # the old run-wide default lands on image:1
-    plans = prep.plans(s, [{"slot": "image:1", "width": 4000, "height": 3000}, {"slot": "image:2", "width": 800, "height": 600}], legacy="2 MP")
-    assert plans["image:1"].width > 1500 and (plans["image:2"].width, plans["image:2"].height) == (800, 576)
+def test_sizing_is_input_prep_only():
+    # Without a declared size input there is no canvas: nothing gets written into the graph.
+    for inputs in ([{"slot": "image:1"}], []):
+        assert "canvas" not in prep.spec_of({"multiple": 32, "aspect": "4:5", "default": "1 MP"}, inputs)
+    # An old size block's default no longer picks a size for an input.
+    assert prep.spec_of({"default": "1 MP"}, [{"slot": "image:1"}])["inputs"] == {"image:1": "Original"}
 
 
 def test_unknown_choice_falls_back_to_the_inputs_default():
-    s = prep.spec_of(QWEN, [{"slot": "image:1"}])
+    s = prep.spec_of(QWEN, [{"slot": "image:1", "size": "1 MP"}])
     assert prep.choice_of(s, "image:1", "nope") == "1 MP" and prep.choice_of(s, "image:9") == "Original"
     assert prep.budget(s, "Original") == 0 and prep.budget(s, "nope") == 0
 
@@ -89,7 +90,7 @@ def test_unknown_choice_falls_back_to_the_inputs_default():
 def test_every_template_gets_the_same_steps_for_what_it_makes():
     s = prep.spec_of(None, [{"slot": "video:1"}, {"slot": "image:1"}], "motion")
     assert [o["label"] for o in s["options"]] == ["0.4 MP", "0.75 MP", "1 MP", "1.5 MP", "Original"]
-    assert s["follows"] == "video:1" and s["inputs"] == {"video:1": "Original", "image:1": "Original"}
+    assert s["inputs"] == {"video:1": "Original", "image:1": "Original"}
     s = prep.spec_of({"options": [{"label": "1K", "px": 1024}], "multiple": 32}, [{"slot": "image:1", "size": "1K"}])
     assert [o["label"] for o in s["options"]] == ["0.5 MP", "1 MP", "2 MP", "3 MP", "Original"]  # a template's own list is ignored
     assert s["inputs"] == {"image:1": "Original"}
@@ -147,12 +148,17 @@ def test_exif_rotation_is_applied(tmp_path):
     assert media.open_image(paths.uploads_dir() / "phone.jpg").size == (300, 400)
 
 
-def test_shipped_templates_declare_a_size():
+def test_shipped_templates_only_write_what_they_declare():
     for e in engines.ENGINES.values():
-        if e.kind == "local" and e.id.startswith("local/qwen21-"):
-            assert e.size and e.size["multiple"] == 32 and e.size["follows"] == ("image:1" if e.inputs else None), e.id
-            assert e.inputs or e.bindings.get("size.width"), e.id  # no input to follow: the canvas size is written in
-            assert not any(p["key"] == "resolution" for p in e.params), e.id
+        if e.kind != "local" or e.origin != "shipped":
+            continue
+        assert e.size["multiple"] == 32 and "follows" not in (e.data.get("size") or {}) and "computed" not in e.data, e.id
+        # A template that takes no photo or clip declares its output size; the rest leave sizing to their workflow.
+        out = next((f for f in e.fields if f["type"] == "size"), None)
+        assert bool(out) == (not e.inputs) == ("canvas" in e.size), e.id
+        if out:
+            assert {b[2] for b in out["bind"]} == {"width", "height"} and all(str(b[0]) in e.workflow for b in out["bind"]), e.id
+        assert not any(p["key"] in ("resolution", "size") for p in e.params), e.id
 
 
 # ---- template defaults: samples and prompt -------------------------------------
@@ -160,7 +166,7 @@ def test_shipped_templates_declare_a_size():
 
 def test_every_template_opens_ready_to_run():
     for e in engines.ENGINES.values():
-        if e.kind != "local":
+        if e.kind != "local" or e.origin != "shipped":
             continue
         d = engines.describe(e)["defaults"]
         assert d["prompt"].strip(), e.id
@@ -238,16 +244,17 @@ def test_clips_kept_at_their_own_size_are_cut_not_resampled(tmp_path):
 
 
 def test_templates_without_inputs_make_their_own_canvas():
-    s = prep.spec_of({"multiple": 32, "aspect": "4:5", "default": "1 MP"}, [], "edit")
-    assert s["follows"] is None and s["canvas"]["aspect"] == "4:5" and all(o["px"] for o in s["options"])  # no Original
+    s = prep.spec_of({"multiple": 32}, [], "edit", {"aspect": "4:5", "default": "1 MP"})
+    assert s["canvas"] == {"aspects": list(prep.ASPECTS), "aspect": "4:5", "size": "1 MP"}
     w, h = prep.canvas_size(s, None, None)  # the template's defaults
     assert w % 32 == 0 and h % 32 == 0 and w / h == pytest.approx(0.8, rel=0.03) and w * h == pytest.approx(1e6, rel=0.12)
     w, h = prep.canvas_size(s, "16:9", "3 MP")
     assert w / h == pytest.approx(16 / 9, rel=0.03) and w * h == pytest.approx(3e6, rel=0.12)
     assert prep.canvas_size(s, "7:1", "6 MP") == prep.canvas_size(s, None, None)  # not offered: defaults
     assert prep.canvas_size(prep.limit(s, True), "1:1", "6 MP")[0] > 2300  # offered once the cap is lifted
-    v = prep.spec_of({"aspect": "16:9"}, [], "motion")
-    assert [o["label"] for o in v["options"]] == ["0.4 MP", "0.75 MP", "1 MP", "1.5 MP"] and v["canvas"]["size"] == "0.75 MP"
+    assert prep.canvas_size(s, "1:1", "Original") == prep.canvas_size(s, "1:1", "1 MP")  # Original means nothing for a canvas
+    v = prep.spec_of({}, [], "motion", {"aspect": "16:9", "default": "Original"})
+    assert v["canvas"]["size"] == "0.75 MP"
 
 
 def test_the_kept_box_never_leaves_the_picture():

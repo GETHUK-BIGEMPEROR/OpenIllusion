@@ -3,12 +3,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CSSProperties } from "react";
 import { appRoot, cx, EmptyBox, I, jobProgress, QUEUED } from "../components/oi";
 import { api, type Job } from "../lib/api";
+import { confirm } from "../lib/confirm";
 import { describeFailure } from "../lib/errors";
 import { clock, elapsed, errMsg, money, shortModel } from "../lib/format";
 import { isActive, useElapsed, useJobs } from "../lib/live";
+import { clipWindow, leadSlot } from "../lib/fields";
+import { cachedEngine } from "../lib/query";
 import { go } from "../lib/route";
 import { useRunName } from "../lib/runs";
-import { useApp } from "../lib/store";
+import { useApp, type StudioState } from "../lib/store";
 
 const FAILED = new Set(["failed", "moderated"]);
 
@@ -32,6 +35,22 @@ export function QueueDrawer() {
     ["Needs attention", attention],
     ["Finished", finished],
   ];
+  const cancelAll = async () => {
+    const n = running.length + waiting.length;
+    const res = await confirm({
+      icon: "x",
+      view: () => ({
+        title: `Cancel ${n} runs?`, body: "Waiting runs stop now. Running ones stop at ComfyUI's next node; a cloud run already at the provider may still finish.",
+        facts: [`${running.length} running`, `${waiting.length} waiting`], action: "Cancel all",
+      }),
+    });
+    if (!res.ok) return;
+    try {
+      qc.setQueryData(["jobs"], (await api.cancelAll()).jobs);
+    } catch (e) {
+      toast({ text: errMsg(e), tone: "error" });
+    }
+  };
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal container={appRoot()}>
@@ -55,6 +74,7 @@ export function QueueDrawer() {
           <div className="qfoot">
             <I n="check" style={{ color: "var(--mint)" }} />
             <span style={{ flex: 1 }}>Results save the moment they finish.</span>
+            {running.length + waiting.length > 1 && <button className="btn sm ghost danger" type="button" onClick={() => void cancelAll()}>Cancel all</button>}
             <button className="btn sm ghost" type="button" disabled={!done}
               onClick={async () => { try { qc.setQueryData(["jobs"], await api.clearJobs()); } catch (e) { toast({ text: errMsg(e), tone: "error" }); } }}>Clear finished</button>
           </div>
@@ -89,19 +109,23 @@ function JobRow({ j, onOpen }: { j: Job; onOpen: () => void }) {
     try {
       const m = await api.generation(j.id);
       const mode = loadGeneration(m);
-      const sized = fix === "smaller" || fix === "downscale" ? (await api.engines()).find((e) => e.id === m.engine.model)?.size : undefined;
-      const small = sized?.options[0]?.label;
-      setStudio(mode, (s) => {
-        if (fix === "trim" && s.video) return { video: { ...s.video, trim: [0, Math.min(10, s.video.duration ?? 10)] } };
-        if (fix === "downscale" && s.video) return small ? { video: { ...s.video, size: small } } : { video: { ...s.video, maxHeight: 720 } };
-        // The input the output follows goes to the smallest size.
-        if (small && sized && !sized.follows) return { params: { ...s.params, out_size: small } };
-        if (small && sized?.follows) return sized.follows.startsWith("video:")
-          ? { video: s.video ? { ...s.video, size: small } : null }
-          : { refs: s.refs.map((r, i) => (`image:${r.slot ?? i + 1}` === sized.follows ? { ...r, size: small } : r)) };
-        return {};
+      const e = fix === "smaller" || fix === "downscale" ? (await api.engines()).find((x) => x.id === m.engine.model) : undefined;
+      const small = e?.size?.options[0]?.label;
+      const lead = leadSlot(e);
+      setStudio(mode, (s): Partial<StudioState> => {
+        if (fix === "trim") {
+          const te = cachedEngine(s.engine);
+          return { videos: s.videos.map((v) => ({ ...v, trim: [0, Math.min(clipWindow(te, v.slot)?.[1] ?? 10, v.duration ?? 10)] })) };
+        }
+        if (fix === "downscale") return small ? { videos: s.videos.map((v) => ({ ...v, size: small })) } : {};
+        if (fix !== "smaller" || !small) return {};
+        // The smallest step for a declared output size and for the main input; the workflow does the rest.
+        const params = e?.size?.canvas ? { params: { ...s.params, out_size: small } } : {};
+        return lead.startsWith("video:")
+          ? { ...params, videos: s.videos.map((v) => (v.slot === lead ? { ...v, size: small } : v)) }
+          : { ...params, refs: s.refs.map((r, i) => (`image:${r.slot ?? i + 1}` === lead ? { ...r, size: small } : r)) };
       });
-      toast({ text: fix === "trim" ? "Loaded with the clip trimmed to 10 s. Press Run." : fix === "downscale" ? (small ? `Loaded; the clip goes at ${small}. Press Run.` : "Loaded; the clip goes at 720p. Press Run.")
+      toast({ text: fix === "trim" ? "Loaded with the clips trimmed to fit. Press Run." : fix === "downscale" ? (small ? `Loaded; the clip goes at ${small}. Press Run.` : "Loaded into Create. Pick a smaller size, then Run.")
         : small ? `Loaded at ${small}. Press Run.` : fix === "smaller" ? "Loaded. Pick a smaller size, then Run." : "Loaded into Create. Fix what's highlighted, then Run.", tone: "ok" });
       useApp.getState().setQueue(false);
       go({ name: mode });

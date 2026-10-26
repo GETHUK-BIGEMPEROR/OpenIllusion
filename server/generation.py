@@ -3,7 +3,7 @@
 A generation folder on disk has the same layout as a ``.illusion`` bundle, so
 export is a zip of the folder and import is an unzip into one:
 
-    generation.json  refs/ref-01.webp  driving/driving.mp4
+    generation.json  refs/ref-01.webp  driving/driving.mp4 (driving-2.mp4, ... for more clips)
     result/preview.mp4  result/poster.webp  comfy/workflow.json  LICENSES.md
 """
 

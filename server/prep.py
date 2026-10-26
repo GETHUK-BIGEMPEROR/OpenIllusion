@@ -14,19 +14,18 @@ The uncap setting (``uncap_size``) adds bigger steps and lets Original run at fu
 ``limit`` applies it. "Original" keeps the input's own size, trimmed to the multiple,
 and is every input's default unless the template names another step for it:
 
-    "size": {
-      "multiple": 32,          # both sides end on a multiple of this
-      "follows": "image:1"     # the input whose size the output takes ("video:1" for clips)
-    },
-    "inputs": [{"slot": "image:1", "label": "Person", "size": "1 MP"}]
+    "size": {"multiple": 32},                      # both sides end on a multiple of this
+    "inputs": [{"key": "image:1", "type": "image", "label": "Person", "size": "1 MP"}]
 
-Older templates give their own ``options`` (ignored now) or one ``default`` for the followed input.
+That is input prep, and all of it. What the workflow makes of a prepared input is its own
+business: the app writes an output size into a graph only when the template declares one,
+with a ``size`` input bound to the width and height it sets:
 
-A template that takes no photo or clip (text to image, text to video) makes its own canvas:
-the studio picks a shape and a step, and ``canvas_size`` turns them into the width and
-height the workflow's ``size.width`` / ``size.height`` bindings receive. Same steps, same cap:
+    {"key": "size", "type": "size", "label": "Output size", "aspect": "4:5", "default": "1 MP",
+     "bind": [["5", "width", "width"], ["5", "height", "height"]]}   # optional "aspects": [...]
 
-    "size": {"multiple": 32, "aspect": "4:5", "default": "1 MP"}   # optional "aspects": [...]
+The studio then offers a shape and a step (same steps, same cap), and ``canvas_size`` turns
+them into the width and height written.
 
 ``ui/src/lib/size.ts`` mirrors ``target``, ``plan`` and ``plans`` for live previews;
 compose returns this module's plans, which the studio shows once they arrive.
@@ -75,32 +74,25 @@ def _option(mp: float) -> dict:
     return {"label": f"{mp:g} MP", "px": round(math.sqrt(mp * 1e6)), "mp": mp}
 
 
-def spec_of(size: dict | None, inputs: list[dict] | None = None, mode: str = "edit") -> dict:
+def spec_of(size: dict | None, inputs: list[dict] | None = None, mode: str = "edit", out: dict | None = None) -> dict:
     """A template's size block with defaults filled in: the steps for what it makes (Original
-    last), the cap, the multiple, the input the output follows, and each input's default size."""
+    last), the cap, the multiple and each input's default size. ``out``: the template's ``size``
+    input, when it declares one; ``canvas`` then holds the shapes offered and the default shape and step."""
     size = size or {}
     mode = mode if mode in STEPS else "edit"
-    slots = [i["slot"] for i in inputs or [] if str(i.get("slot", "")).startswith(("image:", "video:"))]
-    if not slots:  # nothing to follow: the studio picks the canvas
-        opts = [_option(mp) for mp in STEPS[mode]]
-        labels = [o["label"] for o in opts]
-        aspects = [a for a in size.get("aspects") or ASPECTS if _ratio(a)]
-        canvas = {"aspects": aspects, "aspect": size.get("aspect") if size.get("aspect") in aspects else aspects[0],
-                  "size": size.get("default") if size.get("default") in labels else labels[1]}
-        return {"options": opts, "more": [_option(mp) for mp in OVER[mode]], "cap": _option(CAP[mode])["px"],
-                "multiple": int(size.get("multiple") or DEFAULT_MULTIPLE), "follows": None, "inputs": {}, "original": ORIGINAL, "canvas": canvas}
-    opts = [_option(mp) for mp in STEPS[mode]] + [{"label": ORIGINAL, "px": 0, "mp": 0}]
+    steps = [_option(mp) for mp in STEPS[mode]]
+    opts = steps + [{"label": ORIGINAL, "px": 0, "mp": 0}]
     labels = [o["label"] for o in opts]
-    follows = size.get("follows") or (slots[0] if slots else "image:1")
-    legacy = size.get("default") if size.get("default") in labels else None
-    defaults = {}
-    for i in inputs or []:
-        if i.get("slot") in slots:
-            defaults[i["slot"]] = i["size"] if i.get("size") in labels else legacy if i["slot"] == follows and legacy else ORIGINAL
-    if follows not in defaults:
-        defaults[follows] = legacy or ORIGINAL
-    return {"options": opts, "more": [_option(mp) for mp in OVER[mode]], "cap": _option(CAP[mode])["px"],
-            "multiple": int(size.get("multiple") or DEFAULT_MULTIPLE), "follows": follows, "inputs": defaults, "original": ORIGINAL}
+    defaults = {i["slot"]: i["size"] if i.get("size") in labels else ORIGINAL
+                for i in inputs or [] if str(i.get("slot", "")).startswith(("image:", "video:"))}
+    spec = {"options": opts, "more": [_option(mp) for mp in OVER[mode]], "cap": _option(CAP[mode])["px"],
+            "multiple": int(size.get("multiple") or DEFAULT_MULTIPLE), "inputs": defaults, "original": ORIGINAL}
+    if out is not None:
+        aspects = [a for a in out.get("aspects") or ASPECTS if _ratio(a)]
+        named = [o["label"] for o in steps]
+        spec["canvas"] = {"aspects": aspects, "aspect": out.get("aspect") if out.get("aspect") in aspects else aspects[0],
+                          "size": out.get("default") if out.get("default") in named else named[1]}
+    return spec
 
 
 def limit(size: dict, uncapped: bool) -> dict:
@@ -120,8 +112,8 @@ def _ratio(aspect: str) -> tuple[float, float] | None:
 
 
 def canvas_size(size: dict, aspect: str | None, choice: str | None) -> tuple[int, int] | None:
-    """Width and height for a template without inputs: the picked shape at the picked step
-    (the template's defaults when either isn't offered)."""
+    """Width and height for a template's declared output size: the picked shape at the picked
+    step (the template's defaults when either isn't offered)."""
     c = size.get("canvas")
     if not c:
         return None
@@ -226,13 +218,11 @@ def apply(img: Image.Image, p: Plan) -> Image.Image:
     return img.resize((p.width, p.height), Image.LANCZOS, box=p.box)
 
 
-def plans(size: dict, inputs: list[dict], legacy: str | None = None) -> dict[str, Plan]:
+def plans(size: dict, inputs: list[dict]) -> dict[str, Plan]:
     """Plans for every input of a run, photos and clips alike, each at its own size.
-    ``inputs``: [{slot, width, height, crop?, size?}]. ``legacy``: a run-wide choice from
-    older drafts and generations, for the followed input when it names none itself."""
+    ``inputs``: [{slot, width, height, crop?, size?}]."""
     out: dict[str, Plan] = {}
     for i in inputs:
-        own = i.get("size") or (legacy if i["slot"] == size["follows"] else None)
-        px = budget(size, choice_of(size, i["slot"], own))
+        px = budget(size, choice_of(size, i["slot"], i.get("size")))
         out[i["slot"]] = plan(i["width"], i["height"], px=px, multiple=size["multiple"], crop=i.get("crop"), cap=size.get("cap", 0))
     return out

@@ -3,10 +3,10 @@ import { api } from "../lib/api";
 import { errMsg } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go, href, parse, type Route } from "../lib/route";
+import { cachedEngine } from "../lib/query";
 import { useApp } from "../lib/store";
-import { Logo } from "./Logo";
 import { dotStyle, I, localState, useStatus } from "./oi";
-import { addToTray } from "./Refs";
+import { dropIntoStudio, isMediaFile, openWithFiles } from "./Drop";
 import { buildAction, workflowToBuilder } from "../screens/Builder";
 import { cx } from "./ui";
 
@@ -115,7 +115,7 @@ export function Toasts() {
   );
 }
 
-/** Full-window drop target: a .illusion, an OpenIllusion output, or a link. In a studio, plain photos go to the tray. */
+/** Drop anywhere: a .illusion, an OpenIllusion output, or a link. In a studio, plain photos go to the tray. */
 export function DropOverlay() {
   const [over, setOver] = useState(false);
   const setReview = useApp((s) => s.setReview);
@@ -145,29 +145,30 @@ export function DropOverlay() {
       setOver(false);
       if (!isOurs(e) || e.defaultPrevented) return;
       e.preventDefault();
+      const files = [...(e.dataTransfer?.files ?? [])];
+      const route = parse(window.location.hash).name;
+      const studio = route === "edit" || route === "motion" ? route : null;
       try {
-        const f = e.dataTransfer?.files?.[0];
-        const studio = parse(window.location.hash).name;
-        const toTray = (studio === "edit" || studio === "motion") && !!f && f.type.startsWith("image/");
-        // Only PNGs can carry a recipe; in a studio, any other photo is a reference.
-        if (toTray && f.type !== "image/png") {
-          addToTray(studio, [await api.upload(f)]);
-          return;
-        }
-        if (f) {
-          if (await workflowToBuilder(f)) return;
-          try {
-            setReview(await api.importFile(f));
-          } catch (err) {
-            if (!toTray) {
-              toast({ text: errMsg(err), tone: "error", action: buildAction(f) });
-              return;
-            }
-            addToTray(studio, [await api.upload(f)]);
-          }
-        } else {
+        const f = files[0];
+        if (!f) {
           const text = e.dataTransfer?.getData("text/uri-list") || e.dataTransfer?.getData("text/plain");
           if (text) setReview(await api.importText(text));
+          return;
+        }
+        if (await workflowToBuilder(f)) return;
+        // Only a .illusion, a PNG or an MP4 can carry a recipe. In Create, any other photo or clip is an input.
+        const carries = /\.(illusion|png|mp4)$/i.test(f.name);
+        if (studio && isMediaFile(f) && !carries) return void dropIntoStudio(studio, files);
+        try {
+          setReview(await api.importFile(f));
+        } catch (err) {
+          if (studio && isMediaFile(f)) return void dropIntoStudio(studio, files);
+          // Elsewhere a plain photo or clip can still go straight into the last template you used.
+          const st = useApp.getState();
+          const last = cachedEngine(st[st.lastStudio].engine);
+          toast(isMediaFile(f) && last
+            ? { text: `${f.name} isn't an OpenIllusion file. Use it as an input?`, tone: "warn", action: { label: `Use in ${last.label.split(" · ")[0]}`, run: () => void openWithFiles(last, files) } }
+            : { text: errMsg(err), tone: "error", action: buildAction(f) });
         }
       } catch (err) {
         toast({ text: errMsg(err), tone: "error" });
@@ -195,17 +196,17 @@ export function DropOverlay() {
     };
   }, [setReview, toast]);
   if (!over) return null;
-  const studio = parse(window.location.hash).name;
-  const inStudio = studio === "edit" || studio === "motion";
+  // A hint, not a cover: the inputs under the cursor stay visible and light up themselves.
+  const route = parse(window.location.hash).name;
+  const [title, rest] = route === "edit" || route === "motion"
+    ? ["Drop to fill the next empty input", " · or on an input or the preview to choose"]
+    : route === "explore"
+      ? ["Drop on a template to run it on your file", " · or anywhere to import"]
+      : ["Drop to import", " · .illusion, OpenIllusion PNG or MP4, a ComfyUI workflow"];
   return (
-    <div className="fixed inset-0 z-[70] p-3 pointer-events-none animate-fade">
-      <div className="w-full h-full rounded-xl bg-deep/85 backdrop-blur-sm border-2 border-dashed border-violet/60 flex flex-col items-center justify-center gap-3 text-center">
-        <Logo size={40} />
-        <span className="text-lg font-semibold">{inStudio ? "Drop to add your photo" : "Drop to import"}</span>
-        <span className="text-sm text-muted max-w-[420px]">
-          {inStudio ? "Photos fill the template's empty inputs in order. A .illusion file or an OpenIllusion PNG opens for review instead." : "A .illusion file, an OpenIllusion PNG or MP4, a generation link, or a ComfyUI workflow to build a template from. Nothing runs until you review it."}
-        </span>
-      </div>
+    <div className="dropcue" role="status">
+      <I n="import" />
+      <span><b>{title}</b>{rest}</span>
     </div>
   );
 }

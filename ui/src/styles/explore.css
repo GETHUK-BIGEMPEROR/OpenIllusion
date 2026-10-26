@@ -36,3 +36,23 @@
 .checks .i{width:16px;height:16px;color:var(--mint);stroke-width:2.2}
 .checks .mono{margin-left:auto;color:var(--text-3);font-size:11px}
 .scrim{display:none}
+/* drafts: built, not published until a result becomes the cover */
+.wall-wrap.drafts{padding-bottom:6px}
+.drafts-h,.drafts-row{max-width:var(--wall-max);margin:0 auto}
+.drafts-h{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.drafts-h b{font:600 11px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.drafts-h span{font-size:12.5px;color:var(--text-3)}
+.drafts-row{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.draft{flex:none;display:flex;align-items:center;gap:4px;padding:6px 6px 6px 6px;border:1px dashed var(--line-2,rgba(255,255,255,.16));border-radius:14px;background:rgba(255,255,255,.02);transition:border-color .2s,background .2s}
+.draft:hover,.draft.sel{border-color:rgba(242,255,89,.45);background:rgba(242,255,89,.04)}
+.draft-go{display:flex;align-items:center;gap:10px;background:none;border:0;color:inherit;padding:0;cursor:pointer;text-align:left;font:inherit}
+.draft-ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--raised);color:var(--text-3)}
+.draft-t{display:grid;gap:3px;min-width:0;max-width:220px}
+.draft-t b{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft-t small{font-size:11.5px;color:var(--text-3)}
+.draft-run{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;margin-left:6px;border-radius:9px;background:var(--yellow);color:var(--on-yellow);font:600 12px/1 var(--body)}
+.draft-run svg{width:12px;height:12px}
+.draft-note{display:flex;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(242,255,89,.06);border:1px solid rgba(242,255,89,.18);color:var(--text-2);font-size:12.5px;line-height:1.5}
+.draft-note p{margin:0}
+.draft-note b{color:var(--text);font-weight:500}
+.draft-note svg{flex:none;width:15px;height:15px;margin-top:2px;color:var(--yellow)}

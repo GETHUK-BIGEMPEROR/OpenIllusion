@@ -40,8 +40,9 @@ export interface RefSlot extends Media {
 export const slotOf = (r: Pick<RefSlot, "slot">, i: number) => r.slot ?? i + 1;
 
 export interface VideoSlot extends Media {
+  /** The template input this clip fills, like "video:1". */
+  slot: string;
   trim: [number, number];
-  maxHeight?: number;
   /** Kept part of every frame as fractions [x, y, w, h]; the server crops before the run. */
   crop?: [number, number, number, number];
   /** The size it runs at (a size option label); unset means the template's default for its slot. */
@@ -57,7 +58,8 @@ export interface VideoSlot extends Media {
 export interface StudioState {
   engine: string;
   title: string;
-  video: VideoSlot | null;
+  /** One clip per video input, by slot. */
+  videos: VideoSlot[];
   refs: RefSlot[];
   prompt: string;
   params: Record<string, unknown>;
@@ -77,7 +79,7 @@ export interface StudioState {
 }
 
 /** What belongs to one template's draft. Engine-independent studio settings (variants, session) stay put. */
-const DRAFT_KEYS = ["title", "video", "refs", "prompt", "params", "boxes", "raw", "forked_from", "chain", "tags", "current", "group", "selected", "returnRole", "seeded"] as const;
+const DRAFT_KEYS = ["title", "videos", "refs", "prompt", "params", "boxes", "raw", "forked_from", "chain", "tags", "current", "group", "selected", "returnRole", "seeded"] as const;
 
 /** A studio on a template, from scratch: the draft is cleared, the run history and variant count stay. */
 const fresh = (prev: StudioState, engine: string): StudioState => {
@@ -88,7 +90,7 @@ const fresh = (prev: StudioState, engine: string): StudioState => {
 const blankStudio = (): StudioState => ({
   engine: "", // filled from Settings' default, else the mode's first template (useStudio)
   title: "",
-  video: null,
+  videos: [],
   refs: [],
   prompt: "",
   params: {},
@@ -107,6 +109,17 @@ const blankStudio = (): StudioState => ({
 });
 
 export const newKey = () => Math.random().toString(36).slice(2, 10);
+
+/** A generation's clip poster: driving/driving.mp4 → driving/poster.webp, driving/driving-2.mp4 → driving/poster-2.webp. */
+export const posterOf = (file: string) => file.replace(/driving(-\d+)?\.mp4$/, "poster$1.webp");
+
+/** The clip in a video input, if one is there. */
+export const clipIn = (s: Pick<StudioState, "videos">, slot: string) => s.videos.find((v) => v.slot === slot) ?? null;
+/** The studio's clips with one input's clip put in, changed, or (null) taken out. */
+export const withClip = (s: Pick<StudioState, "videos">, slot: string, v: Omit<VideoSlot, "slot"> | null): VideoSlot[] => {
+  const rest = s.videos.filter((x) => x.slot !== slot);
+  return v ? [...rest, { ...v, slot }].sort((a, b) => a.slot.localeCompare(b.slot, undefined, { numeric: true })) : rest;
+};
 
 export interface Toast {
   id: string;
@@ -199,15 +212,15 @@ export const useApp = create<AppState>()(
             consent: i.consent,
             publicUrl: i.url ?? undefined,
           }));
-        const v = m.inputs.find((i) => i.slot.startsWith("video:"));
-        const video: VideoSlot | null =
-          v && v.file && !opts.dropVideo
-            ? {
+        const videos: VideoSlot[] = opts.dropVideo ? [] : m.inputs
+          .filter((v) => v.slot.startsWith("video:") && v.file)
+          .map((v) => ({
+                slot: v.slot,
                 asset: src(v.file),
-                name: "driving.mp4",
+                name: v.file!.split("/").pop()!,
                 kind: "video",
-                url: fileUrl(m.id, v.file),
-                poster: fileUrl(m.id, "driving/poster.webp"),
+                url: fileUrl(m.id, v.file!),
+                poster: fileUrl(m.id, posterOf(v.file!)),
                 duration: v.duration ?? undefined,
                 trim: [0, v.duration ?? 0],
                 size: v.prep?.size,
@@ -217,8 +230,7 @@ export const useApp = create<AppState>()(
                 contains_person: v.contains_person,
                 consent: v.consent,
                 publicUrl: v.url ?? undefined,
-              }
-            : null;
+          }));
         const prev = get()[mode];
         const engine = opts.engine ?? m.engine.model;
         const next: StudioState = {
@@ -227,7 +239,7 @@ export const useApp = create<AppState>()(
           engine,
           // A remix is a new run: it takes its template's name unless someone renames it.
           title: "",
-          video,
+          videos,
           refs,
           prompt: m.prompt,
           params: { ...m.params },
@@ -258,10 +270,19 @@ export const useApp = create<AppState>()(
       storage: safeStorage,
       partialize: (s) => ({ motion: s.motion, edit: s.edit, lastStudio: s.lastStudio }),
       // v2: the built-in cloud engines were removed; drafts pointing at one start without an engine.
-      version: 2,
+      // v3: one clip per video input instead of a single clip.
+      version: 3,
       migrate: (old, from) => {
         const st = old as Partial<AppState>;
         if (from < 2) for (const m of ["motion", "edit"] as const) if (st[m] && !st[m]!.engine.startsWith("local/")) st[m] = { ...st[m]!, engine: "" };
+        if (from < 3) {
+          for (const m of ["motion", "edit"] as const) {
+            const prev = st[m] as (StudioState & { video?: Omit<VideoSlot, "slot"> | null }) | undefined;
+            if (!prev) continue;
+            const { video, ...rest } = prev;
+            st[m] = { ...rest, videos: video ? [{ ...video, slot: "video:1" }] : [] };
+          }
+        }
         return st as AppState;
       },
     },

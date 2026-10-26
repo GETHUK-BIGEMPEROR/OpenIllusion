@@ -89,6 +89,7 @@ def check_attestation(m: sc.Manifest, attest: dict, strip_driving: bool) -> list
 def export(generation_id: str, variant: str, strip_driving: bool, attest: dict, dest_dir: Path | None = None,
            embed_recipe: bool = True) -> Path:
     """Write ``<title>.illusion`` (Full or Light) or ``.illusion.json`` (Recipe-only)."""
+    from . import engines
     f = store.folder(generation_id)
     m = sc.read(f)
     for i in m.inputs:
@@ -161,8 +162,11 @@ def export(generation_id: str, variant: str, strip_driving: bool, attest: dict, 
                         z.write(f / rel, rel)
         if (f / "comfy" / "workflow.json").exists():
             z.write(f / "comfy" / "workflow.json", "comfy/workflow.json")
-        if (f / "driving" / "poster.webp").exists() and not (light or strip_driving):
-            z.write(f / "driving" / "poster.webp", "driving/poster.webp")
+        if not (light or strip_driving):
+            for item in d["inputs"]:
+                poster = engines.poster_file(item["file"]) if item.get("file") and item["slot"].startswith("video:") else None
+                if poster and (f / poster).exists():
+                    z.write(f / poster, poster)
         z.writestr("LICENSES.md", sc.licenses_md(sc.parse(d)[0]))
         z.writestr("generation.json", json.dumps(d, indent=2, ensure_ascii=False))
     return out
@@ -308,8 +312,9 @@ def _review(recipe: dict, source: dict, files: dict[str, bytes], poster: tuple[s
 
     missing_video = [i for i in m.inputs if i.slot.startswith("video:") and not (i.file and i.file in files)]
     if missing_video or (e.needs_video and not any(i.slot.startswith("video:") for i in m.inputs)):
-        lo, hi = e.video_window or (2, 15)
-        checks.append({"level": "warn", "text": "No driving video in this generation", "detail": f"You'll be asked for your own clip, {lo:g}–{hi:g} s"})
+        window = engines.clip_limits(e, missing_video[0].slot if missing_video else "video:1")[0]
+        span = f", {window[0]:g}–{window[1]:g} s" if window else ""
+        checks.append({"level": "warn", "text": "No driving video in this generation", "detail": f"You'll be asked for your own clip{span}"})
     missing_refs = [i for i in m.inputs if i.slot.startswith("image:") and not (i.file and i.file in files)]
     if missing_refs:
         checks.append({"level": "info", "text": "Reference images are thumbnails" if any(i.thumb for i in missing_refs) else "Reference images not included",

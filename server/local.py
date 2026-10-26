@@ -172,6 +172,15 @@ class ComfyUI:
             return None
         return resp.content
 
+    async def upload_input(self, path: Path, name: str) -> str:
+        """Put a file in ComfyUI's input folder under ``name``, replacing one with that name. Returns the name ComfyUI uses."""
+        async with httpx.AsyncClient(timeout=60.0, transport=self._transport) as c:
+            resp = await c.post(self.base + "/upload/image", data={"type": "input", "overwrite": "true"},
+                                files={"image": (name, path.read_bytes())})
+        resp.raise_for_status()
+        d = resp.json()
+        return f"{d['subfolder']}/{d['name']}" if d.get("subfolder") else d["name"]
+
     async def system_stats(self) -> dict:
         async with httpx.AsyncClient(timeout=4.0, transport=self._transport) as c:
             resp = await c.get(self.base + "/system_stats")

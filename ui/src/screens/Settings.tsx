@@ -2,13 +2,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cx, EmptyBox, gpuName, I, PageHead } from "../components/oi";
 import { UpstreamWarning } from "../components/Studio";
-import { api, type Settings as S, type Status } from "../lib/api";
-import { errMsg } from "../lib/format";
+import { api, type Settings as S, type Status, type StorageBucket } from "../lib/api";
+import { confirm } from "../lib/confirm";
+import { bytes, errMsg } from "../lib/format";
 import { useApp } from "../lib/store";
 
 const NAV = [
   { id: "engines", label: "Engines" },
-  { id: "runs", label: "Runs and storage" },
+  { id: "runs", label: "Runs" },
+  { id: "storage", label: "Storage" },
   { id: "community", label: "Community" },
   { id: "privacy", label: "Privacy" },
 ] as const;
@@ -74,7 +76,7 @@ export function Settings() {
                 </div>
               </Sec>
 
-              <Sec id="runs" title="Runs and storage" desc="Results download the moment they finish. Router links expire within a day.">
+              <Sec id="runs" title="Runs" desc="Results download the moment they finish. Router links expire within a day.">
                 <div className="set-card">
                   <TextSetting id="out" label="Output folder" help="Leave empty for the default." value={s.output_folder} placeholder="~/.openillusion/outputs" mono onSave={(v) => save({ output_folder: v })} />
                 </div>
@@ -90,6 +92,8 @@ export function Settings() {
                   </Trow>
                 </div>
               </Sec>
+
+              <StorageSection />
 
               <CommunitySection s={s} save={save} />
 
@@ -112,6 +116,86 @@ export function Settings() {
 }
 
 /* ---------------------------------------------------------------- sections */
+
+const BUCKETS: { id: StorageBucket; label: string; desc: string; color: string }[] = [
+  { id: "generations", label: "Generations", desc: "Your library: inputs, previews and recipes.", color: "var(--violet)" },
+  { id: "trash", label: "Trash", desc: "Deleted generations, kept 7 days.", color: "var(--rose)" },
+  { id: "uploads", label: "Uploads", desc: "Files dropped into forms. Runs copy what they use, so these are working copies.", color: "var(--orange)" },
+  { id: "exports", label: "Exports", desc: ".illusion packages you exported, in your output folder.", color: "var(--mint)" },
+  { id: "cache", label: "Cache", desc: "Thumbnails and schemas. Rebuilt when needed.", color: "var(--text-3)" },
+];
+
+/** Where the disk goes, and a way to take back what's only working copies. */
+function StorageSection() {
+  const qc = useQueryClient();
+  const toast = useApp((st) => st.toast);
+  const q = useQuery({ queryKey: ["storage"], queryFn: api.storage });
+  const [busy, setBusy] = useState<StorageBucket | null>(null);
+  const u = q.data;
+  const total = u ? BUCKETS.reduce((a, b) => a + u[b.id].bytes, 0) : 0;
+
+  const ASK: Partial<Record<StorageBucket, { hold?: boolean; title: string; body: string; action: string }>> = {
+    trash: { hold: true, title: "Empty the trash?", body: "Deleted generations go for good. This can't be undone.", action: "Hold to empty" },
+    uploads: { title: "Clean up uploads?", body: "Files dropped into forms go, except anything from the last hour. Generations keep their own copies.", action: "Clean up" },
+    exports: { hold: true, title: "Delete exports?", body: "Every .illusion package in your output folder goes. Export again from any generation.", action: "Hold to delete" },
+  };
+  const clean = async (b: StorageBucket) => {
+    const ask = ASK[b];
+    if (ask && u) {
+      const res = await confirm({
+        hold: ask.hold, icon: "trash",
+        view: () => ({ title: ask.title, body: ask.body, facts: [`${bytes(u[b].bytes)} freed`, `${u[b].items} item${u[b].items === 1 ? "" : "s"}`], action: ask.action }),
+      });
+      if (!res.ok) return;
+    }
+    setBusy(b);
+    try {
+      const r = await api.cleanStorage(b);
+      toast({ text: `${bytes(r.bytes)} freed.`, tone: "ok" });
+      for (const k of ["storage", ...(b === "trash" ? ["trash"] : [])]) qc.invalidateQueries({ queryKey: [k] });
+    } catch (e) {
+      toast({ text: errMsg(e), tone: "error" });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Sec id="storage" title="Storage" desc="What OpenIllusion keeps on this computer. Full-size results in your output folder aren't counted.">
+      <div className="set-card storage">
+        {q.isError ? (
+          <p className="help" style={{ color: "var(--rose)", margin: 0 }}>Couldn't measure storage: {errMsg(q.error)}</p>
+        ) : (
+          <>
+            <div className="st-top">
+              <b className="mono">{u ? bytes(total) : "…"}</b><span>in use</span>
+              <button className="icon-btn sm" type="button" aria-label="Measure again" title="Measure again" onClick={() => q.refetch()}><I n="refresh" /></button>
+            </div>
+            <div className="st-bar" role="img" aria-label={u ? BUCKETS.map((b) => `${b.label} ${bytes(u[b.id].bytes)}`).join(", ") : "Measuring"}>
+              {u && BUCKETS.map((b) => u[b.id].bytes > 0 && <i key={b.id} style={{ flexGrow: u[b.id].bytes, background: b.color }} />)}
+            </div>
+            <div className="st-rows">
+              {BUCKETS.map((b) => {
+                const x = u?.[b.id];
+                return (
+                  <div key={b.id} className="st-row">
+                    <i className="sw" style={{ background: b.color }} />
+                    <div><b>{b.label}</b><span>{b.desc}</span></div>
+                    <span className="mono sz" title={x?.path}>{x ? bytes(x.bytes) : "…"}</span>
+                    {b.id === "generations" ? <a className="btn sm ghost" href="#/library">Open</a>
+                      : <button className={cx("btn sm", b.id !== "cache" && "danger")} type="button" disabled={!x?.items || busy !== null} onClick={() => void clean(b.id)}>
+                        {b.id === "trash" ? "Empty" : b.id === "cache" ? "Clear" : b.id === "uploads" ? "Clean up" : "Delete"}
+                      </button>}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </Sec>
+  );
+}
 
 function LocalCard({ s, save, status }: { s: S; save: Save; status?: Status }) {
   const qc = useQueryClient();

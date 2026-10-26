@@ -102,26 +102,29 @@
           "device"
         ]
       ]
+    },
+    {
+      "key": "size",
+      "type": "size",
+      "label": "Output size",
+      "bind": [
+        [
+          "459:456",
+          "width",
+          "width"
+        ],
+        [
+          "459:456",
+          "height",
+          "height"
+        ]
+      ],
+      "aspect": "4:5",
+      "default": "1 MP"
     }
   ],
-  "computed": {
-    "size.width": [
-      [
-        "459:456",
-        "width"
-      ]
-    ],
-    "size.height": [
-      [
-        "459:456",
-        "height"
-      ]
-    ]
-  },
   "size": {
-    "multiple": 32,
-    "aspect": "4:5",
-    "default": "1 MP"
+    "multiple": 32
   },
   "outputs": [
     "461"

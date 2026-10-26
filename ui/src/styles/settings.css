@@ -31,3 +31,20 @@
 .stepper output{min-width:30px;text-align:center;font:500 13px var(--mono)}
 .irow{display:flex;gap:8px}
 .irow .input{flex:1}
+/* Storage: one stacked bar, then a row per bucket with its own clean action. */
+.storage{gap:16px}
+.st-top{display:flex;align-items:baseline;gap:8px}
+.st-top b{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.st-top span{font-size:12.5px;color:var(--text-3)}
+.st-top .icon-btn{margin-left:auto;align-self:center}
+.st-bar{display:flex;gap:3px;height:10px;border-radius:6px;overflow:hidden;background:var(--raised)}
+.st-bar i{flex-basis:0;min-width:4px;border-radius:3px;transition:flex-grow .4s}
+.st-rows{display:grid}
+.st-row{display:flex;align-items:center;gap:12px;padding:11px 0}
+.st-row+.st-row{border-top:1px solid var(--line)}
+.st-row .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.st-row div{flex:1;min-width:0}
+.st-row b{display:block;font-size:13px;font-weight:500}
+.st-row div span{font-size:12px;color:var(--text-3)}
+.st-row .sz{font-size:12px;color:var(--text-2);min-width:64px;text-align:right}
+.st-row .btn{min-width:76px}

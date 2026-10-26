@@ -120,8 +120,7 @@
     }
   ],
   "size": {
-    "multiple": 32,
-    "follows": "image:1"
+    "multiple": 32
   },
   "outputs": [
     "9"

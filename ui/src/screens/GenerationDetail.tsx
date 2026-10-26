@@ -6,13 +6,13 @@ import { OutcomeToggle } from "../components/bits";
 import { EngineDropdown } from "../components/Engine";
 import { appRoot, Compare, cx, EmptyBox, gpuName, I, jobProgress, QUEUED, Ring, useStatus } from "../components/oi";
 import { StageError, type Fix } from "../components/Studio";
-import { tplModel, tplName } from "../components/TemplateCard";
-import { api, fileUrl, workflowUrl, type Manifest } from "../lib/api";
+import { tplModel, tplName, useCoverActions } from "../components/TemplateCard";
+import { api, fileUrl, workflowUrl, type EngineInfo, type Manifest } from "../lib/api";
 import { ago, elapsed, errMsg, roleLabel, shortModel, stamp, LICENSES } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go, href } from "../lib/route";
 import { runName } from "../lib/runs";
-import { useApp } from "../lib/store";
+import { posterOf, useApp } from "../lib/store";
 
 type Mode = "input" | "result" | "compare";
 
@@ -102,16 +102,6 @@ export function GenerationDetail({ id }: { id: string }) {
       toast({ text: `Couldn't save: ${errMsg(e)}`, tone: "error" });
     }
   };
-  const useAsCover = async () => {
-    setMore(false);
-    try {
-      await api.setCover(m.engine.model, { generation: m.id });
-      qc.invalidateQueries({ queryKey: ["engines"] });
-      toast({ text: "Template cover updated.", tone: "ok", action: { label: "View", run: () => go({ name: "explore", t: m.engine.model }) } });
-    } catch (e) {
-      toast({ text: `Couldn't set the cover: ${errMsg(e)}`, tone: "error" });
-    }
-  };
   const remove = async () => {
     setMore(false);
     try {
@@ -146,7 +136,7 @@ export function GenerationDetail({ id }: { id: string }) {
 
   let stage: ReactNode;
   if (after && isVideo) {
-    const src = video?.file ? { kind: "video" as const, src: fileUrl(m.id, video.file), poster: fileUrl(m.id, "driving/poster.webp"), label: "Source" } : null;
+    const src = video?.file ? { kind: "video" as const, src: fileUrl(m.id, video.file), poster: fileUrl(m.id, posterOf(video.file)), label: "Source" } : null;
     stage = <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "0 16px 16px" }}><ABPlayer a={src} b={{ kind: "video", src: after, poster: r?.poster ? fileUrl(m.id, r.poster) : null, label: "Result" }} /></div>;
   } else {
     let inner: ReactNode;
@@ -245,7 +235,7 @@ export function GenerationDetail({ id }: { id: string }) {
               <div style={{ display: "grid", gap: 8 }}>
                 {m.inputs.map((i) => {
                   const lic = LICENSES.find((l) => l.id === i.license)?.label ?? i.license;
-                  const src = i.file ? fileUrl(m.id, i.slot.startsWith("video:") ? "driving/poster.webp" : i.file) : i.thumb;
+                  const src = i.file ? fileUrl(m.id, i.slot.startsWith("video:") ? posterOf(i.file) : i.file) : i.thumb;
                   return (
                     <div key={i.slot} className="inrow" title={`${i.slot} · ${lic}${i.contains_person ? " · person" : ""}`}>
                       {src ? <img src={src} alt="" style={i.file ? undefined : { opacity: 0.5 }} /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n="image" /></span>}
@@ -301,7 +291,7 @@ export function GenerationDetail({ id }: { id: string }) {
             <button role="menuitem" type="button" onClick={() => { setMore(false); void save({ starred: !m.starred }); }}><I n="star" />{m.starred ? "Unstar" : "Star"}</button>
             {m.mode === "motion" && <button role="menuitem" type="button" onClick={() => { setMore(false); remix({ dropVideo: true }); }}><I n="film" />Remix with my own video</button>}
             {local && <a role="menuitem" className="mitem" href={workflowUrl(m.id)} download={`${m.id}.workflow.json`} onClick={() => setMore(false)}><I n="graph" />Download ComfyUI workflow</a>}
-            {tpl && m.status === "done" && <button role="menuitem" type="button" onClick={useAsCover}><I n="image" />Use as template cover</button>}
+            {tpl && m.status === "done" && <CoverItem e={tpl} run={m.id} close={() => setMore(false)} />}
             <button role="menuitem" type="button" onClick={() => { navigator.clipboard?.writeText(m.id); setMore(false); toast({ text: "Generation ID copied.", tone: "ok" }); }}><I n="copy" />Copy generation ID</button>
             <hr />
             <button role="menuitem" className="danger" type="button" onClick={remove}><I n="trash" />Move to trash</button>
@@ -410,5 +400,15 @@ function Lineage({ m }: { m: Manifest }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** "Use as template cover", or for a draft, publish it with this result as the cover. */
+function CoverItem({ e, run, close }: { e: EngineInfo; run: string; close: () => void }) {
+  const { busy, fromRun } = useCoverActions(e);
+  return (
+    <button role="menuitem" type="button" disabled={busy} onClick={async () => { if (await fromRun(run)) close(); }}>
+      <I n={e.draft ? "upload" : "image"} />{e.draft ? "Publish template with this cover" : "Use as template cover"}
+    </button>
   );
 }

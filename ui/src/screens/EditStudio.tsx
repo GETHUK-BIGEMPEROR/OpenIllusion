@@ -2,21 +2,22 @@ import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ABPlayer, typing } from "../components/ABPlayer";
 import { CostPill } from "../components/bits";
+import { clipSlot as asClip, dropIntoStudio, isImage, isMediaFile, isVideo, useFileDrop } from "../components/Drop";
 import { useEngine, ParamFields } from "../components/Engine";
 import { Compare, cx, I, jobProgress, QUEUED, Ring, useStatus, gpuName } from "../components/oi";
 import { addToTray, bySlot, RefTray, useUploader, withRefs } from "../components/Refs";
 import {
   invalidFields, LocalNeeds, NoTemplates, RawRequest, StageError, useCompose, useCurrent, useRunner, useStudio, type Fix,
 } from "../components/Studio";
-import { tplCategory, tplModel, tplName } from "../components/TemplateCard";
+import { TemplateTools, tplCategory, tplModel, tplName, useCoverActions } from "../components/TemplateCard";
 import { Trimmer } from "../components/Trimmer";
 import { Spinner } from "../components/ui";
 import { api, fileUrl, type EngineInfo, type GenerationRow, type Job, type Manifest, type Mode, type ParamSpec, type SizeSpec } from "../lib/api";
-import { areaField, article, leadSlot, mediaFields, promptField, roleOf, settingsOf, slotNo, videoField, type MediaField } from "../lib/fields";
+import { areaField, article, clipFps, clipSlots, clipWindow, leadSlot, mediaFields, promptField, roleOf, settingsOf, slotNo, videoField, type MediaField } from "../lib/fields";
 import { EDIT_ROLES, errMsg, ROLES, roleLabel } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go } from "../lib/route";
-import { newKey, slotOf, useApp, type RefSlot, type StudioState, type VideoSlot } from "../lib/store";
+import { clipIn, newKey, posterOf, slotOf, withClip, useApp, type RefSlot, type StudioState, type VideoSlot } from "../lib/store";
 import { aspectName, aspectRatio, canvasSize, choiceOf, dimsText, megapixels, plan, plans, SHAPES, shapeCrop, shapeOf, sizeNotes, usePrepImages, type Crop, type PrepInput } from "../lib/size";
 
 type View = "input" | "result" | "compare" | "grid";
@@ -29,7 +30,7 @@ const AREA = "Keep the edit inside this area";
 
 /** A studio change to one input's attributes (shape, size), photo or clip alike. */
 const withInput = (slot: string, patch: { crop?: Crop; size?: string }) => (st: StudioState): Partial<StudioState> => slot.startsWith("video:")
-  ? { video: st.video ? { ...st.video, ...patch } : null, current: null }
+  ? { videos: st.videos.map((v) => (v.slot === slot ? { ...v, ...patch } : v)), current: null }
   : { refs: st.refs.map((r, i) => (`image:${slotOf(r, i)}` === slot ? { ...r, ...patch } : r)), current: null };
 
 /** A template's sample for one photo input, as a tray entry. */
@@ -44,7 +45,8 @@ function sampleVideo(e: EngineInfo, slot: string): VideoSlot | null {
   const i = e.defaults?.inputs.find((x) => x.slot === slot);
   if (!i) return null;
   const d = i.duration ?? 0;
-  return { ...i, trim: [0, e.video_window ? Math.min(d, e.video_window[1]) : d], sample: true, license: "generated", contains_person: false, consent: false };
+  const win = clipWindow(e, slot);
+  return { ...i, trim: [0, win ? Math.min(d, win[1]) : d], sample: true, license: "generated", contains_person: false, consent: false };
 }
 
 export const EditStudio = () => <CreateStudio mode="edit" />;
@@ -75,17 +77,20 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const [marking, setMarking] = useState(false);
 
   const base = leadVideo ? undefined : s.refs.find((r, i) => `image:${slotOf(r, i)}` === lead);
-  const clip = (vField || (!engine?.fields?.length && mode === "motion")) && s.video && !s.video.missing ? s.video : null;
+  const slots = clipSlots(engine, mode);
+  const clipAt = vField?.key ?? "video:1";
+  const lc = slots.includes(clipAt) ? clipIn(s, clipAt) : null;
+  const clip = lc && !lc.missing ? lc : null;
   const hasInput = leadVideo ? !!clip : !!base;
   const photos = usePrepImages(s.refs);
-  const clipSlot = vField?.key ?? "video:1";
-  const images: PrepInput[] = clip?.width && clip.height ? [...photos, { slot: clipSlot, width: clip.width, height: clip.height, crop: clip.crop, size: clip.size }] : photos;
+  const images: PrepInput[] = [...photos, ...s.videos.filter((v) => slots.includes(v.slot) && !v.missing && v.width && v.height)
+    .map((v) => ({ slot: v.slot, width: v.width!, height: v.height!, crop: v.crop, size: v.size }))];
   const sized = engine?.size;
   const local = sized ? plans(sized, images) : {};
   const planOf = (slot: string) => compose?.prep?.[slot] ?? local[slot] ?? null;
-  // Templates without inputs make their own canvas: a shape and a size picked under Output.
+  // A declared output size: the shape and step picked under Output. Without one, the workflow sizes its own output.
   const canvas = sized?.canvas ? canvasSize(sized, s.params.aspect, s.params.out_size) : null;
-  const out = canvas ?? (sized?.follows ? planOf(sized.follows) : null);
+  const noInput = !!engine?.fields?.length && !media.length;
 
   const group = s.group.length ? s.group : s.current ? [s.current] : [];
   const variants = useQueries({ queries: group.map((id) => ({ queryKey: ["generation", id], queryFn: () => api.generation(id), retry: false })) });
@@ -103,7 +108,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
     view === "grid" && group.length > 1 ? "grid"
       : !shown || view === "input" ? (hasInput ? "input" : "empty")
       : live ? "live" : failed ? "failed" : !done ? (hasInput ? "input" : "empty")
-      : view === "result" || canvas ? "result" : "compare";
+      : view === "result" || noInput ? "result" : "compare";
 
   // A run that finishes while you watch flips the stage to its result.
   const prevState = useRef<string | undefined>(undefined);
@@ -145,6 +150,31 @@ function CreateStudio({ mode }: { mode: Mode }) {
       toast({ text: errMsg(e), tone: "error" });
     }
   };
+  // Dropping on the stage replaces the input it shows; several files fill the inputs in order.
+  const replaceLead = async (files: File[]) => {
+    if (files.length > 1) return void dropIntoStudio(mode, files);
+    const f = files.find(leadVideo ? isVideo : isImage);
+    if (!f) return toast({ text: leadVideo ? "This input takes a video." : "This input takes a photo.", tone: "warn" });
+    let a;
+    try {
+      a = await api.upload(f);
+    } catch (e) {
+      return toast({ text: `${f.name}: ${errMsg(e)}`, tone: "error" });
+    }
+    if (leadVideo) set((st) => ({ videos: withClip(st, lead, asClip(a, engine, lead, clipIn(st, lead)?.size)), current: null }));
+    else {
+      const n = slotNo(lead);
+      set((st) => {
+        const [added] = withRefs([], [a], EDIT_ROLES, "base");
+        const old = bySlot(st.refs).find((r) => r.slot === n);
+        return { refs: bySlot([...bySlot(st.refs).filter((r) => r.slot !== n), { ...added, slot: n, size: old?.size, role: engine ? roleOf(engine, lead) : added.role }]), current: null };
+      });
+    }
+    setView("input");
+  };
+  const stageDrop = useFileDrop((files) => void replaceLead(files), { accept: isMediaFile, disabled: !media.length });
+  const leadName = media.find((f) => f.key === lead)?.label;
+
   const remix = (g: Manifest) => {
     useApp.getState().loadGeneration(g);
     set({ current: null, group: [] });
@@ -168,22 +198,29 @@ function CreateStudio({ mode }: { mode: Mode }) {
     const suggested = shownJob?.fixes ?? [];
     if (suggested.includes("smaller") || /memory/i.test(String(shownJob?.detail ?? failed.result?.error?.message ?? ""))) {
       const size = engine?.params.find((p) => /^(size|resolution|megapixels|width)$/.test(p.key));
-      const leadIn = sized && images.find((i) => i.slot === sized.follows);
+      const leadIn = sized && images.find((i) => i.slot === lead);
+      const now = planOf(lead);
       const smaller = sized && leadIn ? sized.options
         .map((o) => ({ o, p: plans(sized, [{ ...leadIn, size: o.label }])[leadIn.slot] }))
-        .filter((x) => out && x.p.width * x.p.height < out.width * out.height)
+        .filter((x) => now && x.p.width * x.p.height < now.width * now.height)
         .sort((a, b) => b.p.width * b.p.height - a.p.width * a.p.height)[0] : undefined;
-      const canvasAt = sized?.canvas ? sized.options.findIndex((o) => o.label === String(s.params.out_size ?? sized.canvas!.size)) : -1;
-      const smallerOut = canvasAt > 0 ? sized!.options[canvasAt - 1].label : null;
+      const steps = sized?.options.filter((o) => o.px) ?? [];
+      const canvasAt = sized?.canvas ? steps.findIndex((o) => o.label === String(s.params.out_size ?? sized.canvas!.size)) : -1;
+      const smallerOut = canvasAt > 0 ? steps[canvasAt - 1].label : null;
       if (smallerOut) fixes.push({ label: `Use ${smallerOut}`, run: () => { setParam("out_size", smallerOut); toast({ text: `Output set to ${smallerOut}. Press Run.`, tone: "ok" }); } });
       else if (smaller && leadIn) fixes.push({ label: `Use ${smaller.o.label} (${dimsText(smaller.p)})`, run: () => { set(withInput(leadIn.slot, { size: smaller.o.label })); toast({ text: `Size set to ${smaller.o.label}. Press Run.`, tone: "ok" }); } });
       else if (size) fixes.push({ label: "Use a smaller size", run: () => { const opts = size.options ?? []; const i = opts.indexOf(String(s.params[size.key] ?? size.default)); if (opts.length && i > 0) { set((st) => ({ params: { ...st.params, [size.key]: opts[i - 1] }, raw: null })); toast({ text: `${size.label} set to ${opts[i - 1]}. Press Run.`, tone: "ok" }); } else if (size.type === "int") { set((st) => ({ params: { ...st.params, [size.key]: size.min ?? size.default }, raw: null })); } } });
     }
-    if (suggested.includes("trim") && s.video) {
-      const w = engine?.video_window?.[1] ?? 10;
-      fixes.push({ label: `Trim to ${w} s`, run: () => set({ video: { ...s.video!, trim: [s.video!.trim[0], s.video!.trim[0] + Math.min(w, s.video!.trim[1] - s.video!.trim[0])] } }) });
+    if (suggested.includes("trim") && s.videos.length) {
+      // Every clip over its input's length gets cut to it.
+      const cut = (v: VideoSlot): VideoSlot => {
+        const w = clipWindow(engine, v.slot)?.[1] ?? 10;
+        const end = v.trim[1] || v.duration || 0;
+        return { ...v, trim: [v.trim[0], v.trim[0] + Math.min(w, end - v.trim[0])] };
+      };
+      const w = clipWindow(engine, clipAt)?.[1] ?? 10;
+      fixes.push({ label: slots.length > 1 ? "Trim the clips to fit" : `Trim to ${w} s`, run: () => set((st) => ({ videos: st.videos.map(cut) })) });
     }
-    if (suggested.includes("downscale") && s.video && !sized) fixes.push({ label: "Downscale to 720p", run: () => { set({ video: { ...s.video!, maxHeight: 720 } }); toast({ text: "The clip is re-encoded at 720p on the next run.", tone: "ok" }); } });
     if (suggested.includes("rerun") || failed.status !== "cancelled") fixes.push({ label: "Try again", run: () => rerun(failed.id), primary: true });
   }
 
@@ -202,15 +239,13 @@ function CreateStudio({ mode }: { mode: Mode }) {
           <HistStrip engine={s.engine} current={s.current} jobs={jobs} onPick={pickRun} />
           {engine?.kind === "local" && <div style={{ display: "grid", gap: 8 }}><LocalNeeds spec={spec} /></div>}
 
-          {sized?.canvas ? (
-            <OutputSize size={sized} aspect={String(s.params.aspect ?? sized.canvas.aspect)} choice={String(s.params.out_size ?? sized.canvas.size)} onChange={setParam} />
-          ) : (
+          {(media.length || !engine?.fields?.length) && (
           <section className="sec" aria-labelledby="sec-inputs">
             <div className="sec-h"><h4 id="sec-inputs">Inputs</h4><span className="mono">{media.length ? `${required} needed${media.length > required ? ` · ${media.length - required} optional` : ""}` : `${s.refs.length} / ${engine?.max_images ?? 10}`}</span></div>
             {engine && media.length ? (
               <div className="slots">
                 {media.map((f) => f.type === "video"
-                  ? <ClipRow key={f.key} e={engine} f={f} v={s.video} staged={f.key === lead} onChange={(video) => set({ video, current: null })} />
+                  ? <ClipRow key={f.key} e={engine} f={f} v={clipIn(s, f.key)} staged={f.key === lead} onChange={(v) => set((st) => ({ videos: withClip(st, f.key, v), current: null }))} />
                   : f.type === "image" ? <PhotoRow key={f.key} e={engine} f={f} refs={s.refs} staged={f.key === lead} onChange={(refs) => set({ refs, current: null })} />
                   : null)}
               </div>
@@ -221,6 +256,10 @@ function CreateStudio({ mode }: { mode: Mode }) {
               </div>
             )}
           </section>
+          )}
+
+          {sized?.canvas && (
+            <OutputSize size={sized} label={engine?.fields?.find((f) => f.type === "size")?.label ?? "Output"} aspect={String(s.params.aspect ?? sized.canvas.aspect)} choice={String(s.params.out_size ?? sized.canvas.size)} onChange={setParam} />
           )}
 
           <PromptSection s={s} set={set} engine={engine} area={!!area} invalid={invalid.has("prompt")} onRun={() => void runner.run()}
@@ -253,7 +292,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
           <div className="seg" role="group" aria-label="Preview mode">
             <button type="button" aria-pressed={eff === "input" || eff === "empty"} onClick={() => setView("input")}>Input</button>
             <button type="button" aria-pressed={eff === "result"} disabled={!done} onClick={() => setView("result")}>Result</button>
-            {!canvas && <button type="button" aria-pressed={eff === "compare"} disabled={!done} onClick={() => setView("compare")}><I n="compare" />Compare</button>}
+            {!noInput && <button type="button" aria-pressed={eff === "compare"} disabled={!done} onClick={() => setView("compare")}><I n="compare" />Compare</button>}
             {group.length > 1 && <button type="button" aria-pressed={eff === "grid"} onClick={() => setView("grid")}><I n="grid" />All {group.length}</button>}
           </div>
           <span style={{ flex: 1 }} />
@@ -263,6 +302,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
               <button className="btn sm ghost" type="button" onClick={() => remix(shown)} title="Load this run's inputs and settings as a new draft"><I n="remix" /><span className="lbl">Remix</span></button>
               {anyDone && shown.result?.kind !== "video" && <button className="btn sm ghost" type="button" onClick={sendToMotion} title={`Lands in the video template's inputs as ${roleLabel(s.returnRole ?? "character")}`}><I n="film" /><span className="lbl">{s.selected.length ? `Send ${s.selected.length} to Video` : "To Video"}</span></button>}
               <button className="btn sm" type="button" onClick={() => share(shown.id)} aria-keyshortcuts="E" title="Export (E)"><I n="share" /><span className="lbl">Export</span></button>
+              {engine?.draft && shown.engine.model === engine.id && <Publish e={engine} run={shown.id} />}
             </>
           )}
           {!!markable && (
@@ -276,8 +316,8 @@ function CreateStudio({ mode }: { mode: Mode }) {
             onClick={() => shown && go({ name: "generation", id: shown.id })}><I n="expand" /></button>
         </div>
 
-        <div className="canvas">
-          <Canvas mode={mode} lead={lead} eff={eff} s={s} set={set} engine={engine} base={base} out={canvas ?? planOf(lead)} shown={shown} job={shownJob} group={group} vlist={vlist} jobs={jobs}
+        <div className={cx("canvas", stageDrop.over && "drop")} {...stageDrop.props} data-drop={`Drop to replace ${leadName ? article(leadName) : "the input"}`}>
+          <Canvas mode={mode} lead={lead} eff={eff} s={s} set={set} engine={engine} base={base} out={noInput ? canvas : planOf(lead)} shown={shown} job={shownJob} group={group} vlist={vlist} jobs={jobs}
             marking={marking} setMarking={setMarking} fixes={fixes} onFocus={(id) => { set({ current: id }); setView("compare"); }} onStar={star} />
         </div>
 
@@ -339,8 +379,20 @@ function Hero({ e }: { e: EngineInfo }) {
           <button type="button" onClick={() => { setOpen(false); go({ name: "explore", t: e.id }); }}><span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="compass" /></span>Browse all on Explore</button>
         </div>
       )}
+      <TemplateTools e={e} />
+      {e.draft && <div className="draft-note"><I n="info" /><p><b>Draft. Not on Explore yet.</b> Run it, then press Publish on the result you like. That result becomes its cover.</p></div>}
       {e.blurb && <p className="thero-blurb">{e.blurb}</p>}
     </div>
+  );
+}
+
+/** Puts a draft on the wall, with this run's result as its cover. */
+function Publish({ e, run }: { e: EngineInfo; run: string }) {
+  const { busy, fromRun } = useCoverActions(e);
+  return (
+    <button className="btn sm primary" type="button" disabled={busy} onClick={() => void fromRun(run)} title="This result becomes the cover and the template goes on Explore">
+      {busy ? <Spinner size={13} /> : <I n="upload" />}<span className="lbl">Publish</span>
+    </button>
   );
 }
 
@@ -376,20 +428,20 @@ function PhotoRow({ e, f, refs, staged, onChange }: { e: EngineInfo; f: MediaFie
 }
 
 /** A clip input: a row like the photo ones, with the trimmer under it. */
-function ClipRow({ e, f, v, staged, onChange }: { e: EngineInfo; f: MediaField; v: VideoSlot | null; staged: boolean; onChange: (v: VideoSlot | null) => void }) {
-  const { label, hint } = f;
+function ClipRow({ e, f, v, staged, onChange }: { e: EngineInfo; f: MediaField; v: VideoSlot | null; staged: boolean; onChange: (v: Omit<VideoSlot, "slot"> | null) => void }) {
+  const { label, hint, key: slot } = f;
   const { upload, busy } = useUploader();
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const win = e.video_window;
+  const win = clipWindow(e, f.key);
+  const rate = clipFps(e, f.key);
   const pick = () => input.current?.click();
   const fill = async (files: File[]) => {
     const f = files.find((x) => /^video\//.test(x.type)) ?? files[0];
     if (!f) return;
     const [a] = await upload([f], "video");
     if (!a) return;
-    const d = a.duration ?? 0;
-    onChange({ ...a, trim: [0, win ? Math.min(d, win[1]) : d], size: v?.size, license: "own-footage", contains_person: true, consent: false });
+    onChange(asClip(a, e, slot, v?.size));
   };
   const drop = {
     onDragOver: (ev: React.DragEvent) => { if (ev.dataTransfer.types.includes("Files")) { ev.preventDefault(); ev.stopPropagation(); setOver(true); } },
@@ -438,7 +490,7 @@ function ClipRow({ e, f, v, staged, onChange }: { e: EngineInfo; f: MediaField; 
       </div>
       {prepIn && e.size && <InputAttrs size={e.size} input={prepIn} preview={v.poster ?? undefined} staged={staged} onChange={(patch) => onChange({ ...v, ...patch })} />}
       {!v.missing && !!v.duration && (
-        <Trimmer src={v.url} duration={v.duration} trim={v.trim} onChange={(trim) => onChange({ ...v, trim })} window={win} fps={e.fps_window[0] === e.fps_window[1] ? e.fps_window[0] : v.fps}
+        <Trimmer src={v.url} duration={v.duration} trim={v.trim} onChange={(trim) => onChange({ ...v, trim })} window={win} fps={rate[0] === rate[1] ? rate[0] : v.fps}
           height={p?.height ?? v.height} />
       )}
     </div>
@@ -495,20 +547,21 @@ function SlotRow({ n, label, hint, optional, r, busy, sample, attrs, onFiles, on
   );
 }
 
-/** Templates that take no photo or clip pick their own canvas: a shape and a size, under the same cap as inputs. */
-function OutputSize({ size, aspect, choice, onChange }: { size: SizeSpec; aspect: string; choice: string; onChange: (k: string, v: string) => void }) {
+/** A declared output size: a shape and a step, under the same cap as inputs, written where the template says. */
+function OutputSize({ size, label, aspect, choice, onChange }: { size: SizeSpec; label: string; aspect: string; choice: string; onChange: (k: string, v: string) => void }) {
   const c = size.canvas!;
   const dims = canvasSize(size, aspect, choice);
+  const steps = size.options.filter((o) => o.px);
   return (
     <section className="sec" aria-labelledby="sec-out">
-      <div className="sec-h"><h4 id="sec-out">Output</h4>{dims && <span className="mono">{dimsText(dims)}</span>}</div>
+      <div className="sec-h"><h4 id="sec-out">{label}</h4>{dims && <span className="mono">{dimsText(dims)}</span>}</div>
       <div className="sizes shapes" role="group" aria-label="Shape" style={{ gridTemplateColumns: `repeat(${Math.min(c.aspects.length, 4)},minmax(0,1fr))` }}>
         {c.aspects.map((a) => (
           <button key={a} type="button" aria-pressed={a === aspect} onClick={() => onChange("aspect", a)}><ShapeIcon r={aspectRatio(a)} /><b>{a}</b></button>
         ))}
       </div>
-      <div className="sizes" role="group" aria-label="Size" style={{ gridTemplateColumns: `repeat(${Math.min(size.options.length, 4)},minmax(0,1fr))` }}>
-        {size.options.map((o) => {
+      <div className="sizes" role="group" aria-label="Size" style={{ gridTemplateColumns: `repeat(${Math.min(steps.length, 4)},minmax(0,1fr))` }}>
+        {steps.map((o) => {
           const d = canvasSize(size, aspect, o.label);
           return <button key={o.label} type="button" aria-pressed={o.label === choice} onClick={() => onChange("out_size", o.label)}><b>{o.label}</b>{d && <span>{dimsText(d)}</span>}</button>;
         })}
@@ -594,14 +647,15 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
   const result = shown?.result?.file ? fileUrl(shown.id, shown.result.file) : null;
   const videoOut = shown?.result?.kind === "video";
   const size = useImageSize(videoOut ? null : result);
-  const drove = shown?.inputs.find((i) => i.slot.startsWith("video:") && i.file);
-  const clip = s.video && !s.video.missing ? s.video : null;
+  const drove = shown?.inputs.find((i) => i.slot === lead && i.file) ?? shown?.inputs.find((i) => i.slot.startsWith("video:") && i.file);
+  const lc = motion ? clipIn(s, lead) : null;
+  const clip = lc && !lc.missing ? lc : null;
   const ar = motion
     ? (drove?.width && drove.height ? drove.width / drove.height : clip?.width && clip.height ? clip.width / clip.height : 16 / 9)
     : size ? size.w / size.h : out ? out.width / out.height : base?.width && base?.height ? base.width / base.height : 1;
   const before = shown?.inputs.find((i) => i.slot === lead)?.file;
   const beforeUrl = motion
-    ? (shown && drove ? fileUrl(shown.id, "driving/poster.webp") : clip?.poster ?? undefined)
+    ? (shown && drove ? fileUrl(shown.id, posterOf(drove.file!)) : clip?.poster ?? undefined)
     : shown && before ? fileUrl(shown.id, before) : base?.url;
 
   if (eff === "empty" && engine?.size?.canvas) {
@@ -610,7 +664,7 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
         <div className="empty" style={{ position: "absolute", inset: 0, display: "grid", placeContent: "center", justifyItems: "center", textAlign: "center", padding: 20 }}>
           <div className="empty-ic"><I n={mode === "motion" ? "film" : "image"} /></div>
           <h3>Describe it, then Run</h3>
-          <p>No photo needed: this template makes {mode === "motion" ? "a video" : "a picture"} from the prompt alone. The frame shows the shape picked under Output.</p>
+          <p>No photo needed: this template makes {mode === "motion" ? "a video" : "a picture"} from the prompt alone. {engine?.size?.canvas ? "The frame shows the output shape you pick on the left." : "The workflow sets the output size."}</p>
         </div>
         {out && <div className="corner r"><span className="pill mono">Out {dimsText(out)}</span></div>}
       </div>
@@ -619,14 +673,13 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
 
   if (eff === "empty" && motion) {
     const sample = engine ? sampleVideo(engine, lead) : null;
+    const leadWin = clipWindow(engine, lead);
     const fill = async (files: File[]) => {
       const f = files.find((x) => /^video\//.test(x.type));
       if (!f) return;
       const [a] = await upload([f], "video");
       if (!a) return;
-      const w = engine?.video_window;
-      const d = a.duration ?? 0;
-      set({ video: { ...a, trim: [0, w ? Math.min(d, w[1]) : d], license: "own-footage", contains_person: true, consent: false }, current: null });
+      set((st) => ({ videos: withClip(st, lead, asClip(a, engine, lead)), current: null }));
     };
     return (
       <div data-own-drop className={cx("empty", over && "drag")} style={{ padding: 20, borderRadius: 18, border: `1.5px dashed ${over ? "var(--violet)" : "var(--line-2)"}` }}
@@ -634,26 +687,27 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
         onDrop={(e) => { if (!e.dataTransfer.files.length) return; e.preventDefault(); setOver(false); void fill([...e.dataTransfer.files]); }}>
         <div className="empty-ic">{busy ? <Spinner size={18} /> : <I n="film" />}</div>
         <h3>Add {article(leadField?.label ?? "source clip")}</h3>
-        <p>Drop it here or on the Video {slotNo(lead)} row.{engine?.video_window ? ` ${engine.video_window[0]}–${engine.video_window[1]} s; longer clips get trimmed.` : ""}</p>
-        {sample && <button className="btn" type="button" onClick={() => set({ video: sample })}>Use sample</button>}
+        <p>Drop it here or on the Video {slotNo(lead)} row.{leadWin ? ` ${leadWin[0]}–${leadWin[1]} s; longer clips get trimmed.` : ""}</p>
+        {sample && <button className="btn" type="button" onClick={() => set((st) => ({ videos: withClip(st, lead, sample) }))}>Use sample</button>}
       </div>
     );
   }
 
   if ((motion || videoOut) && (eff === "compare" || eff === "result") && shown && result) {
-    const src = drove ? { kind: "video" as const, src: fileUrl(shown.id, drove.file!), poster: fileUrl(shown.id, "driving/poster.webp"), label: "Source" } : null;
+    const src = drove ? { kind: "video" as const, src: fileUrl(shown.id, drove.file!), poster: fileUrl(shown.id, posterOf(drove.file!)), label: "Source" } : null;
     const res = { kind: (shown.result?.kind ?? "video") as "video" | "image", src: result, poster: shown.result?.poster ? fileUrl(shown.id, shown.result.poster) : null, label: "Result" };
     return <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}><ABPlayer a={eff === "compare" ? src : null} b={res} /></div>;
   }
 
   if (motion && eff === "input" && clip) {
+    const leadFps = clipFps(engine, clip.slot);
     return (
       <div className="frame" style={{ "--ar": ar } as CSSProperties}>
         <video key={clip.url} src={clip.url} poster={clip.poster ?? undefined} muted loop playsInline autoPlay controls={!clip.crop} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-        {clip.crop && <CropBox crop={clip.crop} onChange={(crop) => set((st) => ({ video: st.video ? { ...st.video, crop } : null, current: null }))} />}
-        {clip.width && clip.height ? <div className="corner l"><span className="pill mono">In {clip.width}×{clip.height}</span></div> : null}
-        <div className="corner r"><span className="pill mono" title="OpenIllusion crops and sizes every frame to this before the run">
-          {out ? `Out ${dimsText(out)} · ` : ""}{((clip.trim[1] || clip.duration || 0) - clip.trim[0]).toFixed(1)} s{engine?.fps_window[0] === engine?.fps_window[1] ? ` · ${engine?.fps_window[0]} fps` : ""}
+        {clip.crop && <CropBox crop={clip.crop} onChange={(crop) => set(withInput(clip.slot, { crop }))} />}
+        {clip.width && clip.height ? <div className="corner l"><span className="pill mono">Source {clip.width}×{clip.height}</span></div> : null}
+        <div className="corner r"><span className="pill mono" title="OpenIllusion crops and sizes every frame to this before the run. What the workflow makes of it is up to the workflow.">
+          {out ? `In ${dimsText(out)} · ` : ""}{((clip.trim[1] || clip.duration || 0) - clip.trim[0]).toFixed(1)} s{leadFps[0] === leadFps[1] ? ` · ${leadFps[0]} fps` : ""}
         </span></div>
       </div>
     );
@@ -804,8 +858,8 @@ function InputFrame({ base, out, s, set, marking, setMarking, cropping }: {
       {s.boxes.filter((b) => b.label !== AREA && b.label.trim()).map((b) => (
         <div key={b.id} className="region" style={{ left: `${b.rect[0] * 100}%`, top: `${b.rect[1] * 100}%`, width: `${b.rect[2] * 100}%`, height: `${b.rect[3] * 100}%`, boxShadow: "none", borderStyle: "dashed" }}><span className="pill">{b.label}</span></div>
       ))}
-      {nat && <div className="corner l"><span className="pill mono">In {nat.w}×{nat.h}</span></div>}
-      {out && <div className="corner r"><span className="pill mono" title="OpenIllusion crops and sizes the photo to this before the run">Out {dimsText(out)} · {aspectName(out)}</span></div>}
+      {nat && <div className="corner l"><span className="pill mono">Source {nat.w}×{nat.h}</span></div>}
+      {out && <div className="corner r"><span className="pill mono" title="OpenIllusion crops and sizes the photo to this before the run. What the workflow makes of it is up to the workflow.">In {dimsText(out)} · {aspectName(out)}</span></div>}
     </div>
   );
 }
@@ -941,7 +995,7 @@ function RunBar({ s, set, engine, runner, estimate, queued }: {
   const status = useStatus();
   const media = mediaFields(engine);
   const held = (f: MediaField) => f.type === "video"
-    ? !!s.video && !s.video.missing
+    ? !!clipIn(s, f.key) && !clipIn(s, f.key)!.missing
     : s.refs.some((r, k) => `image:${slotOf(r, k)}` === f.key && r.url && !r.missing);
   const missing = media.find((f) => f.required !== false && !held(f));
   const gpu = gpuName(status.data?.local.gpu);

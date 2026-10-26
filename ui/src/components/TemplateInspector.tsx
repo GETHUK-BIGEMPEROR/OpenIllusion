@@ -2,13 +2,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { api, isMedia, type EngineInfo, type Field as InputField, type PromptIdea, type Spec, type TemplatePatch } from "../lib/api";
 import { fieldsOf, promptField, roleOf } from "../lib/fields";
+import { confirm } from "../lib/confirm";
 import { errMsg } from "../lib/format";
+import { go } from "../lib/route";
 import { defaults } from "../lib/spec";
 import { useApp } from "../lib/store";
 import { clampAspect } from "./Masonry";
 import { Compare, gpuName, I, useStatus } from "./oi";
 import { useLocalCheck } from "./Studio";
-import { COVER_ACCEPT, tplModel, tplName, useCoverActions } from "./TemplateCard";
+import { tplModel, tplName, useCoverActions } from "./TemplateCard";
 import { Spinner } from "./ui";
 
 /** One input as the form holds it. `text` and `ideas` only for text inputs (the prompt). */
@@ -111,6 +113,11 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
     }
   };
   const resetAll = async () => {
+    const res = await confirm({
+      tone: "neutral", icon: "undo",
+      view: () => ({ title: "Reset to the shipped version?", body: "Your edits to the name, description, prompt and ideas are dropped. The cover you set stays.", action: "Reset" }),
+    });
+    if (!res.ok) return;
     setSaving(true);
     try {
       land(await api.resetTemplate(e.id));
@@ -122,7 +129,14 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
     }
   };
   const remove = async () => {
-    if (!window.confirm(`Delete ${e.label}? Its samples and cover go too. Generations you made with it stay.`)) return;
+    const res = await confirm({
+      hold: true,
+      view: () => ({
+        title: `Delete ${tplName(e)}?`, previews: e.cover ? [e.cover] : [],
+        body: "Its samples and cover go too. This can't be undone.", facts: ["Generations made with it stay"], action: "Hold to delete",
+      }),
+    });
+    if (!res.ok) return;
     setSaving(true);
     try {
       await api.deleteTemplate(e.id);
@@ -132,6 +146,20 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
       toast({ text: `${e.label} deleted.`, tone: "ok" });
     } catch (x) {
       toast({ text: `Couldn't delete: ${errMsg(x)}`, tone: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+  const duplicate = async () => {
+    setSaving(true);
+    try {
+      const next = await api.duplicateTemplate(e.id);
+      qc.setQueryData<EngineInfo[]>(["engines"], (list) => (list ? [...list, next] : list));
+      qc.invalidateQueries({ queryKey: ["engines"] });
+      go({ name: "explore", t: next.id });
+      toast({ text: `${tplName(next)} is yours to edit.`, tone: "ok" });
+    } catch (x) {
+      toast({ text: `Couldn't duplicate: ${errMsg(x)}`, tone: "error" });
     } finally {
       setSaving(false);
     }
@@ -180,7 +208,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
           {e.cover_video ? <video key={e.cover_video} src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={fill} />
             : e.cover && lead && !e.cover_custom ? <Compare before={lead.url} after={e.cover} lb="Sample" la="Result" />
             : e.cover ? <img src={e.cover} alt="" style={fill} />
-            : <div className="empty" style={{ padding: 30 }}><div className="empty-ic"><I n="image" /></div><h3>No cover yet</h3></div>}
+            : <div className="empty" style={{ padding: 30 }}><div className="empty-ic"><I n="image" /></div><h3>{e.draft ? "Not published yet" : "No cover yet"}</h3>{e.draft && <p>Its first published result becomes the cover.</p>}</div>}
         </div>
 
         {editing ? (
@@ -273,7 +301,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
         {!editing && !!e.tags?.length && <div className="kv"><div className="kv-h">Tags</div><div className="tags">{e.tags.map((t) => <span key={t} className="tag">{t}</span>)}</div></div>}
 
         {e.kind === "local" && <Ready e={e} />}
-        <CoverBox e={e} />
+        <CoverBox e={e} onUse={onUse} />
         <p className="help" style={{ wordBreak: "break-word" }}><span className="mono">{e.id}</span>{e.source && <> · {e.source}</>}</p>
       </div>
 
@@ -290,6 +318,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
           <>
             {e.edited && editing && <button className="btn" type="button" onClick={resetAll} disabled={saving}><I n="undo" />Reset to shipped</button>}
             {e.built && editing && <button className="btn danger" type="button" onClick={remove} disabled={saving}><I n="trash" />Delete</button>}
+            <button className="icon-btn" type="button" onClick={duplicate} disabled={saving} aria-label="Duplicate" title="Duplicate: make your own copy to change"><I n="copy" /></button>
             <button className="btn primary" type="button" style={{ flex: 1, justifyContent: "center" }} onClick={onUse}>Use template<I n="arrow" /></button>
           </>
         )}
@@ -370,20 +399,22 @@ function IdeasEditor({ ideas, seed, onChange }: { ideas: PromptIdea[]; seed: str
   );
 }
 
-function CoverBox({ e }: { e: EngineInfo }) {
-  const file = useRef<HTMLInputElement>(null);
-  const { busy, upload, reset } = useCoverActions(e);
+function CoverBox({ e, onUse }: { e: EngineInfo; onUse: () => void }) {
+  const { busy, reset } = useCoverActions(e);
+  if (e.draft) {
+    return (
+      <div className="kv">
+        <div className="kv-h">Cover</div>
+        <div className="draft-note"><I n="info" /><p><b>Draft. Not on Explore yet.</b> Run it once, then publish your best result. That result becomes the cover.</p></div>
+        <button className="btn primary" type="button" style={{ justifyContent: "center" }} onClick={onUse}><I n="play" />Run it</button>
+      </div>
+    );
+  }
   return (
     <div className="kv">
       <div className="kv-h">Cover</div>
-      <input ref={file} type="file" accept={COVER_ACCEPT} hidden onChange={(ev) => { upload(ev.target.files?.[0]); ev.target.value = ""; }} />
-      <div className="irow">
-        <button className="btn" type="button" style={{ flex: 1, justifyContent: "center" }} onClick={() => file.current?.click()} disabled={busy}>
-          {busy ? <Spinner size={13} /> : <I n="image" />}{e.cover ? "Choose cover" : "Set a cover"}
-        </button>
-        {e.cover_custom && <button className="btn ghost" type="button" onClick={reset} disabled={busy}>Use shipped</button>}
-      </div>
-      <p className="help">Image, or a video up to 8 s. Any finished result can also become the cover from its menu.</p>
+      <p className="help">A cover is always a real result. Open a finished run of this template and choose <b>Use as template cover</b>.</p>
+      {e.cover_custom && !e.built && <button className="btn ghost sm" type="button" style={{ justifySelf: "start" }} onClick={reset} disabled={busy}>{busy ? <Spinner size={13} /> : <I n="undo" />}Use the shipped cover</button>}
     </div>
   );
 }

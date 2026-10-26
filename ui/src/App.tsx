@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { Sprite } from "./components/oi";
 import { Palette } from "./components/Palette";
+import { ConfirmHost } from "./components/Confirm";
 import { DropOverlay, Rail, TabBar, Toasts } from "./components/Shell";
 import { api } from "./lib/api";
 import { errMsg } from "./lib/format";
@@ -126,7 +127,7 @@ export function App() {
           {route.name === "edit" && <EditStudio />}
           {route.name === "generation" && <GenerationDetail key={route.id} id={route.id} />}
           {route.name === "settings" && <Settings />}
-          {route.name === "build" && <Builder />}
+          {route.name === "build" && <Builder from={route.from} />}
         </main>
         <TabBar route={route} />
       </div>
@@ -135,6 +136,7 @@ export function App() {
       <Palette />
       <ShareSheet />
       <ImportReview />
+      <ConfirmHost />
       <DropOverlay />
       <Toasts />
     </div>

@@ -199,3 +199,17 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .cmp .knob .i{width:17px;height:17px;stroke-width:2.2}
 .cmp .tg{position:absolute;top:12px;z-index:3}
 .cmp .tg.l{left:12px}.cmp .tg.r{right:12px}
+.thero .draft-note{margin-top:10px}
+/* template tools: its workflow, or a new template from it */
+.ttools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.ttool{display:flex;align-items:center;gap:10px;min-width:0;padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:var(--raised);color:var(--text);font:inherit;text-align:left;text-decoration:none;cursor:pointer;transition:border-color .18s,background .18s,transform .18s}
+.ttool:hover{border-color:var(--line-2);background:rgba(255,255,255,.05)}
+.ttool:active{transform:translateY(1px)}
+.ttool:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.ttool-ic{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center}
+.ttool-ic svg{width:15px;height:15px}
+.ttool-ic.dl{background:rgba(95,211,154,.13);color:var(--mint)}
+.ttool-ic.bd{background:rgba(154,134,240,.16);color:var(--violet)}
+.ttool-t{display:grid;gap:2px;min-width:0}
+.ttool-t b{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttool-t small{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

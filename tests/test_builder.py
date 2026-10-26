@@ -140,10 +140,11 @@ def test_output_kind_reads_the_wired_type():
         "7": {"class_type": "PreviewAny", "inputs": {"source": ["1", 0]}},
     }
     assert [builder.output_kind(api, n, OUT_INFO) for n in ("2", "4", "6", "7")] == ["image", "audio", "3d", "text"]
-    assert builder.output_nodes(api, OUT_INFO) == ["2"]
+    assert [r["node"] for r in builder.result_nodes(api, OUT_INFO)] == ["2"]
     a = builder.analyze(api, OUT_INFO)
-    assert a["outputs"] == ["2"] and "4" not in a["workflow"] and "6" not in a["workflow"]
-    assert len(a["notes"]) == 3 and "saves audio" in a["notes"][0]
+    # The result comes from the Save Image node; the graph stays whole, so the other outputs still run.
+    assert a["outputs"] == ["2"] and {"4", "6", "7"} <= set(a["workflow"])
+    assert len(a["notes"]) == 3 and "also saves audio" in a["notes"][0]
 
 
 def test_workflow_without_an_image_or_video_is_refused():
@@ -267,14 +268,21 @@ def test_save_writes_user_template_with_samples(tmp_path, monkeypatch):
 
     Image.new("RGB", (64, 48), (9, 9, 9)).save(sample)
     monkeypatch.setattr(engines, "ENGINES", dict(engines.ENGINES))
-    tid = builder.save(data, {"image:1": sample}, sample, taken={"local/red-hat"})
+    tid = builder.save(data, {"image:1": sample}, taken={"local/red-hat"})
     assert tid == "local/red-hat-2"
     engines.reload_templates()
     e = engines.ENGINES[tid]
-    assert e.origin == "user" and e.built and e.default_inputs["image:1"].is_file() and e.cover.is_file()
+    assert e.origin == "user" and e.built and e.default_inputs["image:1"].is_file() and e.cover is None
     d = engines.describe(e)
+    assert d["draft"] and d["cover"] is None  # no cover until a run of it is published
     assert d["defaults"]["inputs"][0]["slot"] == "image:1" and d["fields"][0]["sample"]["slot"] == "image:1"
     assert "default" not in d["fields"][0] and "bind" in d["fields"][0]
+    engines.set_cover(tid, sample)
+    assert not engines.describe(e)["draft"]
+    builder.save(builder.assemble_local(_local_spec(), {"workflow": api}, INFO), {"image:1": sample}, replace=tid)
+    engines.reload_templates()
+    e = engines.ENGINES[tid]
+    assert not engines.describe(e)["draft"]  # rebuilding keeps the published cover
     engines.delete_template(tid)
     assert tid not in engines.ENGINES and not e.default_inputs["image:1"].exists()
 
