@@ -25,7 +25,7 @@ from typing import Any
 
 from .. import media, paths
 from .build import TOKEN, MEDIA, _images, _videos, SEED_TOKEN, build_local, reroll, defaults_workflow, fill_media, build_cloud, prune, materialize, tokens_in, file_resolver, run_size
-from .contract import Engine, FIELD_TYPES, upgrade, lift_computed, load_template, template_dirs, load_templates
+from .contract import Engine, FIELD_TYPES, upgrade, lift_computed, load_template, media_path, shipped_ref, template_dirs, load_templates
 from .covers import COVER_SIDE, COVER_LOOP_SECONDS, CACHE_ERA, user_cover, cover_files, cover_file, defaults_info, _cover_info, set_cover, clear_cover, clip_limits, clip_file, poster_file
 from .results import VIDEO_EXT, IMAGE_EXT, classify_failure, find_assets, result_media, decode_media, slim, result_seed
 
@@ -37,7 +37,7 @@ __all__ = [
     "cover_files", "cover_file", "defaults_info", "set_cover", "clear_cover", "clip_limits",
     "clip_file", "poster_file", "VIDEO_EXT", "IMAGE_EXT", "classify_failure", "find_assets",
     "result_media", "decode_media", "slim", "result_seed", "edit_template", "delete_template",
-    "duplicate_template", "reset_template", "ENGINES", "reload_templates", "reload_templates",
+    "duplicate_template", "reset_template", "ENGINES", "reload_templates",
     "router_model", "get", "describe", "varies", "is_draft", "requirements", "default_input",
     "default_poster", "compose",
 ]
@@ -105,17 +105,16 @@ def edit_template(engine_id: str, patch: dict) -> Engine:
             if key not in by_key:
                 raise ValueError(f"this template has no input {key!r}")
             _edit_input(by_key[key], ch)
-    # Media the template ships with stays where it is; a user file is rewritten in place.
+    # Media the template ships with stays where it is, named so any install finds it; a user file is rewritten in place.
     if e.origin != "user":
         for k in ("cover", "cover_video"):
             if data.get(k):
-                data[k] = str((e.path.parent / data[k]).resolve())
+                data[k] = shipped_ref(e.path.parent, data[k])
         for f in data["inputs"]:
             if f.get("type") in MEDIA and f.get("default"):
-                f["default"] = str((e.path.parent / f["default"]).resolve())
+                f["default"] = shipped_ref(e.path.parent, f["default"])
     dst = e.path if e.origin == "user" else paths.user_root() / "templates" / (re.sub(r"[^A-Za-z0-9._-]+", "__", e.id) + ".json")
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+    paths.write_atomic(dst, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     reload_templates()
     return ENGINES[e.id]
 
@@ -157,7 +156,7 @@ def duplicate_template(engine_id: str) -> Engine:
     media_dir.mkdir(parents=True, exist_ok=True)
 
     def take(rel: str) -> str:
-        src = (e.path.parent / rel).resolve()
+        src = media_path(e.path.parent, rel).resolve()
         if not src.is_file():
             return rel
         shutil.copyfile(src, media_dir / src.name)
@@ -171,7 +170,7 @@ def duplicate_template(engine_id: str) -> Engine:
     for f in data.get("inputs") or []:
         if f.get("type") in MEDIA and f.get("default"):
             f["default"] = take(f["default"])
-    (root / f"{stem}.json").write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+    paths.write_atomic(root / f"{stem}.json", json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     poster, loop = user_cover(e.id), user_cover(e.id, ".mp4")
     for src, dst in ((poster, user_cover(tid)), (loop, user_cover(tid, ".mp4"))):
         if src.is_file():

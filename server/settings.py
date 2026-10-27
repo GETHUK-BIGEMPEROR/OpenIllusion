@@ -1,8 +1,9 @@
 """User settings, including the Comfy API key.
 
-The key is stored in OpenIllusion's home folder. It is never sent back to the
-browser (``public`` masks it) and never written into a generation. The same goes
-for the optional bearer token of a local comfy-api-proxy.
+The key and the optional bearer token of a local comfy-api-proxy live in
+``secrets.json``, apart from the other settings: owner-only on Linux and macOS,
+and never in a backup. They are never sent back to the browser (``public`` masks
+them) and never written into a generation.
 """
 
 from __future__ import annotations
@@ -38,15 +39,31 @@ SECRETS = ("api_key", "local_token")
 _lock = threading.Lock()
 
 
+def _read(f) -> dict:
+    try:
+        d = json.loads(f.read_text("utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def load() -> dict:
-    f = paths.settings_file()
     data = dict(DEFAULTS)
-    if f.exists():
-        try:
-            data.update(json.loads(f.read_text("utf-8")))
-        except (OSError, ValueError):
-            pass
+    data.update(_read(paths.settings_file()))  # a settings.json from before secrets.json may still hold them
+    data.update({k: v for k, v in _read(paths.secrets_file()).items() if k in SECRETS})
     return data
+
+
+def _write(data: dict) -> None:
+    paths.write_atomic(paths.settings_file(), json.dumps({k: v for k, v in data.items() if k not in SECRETS}, indent=2))
+    paths.write_atomic(paths.secrets_file(), json.dumps({k: data.get(k) or "" for k in SECRETS}, indent=2), private=True)
+
+
+def migrate() -> None:
+    """Move the secrets out of a settings.json written before secrets.json existed."""
+    with _lock:
+        if any(k in _read(paths.settings_file()) for k in SECRETS):
+            _write(load())
 
 
 def save(changes: dict) -> dict:
@@ -58,7 +75,7 @@ def save(changes: dict) -> dict:
         data["max_parallel"] = max(1, min(8, int(data.get("max_parallel") or 1)))
         for k in ("local_v2_url", "local_comfyui_url", "router_base", "cloud_base"):
             data[k] = (data.get(k) or DEFAULTS[k]).strip().rstrip("/")
-        paths.settings_file().write_text(json.dumps(data, indent=2), "utf-8")
+        _write(data)
         return data
 
 

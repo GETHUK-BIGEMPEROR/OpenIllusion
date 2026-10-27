@@ -235,6 +235,10 @@ def test_edit_writes_a_user_copy_and_reset_removes_it():
     assert e.examples == [{"label": "Top hat", "text": "Give <image1> a top hat."}, {"label": "Give <image1> a cap.", "text": "Give <image1> a cap."}]
     assert e.origin == "user" and e.edited and e.default_inputs["image:1"].is_file()  # the sample stays where it shipped
     assert shipped.read_text("utf-8") == before
+    saved = json.loads(e.path.read_text("utf-8"))
+    refs = [f["default"] for f in saved["inputs"] if f["type"] == "image" and f.get("default")] + [saved[k] for k in ("cover", "cover_video") if saved.get(k)]
+    assert refs and all(r.startswith("shipped:local/media/") for r in refs)  # no machine's absolute path: backups restore anywhere
+    assert e.cover is not None and e.cover.is_file()
 
     again = engines.edit_template(HAT, {"blurb": "Second edit"})
     assert again.path == e.path and again.label == "Hat me"

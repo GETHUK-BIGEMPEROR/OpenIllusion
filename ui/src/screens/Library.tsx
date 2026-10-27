@@ -14,7 +14,6 @@ import { useApp } from "../lib/store";
 const SOURCES = [
   { id: "mine", label: "My generations" },
   { id: "imported", label: "Imported" },
-  { id: "starter", label: "Starters" },
   { id: "community", label: "Community" },
   { id: "trash", label: "Trash" },
 ] as const;
@@ -227,7 +226,6 @@ function Empty({ shelf, tab, filtered, clear }: { shelf: string; tab: Tab; filte
   if (tab === "starred") return <EmptyBox icon="star" title="Nothing starred yet" action={<button className="btn" type="button" onClick={clear}>Show all</button>}>Star a result to keep it here.</EmptyBox>;
   if (tab !== "all" || filtered) return <EmptyBox icon="search" title="Nothing here" action={<button className="btn" type="button" onClick={clear}>Clear filters</button>}>Change the filter to see more.</EmptyBox>;
   if (shelf === "imported") return <EmptyBox icon="import" title="Nothing imported">Drop a .illusion file, an OpenIllusion PNG or MP4, or paste a generation link anywhere in this window.</EmptyBox>;
-  if (shelf === "starter") return <EmptyBox icon="layers" title="No starters">This install has an empty starters folder.</EmptyBox>;
   return (
     <EmptyBox icon="library" title="No generations yet" action={<a className="btn primary" href="#/explore">Browse templates</a>}>
       Each run lands here with its inputs, settings and result, including the ones that fail.

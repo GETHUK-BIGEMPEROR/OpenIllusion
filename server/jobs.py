@@ -84,19 +84,22 @@ class Manager:
             self._sem_size = n
         return self._sem
 
-    def emit(self, job: Job) -> None:
+    def emit(self, job: Job, save: bool = True) -> None:
+        """Tell the open pages. ``save=False`` for progress and previews: they only matter live."""
         d = job.to_dict()
         for fn in list(self.listeners):
             try:
                 fn(d)
             except Exception:
                 pass
-        self._persist()
+        if save:
+            self._persist()
 
     def _persist(self) -> None:
+        """Mirror the queue to jobs.json, so a restart picks up what was in flight."""
         try:
-            keep = [j.to_dict() for j in self.jobs.values()]
-            (paths.user_root() / "jobs.json").write_text(json.dumps(keep), "utf-8")
+            keep = [{**j.to_dict(), "progress": None, "preview": None} for j in self.jobs.values()]
+            paths.write_atomic(paths.user_root() / "jobs.json", json.dumps(keep))
         except OSError:
             pass
 
@@ -442,7 +445,7 @@ class Manager:
 
     async def _follow_events(self, job: Job, v2: local.ComfyV2) -> None:
         """Live progress and previews. Best effort; polling decides the outcome."""
-        last = 0.0
+        last, saved = 0.0, job.state
         try:
             async for event, data in v2.events(f"/api/v2/jobs/{job.request_id}/events"):
                 if event == "progress" and isinstance(data, dict):
@@ -461,7 +464,8 @@ class Manager:
                 now = time.time()
                 if now - last > 0.5:  # the stream is ~2/s already; keep the feed light
                     last = now
-                    self.emit(job)
+                    self.emit(job, save=job.state != saved)
+                    saved = job.state
         except (asyncio.CancelledError, GeneratorExit):
             raise
         except Exception:

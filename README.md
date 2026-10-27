@@ -21,7 +21,7 @@ same commit as the code it describes.
 [Template contract](#the-template-contract) · [Cloud](#cloud--comfy-router) ·
 [Adapters](#adapters) · [Adding a model](#adding-a-model) ·
 [Files by link](#files-by-link) · [Status](#status) ·
-[Weak spots](#known-weak-spots) · [Run](#run) · [Develop](#develop)
+[Storage](#storage) · [Weak spots](#known-weak-spots) · [Run](#run) · [Develop](#develop)
 
 ## The idea
 
@@ -79,7 +79,7 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | --- | --- | --- | --- |
 | Explore | `#/explore` | Every published template on one wall, photos and videos together. Filter All / Local / Cloud and by tag. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Drafts never show here. | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
 | Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (photo, clip and sound tiles; crop, size, trim), edit the prompt, Run. Cloud templates show a price quote above Run. Drafts live here: tagged Draft in the template menu, with Publish on their results. | `screens/create/`, `components/Studio.tsx`, `Refs.tsx`, `Trimmer.tsx` |
-| Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Starters, Community, Trash. Tabs: All, Starred, Active, Failed. | `screens/Library.tsx` |
+| Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community, Trash. Tabs: All, Starred, Active, Failed. | `screens/Library.tsx` |
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, remix into Create, notes, export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
 | Build | `#/build`, `#/build?from={template}` | Make a template in three steps; see [Builder](#making-a-template-builder). | `screens/builder/` |
 | Queue | drawer | Every run from both studios, grouped by what it needs from you. | `screens/QueueDrawer.tsx` |
@@ -170,7 +170,7 @@ Where to look when you change something.
 
 | File | What it does |
 | --- | --- |
-| `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), seeds the starter generations once, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), and refuses cross-origin requests (`_same_origin`). |
+| `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), moves secrets out of an old `settings.json`, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), and refuses cross-origin requests (`_same_origin`). |
 | `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, estimate, run, jobs), `library` (generations, trash, storage, re-run, export, import); shared helpers in `common`. Thin: it checks input and calls the modules below. |
 | `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
 | `builder/` | The Builder, in layers: `workflow` (read a dropped file, `read_workflow`; UI graph to API graph, `ui_to_api`), `analysis` (detect inputs, prompt, settings and result nodes, `analyze`), `assemble` (drafts, `assemble_local`, `assemble_cloud`, `preset`, `save`). `__init__` re-exports them. |
@@ -183,7 +183,7 @@ Where to look when you change something.
 | `prep.py` · `media.py` | Crop and size inputs; image/video/audio helpers (probe, transcode, poster, data URIs, recipes in PNG/MP4). Photos, clips and sounds (MP3, WAV, M4A, AAC, OGG, FLAC) upload alike; a sound goes in as it is. |
 | `store.py` · `generation.py` | The library: one folder per generation with `generation.json` (pydantic `Manifest`), indexed in SQLite with full-text search; trash. |
 | `bundle.py` | Export a generation as a zip, import one back. |
-| `settings.py` · `storage.py` · `paths.py` | Settings file and secrets, disk usage and cleanup, home folder paths. |
+| `settings.py` · `storage.py` · `paths.py` | Settings and `secrets.json`; disk usage and cleanup; home folder paths, what each entry is (`TIERS`), and `write_atomic`. See [Storage](#storage). |
 
 **UI** (`ui/src/`, React + Vite):
 
@@ -209,7 +209,43 @@ Where to look when you change something.
 | `templates/cloud/` | Shipped Router templates, once one has run for real (none yet) |
 | `tests/` | pytest suite; Router, Comfy Cloud and ComfyUI are faked with `httpx.MockTransport` |
 | `schema/` | `generation.v1.json` (`python -m server.gen_schema`) |
-| `~/.openillusion/` | `generations/`, `trash/`, `templates/`, `covers/`, `uploads/`, `cache/`, `outputs/`, `index.sqlite`, `settings.json`, `jobs.json` (the queue), `server.lock` (held by the running server) |
+| `~/.openillusion/` | The home folder; see [Storage](#storage) |
+
+## Storage
+
+**Rule: permanent data is files; SQLite only holds what can be rebuilt.** A generation
+is a folder you can open, zip or drag into ComfyUI; the search index is rebuilt from
+the folders whenever it's missing or its layout changes. Anything new the app keeps for
+good (boards, collections, notes) goes in the home folder as files too, so a backup stays
+a copy of known folders.
+
+The home folder is `$OPENILLUSION_HOME`, or `~/.openillusion`. `paths.TIERS` says what
+each entry is; a test fails when the app writes something it doesn't list.
+
+| Tier | Entries | Backed up | Cleaned |
+| --- | --- | --- | --- |
+| library | `generations/`, `templates/`, `covers/`, `trash/`, `settings.json` | yes (trash optional) | trash after 7 days |
+| machine | `secrets.json`, `index.sqlite`, `jobs.json`, `proxy-state/`, `proxy.log`, `server.lock` | no | never |
+| scratch | `uploads/`, `cache/` | no | from Settings → Storage |
+
+`outputs/` is the default export folder: the user's files, not the app's.
+
+- **Whole or nothing.** Every JSON file the app keeps (`generation.json`, settings,
+  secrets, templates, `.shelf`, the queue) goes through `paths.write_atomic`: temp file,
+  fsync, rename. A crash leaves the old file, never half of one.
+- **Secrets apart.** The key and the proxy token live in `secrets.json`, owner-only on
+  Linux and macOS, never sent to the browser, never in a generation or a backup.
+  `settings.migrate` moves them out of a `settings.json` written before the split.
+- **The queue file** (`jobs.json`) is written when a run changes state, not on progress:
+  progress and previews only go to open pages over the WebSocket.
+- **The index** carries `PRAGMA user_version` (`store.INDEX_VERSION`); a different
+  version drops it and reindexes the folders.
+- **Edited shipped templates** name the shipped samples and covers as
+  `shipped:local/media/<file>`, not a path on this machine, so they work on any install.
+- **One server per home** (`server.lock`, see `server.py`).
+
+Planned: `.illusionbackup`, a zip of the library tier with a `backup.json` of counts and
+checksums, restored by merging (existing generations are skipped).
 
 ## API
 

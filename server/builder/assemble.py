@@ -323,5 +323,5 @@ def save(data: dict, samples: dict[str, Path], replace: str | None = None, taken
         dst = media_dir / f"sample-{slot.replace(':', '-')}{src.suffix.lower()}"
         shutil.copyfile(src, dst)
         _input(data, slot)["default"] = dst.relative_to(root).as_posix()
-    (root / f"{kind}__{slug}.json").write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+    paths.write_atomic(root / f"{kind}__{slug}.json", json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return tid

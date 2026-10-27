@@ -19,7 +19,7 @@ from . import generation as sc
 
 MAX_TOTAL = 300 * 1024 * 1024
 MAX_ENTRIES = 200
-ALLOWED_EXT = {".json", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".md"}
+ALLOWED_EXT = {".json", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".md", *media.AUDIO_EXT}
 RECIPE_MAX = 64 * 1024
 LINK_PREFIX = "#gen="
 

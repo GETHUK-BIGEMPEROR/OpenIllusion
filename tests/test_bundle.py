@@ -63,6 +63,20 @@ def test_full_roundtrip_keeps_everything(tmp_path, monkeypatch):
     assert (store.folder(m2.id) / "driving" / "driving.mp4").exists()
 
 
+def test_a_sound_input_survives_export_and_import(tmp_path, monkeypatch):
+    m = library_generation(tmp_path, with_video=False)
+    swap = dataclasses.replace(engines.get("local/minimax-h3-character-swap"), id=m.engine.model)
+    monkeypatch.setitem(engines.ENGINES, m.engine.model, swap)
+    sound = store.folder(m.id) / "refs" / "audio-1.mp3"
+    sound.write_bytes(b"ID3" + bytes(400))
+    m.inputs.append(sc.InputItem(slot="audio:1", file="refs/audio-1.mp3", license="generated", sha256=sc.sha256_file(sound)))
+    store.save(m)
+    out = bundle.export(m.id, "full", False, {"sfw": True, "rights": True}, dest_dir=tmp_path / "x")
+    assert "refs/audio-1.mp3" in zipfile.ZipFile(out).namelist()
+    m2 = bundle.commit(bundle.inspect(out.read_bytes(), out.name)["token"])
+    assert (store.folder(m2.id) / "refs" / "audio-1.mp3").read_bytes() == sound.read_bytes()
+
+
 def test_light_downsizes_and_strips_video(tmp_path):
     m = library_generation(tmp_path)
     out = bundle.export(m.id, "light", False, OK, dest_dir=tmp_path / "x")

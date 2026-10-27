@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import secrets
 import time
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from . import paths
 
 FORMAT = "openillusion.generation"
 VERSION = 1
@@ -152,9 +153,7 @@ def read(folder: Path) -> Manifest:
 
 def write(folder: Path, m: Manifest) -> None:
     folder.mkdir(parents=True, exist_ok=True)
-    tmp = folder / "generation.json.tmp"
-    tmp.write_text(json.dumps(dump(m), indent=2, ensure_ascii=False), "utf-8")
-    os.replace(tmp, folder / "generation.json")
+    paths.write_atomic(folder / "generation.json", json.dumps(dump(m), indent=2, ensure_ascii=False))
 
 
 def sha256_file(path: Path) -> str:

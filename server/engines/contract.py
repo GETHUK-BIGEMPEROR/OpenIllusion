@@ -202,6 +202,22 @@ def _field(f: Any) -> dict:
     return out
 
 
+SHIPPED = "shipped:"
+
+
+def media_path(base: Path, ref: str) -> Path:
+    """A template's sample or cover: relative to the template file, or ``shipped:<path>``, a file
+    under the shipped ``templates/`` folder (an edited shipped template keeps using its media)."""
+    if ref.startswith(SHIPPED):
+        return paths.templates_dir().parent / ref[len(SHIPPED):]
+    return base / ref
+
+
+def shipped_ref(base: Path, rel: str) -> str:
+    """How a user file names a shipped template's media: the same on every install, wherever it lives."""
+    return SHIPPED + (base / rel).resolve().relative_to(paths.templates_dir().parent.resolve()).as_posix()
+
+
 def load_template(data: dict, base: Path | None = None) -> "Engine":
     if data.get("format") != "openillusion.template":
         raise ValueError("not a openillusion.template")
@@ -246,11 +262,11 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         prompt={k: text[k] for k in ("label", "required") if k in text} if text else None,
         examples=text.get("examples", []) if text else [], tags=list(data.get("tags", [])),
         inputs=slots, fields=fields,
-        cover=(base / data["cover"]) if base and data.get("cover") else None,
-        cover_video=(base / data["cover_video"]) if base and data.get("cover_video") else None,
+        cover=media_path(base, data["cover"]) if base and data.get("cover") else None,
+        cover_video=media_path(base, data["cover_video"]) if base and data.get("cover_video") else None,
         size=prep.spec_of(data.get("size"), slots, data.get("mode", "edit"), out),
         default_prompt=str(text.get("default") or "") if text else "",
-        default_inputs={f["key"]: (base / f["default"]) for f in media if f.get("default")} if base else {},
+        default_inputs={f["key"]: media_path(base, f["default"]) for f in media if f.get("default")} if base else {},
     )
     e.build = (lambda spec, _e=e: build_cloud(_e, spec)) if cloud else (lambda spec, _e=e: build_local(_e, spec))
     return e

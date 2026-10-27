@@ -23,12 +23,8 @@ log = logging.getLogger("openillusion")
 async def _startup(app: web.Application) -> None:
     jobs.MANAGER.listeners.append(routes.broadcast)
     try:
+        settings.migrate()
         store.purge_trash()
-        marker = paths.user_root() / ".starters"
-        starters = paths.package_root() / "starters"
-        if not marker.exists() and starters.is_dir():
-            store.seed_starters(starters)
-            marker.write_text("seeded", "utf-8")
         store.reindex()
     except Exception:
         log.exception("OpenIllusion: library check failed")

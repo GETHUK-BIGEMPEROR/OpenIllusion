@@ -16,7 +16,9 @@ from pathlib import Path
 from . import paths, generation as sc
 
 TRASH_DAYS = 7
-SHELVES = ("mine", "imported", "starter")
+SHELVES = ("mine", "imported")
+# The index is rebuilt from the folders whenever its layout changes: bump this with SCHEMA.
+INDEX_VERSION = 2
 
 _lock = threading.RLock()
 _conn: sqlite3.Connection | None = None
@@ -44,12 +46,12 @@ def db() -> sqlite3.Connection:
         if _conn is None or _conn_path != f:
             _conn = sqlite3.connect(str(f), check_same_thread=False)
             _conn.row_factory = sqlite3.Row
-            # An index from before a column was added is rebuilt from the folders.
-            cols = {r[1] for r in _conn.execute("PRAGMA table_info(generations)")}
-            stale = bool(cols) and "error" not in cols
+            stale = _conn.execute("PRAGMA user_version").fetchone()[0] != INDEX_VERSION
             if stale:
-                _conn.execute("DROP TABLE generations")
+                _conn.executescript("DROP TABLE IF EXISTS generations; DROP TABLE IF EXISTS generations_fts;")
             _conn.executescript(SCHEMA)
+            _conn.execute(f"PRAGMA user_version = {INDEX_VERSION}")
+            _conn.commit()
             _conn_path = f
             if stale:
                 reindex()
@@ -68,7 +70,7 @@ def shelf_of(generation_id: str) -> str:
 
 
 def set_shelf(generation_id: str, shelf: str) -> None:
-    (folder(generation_id) / ".shelf").write_text(shelf, "utf-8")
+    paths.write_atomic(folder(generation_id) / ".shelf", shelf)
 
 
 def index(m: sc.Manifest, shelf: str | None = None) -> None:
@@ -346,26 +348,4 @@ def reindex() -> int:
             n += 1
         except Exception:
             continue
-    return n
-
-
-def seed_starters(src: Path) -> int:
-    """Copy the repo's starter generations into the library once."""
-    if not src.exists():
-        return 0
-    n = 0
-    for d in src.iterdir():
-        if not (d / "generation.json").exists():
-            continue
-        try:
-            m = sc.read(d)
-        except Exception:
-            continue
-        dst = folder(m.id)
-        if dst.exists():
-            continue
-        shutil.copytree(d, dst)
-        set_shelf(m.id, "starter")
-        index(m, "starter")
-        n += 1
     return n

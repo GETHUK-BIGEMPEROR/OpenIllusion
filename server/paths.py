@@ -3,12 +3,37 @@
 Everything lives under one home folder: ``$OPENILLUSION_HOME``, or ``~/.openillusion``
 when unset. Results go to ``<home>/outputs`` unless Settings names another
 folder. Tests call ``configure`` to point the same layout at a temp folder.
+
+Permanent data is files; SQLite only holds what can be rebuilt (the search index).
+``TIERS`` says what each entry of the home folder is, for backups and cleaning.
 """
 
 from __future__ import annotations
 
 import os
+import tempfile
+import time
 from pathlib import Path
+
+# library: the user's work, backed up. machine: this install's state, kept but not backed
+# up (secrets stay on the machine; the index is rebuilt; runs belong to the GPU or key that
+# started them). scratch: working copies, cleaned on their own. ``outputs/`` is not here:
+# it's the default export folder, the user's files.
+TIERS = {
+    "settings.json": "library",
+    "generations": "library",
+    "templates": "library",
+    "covers": "library",
+    "trash": "library",
+    "secrets.json": "machine",
+    "index.sqlite": "machine",
+    "jobs.json": "machine",
+    "proxy-state": "machine",
+    "proxy.log": "machine",
+    "server.lock": "machine",
+    "uploads": "scratch",
+    "cache": "scratch",
+}
 
 _user_root: Path | None = None
 _output_root: Path | None = None
@@ -60,6 +85,10 @@ def uploads_dir() -> Path:
 
 def settings_file() -> Path:
     return user_root() / "settings.json"
+
+
+def secrets_file() -> Path:
+    return user_root() / "secrets.json"
 
 
 def db_file() -> Path:
@@ -129,6 +158,36 @@ def templates_dir() -> Path:
 def cloud_templates_dir() -> Path:
     """Shipped cloud templates, one per Comfy Router model: ``templates/cloud``."""
     return repo_root() / "templates" / "cloud"
+
+
+def write_atomic(path: Path, text: str, private: bool = False) -> None:
+    """Write a file whole or not at all: a crash or power cut mid-write leaves the old one.
+
+    ``private`` makes it readable by its owner only (no effect on Windows, where the
+    home folder is already per-user)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        if os.name != "nt":  # mkstemp makes it owner-only; only secrets stay that way
+            os.chmod(tmp, 0o600 if private else 0o644)
+        for attempt in range(5):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:  # Windows: a virus scanner or indexer holds the file for a moment
+                if attempt == 4:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def _ensure(p: Path) -> Path:
