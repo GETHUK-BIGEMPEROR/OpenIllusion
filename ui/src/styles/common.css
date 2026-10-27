@@ -104,3 +104,61 @@ kbd{font:500 10.5px/1 var(--mono);padding:4px 6px;border-radius:6px;border:1px s
 .tcard.drop::before,.canvas.drop::after{content:attr(data-drop);position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;pointer-events:none;padding:9px 14px;border-radius:999px;background:rgba(20,15,27,.9);border:1px solid rgba(154,134,240,.5);color:var(--text);font:500 12.5px/1 var(--body);white-space:nowrap}
 .canvas.drop{position:relative;border-radius:18px}
 .bld-thumb.drop{outline:2px solid var(--violet);outline-offset:-2px}
+.btn:disabled{opacity:.45;pointer-events:none}
+.btn.primary:disabled{opacity:1;background:var(--hover);color:var(--text-3)}
+.btn.xs{height:24px;padding:0 8px;gap:4px;font-size:11px;border-radius:6px}
+.btn.xs .i{width:13px;height:13px}
+.btn.contrast{background:var(--text);color:var(--bg);border-color:transparent;font-weight:600}
+.btn.contrast:hover{background:#fff}
+.icon-btn:disabled{opacity:.4;pointer-events:none}
+.icon-btn.raised{background:var(--raised);color:#D6D0DF;box-shadow:inset 0 0 0 1px var(--line)}
+.icon-btn.raised:hover{background:#383046;color:var(--text)}
+.pill.soft{background:rgba(255,255,255,.06);color:#D6D0DF;backdrop-filter:none}
+.pill.violet{background:rgba(154,134,240,.16);color:#BBAEF7;backdrop-filter:none}
+.seg.cols{display:grid}
+.seg.cols button{justify-content:center;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.seg button[aria-checked="true"]{background:var(--hover);color:var(--text);box-shadow:inset 0 0 0 1px var(--line-2)}
+.seg.sm button{height:24px;padding:0 8px;font-size:11.5px}
+.seg.sm .i{width:13px;height:13px}
+.seg.end{margin-left:auto}
+.eyebrow{font-size:10.5px;line-height:14px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#A39CAC}
+.scroll-y{overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.code{font:11px var(--mono);color:#D6D0DF;background:rgba(255,255,255,.06);border-radius:4px;padding:1px 4px;word-break:break-all}
+.spin{display:inline-block;flex:none;border-radius:50%;border:1.5px solid currentColor;border-top-color:transparent;animation:spin .8s linear infinite}
+.busy-fill{flex:1;display:grid;place-items:center}
+.acts{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+/* a floating panel: popovers and menus */
+.pop{z-index:80;padding:4px;border-radius:12px;background:var(--raised);box-shadow:0 0 0 1px rgba(240,239,237,.09),0 24px 64px rgba(0,0,0,.6);animation:pop .16s var(--ease)}
+/* Notice: icon, title, body, actions; tone sets the wash */
+.notice{display:flex;gap:10px;padding:10px 12px;border-radius:8px;border:1px solid rgba(154,134,240,.2);background:rgba(154,134,240,.07);font-size:12px}
+.notice>.i{margin-top:1px;color:#BBAEF7}
+.notice.warn{border-color:rgba(255,162,76,.25);background:rgba(255,162,76,.07)}
+.notice.warn>.i{color:var(--orange)}
+.notice.error{border-color:rgba(255,107,126,.25);background:rgba(255,107,126,.07)}
+.notice.error>.i{color:var(--rose)}
+.notice.ok{border-color:rgba(95,211,154,.2);background:rgba(95,211,154,.06)}
+.notice.ok>.i{color:var(--mint)}
+.notice-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.notice-b>b{font-weight:600;line-height:17px}
+.notice-c{color:#D6D0DF;line-height:17px}
+.notice-c code{font:11px var(--mono);color:var(--text)}
+.notice-a{display:flex;flex-wrap:wrap;gap:6px;padding-top:2px}
+/* checks list (import review) */
+.vlist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.vrow{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.vrow:last-child{border-bottom:0}
+.vrow>.i{margin-top:1px;color:#BBAEF7}
+.vrow.pass>.i{color:var(--mint)}
+.vrow.warn>.i{color:var(--orange)}
+.vrow>span{flex:1;min-width:0}
+.vrow b{display:block;font-weight:400}
+.vrow small{display:block;font-size:11px;color:var(--text-2)}
+/* cost line in the run footer */
+.cost{display:flex;flex-direction:column;gap:2px}
+.cost-r{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+.cost-r>span:first-child{color:var(--text-2)}
+.cost-r .mono.warn{color:#FFC48F}
+.cost-r .mono.bad{color:#FFB3BC}
+.cost-r em{font-style:normal;color:var(--text-2)}
+.cost-why{font-size:11px;color:var(--text-2)}
+.cost-why.bad{color:#FFB3BC}

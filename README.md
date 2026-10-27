@@ -114,7 +114,9 @@ here in the same commit.
 - **Look.** Dark and violet-tinted; one accent, `--yellow`, for the main action
   and the current step; `--mint` done, `--violet` cloud, `--orange` warning,
   `--rose` error. Unbounded for headings, Sora for text, Geist Mono for numbers and
-  ids. Tokens live in `ui/src/styles/base.css`; one stylesheet per area beside it
+  ids. All styling is plain CSS in `ui/src/styles/` (no utility framework):
+  tokens and the reset in `base.css`, shared pieces (buttons, pills, fields,
+  notices) in `common.css` and `fields.css`, one stylesheet per area beside them
   (`builder.css`, `studio.css`, `library.css`…), with phone layouts in
   `responsive.css`.
 
@@ -195,7 +197,7 @@ Where to look when you change something.
 | `screens/Builder.tsx` | Builder: Local workflow and Comfy Router tabs, three steps with Back, draft run, publish. On Router: a mode picker built from the adapter's sets or `models`, and the same `set`/`needs`/`models` checks as the server. |
 | `components/Studio.tsx` · `Refs.tsx` · `Trimmer.tsx` · `ABPlayer.tsx` | Create's parts: template seeding, input tiles and uploads, clip trimming, before/after player. |
 | `components/ui.tsx` · `oi.tsx` · `bits.tsx` · `sprite.ts` | Shared pieces: buttons, segmented tabs, fields, spinners; page head, header chips (`KeyStat`, `GpuStat`), sideways-scrolling rows, media; cost pill; the icon sprite (`<I n>`). |
-| `styles/` | `base.css` tokens, one stylesheet per area, `responsive.css` for phones. |
+| `styles/` | The only styling: `base.css` tokens and reset, `common.css`/`fields.css` shared pieces, one stylesheet per area, `responsive.css` for phones. |
 
 **Folders:**
 
@@ -618,7 +620,6 @@ second base URL plus the key; not planned yet.
 | high | Job state | The queue lives in one process's memory, mirrored to `jobs.json`. Two servers on one home folder would both resume the same jobs. | Lock file in the home folder |
 | med | Big files | `engines.py` 1139 lines, `routes.py` 1050, `builder.py` 918, `jobs.py` 805; UI `EditStudio.tsx` 952, `Builder.tsx` 873 | Split routes by area; split engines into contract / bind / covers |
 | med | Input order | Builder lists inputs in loader order, but Create uses the template's order. | Save inputs in the order Builder showed them |
-| low | Two styling systems | Older parts (`Engine`, `Studio`, `Refs`, `Trimmer`, `ShareSheet`, `ImportReview`, `ui.tsx`) use Tailwind classes; newer screens use the stylesheets in `styles/`. | Move a component to `styles/` when it's next touched |
 
 ## Run
 

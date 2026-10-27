@@ -280,8 +280,8 @@ export function GenerationDetail({ id }: { id: string }) {
           <Popover.Root open={swap} onOpenChange={setSwap}>
             <Popover.Trigger asChild><button className="icon-btn" type="button" aria-label="Swap engine" title="Same inputs on another engine"><I n="cpu" /></button></Popover.Trigger>
             <Popover.Portal container={appRoot()}>
-              <Popover.Content align="end" side="top" sideOffset={8} className="z-[80] w-[320px] p-2 rounded-xl bg-surface shadow-float animate-pop">
-                <p className="m-0 px-1 pb-2 text-xs text-muted">Same inputs on another engine. Opens Create.</p>
+              <Popover.Content align="end" side="top" sideOffset={8} className="pop swap-pop">
+                <p className="help">Same inputs on another engine. Opens Create.</p>
                 <EngineDropdown mode={m.mode} value={m.engine.model} onChange={(engine) => { setSwap(false); remix({ engine }); }} />
               </Popover.Content>
             </Popover.Portal>

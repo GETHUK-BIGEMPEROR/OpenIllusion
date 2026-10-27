@@ -98,33 +98,31 @@ export function Trimmer({
   const fits = !window || (len >= window[0] - 0.05 && len <= window[1] + 0.05);
   return (
     <div>
-      <div ref={bar} className="relative h-10 rounded-md overflow-hidden grid gap-px bg-bg select-none" style={{ gridTemplateColumns: `repeat(${FRAMES}, minmax(0, 1fr))` }}>
+      <div ref={bar} className="trim" style={{ gridTemplateColumns: `repeat(${FRAMES}, minmax(0, 1fr))` }}>
         {Array.from({ length: FRAMES }, (_, i) =>
-          frames[i] ? <img key={i} src={frames[i]} alt="" className="w-full h-full object-cover block" draggable={false} /> : <span key={i} className="bg-raised" />,
+          frames[i] ? <img key={i} src={frames[i]} alt="" draggable={false} /> : <span key={i} />,
         )}
-        <div aria-hidden className="absolute left-0 top-0 bottom-0 bg-bg/70" style={{ width: `${pct(a)}%` }} />
-        <div aria-hidden className="absolute right-0 top-0 bottom-0 bg-bg/70" style={{ width: `${100 - pct(b)}%` }} />
-        <div aria-hidden className="absolute top-0 bottom-0 rounded-md" style={{ left: `${pct(a)}%`, right: `${100 - pct(b)}%`, boxShadow: `inset 0 0 0 2px ${fits ? "#F2FF59" : "#FF6B7E"}` }} />
+        <div aria-hidden className="trim-out" style={{ left: 0, width: `${pct(a)}%` }} />
+        <div aria-hidden className="trim-out" style={{ right: 0, width: `${100 - pct(b)}%` }} />
+        <div aria-hidden className="trim-win" style={{ left: `${pct(a)}%`, right: `${100 - pct(b)}%`, boxShadow: `inset 0 0 0 2px ${fits ? "#F2FF59" : "#FF6B7E"}` }} />
         <div
           role="slider" tabIndex={0} aria-label="In point" aria-valuemin={0} aria-valuemax={duration} aria-valuenow={a} aria-valuetext={clock(a)}
           onPointerDown={drag("in")} onKeyDown={key("in")}
-          className="absolute top-0 bottom-0 w-3 cursor-ew-resize touch-none flex items-center justify-center rounded-l-md outline-none focus-visible:ring-2 focus-visible:ring-violet"
-          style={{ left: `${pct(a)}%`, background: fits ? "#F2FF59" : "#FF6B7E" }}
-        ><span aria-hidden className="w-[3px] h-4 rounded-full bg-ink/60" /></div>
+          className="trim-h in" style={{ left: `${pct(a)}%`, background: fits ? "#F2FF59" : "#FF6B7E" }}
+        ><span aria-hidden /></div>
         <div
           role="slider" tabIndex={0} aria-label="Out point" aria-valuemin={0} aria-valuemax={duration} aria-valuenow={b} aria-valuetext={clock(b)}
           onPointerDown={drag("out")} onKeyDown={key("out")}
-          className="absolute top-0 bottom-0 w-3 cursor-ew-resize touch-none z-10 flex items-center justify-center rounded-r-md outline-none focus-visible:ring-2 focus-visible:ring-violet"
-          style={{ left: `calc(${pct(b)}% - 12px)`, background: fits ? "#F2FF59" : "#FF6B7E" }}
-        ><span aria-hidden className="w-[3px] h-4 rounded-full bg-ink/60" /></div>
+          className="trim-h out" style={{ left: `calc(${pct(b)}% - 12px)`, background: fits ? "#F2FF59" : "#FF6B7E" }}
+        ><span aria-hidden /></div>
       </div>
-      <div className="flex justify-between items-center mt-1.5 font-mono text-xs2 tabular text-muted">
+      <div className="trim-t mono">
         <span>{clock(a)}</span>
-        <span className="text-text h-4 px-1.5 leading-4 bg-raised rounded">{len.toFixed(1)} s</span>
+        <b>{len.toFixed(1)} s</b>
         <span>{clock(b)}</span>
       </div>
-      <p className={cx("flex items-center gap-1.5 mt-1.5 mb-0 text-xs", fits ? "text-muted" : "text-rose-text")}>
-        {fits ? <I n="check" size={12} className="text-mint" /> : <I n="info" size={12} className="text-rose" />}
+      <p className={cx("trim-fit", !fits && "bad")}>
+        <I n={fits ? "check" : "info"} size={12} />
         {window
           ? fits
             ? `Fits the ${window[0]}–${window[1]} s window`

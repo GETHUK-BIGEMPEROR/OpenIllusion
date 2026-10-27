@@ -10,8 +10,8 @@ import { toSpec } from "../lib/spec";
 import { newKey, useApp, type StudioState } from "../lib/store";
 import { typing } from "./ABPlayer";
 import { gpuName } from "./Shell";
-import { Button, Empty, Notice, Spinner, cx } from "./ui";
-import { I } from "./oi";
+import { Button, Notice, Spinner, cx } from "./ui";
+import { EmptyBox, I } from "./oi";
 
 export function useStudio(mode: Mode) {
   const s = useApp((st) => st[mode]);
@@ -105,7 +105,7 @@ export async function downloadWorkflow(spec: Spec) {
 }
 
 function Code({ children }: { children: ReactNode }) {
-  return <span className="font-mono text-[11px] text-soft bg-white/[0.06] rounded px-1 py-px break-all">{children}</span>;
+  return <code className="code">{children}</code>;
 }
 
 /** Missing nodes and models, listed the way ComfyUI does. Nothing is installed for you. */
@@ -173,14 +173,14 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
             </Button>
             <Button size="xs" tone="ghost" onClick={() => window.open(comfy, "_blank", "noreferrer")} title="Opens ComfyUI with whatever it had open last"><I n="external" size={12} />ComfyUI</Button>
           </>}>
-          <span className="block mb-2">Install what's listed, then check again. OpenIllusion never installs anything for you.</span>
-          <div className="flex flex-col gap-2">
+          <p className="needs-lead">Install what's listed, then check again. OpenIllusion never installs anything for you.</p>
+          <div className="needs">
             {c.missing_nodes.length > 0 && (
               <NeedList title={`Missing nodes · ${c.missing_nodes.length}`} hint="Install with ComfyUI Manager">
                 {c.missing_nodes.map((n) => (
-                  <li key={n.class_type} className="px-2 py-1.5 flex flex-col">
-                    <span className="font-mono text-xs text-text break-all">{n.class_type}</span>
-                    {n.package && <span className="text-xs2 text-muted">{n.package}</span>}
+                  <li key={n.class_type}>
+                    <b>{n.class_type}</b>
+                    {n.package && <small>{n.package}</small>}
                   </li>
                 ))}
               </NeedList>
@@ -188,9 +188,9 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
             {c.missing_models.length > 0 && (
               <NeedList title={`Missing models · ${c.missing_models.length}`}>
                 {c.missing_models.map((m) => (
-                  <li key={m.node_id + m.input} className="px-2 py-1.5 flex flex-col gap-0.5">
-                    <span className="font-mono text-xs text-text break-all">{m.value}</span>
-                    <span className="text-xs2 text-muted">into <span className="font-mono">models/{m.folder ?? "…"}</span>{m.url && <> · <a href={m.url} target="_blank" rel="noreferrer" className="text-violet-light hover:underline">download</a></>}</span>
+                  <li key={m.node_id + m.input}>
+                    <b>{m.value}</b>
+                    <small>into <span className="mono">models/{m.folder ?? "…"}</span>{m.url && <> · <a href={m.url} target="_blank" rel="noreferrer">download</a></>}</small>
                   </li>
                 ))}
               </NeedList>
@@ -198,7 +198,7 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
             {c.bad_values.length > 0 && (
               <NeedList title={`Values ComfyUI rejects · ${c.bad_values.length}`}>
                 {c.bad_values.map((b) => (
-                  <li key={b.node_id + b.input} className="px-2 py-1.5 font-mono text-xs break-all">{b.class_type}.{b.input} = {JSON.stringify(b.value)}</li>
+                  <li key={b.node_id + b.input}><b>{b.class_type}.{b.input} = {JSON.stringify(b.value)}</b></li>
                 ))}
               </NeedList>
             )}
@@ -206,7 +206,7 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
         </Notice>
       )}
       {c && problems === 0 && c.reachable !== false && (
-        <p className="m-0 flex items-center gap-1.5 text-xs text-muted"><I n="check" size={12} className="text-mint" />All nodes and models found{gpuName(local?.gpu) ? ` · ${gpuName(local?.gpu)}` : ""}</p>
+        <p className="local-ok"><I n="check" size={12} />All nodes and models found{gpuName(local?.gpu) ? ` · ${gpuName(local?.gpu)}` : ""}</p>
       )}
     </>
   );
@@ -214,9 +214,9 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
 
 function NeedList({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="flex items-baseline justify-between gap-2 text-xs2 font-semibold uppercase tracking-[0.05em] text-muted">{title}{hint && <span className="normal-case tracking-normal font-normal">{hint}</span>}</span>
-      <ul className="m-0 p-0 list-none rounded-md bg-deep/60 border border-line divide-y divide-line max-h-[180px] overflow-y-auto scroll-y">{children}</ul>
+    <div className="need">
+      <span className="need-h">{title}{hint && <em>{hint}</em>}</span>
+      <ul className="need-l scroll-y">{children}</ul>
     </div>
   );
 }
@@ -247,7 +247,7 @@ export function UpstreamWarning({ local }: { local?: LocalStatus }) {
   }
   return (
     <Notice tone="error" title="Two different ComfyUIs"
-      actions={<Button size="xs" onClick={use} disabled={busy}>{busy ? <Spinner size={11} /> : null}Check <span className="font-mono">{seen}</span> instead</Button>}>
+      actions={<Button size="xs" onClick={use} disabled={busy}>{busy ? <Spinner size={11} /> : null}Check <span className="mono">{seen}</span> instead</Button>}>
       Comfy API v2 at <Code>{local.v2_url}</Code> runs on <Code>{seen}</Code>, but nodes and models are checked on <Code>{local.comfyui_url}</Code>.
       {local.managed ? " OpenIllusion restarts its proxy on the right one when you run." : ""}
     </Notice>
@@ -274,27 +274,25 @@ export function StageError({ state, error, detail, fixes = [], compact = false, 
     navigator.clipboard?.writeText(raw ?? f.body).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
   };
   return (
-    <div role={quiet ? "status" : "alert"} className={cx("w-full flex flex-col items-center text-center gap-2", compact ? "max-w-[300px]" : "max-w-[440px]", className)}>
-      <span className={cx("rounded-full flex items-center justify-center", compact ? "w-8 h-8" : "w-10 h-10", quiet ? "bg-white/[0.06] text-muted" : "bg-rose/15 text-rose")}>
-        <I n={quiet ? "fail" : "alert"} size={compact ? 16 : 18} />
-      </span>
-      <span className={cx("font-semibold text-text", compact ? "text-base" : "text-md")}>{f.title}</span>
-      <span className="text-sm text-muted">{f.body}</span>
+    <div role={quiet ? "status" : "alert"} className={cx("serr", compact && "sm", quiet && "quiet", className)}>
+      <span className="serr-ic"><I n={quiet ? "fail" : "alert"} size={compact ? 16 : 18} /></span>
+      <b>{f.title}</b>
+      <span>{f.body}</span>
       {fixes.length > 0 && (
-        <div className="mt-1 flex flex-wrap justify-center gap-1.5">
+        <div className="serr-fix">
           {fixes.map((x) => <Button key={x.label} size="sm" tone={x.primary ? "contrast" : "secondary"} onClick={x.run}>{x.icon}{x.label}</Button>)}
         </div>
       )}
       {raw && (
-        <div className="w-full mt-1 flex flex-col items-center">
-          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="mk-btn h-6 px-1.5 rounded-md border-0 bg-transparent text-xs text-faint hover:text-soft inline-flex items-center gap-1">
-            {open ? "Hide details" : "Show details"}<I n="down" size={11} className={cx("transition-transform", open && "rotate-180")} />
+        <div className="serr-raw">
+          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="serr-more">
+            {open ? "Hide details" : "Show details"}<I n="down" size={11} />
           </button>
           {open && (
-            <div className="relative w-full mt-1 text-left">
-              <pre className="m-0 max-h-[160px] overflow-auto scroll-y rounded-md bg-deep border border-line p-2.5 pr-9 font-mono text-xs2 leading-[1.6] text-soft whitespace-pre-wrap break-all">{raw}</pre>
-              <button type="button" aria-label="Copy details" title="Copy" onClick={copy} className="mk-btn absolute right-1.5 top-1.5 w-6 h-6 rounded-md border-0 bg-raised text-muted hover:text-text flex items-center justify-center">
-                {copied ? <I n="check" size={12} className="text-mint" /> : <I n="copy" size={12} />}
+            <div className="serr-pre">
+              <pre className="scroll-y">{raw}</pre>
+              <button type="button" aria-label="Copy details" title="Copy" onClick={copy}>
+                <I n={copied ? "check" : "copy"} size={12} className={copied ? "ok" : undefined} />
               </button>
             </div>
           )}
@@ -307,17 +305,17 @@ export function StageError({ state, error, detail, fixes = [], compact = false, 
 /** A studio with no template for its mode yet (nothing shipped, or still loading). */
 export function NoTemplates({ mode }: { mode: Mode }) {
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
-  if (engines.isLoading) return <div className="flex-1 flex items-center justify-center" aria-busy="true"><Spinner size={18} /></div>;
+  if (engines.isLoading) return <div className="busy-fill" aria-busy="true"><Spinner size={18} /></div>;
   const other = mode === "motion" ? "edit" : "motion";
   const hasOther = !!engines.data?.some((e) => e.mode === other);
   return (
-    <Empty className="flex-1" icon={<I n={mode === "motion" ? "film" : "image"} size={18} />} title={`No ${mode === "motion" ? "video" : "image"} templates yet`}
-      action={<>
-        <Button tone="primary" size="md" onClick={() => go({ name: "build" })}>Build one</Button>
-        {hasOther && <Button size="md" onClick={() => go({ name: other })}>Show {other === "edit" ? "image" : "video"} templates</Button>}
-      </>}>
+    <EmptyBox icon={mode === "motion" ? "film" : "image"} title={`No ${mode === "motion" ? "video" : "image"} templates yet`} style={{ flex: 1, alignContent: "center" }}
+      action={<div className="acts">
+        <Button tone="primary" onClick={() => go({ name: "build" })}>Build one</Button>
+        {hasOther && <Button onClick={() => go({ name: other })}>Show {other === "edit" ? "image" : "video"} templates</Button>}
+      </div>}>
       Turn a ComfyUI workflow into a template in Build, and it opens here.
-    </Empty>
+    </EmptyBox>
   );
 }
 

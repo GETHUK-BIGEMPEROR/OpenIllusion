@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cx, EmptyBox, gpuName, I, PageHead } from "../components/oi";
 import { UpstreamWarning } from "../components/Studio";
+import { Toggle as Switch } from "../components/ui";
 import { api, type Settings as S, type Status, type StorageBucket } from "../lib/api";
 import { confirm } from "../lib/confirm";
 import { bytes, errMsg } from "../lib/format";
@@ -346,10 +347,6 @@ function Toggle({ title, desc, checked, onChange, children }: { title: string; d
       {children ?? <Switch label={title} checked={!!checked} onChange={(v) => onChange?.(v)} />}
     </div>
   );
-}
-
-function Switch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return <button type="button" role="switch" className="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} />;
 }
 
 /** A text field that saves on Save or Enter, validates first, and confirms with a check. */
