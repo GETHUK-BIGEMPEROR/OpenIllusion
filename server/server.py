@@ -99,6 +99,12 @@ def main(argv: list[str] | None = None) -> None:
     if a.host not in ("127.0.0.1", "localhost", "::1"):
         log.warning("OpenIllusion: listening on %s. Anyone who can reach it can spend your Comfy credits.", a.host)
     url = f"http://{'127.0.0.1' if a.host in ('0.0.0.0', '::') else a.host}:{a.port}/"
+    try:
+        paths.claim_home(url)
+    except paths.HomeInUse as e:
+        log.error("OpenIllusion: another server is already using %s%s. Use that one, or give this one "
+                  "its own home folder with OPENILLUSION_HOME.", paths.user_root(), f" ({e})" if str(e) else "")
+        raise SystemExit(1) from None
     log.info("OpenIllusion %s at %s (home %s)", __version__, url, paths.user_root())
     if a.open:
         webbrowser.open(url)

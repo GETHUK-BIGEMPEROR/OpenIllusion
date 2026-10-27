@@ -170,7 +170,7 @@ Where to look when you change something.
 
 | File | What it does |
 | --- | --- |
-| `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Seeds the starter generations once, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), and refuses cross-origin requests (`_same_origin`). |
+| `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), seeds the starter generations once, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), and refuses cross-origin requests (`_same_origin`). |
 | `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, estimate, run, jobs), `library` (generations, trash, storage, re-run, export, import); shared helpers in `common`. Thin: it checks input and calls the modules below. |
 | `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
 | `builder.py` | The Builder: read a dropped workflow (`read_workflow`, `ui_to_api`), detect its inputs (`analyze`), put a template together (`assemble_local`, `assemble_cloud`), drafts, `save`. |
@@ -208,7 +208,7 @@ Where to look when you change something.
 | `templates/cloud/` | Shipped Router templates, once one has run for real (none yet) |
 | `tests/` | pytest suite; Router, Comfy Cloud and ComfyUI are faked with `httpx.MockTransport` |
 | `schema/` | `generation.v1.json` (`python -m server.gen_schema`) |
-| `~/.openillusion/` | `generations/`, `trash/`, `templates/`, `covers/`, `uploads/`, `cache/`, `outputs/`, `index.sqlite`, `settings.json` |
+| `~/.openillusion/` | `generations/`, `trash/`, `templates/`, `covers/`, `uploads/`, `cache/`, `outputs/`, `index.sqlite`, `settings.json`, `jobs.json` (the queue), `server.lock` (held by the running server) |
 
 ## API
 
@@ -618,7 +618,6 @@ second base URL plus the key; not planned yet.
 | high | Cloud | Router and Comfy Cloud have only run against fakes. Adapters are written from the docs and schemas, never checked against a real answer. Combination rules (`set`) the docs don't state are guesses on the safe side. | Phase 6 |
 | med | Files by link | Unknown until a real key tries it: whether uploading needs a Comfy Cloud subscription, and how long the signed link lives. | Phase 6 |
 | med | Limits | Per-model file limits (clip length, size, resolution) are in the docs, not enforced here; Router's refusal says what's wrong. | Read limits into adapters if refusals are common |
-| high | Job state | The queue lives in one process's memory, mirrored to `jobs.json`. Two servers on one home folder would both resume the same jobs. | Lock file in the home folder |
 | low | Big files | `server/builder.py` 918 lines, `jobs.py` 805 | Split when next reworked |
 | med | Input order | Builder lists inputs in loader order, but Create uses the template's order. | Save inputs in the order Builder showed them |
 

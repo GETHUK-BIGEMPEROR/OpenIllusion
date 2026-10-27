@@ -182,3 +182,18 @@ def test_runs_are_named_after_their_template(tmp_path, uploads, monkeypatch):
     job = mgr.jobs[ids[0]]
     assert m.title == jobs.engines.get(m.engine.model).label.split(" · ")[0]
     assert job.engine == m.engine.model and job.prompt == m.prompt
+
+
+def test_one_server_per_home_folder():
+    from server import server
+
+    paths.claim_home("http://127.0.0.1:7870/")
+    try:
+        with pytest.raises(paths.HomeInUse, match="7870"):
+            paths.claim_home("http://127.0.0.1:7871/")
+        with pytest.raises(SystemExit):  # refused before it binds a port or resumes a run
+            server.main(["--port", "7871"])
+    finally:
+        paths.release_home()
+    paths.claim_home("http://127.0.0.1:7871/")  # free again once the first one stops
+    paths.release_home()

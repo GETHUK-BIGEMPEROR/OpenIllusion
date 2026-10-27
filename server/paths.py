@@ -66,6 +66,52 @@ def db_file() -> Path:
     return user_root() / "index.sqlite"
 
 
+class HomeInUse(RuntimeError):
+    """Another OpenIllusion server holds this home folder. The message is where it says it runs."""
+
+
+_claim = None
+_CLAIM_AT = 1 << 20  # the byte that's locked: past the note, so a second server can still read it
+
+
+def claim_home(note: str = "") -> None:
+    """Hold ``<home>/server.lock`` while this process runs, so one server owns a home folder.
+
+    The run queue lives in one process, mirrored to ``jobs.json``: a second server on the
+    same home would resume, and pay for, the same runs. The OS drops the lock when the
+    process ends, even on a crash, so a stale lock file never blocks a restart.
+    """
+    global _claim
+    f = open(user_root() / "server.lock", "a+b")
+    try:
+        f.seek(_CLAIM_AT)
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.seek(0)
+        held = f.read(200).decode("utf-8", "replace").strip()
+        f.close()
+        raise HomeInUse(held) from None
+    f.seek(0)
+    f.truncate()
+    f.write(note.encode("utf-8"))
+    f.flush()
+    _claim = f
+
+
+def release_home() -> None:
+    global _claim
+    if _claim is not None:
+        _claim.close()
+        _claim = None
+
+
 def package_root() -> Path:
     """The ``server`` package folder (Python code and the built web app in ``static/``)."""
     return Path(__file__).resolve().parent
