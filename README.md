@@ -133,8 +133,8 @@ flowchart LR
   end
 
   subgraph Server["Python · aiohttp · :7870"]
-    R["routes.py<br/>/api/* + built app"]
-    T["engines.py · builder.py · adapters/<br/>templates"]
+    R["routes/<br/>/api/* + built app"]
+    T["engines/ · builder.py · adapters/<br/>templates"]
     J["jobs.py · prep.py · media.py<br/>runs"]
     L["store.py · bundle.py · storage.py<br/>library"]
     B["local.py · proxy.py · router.py<br/>backends"]
@@ -171,8 +171,8 @@ Where to look when you change something.
 | File | What it does |
 | --- | --- |
 | `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Seeds the starter generations once, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), and refuses cross-origin requests (`_same_origin`). |
-| `routes.py` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app. Thin: it checks input and calls the modules below. |
-| `engines.py` | Templates: load and upgrade template files, edit/duplicate/delete them, covers, `compose` (the request a run sends), `materialize` (media tokens → file data), `result_media` (find the image or video in an answer). |
+| `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, estimate, run, jobs), `library` (generations, trash, storage, re-run, export, import); shared helpers in `common`. Thin: it checks input and calls the modules below. |
+| `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
 | `builder.py` | The Builder: read a dropped workflow (`read_workflow`, `ui_to_api`), detect its inputs (`analyze`), put a template together (`assemble_local`, `assemble_cloud`), drafts, `save`. |
 | `adapters/` | `__init__.py` reads and checks adapter files and puts a request together from one (`parse`, `check`, `assemble`, `pick_model`). One `*.json` per cloud model. |
 | `jobs.py` | The queue: `prepare_generation` (spec → generation folder), `_run_inner` (cloud: upload files by link, materialize, estimate, submit, poll, collect), `_run_local` (upload, precheck, submit, follow events), saving results. |
@@ -618,7 +618,7 @@ second base URL plus the key; not planned yet.
 | med | Files by link | Unknown until a real key tries it: whether uploading needs a Comfy Cloud subscription, and how long the signed link lives. | Phase 6 |
 | med | Limits | Per-model file limits (clip length, size, resolution) are in the docs, not enforced here; Router's refusal says what's wrong. | Read limits into adapters if refusals are common |
 | high | Job state | The queue lives in one process's memory, mirrored to `jobs.json`. Two servers on one home folder would both resume the same jobs. | Lock file in the home folder |
-| med | Big files | `engines.py` 1139 lines, `routes.py` 1050, `builder.py` 918, `jobs.py` 805; UI `EditStudio.tsx` 952, `Builder.tsx` 873 | Split routes by area; split engines into contract / bind / covers |
+| med | Big files | `builder.py` 918 lines, `jobs.py` 805; UI `EditStudio.tsx` 952, `Builder.tsx` 873 | Split the two screens into folders |
 | med | Input order | Builder lists inputs in loader order, but Create uses the template's order. | Save inputs in the order Builder showed them |
 
 ## Run
