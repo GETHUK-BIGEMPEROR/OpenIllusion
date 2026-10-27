@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from .. import engines, jobs, media, paths, settings
+from .. import engines, jobs, media, paths, settings, staging
 from ..router import Router, RouterError
 from .common import API, UPLOAD_EXT, MAX_UPLOAD, err, body, _safe_file, asset_info, _norm_spec, _spec_resolver
 
@@ -60,7 +60,7 @@ def register(routes: web.RouteTableDef) -> None:
         """Grab one frame of a video as a new image upload (Edit this frame)."""
         b = await body(request)
         try:
-            src = jobs.resolve_asset(b["asset"])
+            src = staging.resolve_asset(b["asset"])
         except (KeyError, ValueError, FileNotFoundError):
             return err(404, "Video not found")
         t = float(b.get("t") or 0)
@@ -89,7 +89,7 @@ def register(routes: web.RouteTableDef) -> None:
         except (KeyError, ValueError) as e:
             return err(400, str(e))
         try:  # what prep will do to each image; the studio shows it
-            out["prep"] = {slot: pl.to_dict() for slot, pl in (await asyncio.to_thread(jobs.input_plans, spec)).items()}
+            out["prep"] = {slot: pl.to_dict() for slot, pl in (await asyncio.to_thread(staging.input_plans, spec)).items()}
         except (FileNotFoundError, ValueError, OSError):
             out["prep"] = {}
         return web.json_response(out)

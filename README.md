@@ -134,8 +134,8 @@ flowchart LR
 
   subgraph Server["Python · aiohttp · :7870"]
     R["routes/<br/>/api/* + built app"]
-    T["engines/ · builder.py · adapters/<br/>templates"]
-    J["jobs.py · prep.py · media.py<br/>runs"]
+    T["engines/ · builder/ · adapters/<br/>templates"]
+    J["jobs.py · staging.py · prep.py · media.py<br/>runs"]
     L["store.py · bundle.py · storage.py<br/>library"]
     B["local.py · proxy.py · router.py<br/>backends"]
   end
@@ -173,9 +173,10 @@ Where to look when you change something.
 | `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), seeds the starter generations once, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), and refuses cross-origin requests (`_same_origin`). |
 | `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, estimate, run, jobs), `library` (generations, trash, storage, re-run, export, import); shared helpers in `common`. Thin: it checks input and calls the modules below. |
 | `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
-| `builder.py` | The Builder: read a dropped workflow (`read_workflow`, `ui_to_api`), detect its inputs (`analyze`), put a template together (`assemble_local`, `assemble_cloud`), drafts, `save`. |
+| `builder/` | The Builder, in layers: `workflow` (read a dropped file, `read_workflow`; UI graph to API graph, `ui_to_api`), `analysis` (detect inputs, prompt, settings and result nodes, `analyze`), `assemble` (drafts, `assemble_local`, `assemble_cloud`, `preset`, `save`). `__init__` re-exports them. |
 | `adapters/` | `__init__.py` reads and checks adapter files and puts a request together from one (`parse`, `check`, `assemble`, `pick_model`). One `*.json` per cloud model. |
-| `jobs.py` | The queue: `prepare_generation` (spec → generation folder), `_run_inner` (cloud: upload files by link, materialize, estimate, submit, poll, collect), `_run_local` (upload, precheck, submit, follow events), saving results. |
+| `staging.py` | A run before it starts: `prepare_generation` (spec → generation folder: inputs cropped, sized and copied, running manifest), `input_plans` (what prep will do, for Create), `resolve_asset`, and what a finished generation carries (`recipe_manifest`, `workflow_file`). |
+| `jobs.py` | The queue: `_run_inner` (cloud: upload files by link, materialize, estimate, submit, poll, collect), `_run_local` (upload, precheck, submit, follow events), saving results. |
 | `router.py` | Comfy Router client: estimate, submit, status, collect, sync run, cancel, download. |
 | `local.py` | `ComfyV2` (Comfy API v2: upload assets, jobs, events; used for comfy-api-proxy and for Comfy Cloud assets) and `ComfyUI` (`/object_info`, precheck of nodes and models). |
 | `proxy.py` | Starts and stops comfy-api-proxy. |
@@ -618,7 +619,6 @@ second base URL plus the key; not planned yet.
 | high | Cloud | Router and Comfy Cloud have only run against fakes. Adapters are written from the docs and schemas, never checked against a real answer. Combination rules (`set`) the docs don't state are guesses on the safe side. | Phase 6 |
 | med | Files by link | Unknown until a real key tries it: whether uploading needs a Comfy Cloud subscription, and how long the signed link lives. | Phase 6 |
 | med | Limits | Per-model file limits (clip length, size, resolution) are in the docs, not enforced here; Router's refusal says what's wrong. | Read limits into adapters if refusals are common |
-| low | Big files | `server/builder.py` 918 lines, `jobs.py` 805 | Split when next reworked |
 
 ## Run
 

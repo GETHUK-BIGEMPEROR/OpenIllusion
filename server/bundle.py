@@ -393,7 +393,7 @@ def commit(token: str) -> sc.Manifest:
     if m.status == "running":
         m.status = "done" if (m.result and m.result.file) else "draft"
     if m.engine.kind == "local" and not (dst / "comfy" / "workflow.json").exists():
-        from .jobs import workflow_file
+        from .staging import workflow_file
 
         (dst / "comfy").mkdir(exist_ok=True)
         (dst / "comfy" / "workflow.json").write_text(json.dumps(workflow_file(m), indent=2), "utf-8")

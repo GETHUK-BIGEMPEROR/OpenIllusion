@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from .. import bundle, jobs, media, paths, store
+from .. import bundle, media, paths, staging, store
 from .. import generation as sc
 
 
@@ -129,7 +129,7 @@ def _spec_resolver(spec: dict):
             return item.get("url") or ""
         if not item.get("asset"):
             raise KeyError(f"{kind}:{n} has no media yet")
-        p = jobs.resolve_asset(item["asset"])
+        p = staging.resolve_asset(item["asset"])
         if kind == "image":
             uri, b64 = media.image_payload(p)
             return b64 if form == "b64" else uri

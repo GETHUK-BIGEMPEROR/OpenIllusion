@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from .. import adapters, builder, engines, jobs, local, paths
+from .. import adapters, builder, engines, local, paths, staging
 from .common import API, UPLOAD_EXT, err, body, asset_info
 
 
@@ -153,9 +153,9 @@ def register(routes: web.RouteTableDef) -> None:
                 if base is not None and base.data:
                     builder.inherit(data, base.data, base.label)
             samples = {}
-            for m in builder._media_rows(b.get("media") or []):
+            for m in builder.media_rows(b.get("media") or []):
                 if m.get("sample"):
-                    samples[m["slot"]] = jobs.resolve_asset(str(m["sample"]))
+                    samples[m["slot"]] = staging.resolve_asset(str(m["sample"]))
             tid = builder.save(data, samples, replace=replace, taken=set(engines.ENGINES))
         except (builder.BuildError, KeyError, ValueError) as e:
             return err(422, str(e))

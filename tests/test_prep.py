@@ -3,7 +3,7 @@ import math
 import pytest
 from PIL import Image
 
-from server import engines, jobs, paths, prep
+from server import engines, paths, prep, staging
 
 QWEN = {"multiple": 32}
 
@@ -123,8 +123,8 @@ def test_runs_get_prepared_images_and_record_how():
                    {"slot": "image:2", "role": "reference", "asset": _upload("c.png", (5000, 5000))}],
         "params": {},
     }
-    planned = jobs.input_plans(spec)
-    m = jobs.prepare_generation(spec)
+    planned = staging.input_plans(spec)
+    m = staging.prepare_generation(spec)
     folder = paths.user_root() / "generations" / m.id
     one, two = m.inputs
     with Image.open(folder / one.file) as a, Image.open(folder / two.file) as b:
@@ -176,17 +176,17 @@ def test_samples_resolve_like_uploads():
     e = engines.ENGINES["local/qwen21-hold-product"]
     a = engines.describe(e)["defaults"]["inputs"][1]
     assert a["asset"] == "tpl:local/qwen21-hold-product|image:2"
-    assert jobs.resolve_asset(a["asset"]).name == "instant-camera.jpg"
+    assert staging.resolve_asset(a["asset"]).name == "instant-camera.jpg"
     with pytest.raises(FileNotFoundError):
-        jobs.resolve_asset("tpl:local/qwen21-hold-product|image:9")
+        staging.resolve_asset("tpl:local/qwen21-hold-product|image:9")
     with pytest.raises(FileNotFoundError):
-        jobs.resolve_asset("tpl:local/nope|image:1")
+        staging.resolve_asset("tpl:local/nope|image:1")
 
 
 def test_a_run_on_samples_copies_them_into_the_generation():
     e = engines.ENGINES["local/qwen21-add-hat"]
     d = engines.describe(e)["defaults"]
-    m = jobs.prepare_generation({"engine": e.id, "prompt": d["prompt"], "params": {"size": "1 MP"},
+    m = staging.prepare_generation({"engine": e.id, "prompt": d["prompt"], "params": {"size": "1 MP"},
                                  "inputs": [{"slot": "image:1", "asset": d["inputs"][0]["asset"]}]})
     with Image.open(paths.user_root() / "generations" / m.id / m.inputs[0].file) as img:
         assert img.size == (m.inputs[0].prep["width"], m.inputs[0].prep["height"])
@@ -197,7 +197,7 @@ def test_default_prompt_is_editable_and_samples_stay_put():
     e = engines.edit_template("local/qwen21-add-hat", {"inputs": {"prompt": {"default": "  Put a red beret on <image1>.  "}}})
     d = engines.describe(e)["defaults"]
     assert d["prompt"] == "Put a red beret on <image1>." and e.edited
-    assert jobs.resolve_asset(d["inputs"][0]["asset"]).name == "man-park.jpg"  # still the shipped file
+    assert staging.resolve_asset(d["inputs"][0]["asset"]).name == "man-park.jpg"  # still the shipped file
     engines.reset_template(e.id)
     assert "straw fedora with a black band" in engines.describe(engines.ENGINES[e.id])["defaults"]["prompt"]
 

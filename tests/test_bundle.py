@@ -130,7 +130,7 @@ def test_hash_mismatch_drops_file():
 
 def test_png_and_mp4_carry_their_recipe(tmp_path):
     m = library_generation(tmp_path)
-    from server.jobs import recipe_manifest
+    from server.staging import recipe_manifest
 
     recipe = recipe_manifest(store.get(m.id))
     png = media.png_with_recipe(media.open_image(store.folder(m.id) / "refs" / "ref-01.png"), tmp_path / "o.png", recipe)
