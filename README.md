@@ -675,6 +675,7 @@ second base URL plus the key; not planned yet.
 | 5 | Every mode of every model: roles, adapter format v2 (`set` lists, `with`/`drop`, `models`, path lists, audio), files by link, ten models | built, tested against fakes |
 | 5b | Settled design: mode tabs per Router model, Back through the Builder's steps, design rules written down | done |
 | 6 | First real run of each model and mode with a key; fix what Router refuses; switch on checked variants | yours to run |
+| 7 | Storage: safe writes, secrets apart, one server per home, scratch that cleans itself, `.illusionbackup` back up and merge-restore | built, tested on throwaway homes |
 
 ## Known weak spots
 
@@ -682,6 +683,8 @@ second base URL plus the key; not planned yet.
 | --- | --- | --- | --- |
 | high | Cloud | Router and Comfy Cloud have only run against fakes. Adapters are written from the docs and schemas, never checked against a real answer. Combination rules (`set`) the docs don't state are guesses on the safe side. | Phase 6 |
 | med | Files by link | Unknown until a real key tries it: whether uploading needs a Comfy Cloud subscription, and how long the signed link lives. | Phase 6 |
+| med | Backups | Only run on small throwaway libraries. Time, disk room and progress on a library of many GB, and a restore across machines, are untested. | Back up and restore a real library into a fresh `OPENILLUSION_HOME` |
+| low | Proxy | The proxy token is passed to comfy-api-proxy on the command line (`--token`), so it shows in the process list to anyone on the machine. | Pass it by environment or a private file |
 | med | Limits | Per-model file limits (clip length, size, resolution) are in the docs, not enforced here; Router's refusal says what's wrong. | Read limits into adapters if refusals are common |
 
 ## Run
