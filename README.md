@@ -619,7 +619,6 @@ second base URL plus the key; not planned yet.
 | med | Files by link | Unknown until a real key tries it: whether uploading needs a Comfy Cloud subscription, and how long the signed link lives. | Phase 6 |
 | med | Limits | Per-model file limits (clip length, size, resolution) are in the docs, not enforced here; Router's refusal says what's wrong. | Read limits into adapters if refusals are common |
 | low | Big files | `server/builder.py` 918 lines, `jobs.py` 805 | Split when next reworked |
-| med | Input order | Builder lists inputs in loader order, but Create uses the template's order. | Save inputs in the order Builder showed them |
 
 ## Run
 

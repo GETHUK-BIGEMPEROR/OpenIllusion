@@ -111,8 +111,10 @@ function withPreset(p: BuildPreset, init: { media: MediaRow[]; prompt: PromptSta
   const at = (x: { node: string; input: string }) => `${x.node}|${x.input}`;
   const pm = new Map(p.media.map((m) => [at(m), m]));
   const pp = new Map(p.params.map((x) => [at(x), x]));
+  // The template's inputs first, in its order (the order Create shows and a save keeps), then the workflow's other loaders.
+  const rank = (r: MediaRow) => { const i = p.media.findIndex((m) => at(m) === r.key); return i < 0 ? p.media.length : i; };
   return {
-    media: init.media.map((r) => {
+    media: [...init.media].sort((a, b) => rank(a) - rank(b)).map((r) => {
       const m = pm.get(r.key);
       return m ? { ...r, on: true, label: m.label ?? r.label, hint: m.hint ?? "", required: m.required ?? true, window: m.window ?? null, fps: m.fps ?? null } : { ...r, on: false };
     }),
