@@ -58,11 +58,6 @@ function LocalStart({ reading, over, onFile }: { reading: string | null; over: b
           {reading === sample.id.split("/").pop() ? <Spinner size={13} /> : <I n="play" />}Try it with the {tplName(sample)} workflow
         </button></div>
       )}
-      <div className="contract">
-        <div><b>It works in ComfyUI first</b>If the workflow runs there, it runs here. Missing nodes and models are listed for you, never installed.</div>
-        <div><b>Inputs and a prompt, nothing else</b>People drop in photos or clips and edit the prompt. The workflow runs as a black box, exactly as you saved it.</div>
-        <div><b>One run, then publish</b>Your first good result becomes the cover on Explore. No result, no template.</div>
-      </div>
     </>
   );
 }
@@ -93,11 +88,6 @@ function RouterStart({ onModel }: { onModel: (a: RouterAdapter) => void }) {
             );
           })
       )}
-      <div className="contract">
-        <div><b>Ten models, every mode</b>Pick a model, then what it does: text to video, frames, references, an edit. Each mode shows only the inputs it takes.</div>
-        <div><b>Inputs and a prompt, nothing else</b>Fill the inputs you want and leave the rest empty. The template asks for exactly what you filled, every run.</div>
-        <div><b>One run, then publish</b>The first run costs credits. Its result becomes the cover on Explore.</div>
-      </div>
     </>
   );
 }

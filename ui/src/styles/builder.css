@@ -35,9 +35,6 @@
 .dropwf b{font-size:15px;font-weight:600}
 .dropwf p{margin:0;font-size:12.5px;color:var(--text-3);max-width:520px;line-height:1.5}
 .try-wf{display:flex;justify-content:center;margin-top:-6px}
-.contract{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.contract div{padding:14px;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;color:var(--text-2);line-height:1.5}
-.contract b{display:block;color:var(--text);font-weight:600;margin-bottom:4px;font-size:13px}
 .cloudline{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);font-size:12.5px;color:var(--text-3)}
 .cloudline .i{color:var(--violet);flex:none}
 .cloudline .btn{margin-left:auto;flex:none}
@@ -229,7 +226,6 @@ select.bld-val{height:32px}
   .steps li{padding:8px}
   .steps li span span{display:none}
   .steps b{font-size:11.5px}
-  .contract{grid-template-columns:1fr}
   .dropwf{padding:32px 18px}
   .cloudline{flex-wrap:wrap}
   .bsec{padding:12px}

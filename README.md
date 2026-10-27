@@ -4,8 +4,7 @@ A template studio for ComfyUI, made as simple as Higgsfield: pick a template, dr
 in your images, videos or sounds, edit the prompt, press Run, get a result.
 
 - **Local** runs a ComfyUI workflow on your own GPU through Comfy API v2.
-- **Cloud** runs one of ten premium models (five that make video, five that make
-  photos) on
+- **Cloud** runs premium models that make video or photos on
   [Comfy Router](https://docs.comfy.org/development/comfy-router/reference.md),
   billed to your Comfy API key. A file a model only takes as a link is first
   uploaded to Comfy Cloud's asset store with the same key.
@@ -47,7 +46,7 @@ The two kinds differ only in where the box comes from and who knows its inputs:
 | --- | --- | --- |
 | The box | A ComfyUI workflow (API format) | A Router model id plus its native JSON request |
 | Its inputs come from | **Detection**: loaders, text boxes and save nodes in the workflow | **An adapter**: a hand-written JSON file per model |
-| Which ones | Any workflow that runs in ComfyUI | Only models with an adapter (ten) |
+| Which ones | Any workflow that runs in ComfyUI | Only models with an adapter |
 | What it can do | Whatever the workflow does | Every mode the model has: text-only, first frame, first + last frame, references, edit… The inputs you fill pick the mode. |
 | Freeze | Built in: the workflow's loaders are fixed and each needs a file | At publish: the template keeps the mode its run used |
 | Runs through | `local.py` → comfy-api-proxy `:8189` → your ComfyUI | `router.py` → `api.comfy.org/v2/models/{provider}/{model}`; files by link via `cloud.comfy.org/api/v2/assets` |
@@ -285,7 +284,7 @@ typed call for each.
 | Status and setup | `GET status` · `POST local/check` · `POST local/proxy/start` · `POST onboarded` · `GET ws` (job updates) |
 | Settings and key | `GET/POST settings` · `POST key/test` · `POST key/forget` |
 | Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `GET templates/input` · `GET templates/workflow` · `GET/PUT/DELETE cover` |
-| Builder | `POST builder/workflow` · `POST builder/from-template` · `GET builder/models` (the ten adapters) · `POST builder/save` · `DELETE builder/template` |
+| Builder | `POST builder/workflow` · `POST builder/from-template` · `GET builder/models` (every adapter) · `POST builder/save` · `DELETE builder/template` |
 | Files | `POST upload` (photo, clip or sound) · `GET uploads/{asset}` · `POST frame` (a still from a clip) |
 | Runs | `POST compose` (the request, without running) · `POST estimate` (price) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
 | Library | `GET generations` · `GET facets` · `GET/PATCH/DELETE generations/{id}` · `POST generations/trash` · `GET generations/{id}/file/…`, `/output`, `/workflow`, `/recipe` · `POST generations/{id}/rerun` |
@@ -322,7 +321,7 @@ flowchart LR
     D["Drop a workflow<br/>UI or API json, or a<br/>ComfyUI PNG/WebP/MP4"] --> DE["Detect<br/>loaders → Image/Video N<br/>text box → Prompt<br/>save node → Photo/Video"]
   end
   subgraph Cloud["Comfy Router"]
-    M["Pick a model<br/>one of the ten"] --> MO["Pick a mode<br/>tabs from its adapter:<br/>Text to video, Image to video,<br/>From references, Video edit…"]
+    M["Pick a model<br/>any with an adapter"] --> MO["Pick a mode<br/>tabs from its adapter:<br/>Text to video, Image to video,<br/>From references, Video edit…"]
   end
   DE --> F["Fill<br/>samples + prompt"]
   MO --> F
@@ -333,7 +332,7 @@ flowchart LR
 - **Detect** is `builder.analyze`: UI-format workflows are converted to API format
   and subgraphs flattened, then every loader becomes a required input. Step *Run*
   is `builder.assemble_local`.
-- **Picking a model**: the ten are cards under *Make video* and *Make photos*.
+- **Picking a model**: each adapter is a card under *Make video* and *Make photos*.
   Each card says what the model **Does** (its mode names, `modeNames`) and what it
   **Takes** (its roles, with the most files each takes, e.g. Reference image ×9),
   both read off the adapter, so a new adapter gets its card for free.
@@ -496,7 +495,7 @@ run. A new set name needs a label there.
 A template is frozen to the roles its run used, so "Kling · edit video" and
 "Kling · first–last frame" are two templates from one adapter.
 
-### The ten models
+### The models
 
 Chosen from the October 2026 arena boards and creator round-ups, limited to
 models Router serves. Nobody publishes usage counts.
@@ -667,13 +666,13 @@ second base URL plus the key; not planned yet.
 
 | # | Phase | State |
 | --- | --- | --- |
-| — | Local: 20 workflow templates (Qwen Image 2.1, MiniMax H3), every one run on the GPU | done |
+| — | Local: shipped workflow templates (Qwen Image 2.1, MiniMax H3 so far), every one run on the GPU | done |
 | 0 | Comfy Cloud removed as a runner; Router is the cloud | done |
 | 1 | Cloud contract: inputs + prompt, file form per input, result paths, base64 and byte results | done |
 | 2 | Cloud badge, key gate, Local/Cloud filter on Explore | done |
 | 3 | Builder Router tab, draft run, publish | done |
 | 4 | Adapters for five models; publish freezes the inputs; generic schema detection removed | done |
-| 5 | Every mode of every model: roles, adapter format v2 (`set` lists, `with`/`drop`, `models`, path lists, audio), files by link, ten models | built, tested against fakes |
+| 5 | Every mode of every model: roles, adapter format v2 (`set` lists, `with`/`drop`, `models`, path lists, audio), files by link | built, tested against fakes |
 | 5b | Settled design: mode tabs per Router model, Back through the Builder's steps, design rules written down | done |
 | 6 | First real run of each model and mode with a key; fix what Router refuses; switch on checked variants | yours to run |
 | 7 | Storage: safe writes, secrets apart, one server per home, scratch that cleans itself, `.illusionbackup` back up and merge-restore | built, tested on throwaway homes |
