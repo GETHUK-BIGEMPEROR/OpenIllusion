@@ -40,6 +40,16 @@ export const SPRITE = `<symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12
 <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
 <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 2.8 2.8 5.8 6.4.9-4.6 4.5 1.1 6.4L12 17.4l-5.7 3 1.1-6.4-4.6-4.5 6.4-.9z"/></symbol>
 <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
-<symbol id="i-graph" viewBox="0 0 24 24"><rect x="2.5" y="3" width="7" height="6" rx="1.5"/><rect x="14.5" y="15" width="7" height="6" rx="1.5"/><path d="M9.5 6H13a2 2 0 0 1 2 2v7"/></symbol>`;
+<symbol id="i-graph" viewBox="0 0 24 24"><rect x="2.5" y="3" width="7" height="6" rx="1.5"/><rect x="14.5" y="15" width="7" height="6" rx="1.5"/><path d="M9.5 6H13a2 2 0 0 1 2 2v7"/></symbol>
+<symbol id="i-split" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M12 3v18"/></symbol>
+<symbol id="i-columns" viewBox="0 0 24 24"><rect x="3" y="5" width="8" height="14" rx="2"/><rect x="13" y="5" width="8" height="14" rx="2"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1.2" fill="currentColor" stroke="none"/><rect x="14" y="4.5" width="4" height="15" rx="1.2" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-dice" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="15" cy="15" r="1" fill="currentColor"/><circle cx="15" cy="9" r="1" fill="currentColor"/><circle cx="9" cy="15" r="1" fill="currentColor"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="3"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></symbol>
+<symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></symbol>
+<symbol id="i-fail" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9.2 9.2 5.6 5.6M14.8 9.2l-5.6 5.6"/></symbol>
+<symbol id="i-dash" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+<symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>`;
 
-export type IconName = "compass" | "wand" | "library" | "layers" | "sliders" | "search" | "import" | "upload" | "plus" | "x" | "more" | "refresh" | "info" | "check" | "alert" | "down" | "left" | "right" | "arrow" | "back" | "play" | "copy" | "trash" | "cpu" | "cloud" | "compare" | "remix" | "pencil" | "image" | "film" | "share" | "select" | "key" | "globe" | "zap" | "clock" | "expand" | "grid" | "undo" | "star" | "download" | "graph";
+export type IconName = "compass" | "wand" | "library" | "layers" | "sliders" | "search" | "import" | "upload" | "plus" | "x" | "more" | "refresh" | "info" | "check" | "alert" | "down" | "left" | "right" | "arrow" | "back" | "play" | "copy" | "trash" | "cpu" | "cloud" | "compare" | "remix" | "pencil" | "image" | "film" | "share" | "select" | "key" | "globe" | "zap" | "clock" | "expand" | "grid" | "undo" | "star" | "download" | "graph" | "split" | "columns" | "pause" | "dice" | "lock" | "link" | "ok" | "fail" | "dash" | "external";

@@ -13,8 +13,8 @@ export function Sprite() {
   return <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden dangerouslySetInnerHTML={{ __html: SPRITE }} />;
 }
 
-export function I({ n, className, style }: { n: IconName; className?: string; style?: CSSProperties }) {
-  return <svg className={cx("i", className)} style={style} aria-hidden><use href={`#i-${n}`} /></svg>;
+export function I({ n, size, className, style }: { n: IconName; size?: number; className?: string; style?: CSSProperties }) {
+  return <svg className={cx("i", className)} style={size ? { width: size, height: size, ...style } : style} aria-hidden><use href={`#i-${n}`} /></svg>;
 }
 
 /** Circular progress, 0..1. */

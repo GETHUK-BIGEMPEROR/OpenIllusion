@@ -2,8 +2,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ModeBadge, ValidationRow } from "../components/bits";
-import { Close, Frame, Lock } from "../components/Icons";
 import { Badge, Button, IconButton, Spinner } from "../components/ui";
+import { I } from "../components/oi";
 import { bytes, errMsg, shortModel } from "../lib/format";
 import { api } from "../lib/api";
 import { go } from "../lib/route";
@@ -61,13 +61,13 @@ export function ImportReview() {
                     {review.source.kind === "link" ? "From a link" : <>From <span className="font-mono">{review.source.name || "the file"}</span></>} · {SOURCE[review.source.kind]}
                   </Dialog.Description>
                 </div>
-                <Dialog.Close asChild><IconButton label="Close"><Close size={11} /></IconButton></Dialog.Close>
+                <Dialog.Close asChild><IconButton label="Close"><I n="x" size={11} /></IconButton></Dialog.Close>
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto scroll-y p-4 flex flex-col gap-4">
                 <div className="flex gap-3 max-sm:flex-col">
                   <div className="relative shrink-0 w-[168px] aspect-[16/10] rounded-lg overflow-hidden bg-raised flex items-center justify-center text-faint max-sm:w-full">
-                    {thumb ? <img src={thumb} alt="" className={review.poster ? "w-full h-full object-cover" : "w-full h-full object-cover opacity-70"} /> : <Frame size={20} />}
+                    {thumb ? <img src={thumb} alt="" className={review.poster ? "w-full h-full object-cover" : "w-full h-full object-cover opacity-70"} /> : <I n="image" size={20} />}
                     <span className="absolute left-1.5 top-1.5"><ModeBadge mode={m.mode} glass /></span>
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5">
@@ -91,7 +91,7 @@ export function ImportReview() {
                     {review.checks.map((c, i) => <ValidationRow key={i} {...c} />)}
                   </ul>
                 </section>
-                <p className="m-0 flex items-center gap-2 text-xs text-muted"><Lock size={12} />Nothing runs on import. Missing nodes and models are listed, never installed.</p>
+                <p className="m-0 flex items-center gap-2 text-xs text-muted"><I n="lock" size={12} />Nothing runs on import. Missing nodes and models are listed, never installed.</p>
               </div>
 
               <div className="shrink-0 flex flex-wrap items-center gap-2 px-4 py-3 border-t border-line bg-surface/40 rounded-b-xl">

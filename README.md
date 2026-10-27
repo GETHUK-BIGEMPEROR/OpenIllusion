@@ -194,7 +194,7 @@ Where to look when you change something.
 | `screens/*` | One file per screen; see [The app](#the-app-screen-by-screen). |
 | `screens/Builder.tsx` | Builder: Local workflow and Comfy Router tabs, three steps with Back, draft run, publish. On Router: a mode picker built from the adapter's sets or `models`, and the same `set`/`needs`/`models` checks as the server. |
 | `components/Studio.tsx` · `Refs.tsx` · `Trimmer.tsx` · `ABPlayer.tsx` | Create's parts: template seeding, input tiles and uploads, clip trimming, before/after player. |
-| `components/ui.tsx` · `oi.tsx` · `bits.tsx` · `Icons.tsx` · `sprite.ts` | Shared pieces: buttons, segmented tabs, fields, spinners; page head, header chips (`KeyStat`, `GpuStat`), sideways-scrolling rows, media; cost pill; icons. |
+| `components/ui.tsx` · `oi.tsx` · `bits.tsx` · `sprite.ts` | Shared pieces: buttons, segmented tabs, fields, spinners; page head, header chips (`KeyStat`, `GpuStat`), sideways-scrolling rows, media; cost pill; the icon sprite (`<I n>`). |
 | `styles/` | `base.css` tokens, one stylesheet per area, `responsive.css` for phones. |
 
 **Folders:**
@@ -619,7 +619,6 @@ second base URL plus the key; not planned yet.
 | med | Big files | `engines.py` 1139 lines, `routes.py` 1050, `builder.py` 918, `jobs.py` 805; UI `EditStudio.tsx` 952, `Builder.tsx` 873 | Split routes by area; split engines into contract / bind / covers |
 | med | Input order | Builder lists inputs in loader order, but Create uses the template's order. | Save inputs in the order Builder showed them |
 | low | Two styling systems | Older parts (`Engine`, `Studio`, `Refs`, `Trimmer`, `ShareSheet`, `ImportReview`, `ui.tsx`) use Tailwind classes; newer screens use the stylesheets in `styles/`. | Move a component to `styles/` when it's next touched |
-| low | Two icon sets | `Icons.tsx` (React components) and `sprite.ts` (`<I name>`) both draw icons. | Fold `Icons.tsx` into the sprite |
 
 ## Run
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { clock } from "../lib/format";
-import { Check, Info } from "./Icons";
 import { cx } from "./ui";
+import { I } from "./oi";
 
 const FRAMES = 8;
 
@@ -124,7 +124,7 @@ export function Trimmer({
         <span>{clock(b)}</span>
       </div>
       <p className={cx("flex items-center gap-1.5 mt-1.5 mb-0 text-xs", fits ? "text-muted" : "text-rose-text")}>
-        {fits ? <Check size={12} className="text-mint" /> : <Info size={12} className="text-rose" />}
+        {fits ? <I n="check" size={12} className="text-mint" /> : <I n="info" size={12} className="text-rose" />}
         {window
           ? fits
             ? `Fits the ${window[0]}–${window[1]} s window`

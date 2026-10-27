@@ -1,7 +1,8 @@
 import * as RSwitch from "@radix-ui/react-switch";
 import * as RSlider from "@radix-ui/react-slider";
 import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle, Info, XCircle } from "./Icons";
+import { I } from "./oi";
+import type { IconName } from "./sprite";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -181,11 +182,11 @@ export function Spinner({ size = 14, className }: { size?: number; className?: s
 }
 
 type NoticeTone = "info" | "warn" | "error" | "ok";
-const NOTICE: Record<NoticeTone, { box: string; icon: string; Icon: typeof Info }> = {
-  info: { box: "bg-violet/[0.07] border-violet/20", icon: "text-violet-light", Icon: Info },
-  warn: { box: "bg-orange/[0.07] border-orange/25", icon: "text-orange", Icon: AlertTriangle },
-  error: { box: "bg-rose/[0.07] border-rose/25", icon: "text-rose", Icon: XCircle },
-  ok: { box: "bg-mint/[0.06] border-mint/20", icon: "text-mint", Icon: CheckCircle },
+const NOTICE: Record<NoticeTone, { box: string; icon: string; n: IconName }> = {
+  info: { box: "bg-violet/[0.07] border-violet/20", icon: "text-violet-light", n: "info" },
+  warn: { box: "bg-orange/[0.07] border-orange/25", icon: "text-orange", n: "alert" },
+  error: { box: "bg-rose/[0.07] border-rose/25", icon: "text-rose", n: "fail" },
+  ok: { box: "bg-mint/[0.06] border-mint/20", icon: "text-mint", n: "ok" },
 };
 
 /** The one way to say something went wrong (or needs doing): icon, title, body, actions. */
@@ -193,7 +194,7 @@ export function Notice({ tone = "info", title, children, actions, className, rol
   const k = NOTICE[tone];
   return (
     <div role={role ?? (tone === "error" ? "alert" : "status")} className={cx("flex gap-2.5 px-3 py-2.5 rounded-lg border text-sm", k.box, className)}>
-      <k.Icon size={15} className={cx("shrink-0 mt-px", k.icon)} />
+      <I n={k.n} size={15} className={cx("shrink-0 mt-px", k.icon)} />
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         {title && <span className="font-semibold text-text leading-[17px]">{title}</span>}
         {children && <div className="text-soft leading-[17px] [&_code]:font-mono [&_code]:text-xs [&_code]:text-text">{children}</div>}

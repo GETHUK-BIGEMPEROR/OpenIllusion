@@ -9,9 +9,9 @@ import { clipSlots, clipWindow, roleOf } from "../lib/fields";
 import { toSpec } from "../lib/spec";
 import { newKey, useApp, type StudioState } from "../lib/store";
 import { typing } from "./ABPlayer";
-import { AlertTriangle, Brush, Check, Chevron, Copy, Download, External, Motion, Refresh, XCircle } from "./Icons";
 import { gpuName } from "./Shell";
 import { Button, Empty, Notice, Spinner, cx } from "./ui";
+import { I } from "./oi";
 
 export function useStudio(mode: Mode) {
   const s = useApp((st) => st[mode]);
@@ -144,7 +144,7 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
     }
   };
   const comfy = local?.comfyui_url ?? "http://127.0.0.1:8188";
-  const recheck = <Button size="xs" onClick={again} disabled={checking}>{checking ? <Spinner size={11} /> : <Refresh size={12} />}Check again</Button>;
+  const recheck = <Button size="xs" onClick={again} disabled={checking}>{checking ? <Spinner size={11} /> : <I n="refresh" size={12} />}Check again</Button>;
 
   if (local?.upstream_match === false) return <UpstreamWarning local={local} />;
   if (local && !local.comfyui) {
@@ -169,9 +169,9 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
             {recheck}
             <Button size="xs" tone="ghost" onClick={() => downloadWorkflow(spec).catch((e) => toast({ text: errMsg(e), tone: "error" }))}
               title="This template's workflow in API format. Drop it on the ComfyUI canvas; Manager's Install Missing works on it.">
-              <Download size={12} />Workflow
+              <I n="download" size={12} />Workflow
             </Button>
-            <Button size="xs" tone="ghost" onClick={() => window.open(comfy, "_blank", "noreferrer")} title="Opens ComfyUI with whatever it had open last"><External size={12} />ComfyUI</Button>
+            <Button size="xs" tone="ghost" onClick={() => window.open(comfy, "_blank", "noreferrer")} title="Opens ComfyUI with whatever it had open last"><I n="external" size={12} />ComfyUI</Button>
           </>}>
           <span className="block mb-2">Install what's listed, then check again. OpenIllusion never installs anything for you.</span>
           <div className="flex flex-col gap-2">
@@ -206,7 +206,7 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
         </Notice>
       )}
       {c && problems === 0 && c.reachable !== false && (
-        <p className="m-0 flex items-center gap-1.5 text-xs text-muted"><Check size={12} className="text-mint" />All nodes and models found{gpuName(local?.gpu) ? ` · ${gpuName(local?.gpu)}` : ""}</p>
+        <p className="m-0 flex items-center gap-1.5 text-xs text-muted"><I n="check" size={12} className="text-mint" />All nodes and models found{gpuName(local?.gpu) ? ` · ${gpuName(local?.gpu)}` : ""}</p>
       )}
     </>
   );
@@ -276,7 +276,7 @@ export function StageError({ state, error, detail, fixes = [], compact = false, 
   return (
     <div role={quiet ? "status" : "alert"} className={cx("w-full flex flex-col items-center text-center gap-2", compact ? "max-w-[300px]" : "max-w-[440px]", className)}>
       <span className={cx("rounded-full flex items-center justify-center", compact ? "w-8 h-8" : "w-10 h-10", quiet ? "bg-white/[0.06] text-muted" : "bg-rose/15 text-rose")}>
-        {quiet ? <XCircle size={compact ? 16 : 18} /> : <AlertTriangle size={compact ? 16 : 18} />}
+        <I n={quiet ? "fail" : "alert"} size={compact ? 16 : 18} />
       </span>
       <span className={cx("font-semibold text-text", compact ? "text-base" : "text-md")}>{f.title}</span>
       <span className="text-sm text-muted">{f.body}</span>
@@ -288,13 +288,13 @@ export function StageError({ state, error, detail, fixes = [], compact = false, 
       {raw && (
         <div className="w-full mt-1 flex flex-col items-center">
           <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="mk-btn h-6 px-1.5 rounded-md border-0 bg-transparent text-xs text-faint hover:text-soft inline-flex items-center gap-1">
-            {open ? "Hide details" : "Show details"}<Chevron size={11} className={cx("transition-transform", open && "rotate-180")} />
+            {open ? "Hide details" : "Show details"}<I n="down" size={11} className={cx("transition-transform", open && "rotate-180")} />
           </button>
           {open && (
             <div className="relative w-full mt-1 text-left">
               <pre className="m-0 max-h-[160px] overflow-auto scroll-y rounded-md bg-deep border border-line p-2.5 pr-9 font-mono text-xs2 leading-[1.6] text-soft whitespace-pre-wrap break-all">{raw}</pre>
               <button type="button" aria-label="Copy details" title="Copy" onClick={copy} className="mk-btn absolute right-1.5 top-1.5 w-6 h-6 rounded-md border-0 bg-raised text-muted hover:text-text flex items-center justify-center">
-                {copied ? <Check size={12} className="text-mint" /> : <Copy size={12} />}
+                {copied ? <I n="check" size={12} className="text-mint" /> : <I n="copy" size={12} />}
               </button>
             </div>
           )}
@@ -311,7 +311,7 @@ export function NoTemplates({ mode }: { mode: Mode }) {
   const other = mode === "motion" ? "edit" : "motion";
   const hasOther = !!engines.data?.some((e) => e.mode === other);
   return (
-    <Empty className="flex-1" icon={mode === "motion" ? <Motion size={18} /> : <Brush size={18} />} title={`No ${mode === "motion" ? "video" : "image"} templates yet`}
+    <Empty className="flex-1" icon={<I n={mode === "motion" ? "film" : "image"} size={18} />} title={`No ${mode === "motion" ? "video" : "image"} templates yet`}
       action={<>
         <Button tone="primary" size="md" onClick={() => go({ name: "build" })}>Build one</Button>
         {hasOther && <Button size="md" onClick={() => go({ name: other })}>Show {other === "edit" ? "image" : "video"} templates</Button>}

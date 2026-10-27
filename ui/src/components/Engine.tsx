@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, type EngineInfo, type Mode, type ParamSpec } from "../lib/api";
 import { randomSeed } from "../lib/format";
-import { Check, Chevron, Dice } from "./Icons";
 import { IconButton, Segmented, Select, Slider, TextInput, Toggle, cx } from "./ui";
+import { I } from "./oi";
 
 export const engineGlyph = (e?: { id: string; label: string; provider?: string }) => {
   if (!e) return "?";
@@ -39,7 +39,7 @@ export function EngineDropdown({ mode, value, onChange }: { mode: Mode; value: s
             <span className={cx("font-semibold text-base leading-[18px] truncate", !value && "text-muted font-medium")}>{engine?.label ?? (value || "Choose an engine")}</span>
             <span className="font-mono text-xs2 text-faint truncate">{!value ? "No template picked" : engine?.kind === "local" ? `${value.replace(/^local\//, "")} · your ComfyUI` : `${value} · Comfy Router`}</span>
           </span>
-          <Chevron size={14} className="text-muted transition-transform group-data-[state=open]:rotate-180" />
+          <I n="down" size={14} className="text-muted transition-transform group-data-[state=open]:rotate-180" />
         </button>
       </Popover.Trigger>
       <Popover.Portal>
@@ -70,7 +70,7 @@ function EngineList({ list, value, pick }: { list: EngineInfo[]; value: string; 
               </span>
               <span className="block text-xs text-muted line-clamp-2">{e.blurb}</span>
             </span>
-            {e.id === value && <Check size={13} className="shrink-0 mt-1 text-violet-light" />}
+            {e.id === value && <I n="check" size={13} className="shrink-0 mt-1 text-violet-light" />}
           </button>
         </li>
       ))}
@@ -140,7 +140,7 @@ export function ParamFields({ params, values, onChange, invalid }: { params: Par
             <div key={p.key} className="flex items-center gap-2">
               <label htmlFor={id} className="shrink-0 w-14">{lbl}</label>
               <TextInput id={id} aria-invalid={bad || undefined} value={n < 0 ? "" : String(n)} placeholder="Random" inputMode="numeric" onChange={(e) => onChange(p.key, e.target.value === "" ? -1 : Number(e.target.value.replace(/\D/g, "")))} className="flex-1 h-8 font-mono text-right text-sm" />
-              <IconButton label="Pick a random seed" tone="secondary" onClick={() => onChange(p.key, randomSeed())}><Dice size={15} /></IconButton>
+              <IconButton label="Pick a random seed" tone="secondary" onClick={() => onChange(p.key, randomSeed())}><I n="dice" size={15} /></IconButton>
             </div>
           );
         }

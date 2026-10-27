@@ -1,8 +1,8 @@
 // Small shared pieces: cost line, outcome toggle, mode badge, validation row.
 import type { Estimate, Outcome } from "../lib/api";
 import { money, OUTCOME } from "../lib/format";
-import { AlertTriangle, Check, CheckCircle, Close, Dash, Info } from "./Icons";
 import { Badge, cx } from "./ui";
+import { I } from "./oi";
 
 /** Cost for the run footer: one line, with a reason underneath when there's no price. */
 export function CostPill({ estimate, times = 1, compact = false }: { estimate?: Estimate | null; times?: number; compact?: boolean }) {
@@ -32,7 +32,7 @@ export function OutcomeToggle({ value, onChange, size = "md" }: { value: Outcome
       {(["worked", "partly", "didnt"] as Outcome[]).map((o) => {
         const on = value === o;
         const s = OUTCOME[o];
-        const Icon = o === "worked" ? Check : o === "partly" ? Dash : Close;
+        const icon = o === "worked" ? "check" : o === "partly" ? "dash" : "x";
         return (
           <button
             key={o}
@@ -42,7 +42,7 @@ export function OutcomeToggle({ value, onChange, size = "md" }: { value: Outcome
             className={cx("mk-btn inline-flex items-center gap-1.5 rounded-md border-0 text-sm", size === "sm" ? "h-6 px-2" : "h-[26px] px-2.5", on ? "font-medium" : "bg-transparent text-muted hover:text-text")}
             style={on ? { background: s.soft, color: s.text } : undefined}
           >
-            <Icon size={12} style={{ color: s.color }} />
+            <I n={icon} size={12} style={{ color: s.color }} />
             {s.word}
           </button>
         );
@@ -57,13 +57,13 @@ export function ModeBadge({ mode, className, glass }: { mode: "motion" | "edit";
 
 export function ValidationRow({ level, text, detail }: { level: "pass" | "warn" | "info"; text: string; detail?: string }) {
   const K = {
-    pass: { Icon: CheckCircle, cls: "text-mint" },
-    warn: { Icon: AlertTriangle, cls: "text-orange" },
-    info: { Icon: Info, cls: "text-violet-light" },
+    pass: { n: "ok" as const, cls: "text-mint" },
+    warn: { n: "alert" as const, cls: "text-orange" },
+    info: { n: "info" as const, cls: "text-violet-light" },
   }[level];
   return (
     <li className="flex items-start gap-2.5 px-3 py-2 border-b border-line last:border-b-0">
-      <K.Icon size={15} className={cx("shrink-0 mt-px", K.cls)} />
+      <I n={K.n} size={15} className={cx("shrink-0 mt-px", K.cls)} />
       <span className="flex-1 min-w-0 text-sm">
         <span className="block text-text">{text}</span>
         {detail && <span className="block text-xs text-muted">{detail}</span>}

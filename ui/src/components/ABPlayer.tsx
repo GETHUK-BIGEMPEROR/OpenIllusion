@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { clock } from "../lib/format";
-import { Columns, Compare, Pause, Play } from "./Icons";
 import { Badge, cx } from "./ui";
+import { I } from "./oi";
 
 export interface Side {
   src?: string | null;
@@ -134,7 +134,7 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
           {render(b, vb)}
           <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - wipe * 100}% 0 0)` }}>{render(a, va)}</div>
           <div aria-hidden className="absolute top-0 bottom-0 w-px bg-text/90" style={{ left: `${wipe * 100}%` }}>
-            <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 left-px w-7 h-7 rounded-full bg-text text-ink shadow-pop flex items-center justify-center"><Compare size={13} /></span>
+            <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 left-px w-7 h-7 rounded-full bg-text text-ink shadow-pop flex items-center justify-center"><I n="split" size={13} /></span>
           </div>
           {label(a!, "left")}
           {label(b!, "right")}
@@ -147,7 +147,7 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
           {hasVideo && (
             <>
               <button type="button" aria-label={playing ? "Pause" : "Play"} onClick={toggle} className="mk-btn w-7 h-7 shrink-0 rounded-md border-0 bg-text text-ink flex items-center justify-center hover:bg-white">
-                {playing ? <Pause size={12} /> : <Play size={12} />}
+                <I n={playing ? "pause" : "play"} size={12} />
               </button>
               <span className="font-mono text-xs tabular whitespace-nowrap text-soft">{clock(t)} <span className="text-faint">/ {clock(dur)}</span></span>
               <input type="range" aria-label="Scrub" min={0} max={dur || 1} step={0.01} value={t} onChange={(e) => seek(+e.target.value)} className="flex-1 min-w-0 accent-[#F2FF59] h-5" />
@@ -156,10 +156,10 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
           )}
           {both && (
             <div role="radiogroup" aria-label="Compare mode" className={cx("inline-flex p-0.5 gap-0.5 rounded-lg bg-bg border border-line shrink-0", !hasVideo && "ml-auto")}>
-              {([["side", "Side by side", Columns], ["wipe", "Wipe", Compare]] as const).map(([k, l, I]) => (
+              {([["side", "Side by side", "columns"], ["wipe", "Wipe", "split"]] as const).map(([k, l, n]) => (
                 <button key={k} type="button" role="radio" aria-checked={mode === k} title={l} onClick={() => setMode(k)}
                   className={cx("mk-btn h-6 px-2 rounded-md border-0 inline-flex items-center gap-1.5 text-xs", mode === k ? "bg-active text-text shadow-seg" : "bg-transparent text-muted hover:text-text")}>
-                  <I size={13} /><span className="max-sm:hidden">{l}</span>
+                  <I n={n} size={13} /><span className="max-sm:hidden">{l}</span>
                 </button>
               ))}
             </div>

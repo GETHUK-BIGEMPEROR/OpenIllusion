@@ -1,8 +1,8 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
-import { Check, Close, Copy, Download, Link } from "../components/Icons";
 import { Badge, Button, IconButton, Notice, Spinner, Toggle, cx } from "../components/ui";
+import { I } from "../components/oi";
 import { api, type InputItem } from "../lib/api";
 import { bytes, errMsg, LICENSES, shortModel } from "../lib/format";
 import { useApp } from "../lib/store";
@@ -121,7 +121,7 @@ function Sheet({ id, onClose }: { id: string; onClose: () => void }) {
         <Dialog.Title className="m-0 text-md font-semibold shrink-0">{done ? "Exported" : "Export generation"}</Dialog.Title>
         <Dialog.Description className="m-0 text-xs text-muted truncate">{s.title} · <span className="font-mono">{shortModel(s.engine.model)}</span></Dialog.Description>
       </div>
-      <Dialog.Close asChild><IconButton label="Close"><Close size={11} /></IconButton></Dialog.Close>
+      <Dialog.Close asChild><IconButton label="Close"><I n="x" size={11} /></IconButton></Dialog.Close>
     </div>
   );
 
@@ -131,7 +131,7 @@ function Sheet({ id, onClose }: { id: string; onClose: () => void }) {
         {head}
         <div className="p-4 flex flex-col gap-3">
           <div className="flex items-center gap-3 p-3 rounded-lg border border-line bg-surface">
-            <span className="w-8 h-8 shrink-0 rounded-md bg-mint/15 text-mint flex items-center justify-center"><Check size={15} /></span>
+            <span className="w-8 h-8 shrink-0 rounded-md bg-mint/15 text-mint flex items-center justify-center"><I n="check" size={15} /></span>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium font-mono truncate">{done.name}</div>
               <div className="text-xs text-muted">{bytes(done.bytes)} · download started</div>
@@ -139,13 +139,13 @@ function Sheet({ id, onClose }: { id: string; onClose: () => void }) {
           </div>
           <div className="flex items-center gap-2 h-8 pl-2.5 pr-1 rounded-md bg-deep border border-line">
             <span className="flex-1 min-w-0 font-mono text-xs text-soft truncate" title={done.path}>{done.path}</span>
-            <IconButton label="Copy path" size={24} onClick={() => navigator.clipboard?.writeText(done.path).then(() => toast({ text: "Path copied.", tone: "ok" }))}><Copy size={12} /></IconButton>
+            <IconButton label="Copy path" size={24} onClick={() => navigator.clipboard?.writeText(done.path).then(() => toast({ text: "Path copied.", tone: "ok" }))}><I n="copy" size={12} /></IconButton>
           </div>
         </div>
         <Footer>
           <Button tone="ghost" onClick={() => setDone(null)}>Export another size</Button>
           <span className="flex-1" />
-          <Button onClick={() => { const a = document.createElement("a"); a.href = done.download; a.download = done.name; a.click(); }}><Download size={13} />Download again</Button>
+          <Button onClick={() => { const a = document.createElement("a"); a.href = done.download; a.download = done.name; a.click(); }}><I n="download" size={13} />Download again</Button>
           <Button tone="primary" onClick={onClose}>Done</Button>
         </Footer>
       </>
@@ -217,9 +217,9 @@ function Sheet({ id, onClose }: { id: string; onClose: () => void }) {
 
       <Footer>
         <span className="flex-1 text-xs text-muted min-w-0">{ready ? "Links carry the recipe only." : `Confirm ${missing.join(", ")} to export.`}</span>
-        <Button tone="ghost" disabled={!ready} onClick={copyJson} title="Copy recipe JSON"><Copy size={13} />JSON</Button>
-        <Button disabled={!ready || !sizes.data.link_ok} onClick={copyLink} title={!sizes.data.link_ok ? "Too large for a link; save a file instead" : "Copy a shareable link"}><Link size={13} />Link</Button>
-        <Button tone="primary" disabled={!ready || busy} onClick={save}>{busy ? <Spinner size={12} /> : <Download size={13} />}{variant === "recipe" ? "Save JSON" : "Save .illusion"}</Button>
+        <Button tone="ghost" disabled={!ready} onClick={copyJson} title="Copy recipe JSON"><I n="copy" size={13} />JSON</Button>
+        <Button disabled={!ready || !sizes.data.link_ok} onClick={copyLink} title={!sizes.data.link_ok ? "Too large for a link; save a file instead" : "Copy a shareable link"}><I n="link" size={13} />Link</Button>
+        <Button tone="primary" disabled={!ready || busy} onClick={save}>{busy ? <Spinner size={12} /> : <I n="download" size={13} />}{variant === "recipe" ? "Save JSON" : "Save .illusion"}</Button>
       </Footer>
     </>
   );
