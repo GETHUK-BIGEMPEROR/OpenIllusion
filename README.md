@@ -136,7 +136,7 @@ flowchart LR
     R["routes/<br/>/api/* + built app"]
     T["engines/ · builder/ · adapters/<br/>templates"]
     J["jobs.py · staging.py · prep.py · media.py<br/>runs"]
-    L["store.py · bundle.py · storage.py<br/>library"]
+    L["store.py · bundle.py · backup.py · storage.py<br/>library"]
     B["local.py · proxy.py · router.py<br/>backends"]
   end
 
@@ -171,7 +171,7 @@ Where to look when you change something.
 | File | What it does |
 | --- | --- |
 | `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), moves secrets out of an old `settings.json`, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), cleans scratch and old trash every 6 h, and refuses cross-origin requests (`_same_origin`). |
-| `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, estimate, run, jobs), `library` (generations, trash, storage, re-run, export, import); shared helpers in `common`. Thin: it checks input and calls the modules below. |
+| `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, estimate, run, jobs), `library` (generations, trash, storage, re-run, export, import), `backup` (back up, restore); shared helpers in `common`. Thin: it checks input and calls the modules below. |
 | `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
 | `builder/` | The Builder, in layers: `workflow` (read a dropped file, `read_workflow`; UI graph to API graph, `ui_to_api`), `analysis` (detect inputs, prompt, settings and result nodes, `analyze`), `assemble` (drafts, `assemble_local`, `assemble_cloud`, `preset`, `save`). `__init__` re-exports them. |
 | `adapters/` | `__init__.py` reads and checks adapter files and puts a request together from one (`parse`, `check`, `assemble`, `pick_model`). One `*.json` per cloud model. |
@@ -183,6 +183,7 @@ Where to look when you change something.
 | `prep.py` · `media.py` | Crop and size inputs; image/video/audio helpers (probe, transcode, poster, data URIs, recipes in PNG/MP4). Photos, clips and sounds (MP3, WAV, M4A, AAC, OGG, FLAC) upload alike; a sound goes in as it is. |
 | `store.py` · `generation.py` | The library: one folder per generation with `generation.json` (pydantic `Manifest`), indexed in SQLite with full-text search; trash. |
 | `bundle.py` · `archive.py` | Export a generation as a zip, import one back; the checks every zip from outside passes first (`archive.files`: paths stay inside, allowed types, count and size caps). |
+| `backup.py` | Whole-library backups (`.illusionbackup`): `create`, `inspect` (what a restore would add), `restore` (merge). See [Backups](#backups). |
 | `settings.py` · `storage.py` · `paths.py` | Settings and `secrets.json`; disk usage and cleanup; home folder paths, what each entry is (`TIERS`), and `write_atomic`. See [Storage](#storage). |
 
 **UI** (`ui/src/`, React + Vite):
@@ -247,8 +248,29 @@ each entry is; a test fails when the app writes something it doesn't list.
   its clock (`storage.touch`), so a draft left open in Create keeps its files.
 - **One server per home** (`server.lock`, see `server.py`).
 
-Planned: `.illusionbackup`, a zip of the library tier with a `backup.json` of counts and
-checksums, restored by merging (existing generations are skipped).
+### Backups
+
+`POST /api/backup` writes `OpenIllusion-<date>.illusionbackup` to
+`<output folder>/backups/`: a zip of the library tier, laid out as `library/<entry>/…`,
+with a `backup.json` (format, version, app, counts, and every file's size and sha256).
+
+- **What's left out.** `secrets.json` and every machine and scratch entry; the key never
+  travels, so a restored install asks for it again. Trash only when asked. A generation a
+  run is still writing is skipped and listed (`skipped`).
+- **Written safely.** To `<name>.partial`, renamed when complete. Photos and clips are
+  stored as they are (already compressed); JSON is deflated.
+- **Checked before anything is read** (`backup._open`): it's a backup of a version this
+  app understands (newer → refused), `archive.files` passes, every entry is under
+  `library/` and one of the library entries, generation ids are real ids, every file has
+  a checksum, and the disk has room.
+- **Restore merges, never replaces.** Dropping a backup shows what it would add
+  (`inspect`). Restoring then unpacks each generation to a staging folder, checks every
+  checksum and the manifest, and moves it in whole; one that fails is listed in
+  `damaged` and left out. Generations and templates already here are kept as they are; a
+  template that differs from the backup's copy is listed in `kept`. Settings: only keys
+  still at their default take the backup's value. Then the index is rebuilt.
+- **Not while running.** Restore is refused while a run is in progress (409); one backup
+  or restore at a time.
 
 ## API
 
@@ -265,6 +287,7 @@ typed call for each.
 | Runs | `POST compose` (the request, without running) · `POST estimate` (price) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
 | Library | `GET generations` · `GET facets` · `GET/PATCH/DELETE generations/{id}` · `POST generations/trash` · `GET generations/{id}/file/…`, `/output`, `/workflow`, `/recipe` · `POST generations/{id}/rerun` |
 | Trash and storage | `GET trash` · `POST trash/{id}/restore` · `POST trash/restore` · `DELETE trash/{id}` · `DELETE trash` · `GET storage` · `POST storage/clean` |
+| Backups | `POST backup` (`{trash}`) · `GET backup/file/{name}` · `POST restore` (the file as the body; answers what it would add, with a `token`) · `POST restore/{token}` |
 | Share | `GET generations/{id}/export/sizes` · `POST generations/{id}/export` · `GET exports/{name}` · `POST import` · `GET import/{token}/file/…` · `POST import/{token}/commit` · `GET community` |
 
 ## A template's life

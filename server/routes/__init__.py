@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from aiohttp import web
 
-from . import builder, generations, library, system, templates
+from . import backup, builder, generations, library, system, templates
 from .common import _sockets, broadcast, library_changed
 
 __all__ = ["register", "broadcast", "library_changed", "_sockets"]
 
 
 def register(routes: web.RouteTableDef) -> None:
-    for m in (system, templates, builder, generations, library):
+    for m in (system, templates, builder, generations, library, backup):
         m.register(routes)

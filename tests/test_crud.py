@@ -100,15 +100,6 @@ def test_storage_usage_and_clean():
         storage.clean("generations")
 
 
-@pytest.fixture
-def fresh_templates():
-    before = dict(engines.ENGINES)
-    engines.reload_templates()
-    yield
-    engines.ENGINES.clear()
-    engines.ENGINES.update(before)
-
-
 @pytest.mark.usefixtures("fresh_templates")
 def test_duplicate_is_a_self_contained_user_template():
     src = engines.ENGINES[HAT]

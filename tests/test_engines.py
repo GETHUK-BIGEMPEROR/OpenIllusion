@@ -200,16 +200,6 @@ def test_cover_names_stay_inside_covers_folder(bad):
 # ---- editing templates ---------------------------------------------------------
 
 
-@pytest.fixture
-def fresh_templates():
-    """Reload templates against this test's user folder, and put the real set back after."""
-    before = dict(engines.ENGINES)
-    engines.reload_templates()
-    yield
-    engines.ENGINES.clear()
-    engines.ENGINES.update(before)
-
-
 def test_hat_describes_what_it_needs():
     d = engines.describe(engines.ENGINES[HAT])
     assert d["origin"] == "shipped" and d["edited"] is False

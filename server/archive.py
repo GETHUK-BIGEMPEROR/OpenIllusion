@@ -13,7 +13,7 @@ from pathlib import PurePosixPath
 from . import media
 
 # What a generation folder holds. Scripts, binaries and anything else are refused.
-GENERATION_EXT = {".json", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".md", *media.AUDIO_EXT}
+GENERATION_EXT = {".json", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mov", ".md", *media.AUDIO_EXT}
 
 
 class Refused(ValueError):

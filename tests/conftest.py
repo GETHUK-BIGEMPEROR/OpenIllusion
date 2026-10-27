@@ -24,6 +24,16 @@ def isolated(tmp_path, monkeypatch):
         store._conn = None
 
 
+@pytest.fixture
+def fresh_templates():
+    """Reload templates against this test's user folder, and put the real set back after."""
+    before = dict(engines.ENGINES)
+    engines.reload_templates()
+    yield
+    engines.ENGINES.clear()
+    engines.ENGINES.update(before)
+
+
 def make_video(path: Path, seconds: float = 3.0, fps: int = 24, size=(320, 240)) -> Path:
     import av
     import numpy as np
