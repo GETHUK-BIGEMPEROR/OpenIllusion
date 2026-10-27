@@ -90,3 +90,39 @@
 .dropcue span{overflow:hidden;text-overflow:ellipsis}
 .dropcue svg{flex:none;width:16px;height:16px;color:var(--violet)}
 @keyframes dropcue-in{from{opacity:0;transform:translate(-50%,6px)}}
+
+/* First run */
+.welcome{min-height:100%;display:grid;place-items:center;padding:32px 20px;background:radial-gradient(circle at 50% 28%,rgba(154,134,240,.14),transparent 55%),var(--bg)}
+.wbox{width:min(460px,100%);display:grid;gap:20px;justify-items:center;text-align:center}
+.wlogo{display:grid;animation:pop .6s var(--spring)}
+.wtext{display:grid;gap:8px}
+.wtext h1{margin:0;font:600 26px/1.15 var(--display);letter-spacing:-.02em;text-wrap:balance}
+.wtext p{margin:0;color:var(--text-2);font-size:13.5px;line-height:1.55;text-wrap:pretty}
+.wlist{width:100%;display:grid;gap:8px;margin:0;padding:0;list-style:none;text-align:left}
+.witem{display:flex;align-items:center;gap:12px;min-height:46px;padding:8px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--text-3);transition:color .35s var(--ease),border-color .35s var(--ease);animation:rise .45s var(--ease) both;animation-delay:var(--d)}
+.witem .st{width:22px;height:22px;display:grid;place-items:center;flex:none}
+.witem .st .i{width:16px;height:16px}
+.witem .nm{flex:none}
+.witem .mono{margin-left:auto;font-size:11px;color:var(--text-3);text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.witem .btn{flex:none}
+.witem.ok,.witem.warn,.witem.bad{color:var(--text)}
+.witem.ok{border-color:rgba(95,211,154,.25)}
+.witem.ok .st .i{color:var(--mint);stroke-width:2.4}
+.witem.ok .st .i path{stroke-dasharray:24;animation:tick .4s var(--ease) both;animation-delay:calc(var(--d) + .15s)}
+.witem.warn{border-color:rgba(255,162,76,.25)}
+.witem.warn .st .i{color:var(--orange)}
+.witem.bad{border-color:rgba(255,107,126,.28)}
+.witem.bad .st .i{color:var(--rose)}
+.witem.wait .st::before{content:"";width:14px;height:14px;border-radius:50%;border:2px solid var(--line-2);border-top-color:var(--yellow);animation:spin .7s linear infinite}
+.witem.todo .st::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--line-2)}
+@keyframes tick{from{stroke-dashoffset:24}to{stroke-dashoffset:0}}
+.waddr{width:100%;display:flex;flex-wrap:wrap;gap:8px}
+.waddr .input{flex:1;width:auto;min-width:0;font-size:12px}
+.werr{flex-basis:100%;text-align:left;font-size:12px;color:var(--rose)}
+.wgo{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.wgo .btn.primary{height:46px;padding:0 22px;border-radius:14px;font-size:14px}
+.wgo .btn.primary:disabled{opacity:.35}
+.wgo .btn.ghost{height:46px}
+.wbox .whelp{font-size:12.5px;color:var(--violet);text-decoration:none}
+.wbox .whelp:hover{text-decoration:underline}
+.wfoot{margin:0;font-size:11.5px;color:var(--text-3);max-width:360px;line-height:1.5}

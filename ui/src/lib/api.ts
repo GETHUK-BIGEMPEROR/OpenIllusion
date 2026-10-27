@@ -60,12 +60,12 @@ export interface EngineInfo {
   /** cloud: a Comfy Router model. local: a ComfyUI workflow run through Comfy API v2. */
   kind: "cloud" | "local";
   source: string | null;
-  /** Local templates can name and hint their prompt box. */
-  prompt?: { label?: string; hint?: string; required?: boolean } | null;
+  prompt?: { label?: string; required?: boolean } | null;
   /** Prompts known to work, shown as chips. */
   examples?: PromptIdea[];
-  tips?: string[];
   tags?: string[];
+  /** Whether two runs with the same inputs can differ (the workflow re-rolls a seed). Variants need it. */
+  varies?: boolean;
   /** The photos and clips it takes (a view of `fields`). */
   inputs?: { slot: string; label?: string; hint?: string }[];
   /** Everything it takes, in order: photos and clips, the prompt, settings. Empty for raw Router models. */
@@ -140,18 +140,22 @@ export interface BuildPreset {
   size: { node: string; label?: string; aspect?: string; default?: string } | null;
   outputs: string[];
 }
-export interface SchemaMedia { field: string; kind: MediaKind; many: boolean; max: number; required: boolean; title: string; help: string | null }
-export interface SchemaParam { field: string; title: string; help: string | null; required: boolean; value: unknown; type: BuildParamType; min?: number | null; max?: number | null; step?: number | null; options?: (string | number)[]; suggested: boolean }
-export interface SchemaAnalysis { model: string; version: string; input_modalities: string[]; output_modalities: string[]; media: SchemaMedia[]; prompt: { field: string; required: boolean } | null; params: SchemaParam[]; mode: Mode }
+/** A Router model the builder can make a template from: its adapter's inputs, by role.
+ *  `set`: inputs of different sets can't go together. `needs`: the role that has to be filled too. */
+export interface RouterAdapter {
+  model: string; name: string; mode: Mode;
+  inputs: { role: string; type: MediaKind; max: number; set?: string; needs?: string }[];
+}
 
-export interface BuildPrompt { node?: string; input?: string; field?: string; label: string; hint: string; default: string; required: boolean; examples?: string[] }
+export interface BuildPrompt { node?: string; input?: string; label: string; hint: string; default: string; required: boolean; examples?: string[] }
 export interface BuildSpec {
   kind: "local" | "cloud"; token?: string; model?: string; replace?: string;
   /** The template this one was built from: it keeps that one's sizing, tips and model hints. */
   base?: string;
   label: string; blurb: string; mode: Mode; tags: string[];
   media: {
-    node?: string; input?: string; field?: string; many?: boolean; kind: MediaKind; label: string; hint: string; required: boolean; sample?: string | null;
+    /** Local: the loader's node and input. Cloud: the adapter input the file goes to, by index. */
+    node?: string; input?: string | number; kind: MediaKind; label: string; hint: string; required: boolean; sample?: string | null;
     /** Clips: what the template accepts, checked before a run. Unset, the workflow's loader decides. */
     window?: [number, number]; fps?: [number, number];
   }[];
@@ -191,9 +195,8 @@ export interface TemplatePatch {
   label?: string;
   blurb?: string;
   tags?: string[];
-  tips?: string[];
-  /** Per input: its label and hint; for text inputs also the default and the ideas. */
-  inputs?: Record<string, { label?: string; hint?: string; default?: string; examples?: PromptIdea[] }>;
+  /** The prompt's default and ideas, by input key. */
+  inputs?: Record<string, { default?: string; examples?: PromptIdea[] }>;
 }
 
 export interface MissingModel {
@@ -374,6 +377,9 @@ export interface LocalStatus {
   managed: boolean;
   proxy_installed: boolean;
   gpu?: string | null;
+  /** Bytes, from ComfyUI's /system_stats. */
+  vram_total?: number | null;
+  vram_free?: number | null;
   comfyui_version?: string | null;
   reason?: string | null;
   /** The ComfyUI the v2 server says it forwards to, and whether that's the one we check. */
@@ -533,12 +539,10 @@ export const api = {
   },
   buildFromText: (text: string) => req<WorkflowAnalysis>("POST", "/builder/workflow", { text }),
   buildFromTemplate: (engine: string) => req<WorkflowAnalysis>("POST", "/builder/from-template", { engine }),
-  buildSchema: (model: string) => req<SchemaAnalysis>("GET", `/builder/schema?${qs({ model })}`),
+  builderModels: () => req<RouterAdapter[]>("GET", "/builder/models"),
   saveTemplate: (spec: BuildSpec) => req<EngineInfo>("POST", "/builder/save", spec),
   duplicateTemplate: (engine: string) => req<EngineInfo>("POST", "/templates/duplicate", { engine }),
   deleteTemplate: (engine: string) => req<{ ok: boolean }>("DELETE", `/builder/template?${qs({ engine })}`),
-  catalog: () => req<{ id: string; provider: string; model: string }[]>("GET", "/catalog"),
-  schema: (model: string) => req<{ schema: any; input_modalities: string[]; output_modalities: string[]; version: string; authored: boolean }>("GET", `/schema?model=${encodeURIComponent(model)}`),
   upload: (file: File) => {
     const fd = new FormData();
     fd.append("file", file, file.name);

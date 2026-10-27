@@ -5,6 +5,7 @@
 .app button{text-align:inherit}
 .app [hidden]{display:none!important}
 .app img{max-width:100%}
+@property --x{syntax:"<percentage>";inherits:true;initial-value:0%}
 :root{
   /* Ink studio: violet-biased ink surfaces; yellow is the one action, violet marks selection, mint/orange/rose carry state.
      Layout: rail + page on desktop, page + tab bar on phone; walls are left-first masonry, max 4 cols for templates. */
@@ -17,6 +18,7 @@
   --body:"Sora Variable",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"Geist Mono Variable",ui-monospace,"Cascadia Mono",Consolas,monospace;
   --r:12px; --r-lg:18px; --wall-max:1320px;
+  --ease:cubic-bezier(.2,.75,.2,1); --spring:cubic-bezier(.3,1.35,.45,1);
   color-scheme:dark;
 }
 .i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -30,3 +32,6 @@
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes sweep{from{transform:translateX(-120%) skewX(-20deg)}to{transform:translateX(320%) skewX(-20deg)}}
 @keyframes pulse{50%{opacity:.35}}
+@keyframes pop{from{opacity:0;transform:scale(.94)}}
+@keyframes drop{from{opacity:0;transform:translateY(-6px) scale(.96)}}
+@keyframes breathe{50%{box-shadow:0 0 0 6px rgba(95,211,154,0)}}

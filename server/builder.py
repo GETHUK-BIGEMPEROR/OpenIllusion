@@ -24,7 +24,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from . import local, paths, prep
+from . import adapters, local, paths, prep
 
 MODEL_EXT = local.MODEL_EXT
 
@@ -155,8 +155,9 @@ def _is_widget(spec: Any) -> bool:
     return isinstance(t, str) and all(x in WIDGET_TYPES for x in t.split(","))
 
 
-def _widget_values(info_node: dict, values: Any) -> tuple[dict, int]:
-    """Positional widgets_values → {input: value}. Returns the map and how many values were left over."""
+def _widget_values(info_node: dict, values: Any, controls: dict | None = None) -> tuple[dict, int]:
+    """Positional widgets_values → {input: value}. Returns the map and how many values were left over.
+    Each number's "control after generate" (fixed, randomize…) goes into ``controls`` when given."""
     if isinstance(values, dict):  # some packs save widgets by name
         return {k: v for k, v in values.items() if not isinstance(v, dict)}, 0
     vals = list(values or [])
@@ -186,6 +187,8 @@ def _widget_values(info_node: dict, values: Any) -> tuple[dict, int]:
                 continue
             seedish = spec[0] == "INT" and (o.get("control_after_generate") or name in ("seed", "noise_seed"))
             if seedish and i < len(vals) and vals[i] in CONTROL:
+                if controls is not None:
+                    controls[prefix + name] = vals[i]
                 i += 1
             if any(k.endswith("_upload") for k in o):  # the upload button and player keep values of their own
                 for _ in range(2):
@@ -294,7 +297,7 @@ def ui_to_api(ui: dict, info: dict) -> tuple[dict, list[str]]:
                 continue
             if t == "PrimitiveNode":
                 wv = n["wv"] or []
-                return ("c", wv[0] if wv else None)
+                return ("c", wv[0] if wv else None, wv[1] if len(wv) > 1 and wv[1] in CONTROL else None)
             if t == "GetNode":
                 src = sets.get(str((n["wv"] or [None])[0]))
                 continue
@@ -312,8 +315,9 @@ def ui_to_api(ui: dict, info: dict) -> tuple[dict, list[str]]:
             continue
         spec = info.get(t)
         inputs: dict[str, Any] = {}
+        controls: dict[str, str] = {}
         if spec is not None:
-            inputs, extra = _widget_values(spec, n["wv"])
+            inputs, extra = _widget_values(spec, n["wv"], controls)
             if extra:
                 notes.append(f"{n['title'] or t} (#{key}): {extra} widget value{'s' if extra > 1 else ''} didn't map; check its settings.")
         elif isinstance(n["wv"], dict):
@@ -327,6 +331,9 @@ def ui_to_api(ui: dict, info: dict) -> tuple[dict, list[str]]:
                     inputs.pop(name, None)
                 continue
             inputs[name] = r[1] if r[0] == "c" else [r[1], r[2]]
+            controls.pop(name, None)
+            if r[0] == "c" and len(r) > 2 and r[2]:  # a primitive node's own control
+                controls[name] = r[2]
         if spec is not None:  # widgets added to the node after the file was saved
             for name, s in _spec_inputs({"input": {"required": (spec.get("input") or {}).get("required") or {}}}):
                 if name not in inputs and _is_widget(s):
@@ -334,8 +341,13 @@ def ui_to_api(ui: dict, info: dict) -> tuple[dict, list[str]]:
                     if d is not None:
                         inputs[name] = d
         node = {"class_type": t, "inputs": inputs}
-        if n["title"]:
-            node["_meta"] = {"title": n["title"]}
+        meta = {"title": n["title"]} if n["title"] else {}
+        # Kept so a run does what ComfyUI would: re-roll a "randomize" seed, keep a "fixed" one.
+        controls = {k: v for k, v in controls.items() if not isinstance(inputs.get(k), list)}
+        if controls:
+            meta["control_after_generate"] = controls
+        if meta:
+            node["_meta"] = meta
         api[key] = node
     if not api:
         raise BuildError("No runnable nodes in this workflow.")
@@ -425,6 +437,12 @@ def reachable(api: dict, outs: list[str]) -> dict:
         keep.add(nid)
         stack.extend(v[0] for v in api[nid]["inputs"].values() if _is_link(v))
     return {k: v for k, v in api.items() if k in keep}
+
+
+def _numeric_only(info_node: dict | None) -> bool:
+    """A node whose every output is a number or a yes/no, like a math expression."""
+    outs = [str(o) for o in (info_node or {}).get("output") or []]
+    return bool(outs) and all(set(o.split(",")) <= {"INT", "FLOAT", "BOOLEAN"} for o in outs)
 
 
 def _consumers(api: dict) -> dict[str, list[tuple[str, str]]]:
@@ -524,6 +542,8 @@ def analyze(api: dict, info: dict, notes: list[str] | None = None) -> dict:
             row = {**base, "value": v}
             t = s[0] if isinstance(s, (list, tuple)) and s else None
             if isinstance(v, str) and t == "STRING" and (o.get("multiline") or o.get("dynamicPrompts")):
+                if _numeric_only(info.get(n["class_type"])):
+                    continue  # a formula: the text becomes a number, not a prompt
                 texts.append({**row, "polarity": "negative" if "negative" in name else _polarity(api, nid, cons)})
                 continue
             if isinstance(t, list) or t == "COMBO" or t == DYNAMIC_COMBO:
@@ -587,68 +607,6 @@ def analyze(api: dict, info: dict, notes: list[str] | None = None) -> dict:
     }
 
 
-# ---- cloud: Router schema -----------------------------------------------------
-
-def _first_type(s: dict) -> dict:
-    if s.get("anyOf"):
-        return next((x for x in s["anyOf"] if x.get("type") and x.get("type") != "null"), s)
-    return s
-
-
-def _media_kind(key: str, s: dict) -> str | None:
-    k = key.lower()
-    items = _first_type(s.get("items") or {}) if s.get("type") == "array" else {}
-    fmt = s.get("format") or items.get("format") or ""
-    for kind in ("image", "video", "audio"):
-        if kind in k or (kind == "image" and k in ("input_image", "reference", "references", "frames")):
-            if s.get("type") in ("string", "array") or fmt:
-                return kind
-    if fmt in ("uri", "binary") or "url" in k:
-        return "image" if "image" in (s.get("description") or "").lower() else None
-    return None
-
-
-def analyze_schema(schema: dict) -> dict:
-    """Router request schema → prompt, media fields and params, like ``analyze``."""
-    props = (schema or {}).get("properties") or {}
-    required = set((schema or {}).get("required") or [])
-    media, params = [], []
-    prompt = None
-    for key, raw in props.items():
-        s = _first_type(raw)
-        help_ = (raw.get("description") or s.get("description") or "").split(". ")[0][:160] or None
-        if key in ("prompt", "text", "instruction") and s.get("type") == "string" and prompt is None:
-            prompt = {"field": key, "required": key in required}
-            continue
-        kind = _media_kind(key, s)
-        if kind:
-            many = s.get("type") == "array"
-            media.append({"field": key, "kind": kind, "many": many, "max": int(s.get("maxItems") or (4 if many else 1)) if many else 1,
-                          "required": key in required, "title": _label(key), "help": help_})
-            continue
-        default = raw.get("default", s.get("default"))
-        row = {"field": key, "title": _label(key), "help": help_, "required": key in required, "value": default}
-        if isinstance(s.get("enum"), list):
-            row.update(type="select", options=[x for x in s["enum"] if isinstance(x, (str, int, float))])
-        elif s.get("type") == "boolean":
-            row.update(type="bool")
-        elif s.get("type") in ("integer", "number"):
-            row.update(type="seed" if key == "seed" else ("int" if s["type"] == "integer" else "number"),
-                       min=s.get("minimum"), max=s.get("maximum"), step=1 if s["type"] == "integer" else None)
-        elif s.get("type") == "string":
-            row.update(type="string")
-        else:
-            continue
-        row["suggested"] = key in ("seed", "aspect_ratio", "resolution", "duration", "negative_prompt") or key in required
-        params.append(row)
-    n: dict[str, int] = {}
-    for m in media:
-        n[m["kind"]] = n.get(m["kind"], 0) + 1
-    out_mod = set((schema or {}).get("x-output-modalities") or [])
-    return {"media": media, "prompt": prompt, "params": params,
-            "mode": "motion" if n.get("video") or "video" in out_mod else "edit"}
-
-
 # ---- drafts -------------------------------------------------------------------
 # An analyzed workflow waits in the cache under a content hash until it's saved.
 
@@ -676,7 +634,7 @@ def get_draft(token: str) -> dict:
 
 # ---- assembling a template ----------------------------------------------------
 
-TEXT_MAX = {"label": 80, "blurb": 400, "hint": 160, "default_prompt": 4000}
+TEXT_MAX = {"label": 80, "blurb": 400, "default_prompt": 4000}
 PARAM_TYPES = {"int", "number", "bool", "seed", "select", "segmented", "string"}
 CASTS = {"int": "int", "seed": "int", "number": "float", "bool": "bool", "string": "str"}
 
@@ -733,16 +691,13 @@ def _common(spec: dict, media: list[dict]) -> dict:
     """The template file without its bindings: details, then one input per media row and the prompt.
     The assemblers add where each input goes (``bind``) and the settings."""
     label = _txt(spec.get("label"), TEXT_MAX["label"], "the name")
-    if not label:
+    if not label or not label.split(" · ")[0].strip():
         raise BuildError("Give the template a name")
     videos = [m for m in media if m["kind"] == "video"]
     mode = spec.get("mode") if spec.get("mode") in ("edit", "motion") else ("motion" if videos else "edit")
     fields: list[dict[str, Any]] = []
     for m in media:
-        f: dict[str, Any] = {"key": m["slot"], "type": m["kind"], "label": _txt(m.get("label"), 40, "an input label") or _label(m["kind"]),
-                             "required": bool(m.get("required", True))}
-        if m.get("hint"):
-            f["hint"] = _txt(m["hint"], TEXT_MAX["hint"], "a hint")
+        f: dict[str, Any] = {"key": m["slot"], "type": m["kind"], "required": bool(m.get("required", True))}
         if m["kind"] == "video":  # limits only when the author sets them; else the workflow's loader decides
             for k, top, what in (("window", 600, "clip length"), ("fps", 240, "frame rate")):
                 v = m.get(k)
@@ -758,10 +713,8 @@ def _common(spec: dict, media: list[dict]) -> dict:
         fields.append(f)
     pr = spec.get("prompt") or None
     if pr:
-        f = {"key": "prompt", "type": "text", "label": _txt(pr.get("label"), 40, "the prompt label") or "Prompt",
-             "required": bool(pr.get("required", True)), "default": _txt(pr.get("default"), TEXT_MAX["default_prompt"], "the default prompt")}
-        if pr.get("hint"):
-            f["hint"] = _txt(pr["hint"], TEXT_MAX["hint"], "the prompt hint")
+        f = {"key": "prompt", "type": "text", "required": bool(pr.get("required", True)),
+             "default": _txt(pr.get("default"), TEXT_MAX["default_prompt"], "the default prompt")}
         examples = [e for e in (_txt(x, TEXT_MAX["default_prompt"], "an example") for x in (pr.get("examples") or [])[:12]) if e]
         if examples:
             f["examples"] = examples
@@ -838,6 +791,8 @@ def assemble_local(spec: dict, draft: dict, info: dict) -> dict:
     outs = [str(o) for o in spec.get("outputs") or results[:1]]
     if not outs or any(o not in results for o in outs):
         raise BuildError("Pick the node whose image or video a run keeps")
+    # Photo or video is what the result node writes, not something the author picks.
+    data["mode"] = "motion" if output_kind(api, outs[0], info) == "video" else "edit"
     data.update(kind="local", provider="local", outputs=outs, workflow=api,
                 source=_txt(spec.get("source"), 200, "the source") or "Built in OpenIllusion from a ComfyUI workflow",
                 hints={"models": {}, "nodes": {}})
@@ -860,52 +815,35 @@ def _size_input(api: dict, sz: dict) -> dict:
             "aspect": aspect, "default": default, "bind": [[nid, "width", "width"], [nid, "height", "height"]]}
 
 
-def _set_path(body: dict, path: list, value: Any) -> None:
-    cur: Any = body
-    for k in path[:-1]:
-        cur = cur.setdefault(k, {}) if isinstance(cur, dict) else cur[k]
-    cur[path[-1]] = value
-
-
 def assemble_cloud(spec: dict) -> dict:
-    model = spec.get("model") or ""
-    if not re.fullmatch(r"[\w.-]+/[\w.:-]+", model):
-        raise BuildError("Pick a model")
-    media = _media_rows(spec.get("media") or [])  # one row per slot; array fields repeat
-    data = _common(spec, media)
-    body: dict[str, Any] = {}
-    for k, v in (spec.get("fixed") or {}).items():
-        if not isinstance(k, str):
-            continue
-        body[k] = v
-    index: dict[str, int] = {}
+    """A Router template from the model's adapter, frozen to the files this run uses.
+
+    ``spec.media`` rows name the adapter input each file goes to (``input``), in the
+    order the Builder shows them. Inputs left empty aren't in the template: every
+    input it has is required, so it always asks the model for the same job."""
+    try:
+        a = adapters.get(str(spec.get("model") or ""))
+    except adapters.AdapterError as e:
+        raise BuildError(str(e)) from None
+    media = _media_rows([{**m, "required": True} for m in spec.get("media") or []])
     for m in media:
-        field = m.get("field")
-        if not isinstance(field, str) or not field:
-            raise BuildError("Media field missing")
-        if m.get("many"):
-            i = index.get(field, 0)
-            index[field] = i + 1
-            body.setdefault(field, [])
-            body[field].append("{{%s}}" % m["slot"])
-            _input(data, m["slot"])["bind"] = [[field, i]]
-        else:
-            body[field] = "{{%s}}" % m["slot"]
-            _input(data, m["slot"])["bind"] = [[field]]
-    pr = spec.get("prompt")
-    if pr:
-        field = pr.get("field") or "prompt"
-        f = _input(data, "prompt")
-        body[field] = f["default"]
-        f["bind"] = [[field]]
-    for p in spec.get("params") or []:
-        field = p.get("field")
-        if not isinstance(field, str):
-            continue
-        row = _param(p, re.sub(r"[^a-z0-9_]", "_", field.lower()))
-        data["inputs"].append({**row, "advanced": row["type"] == "seed", "bind": [[field]]})
-    data.update(kind="cloud", model=model, provider=model.split("/", 1)[0], body=body,
-                source=f"Comfy Router · {model}")
+        i = m.get("input")
+        if not isinstance(i, int) or not 0 <= i < len(a.inputs) or a.inputs[i]["type"] != m["kind"]:
+            raise BuildError(f"{a.name} has no such {m['kind']} input")
+    pr = spec.get("prompt") or {}
+    data = _common({**spec, "mode": a.mode, "prompt": {**pr, "required": True}}, media)
+    prompt = _input(data, "prompt")
+    if not prompt["default"]:
+        raise BuildError("Write the prompt the first run uses")
+    try:
+        body, where = adapters.assemble(a, [(m["input"], m["slot"]) for m in media], prompt["default"])
+    except adapters.AdapterError as e:
+        raise BuildError(str(e)) from None
+    for m in media:
+        _input(data, m["slot"])["bind"] = [where[m["slot"]]]
+    prompt["bind"] = [list(a.prompt)]
+    data.update(kind="cloud", model=a.model, provider=a.model.split("/", 1)[0], body=body, result=a.result,
+                source=f"Comfy Router · {a.name}")
     return data
 
 
@@ -931,21 +869,17 @@ def preset(e) -> dict:
 
 
 def inherit(data: dict, base: dict, base_label: str) -> None:
-    """A template built from another keeps what the builder doesn't edit: the multiple its inputs are
-    sized to, tips, model hints, each input's size and role, and the prompt ideas."""
+    """A template built from another keeps what the builder doesn't show: the multiple its inputs are
+    trimmed to, its model hints and its prompt ideas."""
     if (base.get("size") or {}).get("multiple"):
         data["size"] = {"multiple": base["size"]["multiple"]}
-    for k in ("tips", "hints"):
-        if base.get(k):
-            data[k] = copy.deepcopy(base[k])
+    if base.get("hints"):
+        data["hints"] = copy.deepcopy(base["hints"])
     old = {f.get("key"): f for f in base.get("inputs") or []}
     for f in data["inputs"]:
         o = old.get(f["key"])
         if not o or o.get("type") != f["type"]:
             continue
-        for k in ("size", "role"):  # clip limits come through the builder, where the author sees them
-            if k in o and k not in f:
-                f[k] = copy.deepcopy(o[k])
         if f["key"] == "prompt" and o.get("examples") and not f.get("examples"):
             f["examples"] = copy.deepcopy(o["examples"])
     data["source"] = f"Built in OpenIllusion from {base_label}"

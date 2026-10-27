@@ -119,9 +119,9 @@ def _upload(name, size):
 def test_runs_get_prepared_images_and_record_how():
     spec = {
         "engine": "local/qwen21-hold-product", "prompt": "",
-        "inputs": [{"slot": "image:1", "role": "base", "asset": _upload("p.png", (3000, 4000)), "crop": [0, 0, 1, 0.75]},
+        "inputs": [{"slot": "image:1", "role": "base", "asset": _upload("p.png", (3000, 4000)), "crop": [0, 0, 1, 0.75], "size": "1 MP"},
                    {"slot": "image:2", "role": "reference", "asset": _upload("c.png", (5000, 5000))}],
-        "params": {"size": "1 MP", "steps": 4, "seed": 1},
+        "params": {},
     }
     planned = jobs.input_plans(spec)
     m = jobs.prepare_generation(spec)
@@ -129,9 +129,9 @@ def test_runs_get_prepared_images_and_record_how():
     one, two = m.inputs
     with Image.open(folder / one.file) as a, Image.open(folder / two.file) as b:
         assert a.size == (992, 992)  # the top 3000x3000 of the portrait, at 1 MP
-        assert b.size == (992, 992)
+        assert b.size == (1728, 1728)  # its own size by default, under the 3 MP photo cap
     assert one.prep == {**planned["image:1"].to_dict(), "size": "1 MP"} and one.prep["source"] == [3000, 4000]
-    assert two.prep["size"] == "1 MP"  # its template default
+    assert two.prep["size"] == "Original"
     assert (one.width, one.height) == (992, 992)
     # The encoder takes images as they come: the app already sized them.
     assert m.request_template["5"]["inputs"]["resolution"] == 0
@@ -152,13 +152,9 @@ def test_shipped_templates_only_write_what_they_declare():
     for e in engines.ENGINES.values():
         if e.kind != "local" or e.origin != "shipped":
             continue
-        assert e.size["multiple"] == 32 and "follows" not in (e.data.get("size") or {}) and "computed" not in e.data, e.id
-        # A template that takes no photo or clip declares its output size; the rest leave sizing to their workflow.
-        out = next((f for f in e.fields if f["type"] == "size"), None)
-        assert bool(out) == (not e.inputs) == ("canvas" in e.size), e.id
-        if out:
-            assert {b[2] for b in out["bind"]} == {"width", "height"} and all(str(b[0]) in e.workflow for b in out["bind"]), e.id
-        assert not any(p["key"] in ("resolution", "size") for p in e.params), e.id
+        assert "follows" not in (e.data.get("size") or {}) and "computed" not in e.data, e.id
+        # Inputs and the prompt only: the output size is whatever the workflow says.
+        assert not any(f["type"] == "size" for f in e.fields) and not e.params, e.id
 
 
 # ---- template defaults: samples and prompt -------------------------------------

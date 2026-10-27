@@ -1,24 +1,24 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ABPlayer, typing } from "../components/ABPlayer";
 import { CostPill } from "../components/bits";
 import { clipSlot as asClip, dropIntoStudio, isImage, isMediaFile, isVideo, useFileDrop } from "../components/Drop";
 import { useEngine, ParamFields } from "../components/Engine";
-import { Compare, cx, I, jobProgress, QUEUED, Ring, useStatus, gpuName } from "../components/oi";
-import { addToTray, bySlot, RefTray, useUploader, withRefs } from "../components/Refs";
+import { Compare, cx, GpuStat, I, jobProgress, QUEUED, Ring, useStatus, gpuName } from "../components/oi";
+import { bySlot, useUploader, withRefs } from "../components/Refs";
 import {
   invalidFields, LocalNeeds, NoTemplates, RawRequest, StageError, useCompose, useCurrent, useRunner, useStudio, type Fix,
 } from "../components/Studio";
-import { TemplateTools, tplCategory, tplModel, tplName, useCoverActions } from "../components/TemplateCard";
+import { TemplateTools, tplModel, tplName, useCoverActions } from "../components/TemplateCard";
 import { Trimmer } from "../components/Trimmer";
 import { Spinner } from "../components/ui";
 import { api, fileUrl, type EngineInfo, type GenerationRow, type Job, type Manifest, type Mode, type ParamSpec, type SizeSpec } from "../lib/api";
-import { areaField, article, clipFps, clipSlots, clipWindow, leadSlot, mediaFields, promptField, roleOf, settingsOf, slotNo, videoField, type MediaField } from "../lib/fields";
-import { EDIT_ROLES, errMsg, ROLES, roleLabel } from "../lib/format";
+import { clipFps, clipSlots, clipWindow, leadSlot, mediaFields, promptField, roleOf, settingsOf, slotNo, videoField, type MediaField } from "../lib/fields";
+import { EDIT_ROLES, errMsg } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go } from "../lib/route";
-import { clipIn, newKey, posterOf, slotOf, withClip, useApp, type RefSlot, type StudioState, type VideoSlot } from "../lib/store";
-import { aspectName, aspectRatio, canvasSize, choiceOf, dimsText, megapixels, plan, plans, SHAPES, shapeCrop, shapeOf, sizeNotes, usePrepImages, type Crop, type PrepInput } from "../lib/size";
+import { autorun, clipIn, newKey, posterOf, slotOf, withClip, useApp, type RefSlot, type StudioState, type VideoSlot } from "../lib/store";
+import { aspectName, canvasSize, choiceOf, dimsText, megapixels, plan, plans, SHAPES, shapeCrop, shapeOf, sizeNotes, usePrepImages, type Crop, type PrepInput } from "../lib/size";
 
 type View = "input" | "result" | "compare" | "grid";
 type SetS = ReturnType<typeof useStudio>[1];
@@ -26,7 +26,6 @@ type SetS = ReturnType<typeof useStudio>[1];
 const ACCEPT = "image/png,image/jpeg,image/webp";
 const ACCEPT_VIDEO = "video/mp4,video/quicktime,video/webm,.m4v";
 const FAILED = new Set(["failed", "moderated", "cancelled"]);
-const AREA = "Keep the edit inside this area";
 
 /** A studio change to one input's attributes (shape, size), photo or clip alike. */
 const withInput = (slot: string, patch: { crop?: Crop; size?: string }) => (st: StudioState): Partial<StudioState> => slot.startsWith("video:")
@@ -65,16 +64,13 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const lead = leadSlot(engine);
   const leadVideo = lead.startsWith("video:");
   const settings = settingsOf(engine);
-  const markable = areaField(engine, mode);
   const { spec, compose, estimate } = useCompose(mode, s, engine);
   const { generation: m, job } = useCurrent(s.current);
   const invalid = invalidFields(compose, job?.error);
   const share = useApp((st) => st.share);
   const toast = useApp((st) => st.toast);
-  const setStudio = useApp((st) => st.setStudio);
   const { data: jobs = [] } = useJobs();
   const [view, setView] = useState<View>("input");
-  const [marking, setMarking] = useState(false);
 
   const base = leadVideo ? undefined : s.refs.find((r, i) => `image:${slotOf(r, i)}` === lead);
   const slots = clipSlots(engine, mode);
@@ -97,11 +93,9 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const vlist = variants.map((q) => q.data).filter(Boolean) as Manifest[];
   const shown = (m && group.includes(m.id) ? m : null) ?? vlist.find((v) => v.id === s.current) ?? m ?? vlist[0] ?? null;
   const shownJob = shown ? jobs.find((j) => j.id === shown.id) : job ?? undefined;
-  const anyDone = vlist.some((v) => v.status === "done");
   const live = !!shownJob && isActive(shownJob);
   const done = shown?.status === "done" && !!shown.result?.file;
   const failed = shown && !live && FAILED.has(shown.status) ? shown : null;
-  const area = s.boxes.find((b) => b.label === AREA);
 
   // What the stage shows, given what exists.
   const eff: View | "live" | "failed" | "empty" =
@@ -117,29 +111,25 @@ function CreateStudio({ mode }: { mode: Mode }) {
     prevState.current = job?.state;
   }, [job?.state, view]);
 
+  // A new lead input puts it back on the stage.
+  const leadAsset = leadVideo ? clip?.asset : base?.asset;
+  const prevLead = useRef(leadAsset);
+  useEffect(() => {
+    if (prevLead.current !== leadAsset && leadAsset) setView("input");
+    prevLead.current = leadAsset;
+  }, [leadAsset]);
+
   const runner = useRunner({
     s, set, spec, compose, estimate,
-    onRan: (ids) => { set({ group: ids }); setView(ids.length > 1 ? "grid" : "compare"); setMarking(false); },
+    onRan: (ids) => { set({ group: ids }); setView(ids.length > 1 ? "grid" : "compare"); },
   });
 
-  const star = (id: string) => set((st) => ({ selected: st.selected.includes(id) ? st.selected.filter((x) => x !== id) : [...st.selected, id] }));
-
-  // Finished photos can go on to a video template.
-  const sendToMotion = () => {
-    const picks = (s.selected.length ? s.selected : s.current ? [s.current] : []).map((id) => vlist.find((v) => v.id === id) ?? (m?.id === id ? m : undefined))
-      .filter((v): v is Manifest => !!v && v.status === "done" && !!v.result?.file);
-    if (!picks.length) return toast({ text: "Star a finished variant first.", tone: "warn" });
-    const role = s.returnRole ?? "character";
-    setStudio("motion", (mo) => {
-      const add: RefSlot[] = picks.map((v) => ({
-        key: newKey(), asset: `gen:${v.id}/${v.result!.file}`, name: `${v.title}.webp`, kind: "image", url: fileUrl(v.id, v.result!.file!),
-        role, license: "generated", contains_person: base?.contains_person ?? false, consent: base?.consent ?? false,
-      }));
-      return { refs: [...mo.refs, ...add].slice(0, 9), chain: [...new Set([...mo.chain, ...picks.map((v) => `edit:${v.id}`)])], current: null };
-    });
-    set({ returnRole: null });
-    toast({ text: `${picks.length} image${picks.length > 1 ? "s" : ""} sent to Video as ${roleLabel(role)}.`, tone: "ok", action: { label: "Open", run: () => go({ name: "motion" }) } });
-  };
+  // Fresh from the Builder: run the draft once with its samples.
+  useEffect(() => {
+    if (!compose || !s.engine || autorun.engine !== s.engine || runner.busy) return;
+    autorun.engine = null;
+    void runner.run();
+  }, [compose, s.engine, runner]);
 
   const rerun = async (id: string) => {
     try {
@@ -174,6 +164,9 @@ function CreateStudio({ mode }: { mode: Mode }) {
   };
   const stageDrop = useFileDrop((files) => void replaceLead(files), { accept: isMediaFile, disabled: !media.length });
   const leadName = media.find((f) => f.key === lead)?.label;
+  // Variants and Re-run only make sense when the workflow re-rolls its seed; a fixed one gives the same result again.
+  const varies = engine?.varies !== false;
+  useEffect(() => { if (!varies && s.variants !== 1) set({ variants: 1 }); }, [varies, s.variants, set]);
 
   const remix = (g: Manifest) => {
     useApp.getState().loadGeneration(g);
@@ -226,7 +219,6 @@ function CreateStudio({ mode }: { mode: Mode }) {
 
   if (!s.engine && !engine) return <NoTemplates mode={mode} />;
 
-  const canMark = !!markable && markable === lead && eff === "input" && !!base;
   const pickRun = (id: string) => { set({ current: id, group: [id] }); setView("compare"); };
   const setParam = (k: string, v: unknown) => set((st) => ({ params: { ...st.params, [k]: v }, raw: null }));
   const required = media.filter((f) => f.required !== false).length;
@@ -239,31 +231,17 @@ function CreateStudio({ mode }: { mode: Mode }) {
           <HistStrip engine={s.engine} current={s.current} jobs={jobs} onPick={pickRun} />
           {engine?.kind === "local" && <div style={{ display: "grid", gap: 8 }}><LocalNeeds spec={spec} /></div>}
 
-          {(media.length || !engine?.fields?.length) && (
+          {engine && !!media.length && (
           <section className="sec" aria-labelledby="sec-inputs">
-            <div className="sec-h"><h4 id="sec-inputs">Inputs</h4><span className="mono">{media.length ? `${required} needed${media.length > required ? ` · ${media.length - required} optional` : ""}` : `${s.refs.length} / ${engine?.max_images ?? 10}`}</span></div>
-            {engine && media.length ? (
-              <div className="slots">
-                {media.map((f) => f.type === "video"
-                  ? <ClipRow key={f.key} e={engine} f={f} v={clipIn(s, f.key)} staged={f.key === lead} onChange={(v) => set((st) => ({ videos: withClip(st, f.key, v), current: null }))} />
-                  : f.type === "image" ? <PhotoRow key={f.key} e={engine} f={f} refs={s.refs} staged={f.key === lead} onChange={(refs) => set({ refs, current: null })} />
-                  : null)}
-              </div>
-            ) : (
-              <div data-own-drop>
-                <RefTray refs={s.refs} max={engine?.max_images ?? 10} roles={mode === "motion" ? ROLES : EDIT_ROLES} defaultRole={mode === "motion" ? "character" : "base"} aspect="1 / 1" onChange={(refs) => set({ refs })} />
-                <p className="help">Drag to reorder. Image 1 goes first.</p>
-              </div>
-            )}
+            <div className="sec-h"><h4 id="sec-inputs">Inputs</h4>{media.length > required && <span className="mono">{media.length - required} optional</span>}</div>
+            <div className="tiles">
+              {media.map((f) => <Tile key={f.key} e={engine} f={f} s={s} set={set} />)}
+            </div>
+            {media.map((f) => <InputExtras key={f.key} e={engine} f={f} s={s} set={set} staged={f.key === lead} named={media.length > 1} />)}
           </section>
           )}
 
-          {sized?.canvas && (
-            <OutputSize size={sized} label={engine?.fields?.find((f) => f.type === "size")?.label ?? "Output"} aspect={String(s.params.aspect ?? sized.canvas.aspect)} choice={String(s.params.out_size ?? sized.canvas.size)} onChange={setParam} />
-          )}
-
-          <PromptSection s={s} set={set} engine={engine} area={!!area} invalid={invalid.has("prompt")} onRun={() => void runner.run()}
-            clearArea={() => set((st) => ({ boxes: st.boxes.filter((b) => b.label !== AREA) }))} />
+          <PromptSection s={s} set={set} engine={engine} invalid={invalid.has("prompt")} onRun={() => void runner.run()} />
 
           {!!settings.main.length && (
             <section className="sec" aria-labelledby="sec-set">
@@ -274,51 +252,41 @@ function CreateStudio({ mode }: { mode: Mode }) {
             </section>
           )}
 
-          <details className="adv">
+          {!!settings.advanced.length && <details className="adv">
             <summary><I n="sliders" />Advanced<span className="mono">{advSummary(settings.advanced, s)}</span><I n="down" className="chev" /></summary>
             <div className="adv-body">
               {engine && <ParamFields params={settings.advanced} values={s.params} invalid={invalid} onChange={setParam} />}
               <div style={{ margin: "0 -14px -14px", borderTop: "1px solid var(--line)" }}><RawRequest s={s} set={set} spec={spec} compose={compose} /></div>
             </div>
-          </details>
+          </details>}
         </div>
-        <RunBar s={s} set={set} engine={engine} runner={runner} estimate={estimate} queued={jobs.filter(isActive).length} />
+        <RunBar s={s} set={set} engine={engine} runner={runner} estimate={estimate} queued={jobs.filter(isActive).length} varies={varies} />
       </aside>
 
       <section className="stage" aria-label="Preview">
         <div className="stage-top" data-acts={done && shown ? "" : undefined}>
           <div className="crumb">Create<span>/</span><b>{engine ? tplName(engine) : "…"}</b></div>
           <span style={{ flex: 1 }} />
-          <div className="seg" role="group" aria-label="Preview mode">
-            <button type="button" aria-pressed={eff === "input" || eff === "empty"} onClick={() => setView("input")}>Input</button>
-            <button type="button" aria-pressed={eff === "result"} disabled={!done} onClick={() => setView("result")}>Result</button>
-            {!noInput && <button type="button" aria-pressed={eff === "compare"} disabled={!done} onClick={() => setView("compare")}><I n="compare" />Compare</button>}
-            {group.length > 1 && <button type="button" aria-pressed={eff === "grid"} onClick={() => setView("grid")}><I n="grid" />All {group.length}</button>}
-          </div>
-          <span style={{ flex: 1 }} />
+          {group.length > 1 && (
+            <button className={cx("btn sm", eff === "grid" ? "primary" : "ghost")} type="button" aria-pressed={eff === "grid"}
+              onClick={() => setView(eff === "grid" ? "compare" : "grid")} title="See every variant of this run"><I n="grid" /><span className="lbl">All {group.length}</span></button>
+          )}
           {done && shown && (
             <>
-              <button className="btn sm ghost" type="button" onClick={() => rerun(shown.id)} title="Same recipe, new seed"><I n="refresh" /><span className="lbl">Re-run</span></button>
+              {varies && <button className="btn sm ghost" type="button" onClick={() => rerun(shown.id)} title="Same inputs, new seed"><I n="refresh" /><span className="lbl">Re-run</span></button>}
               <button className="btn sm ghost" type="button" onClick={() => remix(shown)} title="Load this run's inputs and settings as a new draft"><I n="remix" /><span className="lbl">Remix</span></button>
-              {anyDone && shown.result?.kind !== "video" && <button className="btn sm ghost" type="button" onClick={sendToMotion} title={`Lands in the video template's inputs as ${roleLabel(s.returnRole ?? "character")}`}><I n="film" /><span className="lbl">{s.selected.length ? `Send ${s.selected.length} to Video` : "To Video"}</span></button>}
               <button className="btn sm" type="button" onClick={() => share(shown.id)} aria-keyshortcuts="E" title="Export (E)"><I n="share" /><span className="lbl">Export</span></button>
               {engine?.draft && shown.engine.model === engine.id && <Publish e={engine} run={shown.id} />}
             </>
           )}
-          {!!markable && (
-            <button className={cx("btn sm", marking ? "primary" : "ghost")} type="button" disabled={!canMark && !area}
-              onClick={() => (area ? set((st) => ({ boxes: st.boxes.filter((b) => b.label !== AREA) })) : setMarking(!marking))}
-              title="Drag on the photo to keep the edit inside one area">
-              <I n="area" /><span className="lbl">{area ? "Clear area" : marking ? "Drag on photo" : "Mark area"}</span>
-            </button>
-          )}
           <button className="icon-btn" type="button" aria-label="Open in Library" title="Open in Library" disabled={!shown} style={shown ? undefined : { opacity: 0.35 }}
             onClick={() => shown && go({ name: "generation", id: shown.id })}><I n="expand" /></button>
+          <GpuStat />
         </div>
 
-        <div className={cx("canvas", stageDrop.over && "drop")} {...stageDrop.props} data-drop={`Drop to replace ${leadName ? article(leadName) : "the input"}`}>
+        <div className={cx("canvas", stageDrop.over && "drop")} {...stageDrop.props} data-drop={`Drop to replace ${leadName ?? "the input"}`}>
           <Canvas mode={mode} lead={lead} eff={eff} s={s} set={set} engine={engine} base={base} out={noInput ? canvas : planOf(lead)} shown={shown} job={shownJob} group={group} vlist={vlist} jobs={jobs}
-            marking={marking} setMarking={setMarking} fixes={fixes} onFocus={(id) => { set({ current: id }); setView("compare"); }} onStar={star} />
+            fixes={fixes} onFocus={(id) => { set({ current: id }); setView("compare"); }} />
         </div>
 
         <aside className="hist" aria-label="Runs of this template">
@@ -372,7 +340,7 @@ function Hero({ e }: { e: EngineInfo }) {
             <button key={x.id} type="button" role="option" aria-selected={x.id === e.id} aria-current={x.id === e.id}
               onClick={() => { setOpen(false); if (x.id !== e.id) openTemplate(e.mode, x.id); }}>
               {x.cover ? <img src={x.cover} alt="" /> : <span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n={x.mode === "motion" ? "film" : "image"} /></span>}
-              {tplName(x)}<small>{tplCategory(x)}</small>
+              {tplName(x)}<small>{tplModel(x)}</small>
             </button>
           ))}
           <button type="button" onClick={() => { setOpen(false); openTemplate(e.mode, e.id); }}><span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="undo" /></span>Start over with the samples</button>
@@ -396,177 +364,87 @@ function Publish({ e, run }: { e: EngineInfo; run: string }) {
   );
 }
 
-/** One photo input: click, drop, or bring the sample back; its shape and size under it. */
-function PhotoRow({ e, f, refs, staged, onChange }: { e: EngineInfo; f: MediaField; refs: RefSlot[]; staged: boolean; onChange: (refs: RefSlot[]) => void }) {
-  const { upload } = useUploader();
-  const [busy, setBusy] = useState(false);
+/** One photo or clip input as a tile, named by its place: what each one is, the prompt says. Click or drop to fill or replace. */
+function Tile({ e, f, s, set }: { e: EngineInfo; f: MediaField; s: StudioState; set: SetS }) {
+  const video = f.type === "video";
   const n = slotNo(f.key);
-  const r = refs.find((x, i) => slotOf(x, i) === n);
-  const put = (x: RefSlot | null) => onChange(bySlot([...bySlot(refs).filter((y) => y.slot !== n), ...(x ? [x] : [])]));
-  const fill = async (files: File[]) => {
-    const file = files.find((x) => /^image\//.test(x.type)) ?? files[0];
-    if (!file) return;
-    setBusy(true);
-    try {
-      const [asset] = await upload([file], "image");
-      if (!asset) return;
-      const [added] = withRefs([], [asset], EDIT_ROLES, "base");
-      put({ ...added, slot: n, size: r?.size, role: roleOf(e, f.key) });
-    } finally {
-      setBusy(false);
-    }
-  };
-  const sample = sampleRef(e, f.key);
-  const attrs = r?.url && !r.missing && r.width && r.height && e.size
-    ? <InputAttrs size={e.size} input={{ slot: f.key, width: r.width, height: r.height, crop: r.crop, size: r.size }} preview={r.url} staged={staged}
-        onChange={(patch) => put({ ...r, ...patch })} />
-    : null;
-  return (
-    <SlotRow n={n} label={f.label} hint={f.hint} optional={f.required === false} r={r} busy={busy} attrs={attrs}
-      sample={!!sample} onFiles={fill} onClear={() => put(null)} onSample={() => put(sampleRef(e, f.key))} />
-  );
-}
-
-/** A clip input: a row like the photo ones, with the trimmer under it. */
-function ClipRow({ e, f, v, staged, onChange }: { e: EngineInfo; f: MediaField; v: VideoSlot | null; staged: boolean; onChange: (v: Omit<VideoSlot, "slot"> | null) => void }) {
-  const { label, hint, key: slot } = f;
   const { upload, busy } = useUploader();
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const win = clipWindow(e, f.key);
-  const rate = clipFps(e, f.key);
+  const r = video ? undefined : s.refs.find((x, i) => slotOf(x, i) === n);
+  const v = video ? clipIn(s, f.key) : null;
+  const held = video ? v : r;
+  const thumb = video ? v?.poster : r?.url;
+  const putRef = (x: RefSlot | null) => set((st) => ({ refs: bySlot([...bySlot(st.refs).filter((y) => y.slot !== n), ...(x ? [x] : [])]), current: null }));
+  const putClip = (x: Omit<VideoSlot, "slot"> | null) => set((st) => ({ videos: withClip(st, f.key, x), current: null }));
+  const clear = () => (video ? putClip(null) : putRef(null));
+  const sample = video ? sampleVideo(e, f.key) : sampleRef(e, f.key);
+  const useSample = () => (video ? putClip(sample as VideoSlot) : putRef(sample as RefSlot));
   const pick = () => input.current?.click();
   const fill = async (files: File[]) => {
-    const f = files.find((x) => /^video\//.test(x.type)) ?? files[0];
-    if (!f) return;
-    const [a] = await upload([f], "video");
+    const file = files.find((x) => (video ? /^video\// : /^image\//).test(x.type)) ?? files[0];
+    if (!file) return;
+    const [a] = await upload([file], video ? "video" : "image");
     if (!a) return;
-    onChange(asClip(a, e, slot, v?.size));
+    if (video) putClip(asClip(a, e, f.key, v?.size));
+    else {
+      const [added] = withRefs([], [a], EDIT_ROLES, "base");
+      putRef({ ...added, slot: n, size: r?.size, role: roleOf(e, f.key) });
+    }
   };
   const drop = {
     onDragOver: (ev: React.DragEvent) => { if (ev.dataTransfer.types.includes("Files")) { ev.preventDefault(); ev.stopPropagation(); setOver(true); } },
     onDragLeave: (ev: React.DragEvent) => { if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) setOver(false); },
     onDrop: (ev: React.DragEvent) => { if (!ev.dataTransfer.files.length) return; ev.preventDefault(); ev.stopPropagation(); setOver(false); void fill([...ev.dataTransfer.files]); },
   };
-  const file = <input ref={input} type="file" accept={ACCEPT_VIDEO} hidden onChange={(ev) => { void fill([...(ev.target.files ?? [])]); ev.target.value = ""; }} />;
-  const name = `Video ${slotNo(f.key)} · ${label}`;
-  const sample = sampleVideo(e, f.key);
-  const span = win ? `${win[0]}–${win[1]} s` : "any length";
-  if (!v?.url) {
-    return (
-      <div data-own-drop {...drop} className={cx("slotrow empty", over && "drag")} role="button" tabIndex={0} aria-label={`Add ${label.toLowerCase()}${hint ? `. ${hint}` : ""}`}
-        onClick={pick} onKeyDown={(ev) => { if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); pick(); } }}>
-        {file}
-        <span className="sth">{busy ? <Spinner size={16} /> : <I n="film" />}</span>
-        <div className="st"><b>{name}</b><span className="sub" style={{ fontFamily: "var(--body)" }}>{hint ?? `Drop a clip or click to browse · ${span}`}</span></div>
-        {sample && <button className="btn sm ghost" type="button" onClick={(ev) => { ev.stopPropagation(); onChange(sample); }}>Use sample</button>}
-      </div>
-    );
-  }
-  const len = (v.trim[1] || v.duration || 0) - v.trim[0];
-  const prepIn: PrepInput | null = !v.missing && v.width && v.height ? { slot: f.key, width: v.width, height: v.height, crop: v.crop, size: v.size } : null;
-  const p = prepIn && e.size ? plans(e.size, [prepIn])[prepIn.slot] : null;
+  const len = v ? (v.trim[1] || v.duration || 0) - v.trim[0] : 0;
   return (
-    <div className="cliprow">
-      <div data-own-drop {...drop} className={cx("slotrow", over && "drag")}>
-        {file}
-        <button className="sth" type="button" onClick={pick} aria-label={`Replace ${label.toLowerCase()}`}>
-          {v.poster ? <img src={v.poster} alt="" style={v.missing ? { opacity: 0.5 } : undefined} /> : <I n="film" />}
-          {busy ? <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}><Spinner size={16} /></span>
-            : <span className="dur">{len.toFixed(1)}s</span>}
-        </button>
-        <div className="st">
-          <b>{name}</b>
-          <span className="sub">
-            {v.missing ? <span style={{ color: "var(--orange)" }}>File missing · replace it</span>
-              : v.sample ? <span className="tag-sample">SAMPLE</span> : <span style={{ color: "var(--mint)" }}>Your clip</span>}
-            {v.width && v.height ? `${v.width}×${v.height}` : ""}
-          </span>
-        </div>
-        <div className="sacts">
-          <button className="icon-btn sm" type="button" onClick={pick} aria-label={`Replace ${label.toLowerCase()}`} title="Replace"><I n="refresh" /></button>
-          <button className="icon-btn sm" type="button" onClick={() => onChange(null)} aria-label={`Remove ${label.toLowerCase()}`} title="Remove"><I n="x" /></button>
-        </div>
-      </div>
-      {prepIn && e.size && <InputAttrs size={e.size} input={prepIn} preview={v.poster ?? undefined} staged={staged} onChange={(patch) => onChange({ ...v, ...patch })} />}
-      {!v.missing && !!v.duration && (
-        <Trimmer src={v.url} duration={v.duration} trim={v.trim} onChange={(trim) => onChange({ ...v, trim })} window={win} fps={rate[0] === rate[1] ? rate[0] : v.fps}
-          height={p?.height ?? v.height} />
-      )}
-    </div>
-  );
-}
-
-function SlotRow({ n, label, hint, optional, r, busy, sample, attrs, onFiles, onClear, onSample }: {
-  n: number; label: string; hint?: string; optional?: boolean; r?: RefSlot; busy: boolean; sample: boolean; attrs?: ReactNode; onFiles: (f: File[]) => void; onClear: () => void; onSample: () => void;
-}) {
-  const input = useRef<HTMLInputElement>(null);
-  const [over, setOver] = useState(false);
-  const pick = () => input.current?.click();
-  const drop = {
-    onDragOver: (ev: React.DragEvent) => { if (ev.dataTransfer.types.includes("Files")) { ev.preventDefault(); ev.stopPropagation(); setOver(true); } },
-    onDragLeave: (ev: React.DragEvent) => { if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) setOver(false); },
-    onDrop: (ev: React.DragEvent) => { if (!ev.dataTransfer.files.length) return; ev.preventDefault(); ev.stopPropagation(); setOver(false); onFiles([...ev.dataTransfer.files]); },
-  };
-  const name = `Image ${n} · ${label}`;
-  const file = <input ref={input} type="file" accept={ACCEPT} hidden onChange={(ev) => { onFiles([...(ev.target.files ?? [])]); ev.target.value = ""; }} />;
-  if (!r?.url) {
-    return (
-      <div data-own-drop {...drop} className={cx("slotrow empty", over && "drag")} role="button" tabIndex={0} aria-label={`Add ${label.toLowerCase()} photo${hint ? `. ${hint}` : ""}`}
-        onClick={pick} onKeyDown={(ev) => { if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); pick(); } }}>
-        {file}
-        <span className="sth">{busy ? <Spinner size={16} /> : <I n="upload" />}</span>
-        <div className="st"><b>{name}{optional && <span className="opt"> · optional</span>}</b><span className="sub" style={{ fontFamily: "var(--body)" }}>{hint ?? "Drop a photo or click to browse"}</span></div>
-        {sample && <button className="btn sm ghost" type="button" onClick={(ev) => { ev.stopPropagation(); onSample(); }}>Use sample</button>}
-      </div>
-    );
-  }
-  return (
-    <div className="inp">
-    <div data-own-drop {...drop} className={cx("slotrow", over && "drag")}>
-      {file}
-      <button className="sth" type="button" onClick={pick} aria-label={`Replace ${label.toLowerCase()} photo`}>
-        <img src={r.url} alt="" style={r.missing ? { opacity: 0.5 } : undefined} />
-        {busy && <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}><Spinner size={16} /></span>}
+    <div data-own-drop {...drop} className={cx("tile", !held?.url && "empty", over && "drag", held?.missing && "missing", !held?.url && sample && "has-sample")}>
+      <input ref={input} type="file" accept={video ? ACCEPT_VIDEO : ACCEPT} hidden onChange={(ev) => { void fill([...(ev.target.files ?? [])]); ev.target.value = ""; }} />
+      <button className="tile-main" type="button" onClick={pick} aria-label={held?.url ? `Replace ${f.label}` : `Add ${f.label}`}
+        title={held?.url ? "Click or drop to replace" : `Drop ${video ? "a clip" : "a photo"} or click to browse`}>
+        {thumb ? <img src={thumb} alt="" /> : <I n={video ? "film" : "image"} />}
+        {busy > 0 && <span className="tile-busy"><Spinner size={16} /></span>}
       </button>
-      <div className="st">
-        <b>{name}</b>
-        <span className="sub">
-          {r.missing ? <span style={{ color: "var(--orange)" }}>File missing · replace it</span>
-            : r.sample ? <span className="tag-sample">SAMPLE</span> : <span style={{ color: "var(--mint)" }}>Your photo</span>}
-          {r.width && r.height ? `${r.width}×${r.height}` : ""}
-        </span>
-      </div>
-      <div className="sacts">
-        <button className="icon-btn sm" type="button" onClick={pick} aria-label={`Replace ${label.toLowerCase()} photo`} title="Replace"><I n="refresh" /></button>
-        <button className="icon-btn sm" type="button" onClick={onClear} aria-label={`Remove ${label.toLowerCase()} photo`} title="Remove"><I n="x" /></button>
-      </div>
-    </div>
-    {attrs}
+      <span className="tile-n">{f.label}{!held?.url && f.required === false ? " · optional" : ""}</span>
+      {held?.url && held.sample && !held.missing && <span className="tag-sample tile-tag">SAMPLE</span>}
+      {held?.missing && <span className="tile-miss">File missing</span>}
+      {v?.url && !v.missing && <span className="tile-dur">{len.toFixed(1)}s</span>}
+      {held?.url
+        ? <button className="icon-btn sm glass tile-x" type="button" onClick={clear} aria-label={`Remove ${f.label}`} title="Remove"><I n="x" /></button>
+        : sample && <button className="tile-sample" type="button" onClick={useSample}>Use sample</button>}
     </div>
   );
 }
 
-/** A declared output size: a shape and a step, under the same cap as inputs, written where the template says. */
-function OutputSize({ size, label, aspect, choice, onChange }: { size: SizeSpec; label: string; aspect: string; choice: string; onChange: (k: string, v: string) => void }) {
-  const c = size.canvas!;
-  const dims = canvasSize(size, aspect, choice);
-  const steps = size.options.filter((o) => o.px);
+/** Under the tiles: each filled input's shape and size, and a clip's trim. */
+function InputExtras({ e, f, s, set, staged, named }: { e: EngineInfo; f: MediaField; s: StudioState; set: SetS; staged: boolean; named: boolean }) {
+  if (!e.size) return null;
+  const name = named ? f.label : undefined;
+  if (f.type === "video") {
+    const v = clipIn(s, f.key);
+    if (!v?.url || v.missing) return null;
+    const prepIn: PrepInput | null = v.width && v.height ? { slot: f.key, width: v.width, height: v.height, crop: v.crop, size: v.size } : null;
+    const p = prepIn ? plans(e.size, [prepIn])[prepIn.slot] : null;
+    const rate = clipFps(e, f.key);
+    return (
+      <div className="inx">
+        {prepIn && <InputAttrs name={name} size={e.size} input={prepIn} preview={v.poster ?? undefined} staged={staged} onChange={(patch) => set(withInput(f.key, patch))} />}
+        {!!v.duration && (
+          <Trimmer src={v.url} duration={v.duration} trim={v.trim} window={clipWindow(e, f.key)} fps={rate[0] === rate[1] ? rate[0] : v.fps} height={p?.height ?? v.height}
+            onChange={(trim) => set((st) => ({ videos: st.videos.map((x) => (x.slot === f.key ? { ...x, trim } : x)), current: null }))} />
+        )}
+      </div>
+    );
+  }
+  const n = slotNo(f.key);
+  const r = s.refs.find((x, i) => slotOf(x, i) === n);
+  if (!r?.url || r.missing || !r.width || !r.height) return null;
   return (
-    <section className="sec" aria-labelledby="sec-out">
-      <div className="sec-h"><h4 id="sec-out">{label}</h4>{dims && <span className="mono">{dimsText(dims)}</span>}</div>
-      <div className="sizes shapes" role="group" aria-label="Shape" style={{ gridTemplateColumns: `repeat(${Math.min(c.aspects.length, 4)},minmax(0,1fr))` }}>
-        {c.aspects.map((a) => (
-          <button key={a} type="button" aria-pressed={a === aspect} onClick={() => onChange("aspect", a)}><ShapeIcon r={aspectRatio(a)} /><b>{a}</b></button>
-        ))}
-      </div>
-      <div className="sizes" role="group" aria-label="Size" style={{ gridTemplateColumns: `repeat(${Math.min(steps.length, 4)},minmax(0,1fr))` }}>
-        {steps.map((o) => {
-          const d = canvasSize(size, aspect, o.label);
-          return <button key={o.label} type="button" aria-pressed={o.label === choice} onClick={() => onChange("out_size", o.label)}><b>{o.label}</b>{d && <span>{dimsText(d)}</span>}</button>;
-        })}
-      </div>
-    </section>
+    <div className="inx">
+      <InputAttrs name={name} size={e.size} input={{ slot: f.key, width: r.width, height: r.height, crop: r.crop, size: r.size }} preview={r.url} staged={staged}
+        onChange={(patch) => set(withInput(f.key, patch))} />
+    </div>
   );
 }
 
@@ -575,8 +453,8 @@ function OutputSize({ size, label, aspect, choice, onChange }: { size: SizeSpec;
  * megapixel budget at its shape). One line under the input; open it to change either. The input on the stage is
  * cropped there, the others in a small preview here.
  */
-function InputAttrs({ size, input, preview, staged, onChange }: {
-  size: SizeSpec; input: PrepInput; preview?: string; staged: boolean; onChange: (patch: { crop?: Crop; size?: string }) => void;
+function InputAttrs({ name, size, input, preview, staged, onChange }: {
+  name?: string; size: SizeSpec; input: PrepInput; preview?: string; staged: boolean; onChange: (patch: { crop?: Crop; size?: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const choice = choiceOf(size, input.slot, input.size);
@@ -590,6 +468,7 @@ function InputAttrs({ size, input, preview, staged, onChange }: {
     <div className={cx("attrs", open && "open")}>
       <button className="attrs-h" type="button" aria-expanded={open} onClick={() => setOpen(!open)} title="The shape and size this input runs at">
         <ShapeIcon r={p.width / p.height} />
+        {name && <><b>{name}</b><i>·</i></>}
         <span>{shape === "Own" ? "Own shape" : shape}</span><i>·</i><span>{choice === size.original ? "Own size" : choice}</span>
         {notes.length > 0 && <I n="alert" className="warn" />}
         <span className="mono">{dimsText(p)}</span>
@@ -633,10 +512,10 @@ function InputAttrs({ size, input, preview, staged, onChange }: {
 
 /* ------------------------------------------------------------------- stage */
 
-function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group, vlist, jobs, marking, setMarking, fixes, onFocus, onStar }: {
+function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group, vlist, jobs, fixes, onFocus }: {
   mode: Mode; lead: string; eff: View | "live" | "failed" | "empty"; s: StudioState; set: SetS; engine?: EngineInfo; base?: RefSlot; out: { width: number; height: number } | null;
-  shown: Manifest | null; job?: Job; group: string[]; vlist: Manifest[]; jobs: Job[]; marking: boolean; setMarking: (v: boolean) => void; fixes: Fix[];
-  onFocus: (id: string) => void; onStar: (id: string) => void;
+  shown: Manifest | null; job?: Job; group: string[]; vlist: Manifest[]; jobs: Job[]; fixes: Fix[];
+  onFocus: (id: string) => void;
 }) {
   const { upload, busy } = useUploader();
   const [over, setOver] = useState(false);
@@ -658,13 +537,14 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
     ? (shown && drove ? fileUrl(shown.id, posterOf(drove.file!)) : clip?.poster ?? undefined)
     : shown && before ? fileUrl(shown.id, before) : base?.url;
 
-  if (eff === "empty" && engine?.size?.canvas) {
+  // Words only: nothing to drop, the prompt is the whole input.
+  if (eff === "empty" && engine && (engine.size?.canvas || !engine.inputs?.length)) {
     return (
       <div className="frame" style={{ "--ar": ar } as CSSProperties}>
         <div className="empty" style={{ position: "absolute", inset: 0, display: "grid", placeContent: "center", justifyItems: "center", textAlign: "center", padding: 20 }}>
           <div className="empty-ic"><I n={mode === "motion" ? "film" : "image"} /></div>
           <h3>Describe it, then Run</h3>
-          <p>No photo needed: this template makes {mode === "motion" ? "a video" : "a picture"} from the prompt alone. {engine?.size?.canvas ? "The frame shows the output shape you pick on the left." : "The workflow sets the output size."}</p>
+          <p>This template makes {mode === "motion" ? "a video" : "a picture"} from the prompt alone.</p>
         </div>
         {out && <div className="corner r"><span className="pill mono">Out {dimsText(out)}</span></div>}
       </div>
@@ -686,8 +566,8 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
         onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setOver(true); } }} onDragLeave={() => setOver(false)}
         onDrop={(e) => { if (!e.dataTransfer.files.length) return; e.preventDefault(); setOver(false); void fill([...e.dataTransfer.files]); }}>
         <div className="empty-ic">{busy ? <Spinner size={18} /> : <I n="film" />}</div>
-        <h3>Add {article(leadField?.label ?? "source clip")}</h3>
-        <p>Drop it here or on the Video {slotNo(lead)} row.{leadWin ? ` ${leadWin[0]}–${leadWin[1]} s; longer clips get trimmed.` : ""}</p>
+        <h3>Add {leadField?.label ?? "a clip"}</h3>
+        <p>Drop a clip here.{leadWin ? ` ${leadWin[0]}–${leadWin[1]} s; longer clips get trimmed.` : ""}</p>
         {sample && <button className="btn" type="button" onClick={() => set((st) => ({ videos: withClip(st, lead, sample) }))}>Use sample</button>}
       </div>
     );
@@ -714,15 +594,14 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
   }
 
   if (eff === "empty") {
-    const first = leadField?.label ?? "photo";
     const sample = engine ? sampleRef(engine, lead) : null;
     return (
       <div data-own-drop className={cx("empty", over && "drag")} style={{ padding: 20, borderRadius: 18, border: `1.5px dashed ${over ? "var(--violet)" : "var(--line-2)"}` }}
         onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setOver(true); } }} onDragLeave={() => setOver(false)}
-        onDrop={async (e) => { if (!e.dataTransfer.files.length) return; e.preventDefault(); setOver(false); addToTray(mode, await upload([...e.dataTransfer.files].slice(0, engine?.max_images ?? 4), "image")); }}>
+        onDrop={(e) => { if (!e.dataTransfer.files.length) return; e.preventDefault(); setOver(false); void dropIntoStudio(mode, [...e.dataTransfer.files]); }}>
         <div className="empty-ic">{busy ? <Spinner size={18} /> : <I n="image" />}</div>
-        <h3>Add {article(first)}</h3>
-        <p>Drop it here or on the Image {slotNo(lead)} row. Several photos fill the inputs in order.</p>
+        <h3>Add {leadField?.label ?? "a photo"}</h3>
+        <p>Drop a photo here. Several fill the inputs in order.</p>
         {sample && <button className="btn" type="button" onClick={() => set((st) => ({ refs: bySlot([...bySlot(st.refs).filter((r) => r.slot !== sample.slot), sample]) }))}>Use sample</button>}
       </div>
     );
@@ -736,7 +615,7 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
         {group.map((id, i) => {
           const v = vlist.find((x) => x.id === id);
           const j = jobs.find((x) => x.id === id);
-          return <VCell key={id} n={i + 1} v={v} job={j} fallback={beforeUrl} starred={s.selected.includes(id)} onOpen={() => onFocus(id)} onStar={() => onStar(id)} />;
+          return <VCell key={id} n={i + 1} v={v} job={j} fallback={beforeUrl} onOpen={() => onFocus(id)} />;
         })}
       </div>
     );
@@ -779,14 +658,14 @@ function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group,
     const dims = size ? `${size.w}×${size.h}` : "";
     return (
       <div className="frame" style={{ "--ar": ar } as CSSProperties}>
-        {eff === "compare" && beforeUrl ? <Compare before={beforeUrl} after={after} lb="Input" la="Result" /> : <img src={after} alt="Result" className="alpha" />}
+        {eff === "compare" && beforeUrl ? <Compare key={after} before={beforeUrl} after={after} lb="Input" la="Result" intro /> : <img src={after} alt="Result" className="alpha" />}
         {eff === "result" && <div className="corner r"><span className="pill mono">{dims}{shown.result.seed != null ? `${dims ? " · " : ""}seed ${shown.result.seed}` : ""}</span></div>}
       </div>
     );
   }
 
   if (!base) return null;
-  return <InputFrame base={base} out={out} s={s} set={set} marking={marking} setMarking={setMarking} cropping />;
+  return <InputFrame base={base} out={out} set={set} />;
 }
 
 /** Pixel size of an image, once it loads. */
@@ -803,61 +682,18 @@ function useImageSize(url: string | null) {
   return size && size.url === url ? size : null;
 }
 
-/** The input photo. With Mark area on, drag a rectangle; the edit stays inside it. */
-function InputFrame({ base, out, s, set, marking, setMarking, cropping }: {
-  base: RefSlot; out: { width: number; height: number } | null; s: StudioState; set: SetS; marking: boolean; setMarking: (v: boolean) => void; cropping: boolean;
-}) {
-  const el = useRef<HTMLDivElement>(null);
+/** The input photo, with its crop box. */
+function InputFrame({ base, out, set }: { base: RefSlot; out: { width: number; height: number } | null; set: SetS }) {
   const [nat, setNat] = useState<{ w: number; h: number } | null>(base.width && base.height ? { w: base.width, h: base.height } : null);
-  const [draft, setDraft] = useState<[number, number, number, number] | null>(null);
   useLayoutEffect(() => setNat(base.width && base.height ? { w: base.width, h: base.height } : null), [base.url, base.width, base.height]);
-  const area = s.boxes.find((b) => b.label === AREA);
-  const rect = draft ?? area?.rect ?? null;
   const ar = nat ? nat.w / nat.h : 1;
 
-  const at = (e: { clientX: number; clientY: number }) => {
-    const r = el.current!.getBoundingClientRect();
-    return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))] as const;
-  };
-  const down = (e: React.PointerEvent) => {
-    if (!marking) return;
-    e.preventDefault();
-    el.current!.setPointerCapture(e.pointerId);
-    const [x0, y0] = at(e);
-    let box: [number, number, number, number] | null = null;
-    const move = (ev: PointerEvent) => {
-      const [x1, y1] = at(ev);
-      box = [Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)];
-      setDraft(box);
-    };
-    const up = () => {
-      el.current?.removeEventListener("pointermove", move);
-      el.current?.removeEventListener("pointerup", up);
-      el.current?.removeEventListener("pointercancel", up);
-      setDraft(null);
-      setMarking(false);
-      if (box && box[2] > 0.03 && box[3] > 0.03) {
-        const b = box;
-        set((st) => ({ boxes: [...st.boxes.filter((x) => x.label !== AREA), { id: newKey(), rect: b, label: AREA }] }));
-      }
-    };
-    el.current!.addEventListener("pointermove", move);
-    el.current!.addEventListener("pointerup", up);
-    el.current!.addEventListener("pointercancel", up);
-  };
-
   return (
-    <div ref={el} className={cx("frame", marking && "marking")} style={{ "--ar": ar } as CSSProperties} onPointerDown={down}>
+    <div className="frame" style={{ "--ar": ar } as CSSProperties}>
       <img src={base.url} alt="Input" draggable={false} onLoad={(e) => { const i = e.currentTarget; if (!nat && i.naturalWidth) setNat({ w: i.naturalWidth, h: i.naturalHeight }); }} />
-      {cropping && base.crop && !marking && !rect && (
+      {base.crop && (
         <CropBox crop={base.crop} onChange={(crop) => set((st) => ({ refs: st.refs.map((r, i) => (slotOf(r, i) === 1 ? { ...r, crop } : r)), current: null }))} />
       )}
-      {rect ? (
-        <div className="region" style={{ left: `${rect[0] * 100}%`, top: `${rect[1] * 100}%`, width: `${rect[2] * 100}%`, height: `${rect[3] * 100}%` }}><span className="pill yellow">Area</span></div>
-      ) : marking ? <div className="tophint"><span className="pill yellow">Drag over the part you want changed</span></div> : null}
-      {s.boxes.filter((b) => b.label !== AREA && b.label.trim()).map((b) => (
-        <div key={b.id} className="region" style={{ left: `${b.rect[0] * 100}%`, top: `${b.rect[1] * 100}%`, width: `${b.rect[2] * 100}%`, height: `${b.rect[3] * 100}%`, boxShadow: "none", borderStyle: "dashed" }}><span className="pill">{b.label}</span></div>
-      ))}
       {nat && <div className="corner l"><span className="pill mono">Source {nat.w}×{nat.h}</span></div>}
       {out && <div className="corner r"><span className="pill mono" title="OpenIllusion crops and sizes the photo to this before the run. What the workflow makes of it is up to the workflow.">In {dimsText(out)} · {aspectName(out)}</span></div>}
     </div>
@@ -907,7 +743,7 @@ function ShapeIcon({ r }: { r: number }) {
   return <svg className="shape-ic" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x={8 - w / 2} y={8 - h / 2} width={w} height={h} rx="2" /></svg>;
 }
 
-function VCell({ n, v, job, fallback, starred, onOpen, onStar }: { n: number; v?: Manifest; job?: Job; fallback?: string; starred: boolean; onOpen: () => void; onStar: () => void }) {
+function VCell({ n, v, job, fallback, onOpen }: { n: number; v?: Manifest; job?: Job; fallback?: string; onOpen: () => void }) {
   const live = !!job && isActive(job);
   const q = live && QUEUED.has(job!.state);
   const p = jobProgress(job);
@@ -926,12 +762,6 @@ function VCell({ n, v, job, fallback, starred, onOpen, onStar }: { n: number; v?
       )}
       {failed && <div className="gfail"><span className="ic"><I n="alert" /></span><b>{v!.status === "cancelled" ? "Cancelled" : "Failed"}</b></div>}
       <div className="corner l"><span className="pill mono">{n}{v?.result?.seed != null ? ` · seed ${v.result.seed}` : ""}</span></div>
-      {done && (
-        <div className="corner r">
-          <button className={cx("icon-btn sm glass fav")} type="button" aria-pressed={starred} aria-label={starred ? `Unstar variant ${n}` : `Star variant ${n}`} title="Star to send to Video"
-            onClick={(e) => { e.stopPropagation(); onStar(); }}><I n="star" /></button>
-        </div>
-      )}
     </div>
   );
 }
@@ -939,8 +769,8 @@ function VCell({ n, v, job, fallback, starred, onOpen, onStar }: { n: number; v?
 /* ---------------------------------------------------------------- prompt + run */
 
 /** The prompt, whole: what's in the box is what the workflow gets. Ideas swap in a complete prompt. */
-function PromptSection({ s, set, engine, area, clearArea, invalid, onRun }: {
-  s: StudioState; set: SetS; engine?: EngineInfo; area: boolean; clearArea: () => void; invalid: boolean; onRun: () => void;
+function PromptSection({ s, set, engine, invalid, onRun }: {
+  s: StudioState; set: SetS; engine?: EngineInfo; invalid: boolean; onRun: () => void;
 }) {
   const ta = useRef<HTMLTextAreaElement>(null);
   // Fit the box to its text; again when the panel's width changes or the fonts arrive.
@@ -967,14 +797,13 @@ function PromptSection({ s, set, engine, area, clearArea, invalid, onRun }: {
   return (
     <section className="sec" aria-labelledby="sec-prompt">
       <div className="sec-h">
-        <h4 id="sec-prompt">{pf.label}{pf.required === false && <span className="opt"> · optional</span>}</h4>
+        <h4 id="sec-prompt">Prompt{pf.required === false && <span className="opt"> · optional</span>}</h4>
         {def && s.prompt !== def
           ? <button className="sec-act" type="button" onClick={() => set({ prompt: def })} title="Put the template's prompt back"><I n="undo" />Reset</button>
           : <span className="mono">{s.prompt.length}</span>}
       </div>
       <div className={cx("pbox", invalid && s.prompt.trim() && "bad")}>
-        {area && <span className="areachip">Only inside the marked area<button type="button" aria-label="Clear area" onClick={clearArea}><I n="x" /></button></span>}
-        <textarea ref={ta} id="prompt" aria-labelledby="sec-prompt" rows={4} spellCheck value={s.prompt} placeholder={pf.hint ?? "Describe the change. Keep it to one clear instruction."}
+        <textarea ref={ta} id="prompt" aria-labelledby="sec-prompt" rows={4} spellCheck value={s.prompt} placeholder="Describe what you want."
           onChange={(e) => set({ prompt: e.target.value })}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) { e.preventDefault(); onRun(); } }} />
         <div className="pbox-foot"><span>Sent exactly as written</span><kbd>Ctrl</kbd><kbd>↵</kbd><span>runs</span></div>
@@ -989,8 +818,8 @@ function PromptSection({ s, set, engine, area, clearArea, invalid, onRun }: {
 }
 
 /** Pinned under the recipe: how many, what's in the way, Run. */
-function RunBar({ s, set, engine, runner, estimate, queued }: {
-  s: StudioState; set: SetS; engine?: EngineInfo; runner: ReturnType<typeof useRunner>; estimate?: ReturnType<typeof useCompose>["estimate"]; queued: number;
+function RunBar({ s, set, engine, runner, estimate, queued, varies }: {
+  s: StudioState; set: SetS; engine?: EngineInfo; runner: ReturnType<typeof useRunner>; estimate?: ReturnType<typeof useCompose>["estimate"]; queued: number; varies: boolean;
 }) {
   const status = useStatus();
   const media = mediaFields(engine);
@@ -1010,7 +839,7 @@ function RunBar({ s, set, engine, runner, estimate, queued }: {
             <button className="btn sm ghost" type="button" onClick={() => runner.setConfirm(false)}>Cancel</button>
           </span>
         ) : missing ? (
-          <span className="warn"><I n="alert" />Add {article(missing.label)} to run</span>
+          <span className="warn"><I n="alert" />Add {missing.label} to run</span>
         ) : reasons.length ? (
           <span className="warn" title={reasons.join("\n")}><I n="alert" />{reasons[0]}{reasons.length > 1 ? ` · +${reasons.length - 1} more` : ""}</span>
         ) : runner.isLocal ? (
@@ -1020,9 +849,9 @@ function RunBar({ s, set, engine, runner, estimate, queued }: {
         )}
       </div>
       <div className="rb-row">
-        <div className="rb-count" role="group" aria-label="Variants, one seed each" title="Variants, one seed each">
+        {varies && <div className="rb-count" role="group" aria-label="Variants, one seed each" title="Variants, one seed each">
           {[1, 2, 3, 4].map((v) => <button key={v} type="button" aria-pressed={s.variants === v} onClick={() => set({ variants: v })}>{v}</button>)}
-        </div>
+        </div>}
         <button className="run" type="button" disabled={runner.blocked || !!missing} onClick={() => void runner.run()} aria-keyshortcuts="Control+Enter R">
           {runner.busy ? <Spinner /> : <I n="zap" />}{s.variants > 1 ? `Run ${s.variants} variants` : "Run"}<kbd>R</kbd>
         </button>

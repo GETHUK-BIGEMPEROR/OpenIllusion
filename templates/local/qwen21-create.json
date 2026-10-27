@@ -9,19 +9,12 @@
   "source": "ComfyUI template image_qwen_image_2_1_t2i (prompt enhancer left out)",
   "tags": [
     "create",
-    "photo",
     "poster"
-  ],
-  "tips": [
-    "Say what's in the picture, then the style, light and lens. Concrete beats clever.",
-    "Put words you want on the image in quotes; Qwen spells them out.",
-    "Pick the shape and size under Output."
   ],
   "inputs": [
     {
       "key": "prompt",
       "type": "text",
-      "label": "Prompt",
       "required": true,
       "default": "High quality photograph of a young Korean woman cycling along a Copenhagen canal street at golden hour, hair moving in the wind, a canvas tote in the front basket, colorful townhouses softly blurred behind her. Candid, warm natural light, shot on 35mm film.",
       "examples": [
@@ -52,75 +45,6 @@
           "prompt"
         ]
       ]
-    },
-    {
-      "key": "steps",
-      "type": "int",
-      "label": "Steps",
-      "advanced": true,
-      "min": 8,
-      "max": 40,
-      "default": 25,
-      "bind": [
-        [
-          "459:458",
-          "steps",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "seed",
-      "type": "seed",
-      "label": "Seed",
-      "advanced": true,
-      "default": -1,
-      "bind": [
-        [
-          "459:458",
-          "seed",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "cache",
-      "type": "segmented",
-      "label": "Step cache",
-      "advanced": true,
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
-      "options": [
-        "cpu",
-        "auto",
-        "gpu",
-        "off"
-      ],
-      "default": "cpu",
-      "bind": [
-        [
-          "459:480",
-          "device"
-        ]
-      ]
-    },
-    {
-      "key": "size",
-      "type": "size",
-      "label": "Output size",
-      "bind": [
-        [
-          "459:456",
-          "width",
-          "width"
-        ],
-        [
-          "459:456",
-          "height",
-          "height"
-        ]
-      ],
-      "aspect": "4:5",
-      "default": "1 MP"
     }
   ],
   "size": {
@@ -226,6 +150,11 @@
           "459:456",
           0
         ]
+      },
+      "_meta": {
+        "control_after_generate": {
+          "seed": "fixed"
+        }
       }
     },
     "459:480": {

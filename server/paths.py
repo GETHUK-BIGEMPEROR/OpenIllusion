@@ -80,6 +80,11 @@ def templates_dir() -> Path:
     return repo_root() / "templates" / "local"
 
 
+def cloud_templates_dir() -> Path:
+    """Shipped cloud templates, one per Comfy Router model: ``templates/cloud``."""
+    return repo_root() / "templates" / "cloud"
+
+
 def _ensure(p: Path) -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p

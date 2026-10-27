@@ -69,10 +69,10 @@ export function App() {
     if (st.palette) st.setPalette(false);
   }, [routeKey]);
 
-  // First run goes to Connect until a key is saved or the user skips.
+  // First run checks the local ComfyUI once, until the user opens Explore from there.
   useEffect(() => {
     const s = status.data;
-    if (s && !s.has_key && !s.onboarded && route.name !== "connect" && route.name !== "settings") go({ name: "connect" });
+    if (s && !s.onboarded && route.name !== "connect" && route.name !== "settings") go({ name: "connect" });
   }, [status.data, route.name]);
 
   useEffect(() => {

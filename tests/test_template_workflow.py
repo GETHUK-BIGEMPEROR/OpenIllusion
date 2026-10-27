@@ -56,17 +56,12 @@ def test_preset_mirrors_the_template():
     assert p["base"] == HAT and p["label"].startswith("Add a hat (copy) · ")
     assert p["media"] == [{"node": "11", "input": "image", "slot": "image:1", **{k: v for k, v in p["media"][0].items() if k in ("label", "hint", "required")}}]
     assert p["prompt"]["node"] == "5" and p["prompt"]["input"] == "prompt" and p["prompt"]["default"] == engines.ENGINES[HAT].default_prompt
-    assert {x["key"] for x in p["params"]} >= {"steps", "seed"}
+    assert p["params"] == [] and p["size"] is None
 
 
-def test_inherit_keeps_input_sizing_and_the_preset_carries_the_output_size():
+def test_inherit_keeps_the_multiple_and_nothing_hidden():
     hat = engines.ENGINES[HAT]
     data = {"inputs": [{"key": "image:1", "type": "image"}, {"key": "prompt", "type": "text"}], "workflow": hat.workflow}
     builder.inherit(data, hat.data, hat.label)
-    assert data["size"] == {"multiple": 32} and data["inputs"][0]["size"] == "1 MP"
+    assert data["size"] == {"multiple": 32} and "size" not in data["inputs"][0] and "tips" not in data
     assert data["source"].endswith(hat.label)
-    # The output size is a declared input: the builder gets it in the preset and the author keeps or drops it.
-    p = builder.preset(engines.ENGINES[CREATE])
-    out = next(f for f in engines.ENGINES[CREATE].fields if f["type"] == "size")
-    assert p["size"] == {"node": out["bind"][0][0], "label": "Output size", "aspect": "4:5", "default": "1 MP"}
-    assert not any(x["key"] == "size" for x in p["params"]) and p["outputs"] == engines.ENGINES[CREATE].outputs

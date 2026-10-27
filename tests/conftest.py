@@ -70,3 +70,26 @@ def fixture_templates(monkeypatch):
     for f in sorted(d.glob("*.json")):
         e = engines.load_template(json.loads(f.read_text("utf-8")), base=d)
         monkeypatch.setitem(engines.ENGINES, e.id, e)
+
+
+CLIP = "cloud/test-clip"
+
+
+@pytest.fixture
+def clip_template(monkeypatch):
+    """A Router template that takes a photo and a clip: images[0] and video_url, as data URIs."""
+    data = {
+        "format": "openillusion.template", "version": 2, "id": "test-clip", "kind": "cloud", "mode": "motion",
+        "label": "Test clip", "model": "acme/clip-model", "provider": "acme",
+        "body": {"prompt": "", "images": ["{{image:1}}"], "video_url": "{{video:1}}"},
+        "inputs": [
+            {"key": "image:1", "type": "image", "required": True, "bind": [["images", 0]]},
+            {"key": "video:1", "type": "video", "required": True, "bind": [["video_url"]]},
+            {"key": "prompt", "type": "text", "required": True, "bind": [["prompt"]]},
+        ],
+        "result": [],
+    }
+    e = engines.load_template(data)
+    e.data = data
+    monkeypatch.setitem(engines.ENGINES, e.id, e)
+    return e

@@ -30,4 +30,4 @@ version = { attr = "server.__version__" }
 include = ["server*"]
 
 [tool.setuptools.package-data]
-server = ["static/**/*"]
+server = ["static/**/*", "adapters/*.json"]

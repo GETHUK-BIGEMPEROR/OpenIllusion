@@ -7,7 +7,7 @@ import { go, href, type Route } from "../lib/route";
 import { useApp } from "../lib/store";
 import { appRoot, cx, I } from "./oi";
 import type { IconName } from "./sprite";
-import { tplCategory, tplName } from "./TemplateCard";
+import { tplModel, tplName } from "./TemplateCard";
 
 type Row = { key: string; group: string; label: string; small?: string; img?: string | null; icon?: IconName; run: () => void };
 
@@ -54,7 +54,7 @@ function PaletteBody({ close }: { close: () => void }) {
     const tpl = (engines.data ?? [])
       .filter((e) => !s || `${e.label} ${(e.tags ?? []).join(" ")} ${e.blurb}`.toLowerCase().includes(s))
       .slice(0, s ? 8 : 5)
-      .map<Row>((e) => ({ key: `t:${e.id}`, group: "Templates", label: tplName(e), small: tplCategory(e), img: e.cover, run: () => { openTemplate(e.mode, e.id); go({ name: e.mode }); } }));
+      .map<Row>((e) => ({ key: `t:${e.id}`, group: "Templates", label: tplName(e), small: tplModel(e), img: e.cover, run: () => { openTemplate(e.mode, e.id); go({ name: e.mode }); } }));
     const gs = (s.length > 1 ? gens.data ?? [] : [])
       .slice(0, 6)
       .map<Row>((g) => ({ key: `g:${g.id}`, group: "Generations", label: g.prompt || g.title, small: ago(g.created), img: g.poster ? fileUrl(g.id, g.poster) : null, icon: "image", run: () => go({ name: "generation", id: g.id }) }));

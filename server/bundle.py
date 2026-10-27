@@ -304,15 +304,15 @@ def _review(recipe: dict, source: dict, files: dict[str, bytes], poster: tuple[s
     elif any(i.file for i in m.inputs):
         checks.append({"level": "pass", "text": "File hashes verified", "detail": "Every included input matches its sha256"})
 
-    e = engines.get(m.engine.model)
-    if m.engine.model in engines.ENGINES:
-        checks.append({"level": "pass", "text": "Template installed" if e.kind == "local" else "Model available on Router", "detail": m.engine.model})
+    e = engines.ENGINES.get(m.engine.model)
+    if e is not None:
+        checks.append({"level": "pass", "text": "Template installed" if e.kind == "local" else "Router template installed", "detail": m.engine.model})
     else:
-        checks.append({"level": "warn", "text": "Not one of your templates", "detail": f"{m.engine.model} · runs through the schema form if Router lists it"})
+        checks.append({"level": "warn", "text": "Not one of your templates", "detail": f"{m.engine.model} · install the template to run it again"})
 
     missing_video = [i for i in m.inputs if i.slot.startswith("video:") and not (i.file and i.file in files)]
-    if missing_video or (e.needs_video and not any(i.slot.startswith("video:") for i in m.inputs)):
-        window = engines.clip_limits(e, missing_video[0].slot if missing_video else "video:1")[0]
+    if missing_video or (e is not None and e.needs_video and not any(i.slot.startswith("video:") for i in m.inputs)):
+        window = engines.clip_limits(e, missing_video[0].slot if missing_video else "video:1")[0] if e is not None else None
         span = f", {window[0]:g}–{window[1]:g} s" if window else ""
         checks.append({"level": "warn", "text": "No driving video in this generation", "detail": f"You'll be asked for your own clip{span}"})
     missing_refs = [i for i in m.inputs if i.slot.startswith("image:") and not (i.file and i.file in files)]

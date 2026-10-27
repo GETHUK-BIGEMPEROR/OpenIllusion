@@ -5,7 +5,7 @@ import { isActive, useJobs } from "../lib/live";
 import { go, href, parse, type Route } from "../lib/route";
 import { cachedEngine } from "../lib/query";
 import { useApp } from "../lib/store";
-import { dotStyle, I, localState, useStatus } from "./oi";
+import { I } from "./oi";
 import { dropIntoStudio, isMediaFile, openWithFiles } from "./Drop";
 import { buildAction, workflowToBuilder } from "../screens/Builder";
 import { cx } from "./ui";
@@ -31,11 +31,8 @@ export function Rail({ route }: { route: Route }) {
   const setQueue = useApp((s) => s.setQueue);
   const queueOpen = useApp((s) => s.queueOpen);
   const badge = useQueueBadge();
-  const status = useStatus();
   const current = section(route);
   const lastStudio = useApp((s) => s.lastStudio);
-  const local = localState(status.data?.local);
-  const cloudOn = !!status.data?.has_key && status.data.router.ok !== false;
 
   // 1/2/3 jump between Explore, Create and Library when no field has focus.
   useEffect(() => {
@@ -61,10 +58,6 @@ export function Rail({ route }: { route: Route }) {
         <I n="layers" />Queue<span className="badge">{badge}</span>
       </button>
       <div className="rail-spacer" />
-      <a className="rail-status" href={href({ name: "settings" })} title={`Local: ${local.title}. Cloud: ${status.data?.has_key ? "key saved" : "no API key"}.`}>
-        <span className="rs"><i className={cx("dot", local.tone === "off" && "off")} style={dotStyle(local.tone)} />GPU</span>
-        <span className="rs"><i className={cx("dot", cloudOn ? "violet" : "off")} />API</span>
-      </a>
       <a className="nav-btn" href={href({ name: "settings" })} aria-current={current === "settings" ? "page" : undefined}><I n="sliders" />Settings</a>
     </nav>
   );

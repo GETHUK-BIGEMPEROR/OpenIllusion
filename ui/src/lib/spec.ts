@@ -1,5 +1,5 @@
 import type { EngineInfo, Mode, Spec, SpecInput } from "./api";
-import { areaField, clipSlots } from "./fields";
+import { clipSlots } from "./fields";
 import { slotOf, type StudioState } from "./store";
 
 export function defaults(engine?: EngineInfo): Record<string, unknown> {
@@ -56,7 +56,7 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
     title: s.title || undefined,
     inputs,
     prompt: s.prompt,
-    boxes: areaField(engine, mode) ? s.boxes : [],
+    boxes: [],
     params: { ...defaults(engine), ...s.params },
     raw,
     variants: s.variants,

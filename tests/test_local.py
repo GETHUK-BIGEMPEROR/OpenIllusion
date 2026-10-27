@@ -294,3 +294,4 @@ def test_ensure_restarts_its_own_proxy_when_comfyui_moved(monkeypatch):
     r, stopped = _ensure_with(monkeypatch, "http://127.0.0.1:8188", comfy="http://127.0.0.1:8288", ours=True)
     assert stopped == [True]
     assert r["reason"] == "proxy_not_installed"  # it went on to start a new one (blocked here by the test)
+

@@ -24,3 +24,26 @@
 .reveal{opacity:0;transition:opacity .2s}
 .card:hover .reveal,.card:focus-within .reveal,.card.sel .reveal{opacity:1}
 @media (hover:none){.go,.reveal{opacity:1;transform:none}}
+/* template cards: the sample left of the cursor, the result right of it */
+.media .before{position:absolute;inset:0;z-index:2;clip-path:inset(0 calc(100% - var(--x)) 0 0);transition:--x .45s var(--ease)}
+.media .before img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1}
+.card:hover .media .before img{transform:scale(1.04)}
+.scrub.live .before{transition:none}
+.media .seam{position:absolute;top:0;bottom:0;left:var(--x);width:2px;margin-left:-1px;background:rgba(255,255,255,.92);box-shadow:0 0 14px rgba(0,0,0,.5);z-index:3;opacity:0;transition:opacity .2s}
+.scrub.live .seam{opacity:1}
+.media .tagb,.media .taga{position:absolute;top:50%;z-index:3;transform:translateY(-50%);opacity:0;transition:opacity .2s}
+.media .tagb{right:calc(100% - var(--x) + 8px)}
+.media .taga{left:calc(var(--x) + 8px)}
+.scrub.live .tagb,.scrub.live .taga{opacity:1}
+
+/* A card without a cover: the model's maker set in type, tinted per provider. */
+.nocover{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:48px 18px 70px;overflow:hidden;align-items:center;text-align:center;
+  background:radial-gradient(110% 80% at 100% 0%,hsl(var(--h) 70% 62% / .22),transparent 62%),radial-gradient(90% 70% at 0% 100%,hsl(calc(var(--h) + 60) 70% 55% / .12),transparent 60%),linear-gradient(160deg,#2c2235,#1a1420)}
+.nocover .nc-flow{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.nocover .nc-in,.nocover .nc-out{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:hsl(var(--h) 40% 70% / .1);border:1px solid hsl(var(--h) 60% 80% / .16);color:hsl(var(--h) 80% 86%)}
+.nocover .nc-out{background:hsl(var(--h) 75% 70% / .22);border-color:hsl(var(--h) 80% 80% / .35)}
+.nocover .i{width:20px;height:20px}
+.nocover .nc-to{color:rgba(242,238,248,.4)}
+.nocover small{font:500 10.5px/1.3 var(--mono);color:rgba(242,238,248,.45);letter-spacing:.02em}
+.ctop>.pill{flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctop>.pill.kindb,.ctop>.icon-btn{flex-shrink:0}

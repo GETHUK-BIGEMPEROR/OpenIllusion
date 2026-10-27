@@ -1,0 +1,27 @@
+{
+  "model": "vertexai/gemini-nano-banana-2.1",
+  "name": "Nano Banana 2.1",
+  "makes": "photo",
+  "body": {
+    "contents": [
+      { "role": "user", "parts": [{ "text": "" }] }
+    ],
+    "generationConfig": {
+      "responseModalities": ["TEXT", "IMAGE"]
+    }
+  },
+  "prompt": ["contents", 0, "parts", 0, "text"],
+  "inputs": [
+    {
+      "role": "Photo",
+      "type": "image",
+      "at": ["contents", 0, "parts", "+"],
+      "value": { "inlineData": { "mimeType": "{{$|mime}}", "data": "{{$|b64}}" } },
+      "max": 4
+    }
+  ],
+  "result": [
+    ["candidates", "*", "content", "parts", "*", "inlineData", "data"],
+    ["candidates", "*", "content", "parts", "*", "fileData", "fileUri"]
+  ]
+}

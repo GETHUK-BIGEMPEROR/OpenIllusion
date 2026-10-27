@@ -1,3 +1,4 @@
+import dataclasses
 import io
 import json
 import zipfile
@@ -47,7 +48,8 @@ def test_export_requires_attestation_and_consent(tmp_path):
 
 def test_full_roundtrip_keeps_everything(tmp_path, monkeypatch):
     m = library_generation(tmp_path)
-    monkeypatch.setitem(engines.ENGINES, m.engine.model, engines.get(m.engine.model))  # a template for it is installed
+    swap = dataclasses.replace(engines.get("local/minimax-h3-character-swap"), id=m.engine.model)
+    monkeypatch.setitem(engines.ENGINES, m.engine.model, swap)  # a template for it is installed
     out = bundle.export(m.id, "full", False, OK, dest_dir=tmp_path / "x")
     names = set(zipfile.ZipFile(out).namelist())
     assert {"generation.json", "refs/ref-01.png", "driving/driving.mp4", "result/preview.mp4", "result/poster.webp", "LICENSES.md"} <= names

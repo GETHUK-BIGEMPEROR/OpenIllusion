@@ -46,14 +46,9 @@ export function settingsOf(e?: EngineInfo): { main: ParamSpec[]; advanced: Param
 /** The input the stage shows first and crops there: the clip if the template takes one, else its first photo. */
 export const leadSlot = (e?: EngineInfo): string => videoField(e)?.key ?? mediaFields(e).find((f) => f.type === "image")?.key ?? "image:1";
 
-/** The photo input where an area can be marked, if the template takes one. Raw edit models always can, on Image 1. */
-export const areaField = (e?: EngineInfo, mode?: string): string | undefined =>
-  e?.fields?.length ? mediaFields(e).find((f) => f.type === "image" && f.area)?.key : mode === "edit" ? "image:1" : undefined;
-
 /** Role sentences for cloud models: a template can name it; otherwise the first photo of a photo template is the canvas. */
 export const roleOf = (e: EngineInfo | undefined, slot: string): string =>
   mediaFields(e).find((f) => f.key === slot)?.role ?? (slot === "image:1" && !videoField(e) ? "base" : "character");
 
 export const slotNo = (slot: string) => Number(slot.split(":")[1]);
 
-export const article = (label: string) => `${/^[aeiou]/i.test(label) ? "an" : "a"} ${label.toLowerCase()}`;

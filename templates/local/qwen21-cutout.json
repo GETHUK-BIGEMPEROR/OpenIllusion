@@ -12,18 +12,11 @@
     "product",
     "portrait"
   ],
-  "tips": [
-    "One clear subject cuts cleanest; busy group shots can keep extra people.",
-    "The result is a PNG with real transparency, ready to drop on any background."
-  ],
   "inputs": [
     {
       "key": "image:1",
       "type": "image",
-      "label": "Photo",
-      "hint": "Any photo with a clear subject: a person, a product, a pet.",
       "required": true,
-      "size": "1 MP",
       "default": "media/redhead-coat.jpg",
       "bind": [
         [
@@ -35,7 +28,6 @@
     {
       "key": "prompt",
       "type": "text",
-      "label": "Prompt",
       "required": true,
       "default": "Remove the background and keep the whole subject: the person with all of their hair, clothing and accessories, nothing cropped away. Output a PNG image",
       "examples": [
@@ -52,56 +44,6 @@
         [
           "459:474",
           "prompt"
-        ]
-      ]
-    },
-    {
-      "key": "steps",
-      "type": "int",
-      "label": "Steps",
-      "advanced": true,
-      "min": 8,
-      "max": 40,
-      "default": 25,
-      "bind": [
-        [
-          "459:458",
-          "steps",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "seed",
-      "type": "seed",
-      "label": "Seed",
-      "advanced": true,
-      "default": -1,
-      "bind": [
-        [
-          "459:458",
-          "seed",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "cache",
-      "type": "segmented",
-      "label": "Step cache",
-      "advanced": true,
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
-      "options": [
-        "cpu",
-        "auto",
-        "gpu",
-        "off"
-      ],
-      "default": "cpu",
-      "bind": [
-        [
-          "459:469",
-          "device"
         ]
       ]
     }
@@ -197,6 +139,11 @@
           "459:468",
           0
         ]
+      },
+      "_meta": {
+        "control_after_generate": {
+          "seed": "randomize"
+        }
       }
     },
     "459:468": {

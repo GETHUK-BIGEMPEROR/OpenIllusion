@@ -30,7 +30,9 @@ from . import media, paths, prep, settings
 
 log = logging.getLogger("openillusion")
 
-TOKEN = re.compile(r"^\{\{(image|video|audio):(\d+)(?:\|(uri|b64|url))?\}\}$")
+# A media slot inside a cloud body. The form says how the file goes in: a data URI (uri), bare
+# base64 (b64), a public link (url), or just its MIME type (mime), for bodies that name it beside the bytes.
+TOKEN = re.compile(r"^\{\{(image|video|audio):(\d+)(?:\|(uri|b64|url|mime))?\}\}$")
 
 ROLE_PHRASE = {
     "character": "the character",
@@ -83,6 +85,7 @@ class Engine:
     default_inputs: dict[str, Path] = field(default_factory=dict)  # sample media each slot opens with, by slot
     model: str | None = None  # cloud templates: the Router model the body is sent to
     body: dict | None = None  # cloud templates: the request body, with media tokens and fixed values
+    result: list[list] = field(default_factory=list)  # cloud templates: where the media is in the model's output, first match wins
     built: bool = False  # made in the template builder
 
     def __post_init__(self):
@@ -166,21 +169,6 @@ def _videos(inputs):
     return [i for i in inputs if i["slot"].startswith("video:")]
 
 
-def build_generic(spec: dict) -> dict:
-    """Any model: the schema form's values, plus prompt and media where the
-    schema has obvious fields for them. The Raw tab covers the rest."""
-    body = dict(spec.get("params", {}))
-    if spec.get("prompt"):
-        body.setdefault("prompt", spec["prompt"])
-    imgs = _images(spec["inputs"])
-    if imgs and "images" not in body and "image" not in body and "image_url" not in body:
-        body["images"] = ["{{%s}}" % i["slot"] for i in imgs]
-    vids = _videos(spec["inputs"])
-    if vids and "video" not in body and "video_url" not in body:
-        body["video_url"] = "{{video:1}}"
-    return body
-
-
 # ---- local workflow templates --------------------------------------------------
 
 SEED_TOKEN = "{{seed:random}}"
@@ -210,7 +198,7 @@ def build_local(e: "Engine", spec: dict) -> dict:
     for key, targets in e.bindings.items():
         cast_ok = True
         if key == "prompt":
-            value: Any = prompt_with_boxes(spec.get("prompt", ""), spec.get("boxes", []), _lead_crop(spec))
+            value: Any = spec.get("prompt", "")  # sent exactly as written
         elif key.startswith("params."):
             name = key[len("params."):]
             if name not in p:
@@ -236,7 +224,18 @@ def build_local(e: "Engine", spec: dict) -> dict:
                 continue
             cast = _CASTS.get(t[2]) if cast_ok and len(t) > 2 else None
             node["inputs"][t[1]] = cast(value) if cast else value
+    reroll(wf)
     return prune(wf)
+
+
+def reroll(wf: dict) -> dict:
+    """Numbers the workflow marks "randomize" (or increment/decrement) after each generate
+    get a new value per run, the way ComfyUI does when you queue it; "fixed" ones stay."""
+    for n in wf.values():
+        for name, mode in ((n.get("_meta") or {}).get("control_after_generate") or {}).items():
+            if mode != "fixed" and isinstance(n["inputs"].get(name), int) and not isinstance(n["inputs"][name], bool):
+                n["inputs"][name] = random.randrange(2**31)
+    return wf
 
 
 def defaults_workflow(e: "Engine", every_input: bool = False) -> dict:
@@ -274,7 +273,7 @@ def build_cloud(e: "Engine", spec: dict) -> dict:
     drop: list[list] = []
     for key, targets in e.bindings.items():
         if key == "prompt":
-            value: Any = prompt_with_boxes(spec.get("prompt", ""), spec.get("boxes", []), _lead_crop(spec))
+            value: Any = spec.get("prompt", "")
         elif key.startswith("params."):
             name = key[len("params."):]
             if name not in p:
@@ -294,9 +293,22 @@ def build_cloud(e: "Engine", spec: dict) -> dict:
     # Highest indices first, so earlier positions stay valid.
     for path in sorted(drop, key=lambda t: [str(x) if isinstance(x, str) else f"{x:08d}" for x in t], reverse=True):
         _unset(body, path)
+        parent = path[:-1]
+        while parent and _at(body, parent) in ([], {}):  # an emptied list or object goes too
+            _unset(body, parent)
+            parent = parent[:-1]
     for k in [k for k, v in body.items() if v == []]:
         del body[k]
     return body
+
+
+def _at(body: Any, path: list) -> Any:
+    try:
+        for k in path:
+            body = body[k]
+        return body
+    except (KeyError, IndexError, TypeError):
+        return None
 
 
 def _set(body: Any, path: list, value: Any) -> None:
@@ -467,6 +479,14 @@ def _field(f: Any) -> dict:
     elif not (key == "prompt" or _PARAM_KEY.match(key)) or re.match(r"^(image|video|audio)$", key):
         raise ValueError(f"bad input key {key!r}")
     out = {**f, "bind": [list(b) for b in f.get("bind") or []]}
+    # A photo or clip is named by its place ("Image 1"), the prompt is "Prompt": the prompt says what each one is.
+    if t in MEDIA:
+        for k in ("hint", "size", "role", "area"):
+            out.pop(k, None)
+        out["label"] = f"{t.capitalize()} {key.split(':')[1]}"
+    elif key == "prompt":
+        out.pop("hint", None)
+        out["label"] = "Prompt"
     out.setdefault("label", key)
     if "examples" in f:
         out["examples"] = _examples(f["examples"])
@@ -484,6 +504,12 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         tid = prefix + tid
     if cloud and not data.get("model"):
         raise ValueError("a cloud template names its model")
+    result = data.get("result") or []
+    if not isinstance(result, list) or not all(isinstance(p, list) and p and all(isinstance(k, (str, int)) for k in p) for p in result):
+        raise ValueError("result: a list of paths into the model's output")
+    # Every template has a title: Explore, Create and the Library show it.
+    if not isinstance(data.get("label"), str) or not data["label"].split(" · ")[0].strip():
+        raise ValueError("a template needs a label (its title)")
     fields = [_field(f) for f in data.get("inputs") or []]
     if len({f["key"] for f in fields}) != len(fields):
         raise ValueError("two inputs share a key")
@@ -495,9 +521,9 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
     bindings = {}
     for f in fields:
         bindings[f["key"] if f["type"] in (*MEDIA, "size") or f["key"] == "prompt" else f"params.{f['key']}"] = f["bind"]
-    slots = [{"slot": f["key"], **{k: f[k] for k in ("label", "hint", "size", "role") if f.get(k)}} for f in media]
+    slots = [{"slot": f["key"], "label": f["label"]} for f in media]
     e = Engine(
-        id=tid, mode=data.get("mode", "edit"), label=data.get("label", tid), provider=data.get("provider", "local"),
+        id=tid, mode=data.get("mode", "edit"), label=data["label"].strip(), provider=data.get("provider", "local"),
         blurb=data.get("blurb", ""), max_images=len(images), min_images=sum(1 for f in images if f.get("required", True)),
         needs_video=bool(video and video.get("required", True)),
         video_window=tuple(video["window"]) if video and video.get("window") else None,
@@ -506,9 +532,10 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         curated=True, kind="cloud" if cloud else "local",
         workflow=None if cloud else data["workflow"], bindings=bindings, outputs=[str(o) for o in data.get("outputs", [])],
         model=data.get("model") if cloud else None, body=data.get("body") if cloud else None, built=bool(data.get("built")),
+        result=[list(p) for p in result] if cloud else [],
         hints=data.get("hints", {}), source=data.get("source"),
-        prompt={k: text[k] for k in ("label", "hint", "required") if k in text} if text else None,
-        examples=text.get("examples", []) if text else [], tips=list(data.get("tips", [])), tags=list(data.get("tags", [])),
+        prompt={k: text[k] for k in ("label", "required") if k in text} if text else None,
+        examples=text.get("examples", []) if text else [], tags=list(data.get("tags", [])),
         inputs=slots, fields=fields,
         cover=(base / data["cover"]) if base and data.get("cover") else None,
         cover_video=(base / data["cover_video"]) if base and data.get("cover_video") else None,
@@ -521,14 +548,15 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
 
 
 def template_dirs() -> list[Path]:
-    return [paths.templates_dir(), paths.user_root() / "templates"]
+    """Shipped local and cloud templates, then the user's folder."""
+    return [paths.templates_dir(), paths.cloud_templates_dir(), paths.user_root() / "templates"]
 
 
 def load_templates() -> dict[str, "Engine"]:
     """Shipped templates, then the user's folder; a user file with the same id overrides."""
     out: dict[str, Engine] = {}
-    shipped, user = template_dirs()
-    for d, origin in ((shipped, "shipped"), (user, "user")):
+    *shipped, user = template_dirs()
+    for d, origin in [*((s, "shipped") for s in shipped), (user, "user")]:
         if not d.is_dir():
             continue
         for f in sorted(d.glob("*.json")):
@@ -548,7 +576,7 @@ def load_templates() -> dict[str, "Engine"]:
 # Edits never touch the shipped file: the whole template is written to the user's
 # templates folder, which overrides it by id. Resetting deletes that copy.
 
-_TEXT_LIMIT = {"label": 80, "blurb": 400, "input_label": 40, "hint": 160, "item": 240, "text": 4000, "examples": 12}
+_TEXT_LIMIT = {"label": 80, "blurb": 400, "item": 240, "text": 4000, "examples": 12}
 
 
 def _clean(v: Any, limit: int) -> str:
@@ -567,18 +595,11 @@ def _clean_list(v: Any, n: int = 20) -> list[str]:
 
 
 def _edit_input(f: dict, ch: Any) -> None:
-    """Label, hint, and for text inputs the default and the ideas. Where it binds and what it is stay as built."""
+    """The prompt's default and ideas. Photos and clips have nothing to edit here: they're named by their place."""
     if not isinstance(ch, dict):
         raise ValueError("expected an object per input")
-    if "label" in ch:
-        f["label"] = _clean(ch["label"], _TEXT_LIMIT["input_label"]) or f["label"]
-    if "hint" in ch:
-        hint = _clean(ch["hint"], _TEXT_LIMIT["hint"])
-        f.pop("hint", None)
-        if hint:
-            f["hint"] = hint
     if ("default" in ch or "examples" in ch) and f["type"] != "text":
-        raise ValueError(f"{f['label']}: only text inputs take a default and ideas here")
+        raise ValueError(f"{f.get('label') or f['key']}: only the prompt takes a default and ideas")
     if "default" in ch:
         f["default"] = _clean(ch["default"], _TEXT_LIMIT["text"])
     if "examples" in ch:
@@ -602,9 +623,9 @@ def edit_template(engine_id: str, patch: dict) -> Engine:
         data["label"] = _clean(patch["label"], _TEXT_LIMIT["label"]) or data["label"]
     if "blurb" in patch:
         data["blurb"] = _clean(patch["blurb"], _TEXT_LIMIT["blurb"])
-    for k in ("tags", "tips"):
-        if k in patch:
-            data[k] = _clean_list(patch[k])
+    if "tags" in patch:
+        data["tags"] = _clean_list(patch["tags"])
+    data.pop("tips", None)
     if "inputs" in patch:
         if not isinstance(patch["inputs"], dict):
             raise ValueError("inputs: expected an object keyed by input")
@@ -722,12 +743,7 @@ def router_model(engine_id: str) -> str:
 def get(engine_id: str) -> Engine:
     if engine_id in ENGINES:
         return ENGINES[engine_id]
-    if engine_id.startswith("local/"):
-        raise KeyError(f"No local template {engine_id!r}")
-    return Engine(
-        id=engine_id, mode="edit", label=engine_id.split("/", 1)[-1], provider=engine_id.split("/", 1)[0],
-        blurb="Any Router model. Form generated from its schema.", max_images=10, build=build_generic, curated=False,
-    )
+    raise KeyError(f"No template {engine_id!r}")
 
 
 def run_size(e: Engine) -> dict:
@@ -746,11 +762,20 @@ def describe(e: Engine) -> dict:
         "max_images": e.max_images, "min_images": e.min_images, "needs_video": e.needs_video,
         "video_window": e.video_window, "fps_window": e.fps_window, "url_only": e.url_only,
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
-        "examples": e.examples, "tips": e.tips, "tags": e.tags, "inputs": e.inputs, "fields": fields, "requires": requirements(e),
+        "examples": e.examples, "tags": e.tags, "varies": varies(e), "inputs": e.inputs, "fields": fields, "requires": requirements(e),
         "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "model": e.model,
         "defaults": defaults,
         **_cover_info(e), "cover_custom": user_cover(e.id).is_file(), "draft": is_draft(e),
     }
+
+
+def varies(e: Engine) -> bool:
+    """Whether two runs with the same inputs can come out different: the workflow re-rolls a seed
+    after each generate (ComfyUI's "randomize"), or the template has a seed setting. Variants need it."""
+    if any(p.get("type") == "seed" for p in e.params):
+        return True
+    return any(m != "fixed" for n in (e.workflow or {}).values()
+               for m in ((n.get("_meta") or {}).get("control_after_generate") or {}).values())
 
 
 def is_draft(e: Engine) -> bool:
@@ -925,11 +950,10 @@ def compose(spec: dict) -> dict:
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} takes at most {e.max_images} images"})
     given = {i.get("slot") for i in spec["inputs"]}
     if e.fields:
-        # Templates say which input is missing, in their own words.
+        # Which input is missing, by its place: "Add Image 1".
         for f in e.fields:
             if f["type"] in MEDIA and f.get("required", True) and f["key"] not in given:
-                label = f["label"].lower()
-                warnings.append({"field": "video" if f["type"] == "video" else "inputs", "level": "error", "text": f"Add {'an' if label[:1] in 'aeiou' else 'a'} {label}"})
+                warnings.append({"field": "video" if f["type"] == "video" else "inputs", "level": "error", "text": f"Add {f['label']}"})
     elif len(imgs) < e.min_images:
         n = e.min_images
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} needs at least {n} image{'' if n == 1 else 's'}"})
@@ -938,19 +962,19 @@ def compose(spec: dict) -> dict:
         d = v.get("trimmed_duration") or v.get("duration")
         if window and d and not (window[0] - 0.05 <= d <= window[1] + 0.05):
             f = next((f for f in e.fields if f["key"] == v["slot"]), None)
-            what = f["label"].lower() if f and len(vids) > 1 else "the clip"
+            what = f["label"] if f and len(vids) > 1 else "the clip"
             warnings.append({"field": "video", "level": "error", "text": f"Trim {what} to {window[0]:g}–{window[1]:g} s (now {d:.1f} s)"})
     if e.url_only:
         for i in spec["inputs"]:
             if not i.get("url"):
                 warnings.append({"field": i["slot"], "level": "error", "text": f"{e.label} takes public URLs only. Add a link for {i['slot']}."})
-    prompt_required = bool(e.prompt and e.prompt.get("required", True))  # raw Router models may not need one
+    prompt_required = bool(e.prompt and e.prompt.get("required", True))
     if not spec.get("prompt", "").strip() and prompt_required:
         warnings.append({"field": "prompt", "level": "error", "text": "Write a prompt"})
     if spec.get("raw"):
         template = spec["raw"]
     else:
-        template = e.build(spec) if e.build else build_generic(spec)
+        template = e.build(spec)
     return {"template": template, "warnings": warnings, "role_sentences": role_sentences(spec["inputs"])}
 
 
@@ -994,21 +1018,25 @@ def tokens_in(template: Any) -> list[tuple[str, int, str]]:
 def file_resolver(inputs: list[dict], base: Path) -> Callable[[str, int, str], str]:
     """Resolve tokens from files on disk (``inputs[*].file`` relative to base)."""
     by_slot = {i["slot"]: i for i in inputs}
+    encoded: dict[str, str] = {}  # one data URI per slot, however many times the body names it
 
     def resolve(kind: str, n: int, form: str) -> str:
-        item = by_slot.get(f"{kind}:{n}")
+        slot = f"{kind}:{n}"
+        item = by_slot.get(slot)
         if not item:
-            raise KeyError(f"{kind}:{n} is referenced in the request but has no input")
+            raise KeyError(f"{slot} is referenced in the request but has no input")
         if form == "url":
             if not item.get("url"):
-                raise KeyError(f"{kind}:{n} needs a public URL for this engine")
+                raise KeyError(f"{slot} needs a public URL for this engine")
             return item["url"]
-        path = base / item["file"]
-        if kind == "image":
-            uri, b64 = media.image_payload(path)
-            return b64 if form == "b64" else uri
-        mime = {"video": "video/mp4", "audio": "audio/mpeg"}[kind]
-        return media.file_data_uri(path, mime)
+        if slot not in encoded:
+            path = base / item["file"]
+            encoded[slot] = media.image_payload(path)[0] if kind == "image" else media.file_data_uri(path, {"video": "video/mp4", "audio": "audio/mpeg"}[kind])
+        uri = encoded[slot]
+        head, _, data = uri.partition(",")
+        if form == "mime":
+            return head[len("data:"):].split(";", 1)[0]
+        return data if form == "b64" else uri
 
     return resolve
 
@@ -1020,9 +1048,21 @@ IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp")
 
 
 def classify_failure(result: Any) -> dict | None:
-    """Provider-native failure inside a 200 body (H3 task.status, Higgsfield status)."""
+    """Provider-native failure inside a 200 body (H3 task.status, Higgsfield, BFL, Kling, Freepik, WaveSpeed, VEED)."""
     if not isinstance(result, dict):
         return None
+    st = result.get("status")
+    if st in ("Request Moderated", "Content Moderated"):
+        return {"error_type": "content_policy_violation", "message": "The provider declined this request."}
+    if st in ("Error", "Task not found"):
+        return {"error_type": "provider_failed", "message": str(result.get("details") or st)}
+    d = result.get("data")
+    if isinstance(d, dict):
+        if str(d.get("task_status") or d.get("status") or "").lower() == "failed":
+            return {"error_type": "provider_failed", "message": str(d.get("task_status_msg") or d.get("error") or "The provider says the run failed")}
+        err = d.get("error")
+        if isinstance(err, dict) and err.get("message"):
+            return {"error_type": "provider_failed", "message": str(err["message"])}
     task = result.get("task")
     if isinstance(task, dict) and task.get("status") in ("failed", "cancelled", "expired"):
         err = task.get("error") or {}
@@ -1062,6 +1102,97 @@ def find_assets(result: Any) -> list[str]:
             seen.add(u)
             out.append(u)
     return out
+
+
+_B64 = re.compile(r"^[A-Za-z0-9+/=\s]{200,}$")
+_MAGIC = ((b"\x89PNG", "image/png"), (b"\xff\xd8", "image/jpeg"), (b"GIF8", "image/gif"), (b"\x1aE\xdf\xa3", "video/webm"))
+
+
+def _walk_path(v: Any, path: list) -> list[tuple[Any, list]]:
+    """Every value at ``path`` in ``v``; ``"*"`` stands for any list index."""
+    if not path:
+        return [(v, [])]
+    k, rest = path[0], path[1:]
+    if k == "*":
+        return [(x, [i, *p]) for i, item in enumerate(v) for x, p in _walk_path(item, rest)] if isinstance(v, list) else []
+    if isinstance(v, dict) and isinstance(k, str) and k in v:
+        return [(x, [k, *p]) for x, p in _walk_path(v[k], rest)]
+    if isinstance(v, list) and isinstance(k, int) and -len(v) <= k < len(v):
+        return [(x, [k, *p]) for x, p in _walk_path(v[k], rest)]
+    return []
+
+
+def _media_value(v: Any) -> tuple[str, str] | None:
+    if not isinstance(v, str) or not v:
+        return None
+    if v.startswith(("http://", "https://")):
+        return "url", v
+    if v.startswith("data:") and ";base64," in v[:100]:
+        return "b64", v.split(",", 1)[1]
+    if _B64.match(v[:4096]):
+        return "b64", v
+    return None
+
+
+def result_media(result: Any, paths_: list[list] | None) -> tuple[str, str, list] | None:
+    """The finished media in a native Router result: ("url" | "b64", value, where it was).
+
+    A template names the paths; the first one holding a link or base64 wins. With none
+    named, or none of them holds one, any image or video link is taken, then any long
+    base64 string."""
+    for p in paths_ or []:
+        for v, at in _walk_path(result, list(p)):
+            hit = _media_value(v)
+            if hit:
+                return (*hit, at)
+    urls = find_assets(result)
+    if urls:
+        return "url", urls[0], []
+    found: list = []
+
+    def walk(v, at):
+        if found:
+            return
+        if isinstance(v, str):
+            hit = _media_value(v)
+            if hit and hit[0] == "b64":
+                found.append((*hit, at))
+        elif isinstance(v, list):
+            for i, x in enumerate(v):
+                walk(x, [*at, i])
+        elif isinstance(v, dict):
+            for k, x in v.items():
+                walk(x, [*at, k])
+
+    walk(result, [])
+    return found[0] if found else None
+
+
+def decode_media(b64: str) -> tuple[bytes, str]:
+    """Bytes and a content type for base64 media from a result."""
+    import base64
+
+    data = base64.b64decode("".join(b64.split()))
+    for magic, ctype in _MAGIC:
+        if data.startswith(magic):
+            return data, ctype
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return data, "image/webp"
+    if data[4:8] == b"ftyp":
+        return data, "video/mp4"
+    return data, "application/octet-stream"
+
+
+def slim(result: Any) -> Any:
+    """A native result with inline media swapped for a note, so it can be kept beside the file."""
+    if isinstance(result, str):
+        hit = _media_value(result)
+        return f"<base64, {len(result) * 3 // 4} bytes>" if hit and hit[0] == "b64" else result
+    if isinstance(result, list):
+        return [slim(x) for x in result]
+    if isinstance(result, dict):
+        return {k: slim(x) for k, x in result.items()}
+    return result
 
 
 def result_seed(result: Any) -> int | None:

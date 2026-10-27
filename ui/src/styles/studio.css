@@ -119,7 +119,6 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .stage .canvas{grid-column:1;padding:4px 32px 32px}
 .frame{width:min(100cqw,calc(100cqh * var(--ar)));aspect-ratio:var(--ar);position:relative;border-radius:16px;overflow:hidden;background:var(--raised);box-shadow:0 40px 90px -30px rgba(0,0,0,.85),0 0 0 1px var(--line)}
 .frame>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.frame.marking{cursor:crosshair;touch-action:none}
 .corner{position:absolute;bottom:12px;display:flex;gap:6px;z-index:5}
 .corner.l{left:12px}.corner.r{right:12px}
 .tophint{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:5}
@@ -197,6 +196,8 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .cmp .handle{position:absolute;top:0;bottom:0;left:var(--x);width:2px;margin-left:-1px;background:rgba(255,255,255,.95);box-shadow:0 0 18px rgba(0,0,0,.55);z-index:3}
 .cmp .knob{position:absolute;top:50%;left:50%;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;background:#fff;color:#15101B;display:grid;place-items:center;box-shadow:0 6px 18px rgba(0,0,0,.45)}
 .cmp .knob .i{width:17px;height:17px;stroke-width:2.2}
+.cmp.wipe .after{transition:clip-path 1s var(--ease)}
+.cmp.wipe .handle{transition:left 1s var(--ease)}
 .cmp .tg{position:absolute;top:12px;z-index:3}
 .cmp .tg.l{left:12px}.cmp .tg.r{right:12px}
 .thero .draft-note{margin-top:10px}
@@ -213,3 +214,31 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .ttool-t{display:grid;gap:2px;min-width:0}
 .ttool-t b{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ttool-t small{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Inputs as tiles, named by their place. */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.tile{position:relative;aspect-ratio:1;border-radius:14px;overflow:hidden;background:var(--raised);border:1px solid var(--line);transition:border-color .15s,box-shadow .15s,background .15s}
+.tile.empty{background:transparent;border:1.5px dashed var(--line-2)}
+.tile.empty:hover{border-color:var(--violet);background:rgba(154,134,240,.06)}
+.tile.drag{border-color:var(--violet);background:rgba(154,134,240,.08);box-shadow:0 0 0 3px rgba(154,134,240,.22)}
+.tile-main{position:absolute;inset:0;display:grid;place-items:center;width:100%;height:100%;padding:0;border:0;background:none;color:var(--text-3);cursor:pointer}
+.tile-main img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
+.tile:hover .tile-main img{transform:scale(1.05)}
+.tile-main>.i{width:22px;height:22px;margin-top:-18px}
+.tile.has-sample .tile-main>.i{margin-top:-40px}
+.tile-busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45)}
+.tile-n{position:absolute;left:6px;bottom:6px;padding:0 6px;border-radius:6px;background:rgba(0,0,0,.6);font:500 10.5px/18px var(--mono);color:#fff;pointer-events:none}
+.tile.empty .tile-n{left:0;right:0;bottom:calc(50% - 26px);text-align:center;background:none;color:var(--text-2)}
+.tile.has-sample .tile-n{bottom:calc(50% - 4px)}
+.tile-tag{position:absolute;left:6px;top:6px;pointer-events:none}
+.tile-dur{position:absolute;right:6px;bottom:6px;padding:0 5px;border-radius:5px;background:rgba(0,0,0,.6);font:500 10px/18px var(--mono);color:#fff;pointer-events:none}
+.tile-miss{position:absolute;left:6px;right:6px;top:6px;font:600 10.5px var(--body);color:var(--orange);pointer-events:none}
+.tile.missing .tile-main img{opacity:.4}
+.tile-x{position:absolute;right:5px;top:5px;opacity:0;transition:opacity .15s}
+.tile:hover .tile-x,.tile:focus-within .tile-x{opacity:1}
+@media (hover:none){.tile-x{opacity:1}}
+.tile-sample{position:absolute;left:8px;right:8px;bottom:8px;height:24px;border-radius:8px;border:1px solid var(--line);background:var(--raised);font:500 11px var(--body);color:var(--text-2);cursor:pointer}
+.tile-sample:hover{color:var(--text);border-color:var(--line-2)}
+.inx{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.attrs-h b{font-weight:600;color:var(--text)}
+

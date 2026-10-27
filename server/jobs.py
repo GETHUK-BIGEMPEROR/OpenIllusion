@@ -463,11 +463,17 @@ class Manager:
         if isinstance(result, (bytes, bytearray)):
             data, ctype = bytes(result), meta.get("content_type", "")
         else:
-            urls = engines.find_assets(result)
-            if not urls:
-                raise RuntimeError("The model finished but its result has no media URL")
-            data, ctype = await self.router_factory().download(urls[0])
-        native = result if not isinstance(result, (bytes, bytearray)) else {"binary": ctype}
+            e = engines.get(sc.read(store.folder(job.id)).engine.model)
+            hit = engines.result_media(result, e.result)
+            if hit is None:
+                where = " at the path the template names" if e.result else ""
+                raise RuntimeError(f"The model finished but no image or video was found in its result{where}")
+            kind, value, _ = hit
+            if kind == "url":
+                data, ctype = await self.router_factory().download(value)
+            else:
+                data, ctype = engines.decode_media(value)
+        native = engines.slim(result) if not isinstance(result, (bytes, bytearray)) else {"binary": ctype}
         await self._save_media(job, data, ctype, native, meta)
 
     async def _save_media(self, job: Job, data: bytes, ctype: str, native: Any, meta: dict) -> None:

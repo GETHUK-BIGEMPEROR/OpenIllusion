@@ -54,7 +54,7 @@ class FakeRouter:
 
 
 @pytest.fixture
-def uploads(tmp_path):
+def uploads(tmp_path, clip_template):
     from PIL import Image
 
     up = paths.uploads_dir()
@@ -65,7 +65,7 @@ def uploads(tmp_path):
 
 def motion_spec():
     return {
-        "engine": "acme/any-router-model",  # no template: the generic schema-form path
+        "engine": "cloud/test-clip",
         "inputs": [
             {"slot": "image:1", "role": "character", "asset": "ref.png", "license": "own-image"},
             {"slot": "video:1", "role": "motion", "asset": "clip.mp4", "trim": [1, 4], "duration": 5,

@@ -2,44 +2,49 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Masonry } from "../components/Masonry";
 import { cx, EmptyBox, I, PageHead, useStatus } from "../components/oi";
-import { TemplateCard, tplChips, tplName } from "../components/TemplateCard";
+import { sharedTags, TemplateCard, tplName } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
 import { api, type EngineInfo } from "../lib/api";
 import { errMsg } from "../lib/format";
 import { go } from "../lib/route";
 import { useApp } from "../lib/store";
 
-type Where = "any" | "local" | "cloud";
+type Kind = "all" | "edit" | "motion";
+type Where = "all" | "local" | "cloud";
 // Filters outlive a trip to Create and back.
-const last = { tag: "", where: "any" as Where };
+const last = { use: "", kind: "all" as Kind, where: "all" as Where };
 
 // Mixed shapes, so the placeholder wall looks like the one that replaces it.
 const SKELETON = [0.8, 0.75, 0.8, 1, 0.66, 0.8, 1.33, 0.75].map((aspect, i) => ({ key: String(i), aspect }));
 
-/** Every template as a wall. Click runs it in Create; (i) opens its details on the right. */
+/** Every template as one wall, photos and videos together. Click runs it in Create; (i) opens its details on the right. */
 export function Explore({ t }: { t?: string }) {
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const status = useStatus();
   const openTemplate = useApp((s) => s.openTemplate);
-  const [tag, setTag] = useState(last.tag);
+  const [use, setUse] = useState(last.use);
+  const [kind, setKind] = useState(last.kind);
   const [where, setWhere] = useState(last.where);
-  useEffect(() => { Object.assign(last, { tag, where }); }, [tag, where]);
+  useEffect(() => { Object.assign(last, { use, kind, where }); }, [use, kind, where]);
 
   const every = useMemo(() => engines.data ?? [], [engines.data]);
   // A draft stays off the wall until one of its results is published as its cover.
   const all = useMemo(() => every.filter((e) => !e.draft), [every]);
   const drafts = every.filter((e) => e.draft);
-  // Photos and videos share one wall; the badge on each card says which it makes.
-  const chips = useMemo(() => tplChips(all), [all]);
-  const shown = all
-    .filter((e) => (!tag || e.tags?.includes(tag)) && (where === "any" || e.kind === where))
+  const uses = sharedTags(all);
+  const tagged = all.filter((e) => !use || !uses.includes(use) || e.tags?.includes(use));
+  const pool = tagged.filter((e) => where === "all" || e.kind === where);
+  const count = (k: Kind) => pool.filter((e) => k === "all" || e.mode === k).length;
+  const runs = (w: Where) => tagged.filter((e) => (w === "all" || e.kind === w) && (kind === "all" || e.mode === kind)).length;
+  const shown = pool
+    .filter((e) => kind === "all" || e.mode === kind)
     .sort((a, b) => Number(b.curated) - Number(a.curated) || Number(b.kind === "local") - Number(a.kind === "local"));
   const tiles = shown.map((e) => ({ key: e.id, aspect: e.cover ? e.cover_aspect : undefined, e }));
 
   const locked = (e: EngineInfo) =>
     e.kind === "cloud" ? (status.data?.router.ok ? null : "Add a Comfy API key in Settings")
       : status.data?.local.comfyui ? null : "Start ComfyUI or set its address in Settings";
-  const use = (e: EngineInfo) => { openTemplate(e.mode, e.id); go({ name: e.mode }); };
+  const use_ = (e: EngineInfo) => { openTemplate(e.mode, e.id); go({ name: e.mode }); };
   const inspect = (id?: string) => go({ name: "explore", t: id });
 
   // The panel keeps showing the last template while it slides shut.
@@ -49,61 +54,45 @@ export function Explore({ t }: { t?: string }) {
   const panel = open ?? shownInPanel.current;
   const close = useMemo(() => () => inspect(), []);
 
-  const local = all.filter((e) => e.kind === "local").length;
-  const covers = all.filter((e) => e.cover).slice(0, 3);
-
   const filters = (
     <>
-      <button className="chip" type="button" aria-pressed={!tag} onClick={() => setTag("")}>All</button>
-      {chips.map((c) => <button key={c.tag} className="chip" type="button" aria-pressed={tag === c.tag} onClick={() => setTag(tag === c.tag ? "" : c.tag)}>{c.label}</button>)}
-      <span className="fspacer" />
-      <div className="seg" role="group" aria-label="Where it runs">
-        <button type="button" aria-pressed={where === "any"} onClick={() => setWhere("any")}>Any</button>
-        <button type="button" aria-pressed={where === "local"} onClick={() => setWhere("local")}><i className="dot" />Local</button>
-        <button type="button" aria-pressed={where === "cloud"} onClick={() => setWhere("cloud")}><i className="dot violet" />Cloud</button>
+      <div className="seg" role="group" aria-label="What it makes">
+        <button type="button" aria-pressed={kind === "all"} onClick={() => setKind("all")}>All<span className="n">{count("all")}</span></button>
+        <button type="button" aria-pressed={kind === "edit"} onClick={() => setKind("edit")}><I n="image" />Photo<span className="n">{count("edit")}</span></button>
+        <button type="button" aria-pressed={kind === "motion"} onClick={() => setKind("motion")}><I n="film" />Video<span className="n">{count("motion")}</span></button>
       </div>
+      <span className="vsep" />
+      {/* Where it runs: a toggle each, off shows both. */}
+      <div className="seg" role="group" aria-label="Where it runs">
+        <button type="button" aria-pressed={where === "local"} onClick={() => setWhere(where === "local" ? "all" : "local")} title="Runs on your ComfyUI"><I n="cpu" />Local<span className="n">{runs("local")}</span></button>
+        <button type="button" aria-pressed={where === "cloud"} onClick={() => setWhere(where === "cloud" ? "all" : "cloud")} title="Runs on Comfy Router, paid per run"><I n="cloud" />Cloud<span className="n">{runs("cloud")}</span></button>
+      </div>
+      {uses.length > 0 && <span className="vsep" />}
+      {uses.map((u) => <button key={u} className="chip" type="button" aria-pressed={use === u} onClick={() => setUse(use === u ? "" : u)}>{u.charAt(0).toUpperCase() + u.slice(1)}</button>)}
     </>
   );
-
-  const empty = where === "cloud" && !status.data?.has_key
-      ? <EmptyBox icon="cloud" title="Cloud templates need an API key" action={<a className="btn primary" href="#/settings">Add a key</a>}>Add a Comfy API key in Settings and cloud templates show up here.</EmptyBox>
-      : <EmptyBox icon="search" title="Nothing here" action={<button className="btn" type="button" onClick={() => { setTag(""); setWhere("any"); }}>Show all</button>}>Try another category or clear the filter.</EmptyBox>;
 
   return (
     <div className="page explore">
       <div className="scroll">
-        <PageHead title="Explore" filters={filters} actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a cloud model"><I n="plus" />New template</a>} />
-        {covers.length > 0 && <div className="aura" aria-hidden>{covers.map((e) => <img key={e.id} src={e.cover!} alt="" />)}</div>}
-        <div className="wall-wrap">
-          <div className="lede">
-            <div>
-              <h2>Pick a look. Drop in a photo. <em>Run it on your GPU.</em></h2>
-              <p>Every template comes with a sample photo and a prompt that already work. Swap in your own and edit the words.</p>
-            </div>
-            {!!all.length && (
-              <div className="lede-stats">
-                <div className="stat"><b>{all.length}</b><span>templates</span></div>
-                <div className="stat"><b style={{ color: status.data?.local.comfyui ? "var(--mint)" : undefined }}>{local}</b><span>run locally</span></div>
-                <div className="stat"><b>{all.length - local}</b><span>on the cloud</span></div>
-              </div>
-            )}
-          </div>
-        </div>
-        {drafts.length > 0 && <Drafts list={drafts} selected={t} onUse={use} onInspect={(id) => inspect(id === t ? undefined : id)} />}
-        <div className="wall-wrap" style={{ paddingTop: 4 }}>
+        <PageHead filters={filters} actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow"><I n="plus" /><span className="lbl">New template</span></a>} />
+        {drafts.length > 0 && <Drafts list={drafts} selected={t} onUse={use_} onInspect={(id) => inspect(id === t ? undefined : id)} />}
+        <div className="wall-wrap wtop">
           {engines.isLoading ? (
             <Masonry label="Loading templates" items={SKELETON} maxCols={4} minCol={250} render={(x) => <div aria-hidden className="card"><div className="media" style={{ "--ar": x.aspect } as CSSProperties} /></div>} />
           ) : engines.isError ? (
             <EmptyBox icon="alert" title="Couldn't load templates" action={<button className="btn" type="button" onClick={() => engines.refetch()}>Try again</button>}>{errMsg(engines.error)}</EmptyBox>
           ) : tiles.length ? (
             <Masonry label="Templates" items={tiles} maxCols={4} minCol={250}
-              render={({ e }) => <TemplateCard e={e} locked={locked(e)} selected={e.id === t} onUse={() => use(e)} onInspect={() => inspect(e.id === t ? undefined : e.id)} />} />
-          ) : empty}
+              render={({ e }) => <TemplateCard e={e} locked={locked(e)} selected={e.id === t} onUse={() => use_(e)} onInspect={() => inspect(e.id === t ? undefined : e.id)} />} />
+          ) : (
+            <EmptyBox icon="search" title="No templates match" action={<button className="btn" type="button" onClick={() => { setUse(""); setKind("all"); setWhere("all"); }}>Show all</button>}>Clear the filter to see all of them.</EmptyBox>
+          )}
         </div>
       </div>
       <div className={open ? "scrim on" : "scrim"} onClick={close} />
       <aside className={open ? "inspector open" : "inspector"} aria-label="Template details" aria-hidden={!open}>
-        {panel && <TemplateInspector key={panel.id} e={panel} locked={locked(panel)} onUse={() => use(panel)} onClose={close} />}
+        {panel && <TemplateInspector key={panel.id} e={panel} locked={locked(panel)} onUse={() => use_(panel)} onClose={close} />}
       </aside>
     </div>
   );
@@ -113,13 +102,13 @@ export function Explore({ t }: { t?: string }) {
 function Drafts({ list, selected, onUse, onInspect }: { list: EngineInfo[]; selected?: string; onUse: (e: EngineInfo) => void; onInspect: (id: string) => void }) {
   return (
     <section className="wall-wrap drafts" aria-label="Drafts">
-      <div className="drafts-h"><b>Drafts</b><span>Run one, then publish a result. That result becomes its cover and puts it on the wall.</span></div>
       <div className="drafts-row">
+        <span className="drafts-lab" title="Run one, then publish a result. That result becomes its cover and puts it on the wall.">Drafts</span>
         {list.map((e) => (
           <div key={e.id} className={cx("draft", e.id === selected && "sel")}>
             <button className="draft-go" type="button" onClick={() => onUse(e)} title="Open in Create">
               <span className="draft-ic"><I n={e.mode === "motion" ? "film" : "image"} /></span>
-              <span className="draft-t"><b>{tplName(e)}</b><small>{e.kind === "local" ? "Local" : "Cloud"} · not published</small></span>
+              <span className="draft-t"><b>{tplName(e)}</b><small>Not on Explore yet · run it once to publish</small></span>
               <span className="draft-run"><I n="play" />Run</span>
             </button>
             <button className="icon-btn sm" type="button" aria-label={`Details for ${tplName(e)}`} onClick={() => onInspect(e.id)}><I n="info" /></button>

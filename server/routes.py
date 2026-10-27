@@ -16,7 +16,7 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from . import __version__, builder, bundle, engines, jobs, local, media, paths, proxy, settings, storage, store
+from . import __version__, adapters, builder, bundle, engines, jobs, local, media, paths, proxy, settings, storage, store
 from . import generation as sc
 from .router import Router, RouterError
 
@@ -25,7 +25,6 @@ APP_DIR = paths.package_root() / "static"
 UPLOAD_EXT = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm", ".m4v"}
 MAX_UPLOAD = 500 * 1024 * 1024
 
-_catalog_cache: dict = {"at": 0.0, "data": None}
 _status_cache: dict = {"at": 0.0, "data": None}
 _sockets: set[web.WebSocketResponse] = set()
 
@@ -194,7 +193,7 @@ def register(routes: web.RouteTableDef) -> None:
         settings.save({"onboarded": True})
         return web.json_response({"ok": True})
 
-    # ---- engines, catalog, schemas -------------------------------------------
+    # ---- engines ----------------------------------------------------------
 
     @routes.get(API + "/engines")
     async def list_engines(request):
@@ -400,19 +399,10 @@ def register(routes: web.RouteTableDef) -> None:
         return web.Response(text=json.dumps(wf, indent=2, ensure_ascii=False), content_type="application/json",
                             headers={"Content-Disposition": f'attachment; filename="{slug}.json"', "Cache-Control": "no-store"})
 
-    @routes.get(API + "/builder/schema")
-    async def builder_schema(request):
-        model = request.query.get("model", "")
-        try:
-            doc = await Router().get_schema(model)
-        except RouterError as e:
-            return router_err(e)
-        except (ValueError, httpx.HTTPError) as e:
-            return err(400, str(e))
-        s = input_schema(doc)
-        return web.json_response({"model": model, "version": s["version"], "input_modalities": s["input_modalities"],
-                                  "output_modalities": s["output_modalities"],
-                                  **builder.analyze_schema({**s["schema"], "x-output-modalities": s["output_modalities"]})})
+    @routes.get(API + "/builder/models")
+    async def builder_models(request):
+        """The Router models a template can be built from: the ones with an adapter."""
+        return web.json_response([adapters.describe(a) for a in adapters.all_adapters().values()])
 
     @routes.post(API + "/builder/save")
     async def builder_save(request):
@@ -452,29 +442,6 @@ def register(routes: web.RouteTableDef) -> None:
         except KeyError:
             return err(409, "Only templates you built can be deleted")
         return web.json_response({"ok": True})
-
-    @routes.get(API + "/catalog")
-    async def catalog(request):
-        now = time.time()
-        if _catalog_cache["data"] is None or now - _catalog_cache["at"] > 600:
-            try:
-                _catalog_cache.update(at=now, data=await Router().list_models())
-            except RouterError as e:
-                return router_err(e)
-            except httpx.HTTPError as e:
-                return err(502, f"Router unreachable: {e}")
-        return web.json_response(_catalog_cache["data"])
-
-    @routes.get(API + "/schema")
-    async def schema(request):
-        model = request.query.get("model", "")
-        try:
-            doc = await Router().get_schema(model)
-        except RouterError as e:
-            return router_err(e)
-        except (ValueError, httpx.HTTPError) as e:
-            return err(400, str(e))
-        return web.json_response(input_schema(doc))
 
     # ---- uploads -------------------------------------------------------------
 
@@ -964,6 +931,8 @@ async def _probe_local() -> dict:
         out["comfyui"] = True
         dev = (st.get("devices") or [{}])[0]
         out["gpu"] = dev.get("name")
+        out["vram_total"] = dev.get("vram_total")
+        out["vram_free"] = dev.get("vram_free")
         out["comfyui_version"] = (st.get("system") or {}).get("comfyui_version")
     except (httpx.HTTPError, ValueError):
         out["reason"] = out.get("reason") or "comfyui_down"
@@ -1080,31 +1049,4 @@ def spec_from_generation(m: sc.Manifest) -> dict:
     }
 
 
-def input_schema(doc: dict) -> dict:
-    """Pull the request-body schema out of a model's OpenAPI document, with
-    $refs into components inlined one level so the form renderer can read it."""
-    comps = doc.get("components", {}).get("schemas", {})
-    body = {}
-    for path in doc.get("paths", {}).values():
-        op = path.get("post") or {}
-        body = op.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {})
-        if body:
-            break
 
-    def inline(s, depth=0):
-        if isinstance(s, dict):
-            if "$ref" in s and depth < 4:
-                return inline(comps.get(s["$ref"].rsplit("/", 1)[-1], {}), depth + 1)
-            return {k: inline(v, depth) for k, v in s.items()}
-        if isinstance(s, list):
-            return [inline(x, depth) for x in s]
-        return s
-
-    return {
-        "model": doc.get("x-comfy-router-model-id"),
-        "version": doc.get("info", {}).get("version"),
-        "authored": doc.get("x-comfy-input-schema-authored", True),
-        "input_modalities": doc.get("x-comfy-router-input-modalities", []),
-        "output_modalities": doc.get("x-comfy-router-output-modalities", []),
-        "schema": inline(body),
-    }

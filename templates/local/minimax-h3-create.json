@@ -9,19 +9,12 @@
   "source": "ComfyUI template video_minimax_h3_t2v with the FL2V 4-step turbo LoRA and the int8 text encoder",
   "tags": [
     "create",
-    "video",
     "scene"
-  ],
-  "tips": [
-    "One continuous shot works best: the scene, what happens, then how the camera moves.",
-    "An Audio: line in the prompt steers the generated sound.",
-    "Pick the shape and size under Output. Bigger and longer take proportionally more time."
   ],
   "inputs": [
     {
       "key": "prompt",
       "type": "text",
-      "label": "Prompt",
       "required": true,
       "default": "Realistic cinematic footage. A slow aerial drone shot glides over a Norwegian fjord at sunrise, mist on still water, a small red cabin on the rocky shore, steep green cliffs. Audio: soft wind and distant birds.",
       "examples": [
@@ -48,73 +41,6 @@
           "prompt"
         ]
       ]
-    },
-    {
-      "key": "seconds",
-      "type": "int",
-      "label": "Length",
-      "help": "Seconds of video. Longer takes proportionally more time.",
-      "min": 2,
-      "max": 8,
-      "default": 5,
-      "unit": "s",
-      "bind": [
-        [
-          "140:133",
-          "value",
-          "float"
-        ]
-      ]
-    },
-    {
-      "key": "steps",
-      "type": "int",
-      "label": "Steps",
-      "help": "The turbo LoRA is trained for 4.",
-      "advanced": true,
-      "min": 2,
-      "max": 12,
-      "default": 4,
-      "bind": [
-        [
-          "140:138",
-          "value",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "seed",
-      "type": "seed",
-      "label": "Seed",
-      "advanced": true,
-      "default": -1,
-      "bind": [
-        [
-          "140:129",
-          "noise_seed",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "size",
-      "type": "size",
-      "label": "Output size",
-      "bind": [
-        [
-          "140:131",
-          "width",
-          "width"
-        ],
-        [
-          "140:131",
-          "height",
-          "height"
-        ]
-      ],
-      "aspect": "16:9",
-      "default": "0.4 MP"
     }
   ],
   "size": {
@@ -277,6 +203,11 @@
       "class_type": "RandomNoise",
       "inputs": {
         "noise_seed": 1
+      },
+      "_meta": {
+        "control_after_generate": {
+          "noise_seed": "fixed"
+        }
       }
     },
     "140:130": {
@@ -327,7 +258,7 @@
     "140:133": {
       "class_type": "PrimitiveFloat",
       "inputs": {
-        "value": 5
+        "value": 5.0
       },
       "_meta": {
         "title": "Float (duration)"

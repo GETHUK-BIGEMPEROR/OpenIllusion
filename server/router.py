@@ -1,20 +1,18 @@
 """A small async client for Comfy Router.
 
-Covers what OpenIllusion needs: the catalog, per-model schemas (cached with
-ETags), pre-flight estimates, and queued delivery (submit, status, collect,
-cancel). Plain HTTP over httpx so the pack has no SDK pin to fight with.
+Covers what OpenIllusion needs: pre-flight estimates and queued delivery
+(submit, status, collect, cancel). What each model takes is in its adapter
+(``server/adapters``), not read from Router. Plain HTTP over httpx so the pack has no SDK pin to fight with.
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
-from . import paths, settings
+from . import settings
 
 TIMEOUT = httpx.Timeout(connect=15.0, read=660.0, write=300.0, pool=30.0)
 
@@ -99,56 +97,6 @@ class Router:
             return resp.json(), resp
         except ValueError:
             return None, resp
-
-    # ---- catalog -------------------------------------------------------
-
-    async def list_models(self) -> list[dict]:
-        out: list[dict] = []
-        cursor = None
-        for _ in range(50):
-            params = {"limit": 100}
-            if cursor:
-                params["cursor"] = cursor
-            data, _ = await self._json("GET", "/v2/models", params=params)
-            out.extend(data.get("data", []))
-            if not data.get("has_more"):
-                break
-            cursor = data.get("next_cursor")
-        return out
-
-    async def get_model(self, model_id: str) -> dict:
-        p, m = split_id(model_id)
-        data, _ = await self._json("GET", f"/v2/models/{p}/{m}")
-        return data
-
-    async def get_schema(self, model_id: str) -> dict:
-        """The model's OpenAPI document, revalidated with If-None-Match."""
-        p, m = split_id(model_id)
-        cache = paths.cache_dir() / "schemas"
-        cache.mkdir(exist_ok=True)
-        f = cache / (hashlib.sha1(model_id.encode()).hexdigest() + ".json")
-        cached = None
-        if f.exists():
-            try:
-                cached = json.loads(f.read_text("utf-8"))
-            except ValueError:
-                cached = None
-        headers = {}
-        if cached and cached.get("etag"):
-            headers["If-None-Match"] = cached["etag"]
-        async with self._client() as c:
-            resp = await c.get(f"/v2/models/{p}/{m}/openapi.json", headers=headers)
-        if resp.status_code == 304 and cached:
-            return cached["doc"]
-        if resp.status_code >= 400:
-            if cached:
-                return cached["doc"]
-            raise read_error(resp)
-        doc = resp.json()
-        f.write_text(json.dumps({"etag": resp.headers.get("ETag"), "doc": doc}), "utf-8")
-        return doc
-
-    # ---- pricing -------------------------------------------------------
 
     async def estimate(self, model_id: str, body: dict) -> dict:
         p, m = split_id(model_id)

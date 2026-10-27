@@ -1,0 +1,40 @@
+{
+  "model": "kling/kling-v3-omni",
+  "name": "Kling 3 Omni",
+  "makes": "video",
+  "body": {
+    "prompt": "",
+    "mode": "pro",
+    "duration": "5",
+    "aspect_ratio": "16:9"
+  },
+  "prompt": ["prompt"],
+  "inputs": [
+    {
+      "role": "First frame",
+      "type": "image",
+      "at": ["image_list", "+"],
+      "value": { "image_url": "{{$|b64}}", "type": "first_frame" },
+      "set": "frames"
+    },
+    {
+      "role": "Last frame",
+      "type": "image",
+      "at": ["image_list", "+"],
+      "value": { "image_url": "{{$|b64}}", "type": "end_frame" },
+      "set": "frames",
+      "needs": "First frame"
+    },
+    {
+      "role": "Reference",
+      "type": "image",
+      "at": ["image_list", "+"],
+      "value": { "image_url": "{{$|b64}}" },
+      "set": "references",
+      "max": 4
+    }
+  ],
+  "result": [
+    ["data", "task_result", "videos", "*", "url"]
+  ]
+}

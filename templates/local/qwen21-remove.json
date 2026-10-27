@@ -8,22 +8,13 @@
   "blurb": "Erases what you name from Image 1 and fills in what would be behind it.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
   "tags": [
-    "cleanup",
-    "photo"
-  ],
-  "tips": [
-    "Point at it by place or color: 'the red car on the left'.",
-    "Remove one thing per run for the cleanest fill."
+    "cleanup"
   ],
   "inputs": [
     {
       "key": "image:1",
       "type": "image",
-      "label": "Photo",
-      "hint": "Any photo.",
       "required": true,
-      "size": "1 MP",
-      "area": true,
       "default": "media/books-arm.jpg",
       "bind": [
         [
@@ -35,7 +26,6 @@
     {
       "key": "prompt",
       "type": "text",
-      "label": "Prompt",
       "required": true,
       "default": "Completely remove the following from <image1>, every part of it: the arm in the mustard sweater and its hand. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is.",
       "examples": [
@@ -60,57 +50,6 @@
         [
           "5",
           "prompt"
-        ]
-      ]
-    },
-    {
-      "key": "steps",
-      "type": "int",
-      "label": "Steps",
-      "help": "The official pipeline uses 40–50.",
-      "advanced": true,
-      "min": 10,
-      "max": 50,
-      "default": 25,
-      "bind": [
-        [
-          "7",
-          "steps",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "seed",
-      "type": "seed",
-      "label": "Seed",
-      "advanced": true,
-      "default": -1,
-      "bind": [
-        [
-          "7",
-          "seed",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "cache",
-      "type": "segmented",
-      "label": "Step cache",
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
-      "advanced": true,
-      "options": [
-        "cpu",
-        "auto",
-        "gpu",
-        "off"
-      ],
-      "default": "cpu",
-      "bind": [
-        [
-          "2",
-          "device"
         ]
       ]
     }
@@ -228,6 +167,11 @@
         "sampler_name": "euler",
         "scheduler": "simple",
         "denoise": 1.0
+      },
+      "_meta": {
+        "control_after_generate": {
+          "seed": "randomize"
+        }
       }
     },
     "8": {

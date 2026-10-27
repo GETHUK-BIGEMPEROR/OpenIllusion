@@ -9,22 +9,13 @@
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
   "tags": [
     "product",
-    "ad",
-    "two images"
-  ],
-  "tips": [
-    "Leave room in the frame for a hand and the product.",
-    "Small products (cans, phones, cameras) work best."
+    "ad"
   ],
   "inputs": [
     {
       "key": "image:1",
       "type": "image",
-      "label": "Person",
-      "hint": "Waist up works best, so there's room for a hand.",
       "required": true,
-      "size": "1 MP",
-      "area": true,
       "default": "media/man-whitetee.jpg",
       "bind": [
         [
@@ -36,10 +27,7 @@
     {
       "key": "image:2",
       "type": "image",
-      "label": "Product",
-      "hint": "A clear photo of the product.",
       "required": true,
-      "size": "1 MP",
       "default": "media/instant-camera.jpg",
       "bind": [
         [
@@ -51,7 +39,6 @@
     {
       "key": "prompt",
       "type": "text",
-      "label": "Prompt",
       "required": true,
       "default": "Show the person in <image1> holding the product from <image2> in their hand. Holding it up next to their face. Reproduce the product exactly: shape, color, materials, logos and text. They hold it naturally at a realistic scale, fingers wrapped around it, with light and shadow matching the photo. Keep the person's face, identity, hair, clothing and background exactly as they are.",
       "examples": [
@@ -68,57 +55,6 @@
         [
           "5",
           "prompt"
-        ]
-      ]
-    },
-    {
-      "key": "steps",
-      "type": "int",
-      "label": "Steps",
-      "help": "The official pipeline uses 40–50.",
-      "advanced": true,
-      "min": 10,
-      "max": 50,
-      "default": 25,
-      "bind": [
-        [
-          "7",
-          "steps",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "seed",
-      "type": "seed",
-      "label": "Seed",
-      "advanced": true,
-      "default": -1,
-      "bind": [
-        [
-          "7",
-          "seed",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "cache",
-      "type": "segmented",
-      "label": "Step cache",
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
-      "advanced": true,
-      "options": [
-        "cpu",
-        "auto",
-        "gpu",
-        "off"
-      ],
-      "default": "cpu",
-      "bind": [
-        [
-          "2",
-          "device"
         ]
       ]
     }
@@ -240,6 +176,11 @@
         "sampler_name": "euler",
         "scheduler": "simple",
         "denoise": 1.0
+      },
+      "_meta": {
+        "control_after_generate": {
+          "seed": "randomize"
+        }
       }
     },
     "8": {

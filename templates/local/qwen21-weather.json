@@ -11,18 +11,11 @@
     "scene",
     "weather"
   ],
-  "tips": [
-    "Combine a season with a light: 'winter, sunset'."
-  ],
   "inputs": [
     {
       "key": "image:1",
       "type": "image",
-      "label": "Scene",
-      "hint": "A landscape, street or city view.",
       "required": true,
-      "size": "1 MP",
-      "area": true,
       "default": "media/village-street.jpg",
       "bind": [
         [
@@ -34,7 +27,6 @@
     {
       "key": "prompt",
       "type": "text",
-      "label": "Prompt",
       "required": true,
       "default": "Change the season and weather in <image1> to: deep winter, heavy snowfall. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place.",
       "examples": [
@@ -59,57 +51,6 @@
         [
           "5",
           "prompt"
-        ]
-      ]
-    },
-    {
-      "key": "steps",
-      "type": "int",
-      "label": "Steps",
-      "help": "The official pipeline uses 40–50.",
-      "advanced": true,
-      "min": 10,
-      "max": 50,
-      "default": 25,
-      "bind": [
-        [
-          "7",
-          "steps",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "seed",
-      "type": "seed",
-      "label": "Seed",
-      "advanced": true,
-      "default": -1,
-      "bind": [
-        [
-          "7",
-          "seed",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "cache",
-      "type": "segmented",
-      "label": "Step cache",
-      "help": "Where Qwen 2.1 keeps its step cache. cpu (RAM) is safe on 16 GB cards and costs little speed. auto and gpu take spare VRAM and can run out of memory.",
-      "advanced": true,
-      "options": [
-        "cpu",
-        "auto",
-        "gpu",
-        "off"
-      ],
-      "default": "cpu",
-      "bind": [
-        [
-          "2",
-          "device"
         ]
       ]
     }
@@ -227,6 +168,11 @@
         "sampler_name": "euler",
         "scheduler": "simple",
         "denoise": 1.0
+      },
+      "_meta": {
+        "control_after_generate": {
+          "seed": "randomize"
+        }
       }
     },
     "8": {

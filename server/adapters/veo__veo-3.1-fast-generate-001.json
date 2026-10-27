@@ -1,0 +1,43 @@
+{
+  "model": "veo/veo-3.1-fast-generate-001",
+  "name": "Veo 3.1 Fast",
+  "makes": "video",
+  "body": {
+    "instances": [
+      { "prompt": "" }
+    ],
+    "parameters": {
+      "sampleCount": 1
+    }
+  },
+  "prompt": ["instances", 0, "prompt"],
+  "inputs": [
+    {
+      "role": "First frame",
+      "type": "image",
+      "at": ["instances", 0, "image"],
+      "value": { "bytesBase64Encoded": "{{$|b64}}", "mimeType": "{{$|mime}}" },
+      "set": "frames"
+    },
+    {
+      "role": "Last frame",
+      "type": "image",
+      "at": ["instances", 0, "lastFrame"],
+      "value": { "bytesBase64Encoded": "{{$|b64}}", "mimeType": "{{$|mime}}" },
+      "set": "frames",
+      "needs": "First frame"
+    },
+    {
+      "role": "Reference",
+      "type": "image",
+      "at": ["instances", 0, "referenceImages", "+"],
+      "value": { "image": { "bytesBase64Encoded": "{{$|b64}}", "mimeType": "{{$|mime}}" }, "referenceType": "asset" },
+      "set": "references",
+      "max": 3
+    }
+  ],
+  "result": [
+    ["response", "videos", "*", "bytesBase64Encoded"],
+    ["response", "videos", "*", "gcsUri"]
+  ]
+}

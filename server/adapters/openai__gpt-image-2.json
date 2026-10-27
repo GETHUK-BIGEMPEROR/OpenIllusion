@@ -1,0 +1,22 @@
+{
+  "model": "openai/gpt-image-2",
+  "name": "GPT Image 2",
+  "makes": "photo",
+  "body": {
+    "prompt": ""
+  },
+  "prompt": ["prompt"],
+  "inputs": [
+    {
+      "role": "Photo",
+      "type": "image",
+      "at": ["image", "+"],
+      "value": "{{$|uri}}",
+      "max": 4
+    }
+  ],
+  "result": [
+    ["data", "*", "b64_json"],
+    ["data", "*", "url"]
+  ]
+}

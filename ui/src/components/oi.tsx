@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { api, type Job, type LocalStatus } from "../lib/api";
+import { isActive, useJobs } from "../lib/live";
 import { useApp } from "../lib/store";
 import { SPRITE, type IconName } from "./sprite";
 import { cx } from "./ui";
@@ -70,17 +71,25 @@ export function Media({ src, video, poster, ar, children, imgStyle }: {
 }
 
 /** Before/after wipe. Drag, or use the arrow keys. */
-export function Compare({ before, after, lb = "Before", la = "After", children }: { before: string; after: string; lb?: string; la?: string; children?: ReactNode }) {
-  const [x, setX] = useState(50);
+export function Compare({ before, after, lb = "Before", la = "After", intro, children }: { before: string; after: string; lb?: string; la?: string; intro?: boolean; children?: ReactNode }) {
+  // With intro, the result wipes in from the right once, then the slider is yours.
+  const [x, setX] = useState(intro ? 100 : 50);
+  const [wiping, setWiping] = useState(!!intro);
   const el = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!intro) return;
+    const f = requestAnimationFrame(() => requestAnimationFrame(() => setX(50)));
+    const t = window.setTimeout(() => setWiping(false), 1100);
+    return () => { cancelAnimationFrame(f); clearTimeout(t); };
+  }, [intro]);
   const at = (clientX: number) => {
     const r = el.current!.getBoundingClientRect();
     setX(Math.min(100, Math.max(0, ((clientX - r.left) / r.width) * 100)));
   };
   return (
-    <div ref={el} className="cmp" role="slider" tabIndex={0} aria-label={`Drag to compare ${lb.toLowerCase()} and ${la.toLowerCase()}`}
+    <div ref={el} className={cx("cmp", wiping && "wipe")} role="slider" tabIndex={0} aria-label={`Drag to compare ${lb.toLowerCase()} and ${la.toLowerCase()}`}
       aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(x)} style={{ "--x": `${x}%` } as CSSProperties}
-      onPointerDown={(e) => { el.current!.setPointerCapture(e.pointerId); at(e.clientX); }}
+      onPointerDown={(e) => { el.current!.setPointerCapture(e.pointerId); setWiping(false); at(e.clientX); }}
       onPointerMove={(e) => { if (e.buttons) at(e.clientX); }}
       onKeyDown={(e) => {
         if (e.key === "ArrowLeft") { e.preventDefault(); setX((v) => Math.max(0, v - 5)); }
@@ -124,27 +133,106 @@ export function useStatus() {
   return useQuery({ queryKey: ["status"], queryFn: () => api.status(), refetchInterval: 30_000 });
 }
 
-/** Sticky page header: title, search (opens the palette), page actions, where runs go. */
-export function PageHead({ title, count, filters, actions }: { title: ReactNode; count?: number | null; filters?: ReactNode; actions?: ReactNode }) {
+/** Sticky page header. With a title: title, actions, search, GPU. Without one (Explore): the filters take the title's place. */
+export function PageHead({ title, count, filters, actions }: { title?: ReactNode; count?: number | null; filters?: ReactNode; actions?: ReactNode }) {
   const setPalette = useApp((s) => s.setPalette);
-  const status = useStatus();
-  const local = localState(status.data?.local);
   const mac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
+  const right = (
+    <div className="hactions">
+      {actions}
+      <button className="icon-btn" type="button" aria-label="Search templates and results" title={`Search (${mac ? "⌘K" : "Ctrl K"})`} onClick={() => setPalette(true)}><I n="search" /></button>
+      <GpuStat />
+    </div>
+  );
+  if (!title) {
+    return (
+      <header className="phead">
+        <div className="phead-row hrow"><div className="hfilters">{filters}</div>{right}</div>
+      </header>
+    );
+  }
   return (
     <header className="phead">
       <div className="phead-row">
         <div className="ptitle"><h1>{title}</h1>{count != null && <span className="count">{count}</span>}</div>
-        <button className="search" type="button" onClick={() => setPalette(true)}>
-          <I n="search" /><span>Search templates and generations</span><kbd>{mac ? "⌘K" : "Ctrl K"}</kbd>
-        </button>
-        <div className="hactions">
-          {actions}
-          <a className="enginepill" href="#/settings" title={local.title}><i className={cx("dot", local.tone === "off" && "off")} style={dotStyle(local.tone)} /><b>Local</b>{local.text}</a>
-          <button className="icon-btn mob-only" type="button" aria-label="Search" onClick={() => setPalette(true)}><I n="search" /></button>
-        </div>
+        {right}
       </div>
       {filters && <div className="filters">{filters}</div>}
     </header>
+  );
+}
+
+const GB = (b?: number | null) => (b ? b / 1024 ** 3 : 0);
+
+/** The local GPU in the page header: name and ComfyUI version, a ring while a run is going.
+ *  Only there when a local ComfyUI answers; click for memory, the run in flight and the addresses. */
+export function GpuStat() {
+  const status = useStatus();
+  const { data: jobs = [] } = useJobs();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const l = status.data?.local;
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); box.current?.querySelector("button")?.focus(); } };
+    window.addEventListener("pointerdown", down);
+    window.addEventListener("keydown", key);
+    return () => { window.removeEventListener("pointerdown", down); window.removeEventListener("keydown", key); };
+  }, [open]);
+  if (!l?.comfyui) return null;
+  const local = jobs.filter((j) => j.kind === "local" && isActive(j));
+  const cur = local.find((j) => j.state === "running" || j.state === "downloading");
+  const p = cur ? jobProgress(cur) : 0;
+  const gpu = gpuName(l.gpu) ?? "GPU";
+  const ver = l.comfyui_version ? `ComfyUI ${l.comfyui_version.split(".").slice(0, 2).join(".")}` : "ComfyUI";
+  const c = 2 * Math.PI * 7;
+  return (
+    <div className="gstat" ref={box}>
+      <button className="gchip" type="button" aria-expanded={open} aria-label={`${gpu}, ${ver}. Show GPU status`} onClick={() => setOpen(!open)}>
+        <span className="gring">
+          <svg viewBox="0 0 18 18" aria-hidden><circle cx="9" cy="9" r="7" strokeDasharray={c} strokeDashoffset={c * (1 - p)} style={{ opacity: cur ? 1 : 0 }} /></svg>
+          <i className={cx("dot", cur && "busy", !l.ok && "warn")} />
+        </span>
+        <b>{gpu}</b><span className="gv">{ver}</span>
+        {cur && <span className="gp mono">{Math.round(p * 100)}%</span>}
+        <I n="down" className="gcv" />
+      </button>
+      {open && <GpuPop l={l} cur={cur} waiting={local.length - (cur ? 1 : 0)} />}
+    </div>
+  );
+}
+
+function GpuPop({ l, cur, waiting }: { l: LocalStatus; cur?: Job; waiting: number }) {
+  // Memory moves while a run is going; ask more often while the card is open.
+  useQuery({ queryKey: ["status"], queryFn: () => api.status(), refetchInterval: 3000 });
+  const setQueue = useApp((s) => s.setQueue);
+  const total = GB(l.vram_total), used = total ? total - GB(l.vram_free) : 0;
+  const host = (u: string) => u.replace(/^https?:\/\//, "");
+  return (
+    <div className="gpop" role="dialog" aria-label="GPU status">
+      <div className="gp-h">
+        <span className="ic"><I n="cpu" /></span>
+        <div><b>{gpuName(l.gpu) ?? "GPU"}</b><span>{total ? `${Math.round(total)} GB · ` : ""}local ComfyUI</span></div>
+        <span className={cx("pill", cur ? "yellow" : l.ok ? "mint" : "orange")}>{cur ? "Busy" : l.ok ? "Ready" : "API v2 off"}</span>
+      </div>
+      {total > 0 && (
+        <div className="gp-m">
+          <div className="gp-l"><span>GPU memory</span><span className="mono">{used.toFixed(1)} of {total.toFixed(0)} GB</span></div>
+          <div className="vram" style={{ "--v": `${Math.min(100, (used / total) * 100)}%` } as CSSProperties}><i /></div>
+        </div>
+      )}
+      <div className="gp-rows">
+        <div><span>Now</span><b>{cur ? `${cur.title} · ${Math.round(jobProgress(cur) * 100)}%` : "Idle"}</b></div>
+        <div><span>Queue</span><b>{waiting > 0 ? `${waiting} waiting` : "Empty"}</b></div>
+        <div><span>ComfyUI</span><b className="mono">{l.comfyui_version ?? "?"} · {host(l.comfyui_url)}</b></div>
+        <div><span>Comfy API v2</span><b className="mono">{l.v2 ? `:${new URL(l.v2_url).port || "80"}${l.managed ? " · started for you" : ""}` : l.autostart && l.proxy_installed ? "starts when you run" : "not running"}</b></div>
+      </div>
+      <div className="gp-f">
+        <button className="btn sm" type="button" onClick={() => setQueue(true)}><I n="layers" />Open queue</button>
+        <a className="btn sm ghost" href="#/settings"><I n="sliders" />Settings</a>
+      </div>
+    </div>
   );
 }
 

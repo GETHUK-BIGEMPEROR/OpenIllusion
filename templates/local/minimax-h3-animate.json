@@ -9,22 +9,13 @@
   "source": "ComfyUI template video_minimax_h3_i2v with the FL2V 4-step turbo LoRA and the int8 text encoder",
   "tags": [
     "animate",
-    "video",
     "portrait"
-  ],
-  "tips": [
-    "Describe one continuous action and the camera move; the photo is always the first frame.",
-    "An Audio: line in the prompt steers the generated sound.",
-    "The video takes the photo's shape, at the size picked under Photo."
   ],
   "inputs": [
     {
       "key": "image:1",
       "type": "image",
-      "label": "Photo",
-      "hint": "The first frame. A clear subject with some room around it moves best.",
       "required": true,
-      "size": "0.4 MP",
       "default": "media/braids-cafe.jpg",
       "bind": [
         [
@@ -36,7 +27,6 @@
     {
       "key": "prompt",
       "type": "text",
-      "label": "Prompt",
       "required": true,
       "default": "The scene opens exactly on <Picture 1>. The person slowly turns their head toward the camera and breaks into a warm, natural smile. The camera holds steady with a gentle push-in. Audio: soft room tone and a quiet breath. Keep the person's identity, face, hair, outfit and the setting from <Picture 1>. Natural, realistic motion; no cuts.",
       "examples": [
@@ -61,55 +51,6 @@
         [
           "105:104",
           "prompt"
-        ]
-      ]
-    },
-    {
-      "key": "seconds",
-      "type": "int",
-      "label": "Length",
-      "help": "Seconds of video. Longer takes proportionally more time.",
-      "advanced": false,
-      "min": 2,
-      "max": 8,
-      "default": 5,
-      "unit": "s",
-      "bind": [
-        [
-          "105:111",
-          "value",
-          "float"
-        ]
-      ]
-    },
-    {
-      "key": "steps",
-      "type": "int",
-      "label": "Steps",
-      "help": "The turbo LoRA is trained for 4.",
-      "advanced": true,
-      "min": 2,
-      "max": 12,
-      "default": 4,
-      "bind": [
-        [
-          "105:125",
-          "value",
-          "int"
-        ]
-      ]
-    },
-    {
-      "key": "seed",
-      "type": "seed",
-      "label": "Seed",
-      "advanced": true,
-      "default": -1,
-      "bind": [
-        [
-          "105:15",
-          "noise_seed",
-          "int"
         ]
       ]
     }
@@ -289,6 +230,11 @@
       "class_type": "RandomNoise",
       "inputs": {
         "noise_seed": 1
+      },
+      "_meta": {
+        "control_after_generate": {
+          "noise_seed": "fixed"
+        }
       }
     },
     "105:91": {
@@ -349,7 +295,7 @@
     "105:111": {
       "class_type": "PrimitiveFloat",
       "inputs": {
-        "value": 5
+        "value": 5.0
       },
       "_meta": {
         "title": "Float (duration)"

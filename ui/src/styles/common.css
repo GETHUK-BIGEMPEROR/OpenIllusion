@@ -6,13 +6,43 @@
 .ptitle{display:flex;align-items:baseline;gap:10px;min-width:0;flex:none}
 .ptitle h1{margin:0;font:600 20px/1.1 var(--display);letter-spacing:-.01em}
 .count{font:500 11.5px/1 var(--mono);color:var(--text-3);padding:4px 7px;border-radius:7px;background:var(--raised)}
-.search{flex:1;max-width:440px;margin:0 auto;height:36px;border-radius:11px;background:var(--panel);border:1px solid var(--line);display:flex;align-items:center;gap:9px;padding:0 10px 0 12px;color:var(--text-3);font-size:13px;transition:border-color .15s}
-.search:hover{border-color:var(--line-2);color:var(--text-2)}
-.search span{flex:1}
 kbd{font:500 10.5px/1 var(--mono);padding:4px 6px;border-radius:6px;border:1px solid var(--line-2);color:var(--text-3);background:rgba(255,255,255,.02)}
-.hactions{display:flex;align-items:center;gap:8px;flex:none}
-.enginepill{height:34px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-radius:10px;border:1px solid var(--line);font-size:12.5px;color:var(--text-2)}
-.enginepill b{color:var(--text);font-weight:500}
+.hactions{display:flex;align-items:center;gap:8px;flex:none;margin-left:auto}
+/* Explore has no title: its filters sit on the header line, fading out under the actions when they run long */
+.phead-row.hrow{gap:14px}
+.hfilters{flex:1;min-width:0;display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 28px 2px 1px;margin:-2px 0;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+.hfilters::-webkit-scrollbar{display:none}
+/* the local GPU, top right of every page while a local ComfyUI answers */
+.gstat{position:relative;flex:none}
+.gchip{height:34px;display:inline-flex;align-items:center;gap:8px;padding:0 9px 0 8px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);font-size:12.5px;color:var(--text-2);white-space:nowrap;transition:background .15s,border-color .15s}
+.gchip:hover,.gchip[aria-expanded="true"]{background:var(--raised);border-color:rgba(226,214,255,.26)}
+.gchip b{font-weight:500;color:var(--text)}
+.gchip .gv{font:500 11px var(--mono);color:var(--text-3);padding-left:8px;border-left:1px solid var(--line-2)}
+.gchip .gp{font-size:11px;color:var(--yellow)}
+.gchip .gcv{width:14px;height:14px;color:var(--text-3);transition:transform .3s var(--spring)}
+.gchip[aria-expanded="true"] .gcv{transform:rotate(180deg)}
+.gring{position:relative;width:18px;height:18px;display:grid;place-items:center;flex:none}
+.gring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.gring circle{fill:none;stroke-width:2;stroke:var(--yellow);stroke-linecap:round;transition:stroke-dashoffset .3s linear,opacity .2s}
+.gring .dot{width:6px;height:6px}
+.gpop{position:absolute;right:0;top:calc(100% + 8px);width:min(320px,calc(100cqw - 24px));z-index:60;padding:14px;border-radius:16px;background:#1A1421;border:1px solid var(--line-2);box-shadow:0 30px 70px -24px #000;display:grid;gap:12px;transform-origin:top right;animation:drop .24s var(--spring)}
+.gp-h{display:flex;align-items:center;gap:10px}
+.gp-h .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none;background:rgba(95,211,154,.14);color:var(--mint)}
+.gp-h b{display:block;font-size:13px;font-weight:600}
+.gp-h span{font-size:11.5px;color:var(--text-3)}
+.gp-h .pill{margin-left:auto}
+.gp-m{display:grid;gap:7px}
+.gp-l{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-3)}
+.vram{height:5px;border-radius:3px;background:var(--hover);overflow:hidden}
+.vram i{display:block;height:100%;width:var(--v,0%);background:linear-gradient(90deg,var(--mint),var(--yellow));border-radius:inherit;transition:width .6s var(--ease)}
+.gp-rows{display:grid;padding:4px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.gp-rows div{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:12px;color:var(--text-3)}
+.gp-rows span{flex:none}
+.gp-rows b{font-weight:500;color:var(--text);text-align:right;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gp-rows b.mono{font-size:11px;color:var(--text-2)}
+.gp-f{display:flex;gap:8px}
+.gp-f .btn{flex:1}
+.gp-f .btn.ghost{border-color:var(--line-2)}
 .btn{height:34px;padding:0 13px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:500;font-size:13px;background:var(--raised);border:1px solid var(--line-2);white-space:nowrap;transition:background .15s,filter .15s,border-color .15s}
 .btn:hover{background:var(--hover)}
 .btn .i{width:16px;height:16px}
@@ -45,6 +75,8 @@ kbd{font:500 10.5px/1 var(--mono);padding:4px 6px;border-radius:6px;border:1px s
 .pill{height:22px;padding:0 8px;border-radius:7px;background:rgba(14,10,19,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font:500 11px/22px var(--body);display:inline-flex;align-items:center;gap:6px;color:var(--text);white-space:nowrap}
 .pill .dot{width:6px;height:6px;box-shadow:none}
 .pill.yellow{background:var(--yellow);color:var(--on-yellow);font-weight:600;backdrop-filter:none}
+.pill.mint{background:rgba(95,211,154,.16);color:#9FEBC3;backdrop-filter:none}
+.pill.orange{background:rgba(255,162,76,.16);color:#FFC48C;backdrop-filter:none}
 .pill.rose{background:rgba(255,107,126,.18);color:#FFB3BD}
 .pill.mono{font-family:var(--mono);font-size:10.5px}
 .pill .i{width:13px;height:13px;stroke-width:2.2}

@@ -13,14 +13,13 @@ import { useLocalCheck } from "./Studio";
 import { tplModel, tplName, useCoverActions } from "./TemplateCard";
 import { Spinner } from "./ui";
 
-/** One input as the form holds it. `text` and `ideas` only for text inputs (the prompt). */
-interface InputDraft { label: string; hint: string; text?: string; ideas?: PromptIdea[] }
+/** The prompt as the form holds it: its default and ideas. Photos and clips have nothing to edit. */
+interface InputDraft { text?: string; ideas?: PromptIdea[] }
 
 interface Draft {
   label: string;
   blurb: string;
   tags: string;
-  tips: string;
   inputs: Record<string, InputDraft>;
 }
 
@@ -32,14 +31,9 @@ const draftOf = (e: EngineInfo): Draft => ({
   label: e.label,
   blurb: e.blurb ?? "",
   tags: (e.tags ?? []).join(", "),
-  tips: (e.tips ?? []).join("\n"),
-  inputs: Object.fromEntries(fieldsOf(e).map((f) => [f.key, {
-    label: f.label, hint: f.hint ?? "", ...(isText(f) ? { text: textOf(f), ideas: ideasOf(f) } : {}),
-  }])),
+  inputs: Object.fromEntries(fieldsOf(e).filter(isText).map((f) => [f.key, { text: textOf(f), ideas: ideasOf(f) }])),
 });
 
-const slotName = (slot: string) => { const [k, n] = slot.split(":"); return `${k.charAt(0).toUpperCase()}${k.slice(1)} ${n}`; };
-const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 const fit = (s: string, max = 8) => Math.min(max, Math.max(3, Math.ceil(s.length / 48) + s.split("\n").length));
 const commas = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -51,13 +45,10 @@ function patchOf(e: EngineInfo, d: Draft): TemplatePatch {
   if (d.label !== base.label) p.label = d.label;
   if (d.blurb !== base.blurb) p.blurb = d.blurb;
   if (d.tags !== base.tags) p.tags = commas(d.tags);
-  if (d.tips !== base.tips) p.tips = lines(d.tips);
   for (const [key, x] of Object.entries(d.inputs)) {
     const b = base.inputs[key];
     if (!b) continue;
     const ch: NonNullable<TemplatePatch["inputs"]>[string] = {};
-    if (x.label !== b.label) ch.label = x.label;
-    if (x.hint !== b.hint) ch.hint = x.hint;
     if (x.text !== undefined && x.text !== b.text) ch.default = x.text;
     if (x.ideas && !same(x.ideas, b.ideas)) ch.examples = x.ideas.filter((i) => i.text.trim());
     if (Object.keys(ch).length) (p.inputs ??= {})[key] = ch;
@@ -91,7 +82,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
     else drafts.delete(e.id);
   }, [e.id, d, dirty]);
 
-  const set = <K extends "label" | "blurb" | "tags" | "tips">(k: K) => (ev: { target: { value: string } }) => setD((x) => ({ ...x, [k]: ev.target.value }));
+  const set = <K extends "label" | "blurb" | "tags">(k: K) => (ev: { target: { value: string } }) => setD((x) => ({ ...x, [k]: ev.target.value }));
   const setIn = (key: string, ch: Partial<InputDraft>) => setD((x) => ({ ...x, inputs: { ...x.inputs, [key]: { ...x.inputs[key], ...ch } } }));
   const land = (next: EngineInfo) => {
     qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.map((x) => (x.id === next.id ? next : x)));
@@ -233,20 +224,11 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
             <div className="kv-h">Inputs<span>{media.length} input{media.length > 1 ? "s" : ""}</span></div>
             {media.map((f) => {
               const sm = samples.find((y) => y.slot === f.key);
-              const x = d.inputs[f.key];
               const thumb = sm ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : "image"} /></span>;
-              return editing && x ? (
-                <div key={f.key} className="inrow" style={{ alignItems: "start" }}>
-                  {thumb}
-                  <div style={{ display: "grid", gap: 6, flex: 1 }}>
-                    <input className="input" aria-label={`${slotName(f.key)} label`} value={x.label} maxLength={40} onChange={(ev) => setIn(f.key, { label: ev.target.value })} />
-                    <input className="input" aria-label={`${slotName(f.key)} hint`} placeholder="Hint shown on the empty input" value={x.hint} maxLength={160} onChange={(ev) => setIn(f.key, { hint: ev.target.value })} />
-                  </div>
-                </div>
-              ) : (
+              return (
                 <div key={f.key} className="inrow">
                   {thumb}
-                  <div><b>{slotName(f.key)} · {f.label}{f.required === false ? " · optional" : ""}</b><span>{f.hint ?? (sm ? "Sample included" : f.type === "video" ? "Your clip" : "Your photo")}</span></div>
+                  <div><b>{f.label}{f.required === false ? " · optional" : ""}</b><span>{sm ? "Sample included" : f.type === "video" ? "Your clip" : "Your photo"}</span></div>
                 </div>
               );
             })}
@@ -263,8 +245,6 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
                 <>
                   <textarea className="textarea" aria-label={`Default ${f.label.toLowerCase()}`} rows={fit(x.text ?? "", 12)} value={x.text ?? ""} onChange={(ev) => setIn(f.key, { text: ev.target.value })} maxLength={4000} />
                   <p className="help" style={{ marginTop: -4 }}>The whole text the workflow gets. The prompt box opens with it, and anyone can change any of it there.</p>
-                  <Field id={`ti-${f.key}-label`} label="Label"><input className="input" id={`ti-${f.key}-label`} value={x.label} onChange={(ev) => setIn(f.key, { label: ev.target.value })} maxLength={40} /></Field>
-                  <Field id={`ti-${f.key}-hint`} label="Placeholder"><input className="input" id={`ti-${f.key}-hint`} value={x.hint} onChange={(ev) => setIn(f.key, { hint: ev.target.value })} maxLength={160} /></Field>
                   <IdeasEditor ideas={x.ideas ?? []} seed={x.text ?? ""} onChange={(ideas) => setIn(f.key, { ideas })} />
                 </>
               ) : (
@@ -294,10 +274,6 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
           </div>
         )}
 
-        {editing && <Field id="ti-tips" label="Tips" help="One per line."><textarea className="textarea" id="ti-tips" rows={fit(d.tips)} value={d.tips} onChange={set("tips")} /></Field>}
-        {!editing && !!e.tips?.length && (
-          <div className="kv"><div className="kv-h">Tips</div><ul className="help" style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>{e.tips.map((t) => <li key={t}>{t}</li>)}</ul></div>
-        )}
         {!editing && !!e.tags?.length && <div className="kv"><div className="kv-h">Tags</div><div className="tags">{e.tags.map((t) => <span key={t} className="tag">{t}</span>)}</div></div>}
 
         {e.kind === "local" && <Ready e={e} />}

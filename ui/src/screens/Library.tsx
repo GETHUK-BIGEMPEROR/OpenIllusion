@@ -2,7 +2,7 @@ import { useQueries, useQuery, useQueryClient, type QueryClient, type UseQueryRe
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Masonry } from "../components/Masonry";
 import { cx, EmptyBox, I, jobProgress, Media, PageHead, QUEUED, Ring } from "../components/oi";
-import { tplName } from "../components/TemplateCard";
+import { tplModel, tplName } from "../components/TemplateCard";
 import { Spinner } from "../components/ui";
 import { api, fileUrl, trashFileUrl, type GenerationRow, type Job, type TrashItem } from "../lib/api";
 import { confirm } from "../lib/confirm";
@@ -102,8 +102,10 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
     return out;
   }, [list]);
 
-  const names = useMemo(() => new Map((engines.data ?? []).map((e) => [e.id, tplName(e)])), [engines.data]);
-  const nameOf = (m: string) => names.get(m) ?? m.split("/").pop() ?? m;
+  const byId = useMemo(() => new Map((engines.data ?? []).map((e) => [e.id, e])), [engines.data]);
+  const nameOf = (m: string) => { const e = byId.get(m); return e ? tplName(e) : m.split("/").pop() ?? m; };
+  // A run carries its template's caption, like the template's own card on Explore.
+  const capOf = (g: GenerationRow) => { const e = byId.get(g.model); return e ? { name: tplName(e), model: tplModel(e) } : { name: g.title || nameOf(g.model), model: g.provider ?? "" }; };
   const models = facets.data?.models ?? [];
   const pick = (id: string) => setPicked((p) => { const s = new Set(p); if (s.has(id)) s.delete(id); else s.add(id); return s; });
   const total = facets.data?.shelves?.[shelf];
@@ -141,51 +143,61 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
   const clearDay = (g: string) => void clearWhere(`Clear ${dayWords(g)}?`, (r) => dayGroup(r.created) === g && of[tab](r));
   const canClear = !community && !trashView && tab !== "active" && list.some((r) => !running(r));
 
-  const filters = (
+  // Other sources only show up once they hold something, or while you're on one.
+  const shelves = facets.data?.shelves ?? {};
+  const sources = SOURCES.filter((x) => x.id === "mine" || x.id === shelf || (x.id !== "trash" && x.id !== "community" && (shelves[x.id] ?? 0) > 0));
+  const filters = !community && !trashView && (
     <>
-      {!community && !trashView && (
-        <div className="seg" role="group" aria-label="Show">
-          <button type="button" aria-pressed={tab === "all"} onClick={() => setTab("all")}>All<span className="n">{all.length}</span></button>
-          <button type="button" aria-pressed={tab === "starred"} onClick={() => setTab("starred")}><I n="star" />Starred<span className="n">{n("starred")}</span></button>
-          <button type="button" aria-pressed={tab === "active"} onClick={() => setTab("active")}>In progress<span className="n">{n("active")}</span></button>
-          <button type="button" aria-pressed={tab === "failed"} onClick={() => setTab("failed")}>Failed<span className="n">{n("failed")}</span></button>
-        </div>
+      <div className="seg" role="group" aria-label="Show">
+        <button type="button" aria-pressed={tab === "all"} onClick={() => setTab("all")}>All<span className="n">{all.length}</span></button>
+        <button type="button" aria-pressed={tab === "starred"} onClick={() => setTab("starred")}><I n="star" />Starred<span className="n">{n("starred")}</span></button>
+        <button type="button" aria-pressed={tab === "active"} onClick={() => setTab("active")}>Running<span className="n">{n("active")}</span></button>
+        <button type="button" aria-pressed={tab === "failed"} onClick={() => setTab("failed")}>Failed<span className="n">{n("failed")}</span></button>
+      </div>
+      {sources.length > 1 && (
+        <>
+          <label className="sr" htmlFor="libSrc">Source</label>
+          <select className="select" id="libSrc" value={shelf} onChange={(e) => go({ name: "library", shelf: e.target.value })}>
+            {sources.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+          </select>
+        </>
       )}
-      <label className="sr" htmlFor="libSrc">Source</label>
-      <select className="select" id="libSrc" value={shelf} onChange={(e) => go({ name: "library", shelf: e.target.value })}>
-        {SOURCES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-      </select>
-      {!community && !trashView && models.length > 1 && (
+      {models.length > 1 && (
         <>
           <label className="sr" htmlFor="libTpl">Template</label>
           <select className="select" id="libTpl" value={model} onChange={(e) => setModel(e.target.value)} style={{ maxWidth: 220 }}>
-            <option value="">All templates</option>
+            <option value="">Every template</option>
             {models.map((m) => <option key={m} value={m}>{nameOf(m)}</option>)}
           </select>
         </>
       )}
-      <span className="fspacer" />
-      {trashView ? <TrashActions items={trash.data ?? []} /> : (
-        <button className="btn" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))}
-          title="Bring in a run: a .illusion file, an OpenIllusion PNG or MP4, or a generation JSON"><I n="import" />Import</button>
-      )}
+    </>
+  );
+  const actions = trashView ? <TrashActions items={trash.data ?? []} /> : community ? null : (
+    <>
+      <button className="icon-btn" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))} aria-label="Import a shared result"
+        title="Import a shared result: a .illusion file, an OpenIllusion PNG or MP4, or a generation JSON"><I n="upload" /></button>
       {canClear && !picking && (
         <button className="btn danger" type="button" onClick={clearView} title="Move everything shown here to the trash">
           <I n="trash" /><span className="lbl">{tab === "all" ? "Clear all" : tab === "failed" ? "Clear failed" : "Clear starred"}</span>
         </button>
       )}
-      {!community && !trashView && !!all.length && (
+      {!!all.length && (
         <button className={cx("btn", picking && "primary")} type="button" onClick={() => { setPicking(!picking); setPicked(new Set()); }}>
-          <I n="select" />{picking ? "Done" : "Select"}
+          <I n="select" /><span className="lbl">{picking ? "Done" : "Select"}</span>
         </button>
       )}
     </>
+  );
+  const back = (
+    <><button className="icon-btn" type="button" aria-label="Back to Library" onClick={() => go({ name: "library" })} style={{ marginRight: 4 }}><I n="left" /></button>
+      {trashView ? "Trash" : "Community"}</>
   );
 
   return (
     <div className="page library">
       <div className="scroll">
-        <PageHead title="Library" count={community ? null : trashView ? trash.data?.length ?? null : total ?? all.length} filters={filters} />
+        <PageHead title={trashView || community ? back : "Library"} count={community ? null : trashView ? trash.data?.length ?? null : total ?? all.length} filters={filters || undefined} actions={actions} />
         <div className="wall-wrap lib">
           {community ? <Community />
             : trashView ? <TrashWall q={trash} />
@@ -199,7 +211,7 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
                   )}
                 </div>
                 <Masonry label={g} maxCols={5} minCol={220} items={v.map((r) => ({ key: r.id, aspect: r.width && r.height ? r.width / r.height : undefined, r }))}
-                  render={({ r }) => <GenCard g={r} job={jobOf.get(r.id)} name={nameOf(r.model)} picking={picking} picked={picked.has(r.id)} onPick={() => pick(r.id)} />} />
+                  render={({ r }) => <GenCard g={r} job={jobOf.get(r.id)} cap={capOf(r)} picking={picking} picked={picked.has(r.id)} onPick={() => pick(r.id)} />} />
               </section>
             ))
             : <Empty shelf={shelf} tab={tab} filtered={!!model} clear={() => { setTab("all"); setModel(""); }} />}
@@ -233,7 +245,7 @@ function Skeleton() {
 }
 
 /** One run on the wall. Running ones sharpen as they sample; failed ones say why on the card. */
-function GenCard({ g, job, name, picking, picked, onPick }: { g: GenerationRow; job?: Job; name: string; picking: boolean; picked: boolean; onPick: () => void }) {
+function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; job?: Job; cap: { name: string; model: string }; picking: boolean; picked: boolean; onPick: () => void }) {
   const qc = useQueryClient();
   const toast = useApp((s) => s.toast);
   const loadGeneration = useApp((s) => s.loadGeneration);
@@ -322,12 +334,7 @@ function GenCard({ g, job, name, picking, picked, onPick }: { g: GenerationRow; 
             onClick={(e) => { e.stopPropagation(); void moveToTrash([g.id], qc, toast); }}><I n="x" /></button>
         )}
       </div>
-      {st === "done" && (
-        <div className="gprompt reveal">
-          <p>{g.prompt || g.title}</p>
-          <div className="meta"><b>{name}</b><span>{ago(g.created)}</span>{g.elapsed != null && <span className="mono">{Math.round(g.elapsed)} s</span>}</div>
-        </div>
-      )}
+      {st !== "failed" && <div className="cap"><div className="cap-t"><h3>{cap.name}</h3><p>{cap.model}</p></div></div>}
     </article>
   );
 }

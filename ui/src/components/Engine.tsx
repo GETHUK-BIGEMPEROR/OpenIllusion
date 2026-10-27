@@ -1,9 +1,9 @@
 import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { api, type EngineInfo, type Mode, type ParamSpec } from "../lib/api";
 import { randomSeed } from "../lib/format";
-import { Check, Chevron, Dice, Search } from "./Icons";
+import { Check, Chevron, Dice } from "./Icons";
 import { IconButton, Segmented, Select, Slider, TextInput, Toggle, cx } from "./ui";
 
 export const engineGlyph = (e?: { id: string; label: string; provider?: string }) => {
@@ -12,66 +12,18 @@ export const engineGlyph = (e?: { id: string; label: string; provider?: string }
   return (e.provider || e.label).replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase();
 };
 
-/** Curated engines for the mode plus every other Router model, by schema. */
-export function useEngine(mode: Mode, id: string): EngineInfo | undefined {
+/** The template with this id, once the list has loaded. */
+export function useEngine(_mode: Mode, id: string): EngineInfo | undefined {
   const { data: curated = [] } = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
-  const found = curated.find((e) => e.id === id);
-  const schema = useQuery({ queryKey: ["schema", id], queryFn: () => api.schema(id), enabled: !found && !!id, staleTime: 600_000, retry: false });
-  return useMemo(() => {
-    if (found) return found;
-    if (!id) return undefined;
-    const [provider, model] = id.split("/");
-    const params = schema.data ? schemaParams(schema.data.schema) : [];
-    const mods = schema.data?.input_modalities ?? [];
-    return {
-      id, mode, label: model ?? id, provider: provider ?? "", blurb: schema.isLoading ? "Reading the model's schema…" : schema.isError ? "Couldn't read this model's schema. Use the Raw tab." : "Form generated from the model's Router schema.",
-      max_images: mods.includes("image") ? 10 : 0, min_images: 0, needs_video: false, video_window: null, fps_window: [1, 60], url_only: false, params, curated: false, kind: "cloud", source: null,
-    } satisfies EngineInfo;
-  }, [found, id, mode, schema.data, schema.isLoading, schema.isError]);
-}
-
-const SKIP = new Set(["prompt", "content", "images", "image", "image_url", "image_urls", "video", "video_url", "audio_url", "callback_url", "webhook_url", "model", "mask", "input_image"]);
-
-/** Router JSON schema → form fields: enum → segmented, int range → slider, bool → switch, string → text. */
-export function schemaParams(schema: any): ParamSpec[] {
-  const props = schema?.properties ?? {};
-  const out: ParamSpec[] = [];
-  for (const [key, raw] of Object.entries<any>(props)) {
-    if (SKIP.has(key) || key.endsWith("_url") || key.endsWith("_urls")) continue;
-    const s = raw.anyOf ? raw.anyOf.find((x: any) => x.type && x.type !== "null") ?? raw : raw;
-    const label = key.replace(/_/g, " ").replace(/^\w/, (c: string) => c.toUpperCase());
-    const help = typeof raw.description === "string" ? raw.description.split(". ")[0] : undefined;
-    const def = raw.default ?? s.default;
-    if (Array.isArray(s.enum)) {
-      const opts = [...new Set((s.enum as unknown[]).map(String))].filter((o, _i, arr) => !(o === o.toLowerCase() && arr.includes(o.toUpperCase()) && o !== o.toUpperCase()));
-      out.push({ key, label, type: opts.length <= 5 ? "segmented" : "select", options: opts, default: def ?? opts[0], help });
-    } else if (s.type === "boolean") {
-      out.push({ key, label, type: "bool", default: def ?? false, help });
-    } else if ((s.type === "integer" || s.type === "number") && key === "seed") {
-      out.push({ key, label, type: "seed", default: -1, help });
-    } else if ((s.type === "integer" || s.type === "number") && s.minimum !== undefined && s.maximum !== undefined && s.maximum - s.minimum <= 1000) {
-      out.push({ key, label, type: "int", min: s.minimum, max: s.maximum, step: s.type === "integer" ? 1 : (s.maximum - s.minimum) / 100, default: def ?? s.minimum, help });
-    } else if (s.type === "integer" || s.type === "number") {
-      out.push({ key, label, type: "number", default: def, help });
-    } else if (s.type === "string") {
-      out.push({ key, label, type: "string", default: def, help });
-    }
-  }
-  return out;
+  return curated.find((e) => e.id === id);
 }
 
 export function EngineDropdown({ mode, value, onChange }: { mode: Mode; value: string; onChange: (id: string) => void }) {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
   const { data: curated = [] } = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
-  const catalog = useQuery({ queryKey: ["catalog"], queryFn: api.catalog, enabled: open, staleTime: 600_000, retry: false });
   const engine = useEngine(mode, value);
   const cloud = curated.filter((e) => e.mode === mode && e.kind !== "local");
   const local = curated.filter((e) => e.mode === mode && e.kind === "local");
-  const others = (catalog.data ?? [])
-    .filter((m) => !curated.some((c) => c.id === m.id))
-    .filter((m) => !q || m.id.toLowerCase().includes(q.toLowerCase()))
-    .slice(0, 80);
 
   const pick = (id: string) => {
     onChange(id);
@@ -97,26 +49,6 @@ export function EngineDropdown({ mode, value, onChange }: { mode: Mode; value: s
           <div className="mt-1 pt-1 border-t border-line">
             <p className="m-0 px-2 pt-2 pb-1 eyebrow flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-yellow" aria-hidden />Local · your ComfyUI</p>
             {local.length ? <EngineList list={local} value={value} pick={pick} /> : <p className="m-0 px-2 py-2 text-sm text-muted">No local {mode} templates yet.</p>}
-          </div>
-          <div className="mt-1 pt-1 border-t border-line">
-            <p className="m-0 px-2 pt-2 pb-1.5 eyebrow">Any Router model</p>
-            <label className="field flex items-center gap-2 h-8 mx-1 px-2.5 text-muted">
-              <Search size={13} />
-              <span className="sr-only">Find a model</span>
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="provider/model" className="flex-1 min-w-0 bg-transparent border-0 outline-none text-sm text-text" />
-            </label>
-            <ul className="m-0 p-0 list-none mt-1">
-              {catalog.isLoading && <li className="px-2 py-2 text-sm text-muted">Reading Router's catalog…</li>}
-              {catalog.isError && <li className="px-2 py-2 text-sm text-muted">Catalog unavailable. Check your key in Settings.</li>}
-              {others.map((m) => (
-                <li key={m.id}>
-                  <button type="button" onClick={() => pick(m.id)} className="mk-btn w-full text-left h-7 px-2 rounded-md border-0 bg-transparent hover:bg-raised font-mono text-xs text-soft truncate">{m.id}</button>
-                </li>
-              ))}
-              {q && !catalog.isLoading && !others.length && (
-                <li><button type="button" onClick={() => pick(q.trim())} className="mk-btn w-full text-left h-7 px-2 rounded-md border-0 bg-transparent hover:bg-raised text-sm">Use <span className="font-mono">{q.trim()}</span></button></li>
-              )}
-            </ul>
           </div>
         </Popover.Content>
       </Popover.Portal>
@@ -146,7 +78,7 @@ function EngineList({ list, value, pick }: { list: EngineInfo[]; value: string; 
 }
 
 export function ParamFields({ params, values, onChange, invalid }: { params: ParamSpec[]; values: Record<string, unknown>; onChange: (key: string, v: unknown) => void; invalid?: Set<string> }) {
-  if (!params.length) return <p className="m-0 text-sm text-muted">No settings for this engine. Anything else goes in the raw request.</p>;
+  if (!params.length) return <p className="m-0 text-sm text-muted">No settings for this template.</p>;
   return (
     <>
       {params.map((p) => {

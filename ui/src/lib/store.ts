@@ -109,6 +109,8 @@ const blankStudio = (): StudioState => ({
 });
 
 export const newKey = () => Math.random().toString(36).slice(2, 10);
+/** A template to run once as soon as Create opens it: the Builder's "Run once". Not persisted. */
+export const autorun: { engine: string | null } = { engine: null };
 
 /** A generation's clip poster: driving/driving.mp4 → driving/poster.webp, driving/driving-2.mp4 → driving/poster-2.webp. */
 export const posterOf = (file: string) => file.replace(/driving(-\d+)?\.mp4$/, "poster$1.webp");

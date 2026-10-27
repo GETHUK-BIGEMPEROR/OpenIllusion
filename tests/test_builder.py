@@ -93,6 +93,29 @@ def test_ui_graph_flattens_to_api():
     assert api["10"]["_meta"]["title"] == "Photo"
 
 
+def test_each_seed_keeps_its_control_after_generate():
+    api, _ = builder.ui_to_api(ui_graph(), INFO)
+    assert api["12:5"]["_meta"]["control_after_generate"] == {"seed": "randomize"}
+    ui = {"nodes": [{"id": 1, "type": "KSampler", "mode": 0, "widgets_values": [1, "fixed", 9]},
+                    {"id": 2, "type": "PrimitiveNode", "mode": 0, "widgets_values": [5, "randomize"], "outputs": [{"type": "INT"}]},
+                    {"id": 3, "type": "KSampler", "mode": 0, "widgets_values": [0, "fixed", 9],
+                     "inputs": [{"name": "seed", "link": 1, "type": "INT", "widget": {"name": "seed"}}]}],
+          "links": [[1, 2, 0, 3, 0, "INT"]]}
+    api, _ = builder.ui_to_api(ui, INFO)
+    assert api["1"]["_meta"]["control_after_generate"] == {"seed": "fixed"}
+    assert api["3"]["inputs"]["seed"] == 5 and api["3"]["_meta"]["control_after_generate"] == {"seed": "randomize"}  # the primitive's own
+
+
+def test_a_run_rerolls_randomize_and_keeps_fixed():
+    wf = {"1": {"class_type": "KSampler", "inputs": {"seed": 1}, "_meta": {"control_after_generate": {"seed": "randomize"}}},
+          "2": {"class_type": "KSampler", "inputs": {"seed": 1}, "_meta": {"control_after_generate": {"seed": "fixed"}}},
+          "3": {"class_type": "KSampler", "inputs": {"seed": 1}}}
+    seeds = {engines.reroll(json.loads(json.dumps(wf)))["1"]["inputs"]["seed"] for _ in range(5)}
+    assert len(seeds) > 1
+    out = engines.reroll(json.loads(json.dumps(wf)))
+    assert out["2"]["inputs"]["seed"] == 1 and out["3"]["inputs"]["seed"] == 1
+
+
 def test_older_saves_get_new_widgets_from_defaults():
     ui = {"nodes": [{"id": 1, "type": "KSampler", "mode": 0, "widgets_values": [1, "fixed", 9]}], "links": []}
     api, _ = builder.ui_to_api(ui, INFO)
@@ -110,6 +133,14 @@ def test_analyze_suggests_slots_prompt_and_controls():
     assert suggested == {"seed": "seed", "steps": "int", "cfg": "number", "denoise": "number"}
     assert not any(p["input"] == "ckpt_name" for p in a["params"])  # model files are requirements
     assert a["mode"] == "edit"
+
+
+def test_a_math_expression_is_not_a_prompt():
+    info = {**INFO, "ComfyMathExpression": {"input": {"required": {"expression": ["STRING", {"default": "a + b", "multiline": True}]}}, "output": ["FLOAT", "INT", "BOOLEAN"]}}
+    api, _ = builder.ui_to_api(ui_graph(), INFO)
+    api["99"] = {"class_type": "ComfyMathExpression", "inputs": {"expression": "max(5, round(a * 24))"}}
+    a = builder.analyze(api, info)
+    assert "99" not in {t["node"] for t in a["texts"]} and a["prompt"] == {"node": "12:2", "input": "text"}
 
 
 def test_no_save_node_is_refused():
@@ -217,47 +248,6 @@ def test_local_spec_needs_a_name_and_real_nodes():
         builder.assemble_local(_local_spec(label=" "), {"workflow": api}, INFO)
     with pytest.raises(builder.BuildError, match="isn't in the workflow"):
         builder.assemble_local(_local_spec(params=[{"node": "99", "input": "x", "type": "int"}]), {"workflow": api}, INFO)
-
-
-SCHEMA = {
-    "type": "object", "required": ["prompt", "image_urls"],
-    "properties": {
-        "prompt": {"type": "string"},
-        "image_urls": {"type": "array", "items": {"type": "string", "format": "uri"}, "maxItems": 4},
-        "aspect_ratio": {"type": "string", "enum": ["1:1", "16:9", "9:16"], "default": "1:1"},
-        "seed": {"type": "integer"},
-        "steps": {"type": "integer", "minimum": 1, "maximum": 50, "default": 28},
-        "safety": {"type": "boolean", "default": True},
-    },
-}
-
-
-def test_schema_is_split_like_a_workflow():
-    a = builder.analyze_schema(SCHEMA)
-    assert a["prompt"] == {"field": "prompt", "required": True}
-    assert [(m["field"], m["kind"], m["many"], m["max"]) for m in a["media"]] == [("image_urls", "image", True, 4)]
-    assert {p["field"]: p["type"] for p in a["params"]} == {"aspect_ratio": "select", "seed": "seed", "steps": "int", "safety": "bool"}
-
-
-def test_cloud_template_round_trip():
-    data = builder.assemble_cloud({
-        "model": "acme/edit-1", "label": "Studio shot",
-        "media": [{"field": "image_urls", "kind": "image", "many": True, "label": "Product"},
-                  {"field": "image_urls", "kind": "image", "many": True, "label": "Backdrop", "required": False}],
-        "prompt": {"field": "prompt", "default": "Product photo, on marble"},
-        "params": [{"field": "aspect_ratio", "type": "select", "options": ["1:1", "16:9"], "default": "1:1"}, {"field": "seed", "type": "seed"}],
-        "fixed": {"safety": False},
-    })
-    assert data["body"] == {"safety": False, "image_urls": ["{{image:1}}", "{{image:2}}"], "prompt": "Product photo, on marble"}
-    assert [(f["key"], f.get("required"), f["bind"]) for f in data["inputs"][:2]] == [("image:1", True, [["image_urls", 0]]), ("image:2", False, [["image_urls", 1]])]
-    data["id"] = "studio-shot"
-    e = engines.load_template(data)
-    assert e.id == "cloud/studio-shot" and e.kind == "cloud" and e.model == "acme/edit-1"
-    assert e.min_images == 1 and e.max_images == 2
-    body = e.build({"inputs": [{"slot": "image:1"}], "prompt": "Product photo, on oak", "params": {"aspect_ratio": "16:9", "seed": 7}})
-    assert body == {"safety": False, "image_urls": ["{{image:1}}"], "prompt": "Product photo, on oak", "aspect_ratio": "16:9", "seed": 7}
-    body = e.build({"inputs": [], "prompt": "x", "params": {"seed": -1}})
-    assert "image_urls" not in body and 0 <= body["seed"] < 2**31
 
 
 def test_save_writes_user_template_with_samples(tmp_path, monkeypatch):
