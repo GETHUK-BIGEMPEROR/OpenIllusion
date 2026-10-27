@@ -14,18 +14,16 @@ import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from . import media, paths, store
+from . import archive, media, paths, store
 from . import generation as sc
 
 MAX_TOTAL = 300 * 1024 * 1024
 MAX_ENTRIES = 200
-ALLOWED_EXT = {".json", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".md", *media.AUDIO_EXT}
 RECIPE_MAX = 64 * 1024
 LINK_PREFIX = "#gen="
 
 
-class ImportRefused(ValueError):
-    pass
+ImportRefused = archive.Refused  # the name the import route catches
 
 
 # ---- export ----------------------------------------------------------------
@@ -247,22 +245,8 @@ def _inspect_zip(data: bytes, filename: str) -> dict:
         z = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile:
         raise ImportRefused("Not a valid .illusion (zip) file.") from None
-    infos = [i for i in z.infolist() if not i.is_dir()]
-    if len(infos) > MAX_ENTRIES:
-        raise ImportRefused(f"Bundle has {len(infos)} files; the limit is {MAX_ENTRIES}.")
-    total = 0
-    files: dict[str, bytes] = {}
-    for info in infos:
-        n = info.filename
-        p = PurePosixPath(n)
-        if n.startswith(("/", "\\")) or ".." in p.parts or ":" in n or "\\" in n:
-            raise ImportRefused(f"Unsafe path in bundle: {n}")
-        if p.suffix.lower() not in ALLOWED_EXT:
-            raise ImportRefused(f"File type not allowed in a generation: {n}")
-        total += info.file_size
-        if total > MAX_TOTAL:
-            raise ImportRefused("Bundle expands past 300 MB.")
-        files[n] = z.read(info)
+    infos = archive.files(z, archive.GENERATION_EXT, MAX_ENTRIES, MAX_TOTAL, "This bundle")
+    files: dict[str, bytes] = {i.filename: z.read(i) for i in infos}
     if "generation.json" not in files:
         raise ImportRefused("Bundle has no generation.json.")
     try:
@@ -289,7 +273,7 @@ def _review(recipe: dict, source: dict, files: dict[str, bytes], poster: tuple[s
     })
     size = sum(len(b) for b in files.values())
     checks.append({"level": "pass", "text": "Size and file types within limits",
-                   "detail": f"{_fmt_bytes(size)} · no paths outside the bundle" if files else "Recipe only, no media"})
+                   "detail": f"{archive.fmt_bytes(size)} · no paths outside the bundle" if files else "Recipe only, no media"})
 
     bad_hash = []
     for i in m.inputs:
@@ -417,11 +401,3 @@ def _known_nodes() -> set[str] | None:
 
     hits = sorted(local._info_cache.values(), key=lambda h: h[0])
     return set(hits[-1][1]) if hits else None
-
-
-def _fmt_bytes(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024 or unit == "GB":
-            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n} B"
