@@ -15,6 +15,7 @@ import { Explore } from "./screens/Explore";
 import { GenerationDetail } from "./screens/GenerationDetail";
 import { Builder, buildAction, workflowToBuilder } from "./screens/builder/Builder";
 import { ImportReview } from "./screens/ImportReview";
+import { isBackup, openBackup, RestoreReview } from "./screens/RestoreReview";
 import { Library } from "./screens/Library";
 import { QueueDrawer } from "./screens/QueueDrawer";
 import { Settings } from "./screens/Settings";
@@ -97,6 +98,7 @@ export function App() {
 
   const importPick = async (f?: File) => {
     if (!f) return;
+    if (isBackup(f)) return void openBackup(f);
     if (await workflowToBuilder(f)) return;
     try {
       setReview(await api.importFile(f));
@@ -131,11 +133,12 @@ export function App() {
         </main>
         <TabBar route={route} />
       </div>
-      <input ref={fileInput} type="file" hidden accept=".illusion,.json,.png,.webp,.mp4,application/zip" onChange={(e) => { importPick(e.target.files?.[0]); e.target.value = ""; }} />
+      <input ref={fileInput} type="file" hidden accept=".illusion,.illusionbackup,.json,.png,.webp,.mp4,application/zip" onChange={(e) => { importPick(e.target.files?.[0]); e.target.value = ""; }} />
       <QueueDrawer />
       <Palette />
       <ShareSheet />
       <ImportReview />
+      <RestoreReview />
       <ConfirmHost />
       <DropOverlay />
       <Toasts />

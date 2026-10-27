@@ -20,7 +20,7 @@ from pathlib import Path
 
 from . import bundle, paths, store
 
-BUCKETS = ("generations", "trash", "uploads", "exports", "cache")
+BUCKETS = ("generations", "trash", "uploads", "exports", "backups", "cache")
 # An upload this recent may still sit in an open form.
 UPLOAD_GRACE = 3600
 DAY = 86400
@@ -32,12 +32,17 @@ def exports_dir() -> Path:
     return paths.output_root() / "generations"
 
 
+def backups_dir() -> Path:
+    return paths.output_root() / "backups"
+
+
 def _dir(bucket: str) -> Path:
     return {
         "generations": paths.generations_dir,
         "trash": paths.trash_dir,
         "uploads": paths.uploads_dir,
         "exports": exports_dir,
+        "backups": backups_dir,
         "cache": paths.cache_dir,
     }[bucket]()
 
@@ -56,7 +61,7 @@ def usage() -> dict:
 
 def clean(bucket: str, now: float | None = None) -> dict:
     """Empty one bucket. Returns how many entries and bytes went."""
-    if bucket not in ("trash", "uploads", "exports", "cache"):
+    if bucket not in ("trash", "uploads", "exports", "backups", "cache"):
         raise ValueError(f"{bucket} can't be cleaned from here")
     now = now or time.time()
     d = _dir(bucket)
@@ -68,6 +73,8 @@ def clean(bucket: str, now: float | None = None) -> dict:
         for f in list(d.iterdir()):
             try:
                 if bucket == "uploads" and now - f.stat().st_mtime < UPLOAD_GRACE:
+                    continue
+                if f.name.endswith(".partial"):  # a backup being written
                     continue
                 shutil.rmtree(f) if f.is_dir() else f.unlink()
                 n += 1

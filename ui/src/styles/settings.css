@@ -10,7 +10,7 @@
 .set-sec>p{margin:-8px 0 0;font-size:13px;color:var(--text-2);max-width:600px}
 .set-sec.later .ech .ic{background:rgba(154,134,240,.14);color:var(--violet)}
 .engines{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.set-card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:14px;align-content:start}
+.set-card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-content:start}
 .set-card.on{border-color:rgba(95,211,154,.3);background:linear-gradient(180deg,rgba(95,211,154,.06),transparent 40%),var(--panel)}
 .ech{display:flex;align-items:center;gap:12px}
 .ech .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--raised);color:var(--text-2);flex:none}

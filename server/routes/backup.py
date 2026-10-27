@@ -9,7 +9,7 @@ import time
 
 from aiohttp import web
 
-from .. import backup, bundle, jobs, paths
+from .. import backup, bundle, jobs, paths, storage
 from ..archive import Refused, fmt_bytes
 from .common import API, _push, _safe_file, body, err, library_changed
 
@@ -50,7 +50,7 @@ def register(routes: web.RouteTableDef) -> None:
     @routes.get(API + "/backup/file/{name}")
     async def backup_file(request):
         name = request.match_info["name"]
-        resp = _safe_file(backup.backups_dir(), name)
+        resp = _safe_file(storage.backups_dir(), name)
         if isinstance(resp, web.FileResponse):
             resp.headers["Content-Disposition"] = f'attachment; filename="{name}"'
         return resp

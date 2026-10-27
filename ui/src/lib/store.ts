@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { ImportReview, Manifest, Mode } from "./api";
+import type { ImportReview, Manifest, Mode, RestoreReview } from "./api";
 import { fileUrl } from "./api";
 
 export interface Media {
@@ -166,6 +166,9 @@ interface AppState {
   setLibList: (ids: string[]) => void;
   share: (id: string | null) => void;
   setReview: (r: ImportReview | null) => void;
+  /** A dropped backup: its name while the server checks it, then what restoring would add. */
+  restoring: { name: string; review?: RestoreReview } | null;
+  setRestoring: (r: { name: string; review?: RestoreReview } | null) => void;
   setSearch: (q: string) => void;
   toast: (t: Omit<Toast, "id">) => void;
   dismiss: (id: string) => void;
@@ -194,6 +197,7 @@ export const useApp = create<AppState>()(
       libList: [],
       shareFor: null,
       review: null,
+      restoring: null,
       search: "",
       toasts: [],
       setStudio: (mode, patch) =>
@@ -276,6 +280,7 @@ export const useApp = create<AppState>()(
       setLibList: (libList) => set({ libList }),
       share: (shareFor) => set({ shareFor }),
       setReview: (review) => set({ review }),
+      setRestoring: (restoring) => set({ restoring }),
       setSearch: (search) => set({ search }),
       toast: (t) => {
         const id = newKey();

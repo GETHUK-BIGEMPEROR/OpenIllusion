@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { cx, EmptyBox, gpuName, I, PageHead } from "../components/oi";
 import { UpstreamWarning } from "../components/Studio";
-import { Toggle as Switch } from "../components/ui";
-import { api, type Settings as S, type Status, type StorageBucket } from "../lib/api";
+import { Button, IconButton, Spinner, Toggle as Switch } from "../components/ui";
+import { api, type BackupResult, type Settings as S, type Status, type StorageBucket } from "../lib/api";
 import { confirm } from "../lib/confirm";
 import { bytes, errMsg } from "../lib/format";
+import { useProgress } from "../lib/live";
 import { useApp } from "../lib/store";
+import { openBackup } from "./RestoreReview";
 
 const NAV = [
   { id: "gpu", label: "Your GPU" },
@@ -110,6 +112,7 @@ const BUCKETS: { id: StorageBucket; label: string; desc: string; color: string }
   { id: "trash", label: "Trash", desc: "Deleted generations, kept 7 days.", color: "var(--rose)" },
   { id: "uploads", label: "Uploads", desc: "Files dropped into forms. Runs copy what they use, so these are working copies. Cleaned on their own after 30 days unused.", color: "var(--orange)" },
   { id: "exports", label: "Exports", desc: ".illusion packages you exported, in your output folder.", color: "var(--mint)" },
+  { id: "backups", label: "Backups", desc: "Backups you made, in your output folder. Copy them somewhere safe; they're yours to keep or delete.", color: "var(--yellow)" },
   { id: "cache", label: "Cache", desc: "Thumbnails and schemas. Rebuilt when needed; cleaned on their own after 30 days unused.", color: "var(--text-3)" },
 ];
 
@@ -126,6 +129,7 @@ function StorageSection({ s, save }: { s: S; save: Save }) {
     trash: { hold: true, title: "Empty the trash?", body: "Deleted generations go for good. This can't be undone.", action: "Hold to empty" },
     uploads: { title: "Clean up uploads?", body: "Files dropped into forms go, except anything from the last hour. Generations keep their own copies.", action: "Clean up" },
     exports: { hold: true, title: "Delete exports?", body: "Every .illusion package in your output folder goes. Export again from any generation.", action: "Hold to delete" },
+    backups: { hold: true, title: "Delete backups?", body: "Every backup in your output folder goes, including copies you haven't moved anywhere else. This can't be undone.", action: "Hold to delete" },
   };
   const clean = async (b: StorageBucket) => {
     const ask = ASK[b];
@@ -181,12 +185,71 @@ function StorageSection({ s, save }: { s: S; save: Save }) {
           </>
         )}
       </div>
+      <BackupCard />
       <div className="set-card">
         <TextSetting id="out" label="Output folder" help="Leave empty for the default." value={s.output_folder} placeholder="~/.openillusion/outputs" mono onSave={(v) => save({ output_folder: v })} />
         <Toggle title="Strip EXIF and GPS" desc="From your photos and from everything you export."
           checked={s.strip_exif} onChange={(v) => save({ strip_exif: v })} />
       </div>
     </Sec>
+  );
+}
+
+/** Back up the whole library to one file; restore one by merging it in. */
+function BackupCard() {
+  const qc = useQueryClient();
+  const toast = useApp((st) => st.toast);
+  const progress = useProgress("backup").data;
+  const pick = useRef<HTMLInputElement>(null);
+  const [trash, setTrash] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<BackupResult | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setDone(null);
+    qc.setQueryData(["progress", "backup"], null);
+    try {
+      setDone(await api.backup(trash));
+      qc.invalidateQueries({ queryKey: ["storage"] });
+    } catch (e) {
+      toast({ text: errMsg(e), tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const pct = progress?.total ? progress.done / progress.total : 0;
+  const c = done?.counts;
+  return (
+    <div className="set-card">
+      <Toggle title="Back up your library" desc="Generations, your templates, covers and settings, in one .illusionbackup file in your output folder. Your Comfy Router key stays out.">
+        <Button tone="primary" size="sm" disabled={busy} onClick={run}>{busy ? <Spinner size={12} /> : <I n="download" size={13} />}Back up</Button>
+      </Toggle>
+      <Toggle title="Include the trash" desc="Deleted generations you could still restore." checked={trash} onChange={setTrash} />
+      {busy && <div className="bar" style={{ "--p": pct, marginTop: 0 } as CSSProperties} role="progressbar" aria-label="Backing up" aria-valuenow={Math.round(pct * 100)}><i /></div>}
+      {done && c && (
+        <>
+          <div className="done-card">
+            <span className="done-ic"><I n="check" size={15} /></span>
+            <div>
+              <b className="mono">{done.name}</b>
+              <span>
+                {bytes(done.size)} · {c.generations} generation{c.generations === 1 ? "" : "s"}{c.trash ? ` (+${c.trash} in trash)` : ""} · {c.templates} template{c.templates === 1 ? "" : "s"}
+                {done.skipped.length > 0 && ` · ${done.skipped.length} still running, left out`}
+              </span>
+            </div>
+            <a className="btn sm" href={done.url} download={done.name}><I n="download" size={13} />Download</a>
+          </div>
+          <div className="path-row">
+            <span className="mono" title={done.file}>{done.file}</span>
+            <IconButton label="Copy path" size={24} onClick={() => navigator.clipboard?.writeText(done.file).then(() => toast({ text: "Path copied.", tone: "ok" }))}><I n="copy" size={12} /></IconButton>
+          </div>
+        </>
+      )}
+      <Toggle title="Restore from a backup" desc="Adds what you don't have; nothing you have is changed. You can also drop a .illusionbackup anywhere.">
+        <Button size="sm" onClick={() => pick.current?.click()}><I n="upload" size={13} />Choose file</Button>
+      </Toggle>
+      <input ref={pick} type="file" hidden accept=".illusionbackup" onChange={(e) => { const f = e.target.files?.[0]; if (f) void openBackup(f); e.target.value = ""; }} />
+    </div>
   );
 }
 

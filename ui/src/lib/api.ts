@@ -482,11 +482,43 @@ export interface TrashItem {
   bytes: number;
 }
 
-export type StorageBucket = "generations" | "trash" | "uploads" | "exports" | "cache";
+export type StorageBucket = "generations" | "trash" | "uploads" | "exports" | "backups" | "cache";
+
+export interface BackupResult {
+  file: string;
+  name: string;
+  size: number;
+  url: string;
+  counts: { generations: number; templates: number; covers: number; trash: number };
+  skipped: { id: string; why: string }[];
+}
+
+/** What restoring a backup would add, before anything is written. */
+export interface RestoreReview {
+  token: string;
+  created: number;
+  app: string;
+  size: number;
+  generations: { total: number; new: number };
+  trash: { total: number; new: number };
+  templates: { total: number; new: number; conflicts: string[] };
+  covers: number;
+  skipped: { id: string; why: string }[];
+}
+
+export interface RestoreResult {
+  generations: number;
+  trash: number;
+  templates: number;
+  covers: number;
+  settings: string[];
+  damaged: { id: string; why: string }[];
+  kept: string[];
+}
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const init: RequestInit = { method, headers: {} };
-  if (body instanceof FormData) init.body = body;
+  if (body instanceof FormData || body instanceof Blob) init.body = body;
   else if (body !== undefined) {
     init.body = JSON.stringify(body);
     (init.headers as Record<string, string>)["Content-Type"] = "application/json";
@@ -575,6 +607,10 @@ export const api = {
   importText: (text: string) => req<ImportReview>("POST", "/import", text.trim().startsWith("http") && !text.includes("#gen=") ? { url: text.trim() } : { text }),
   importUrl: (url: string) => req<ImportReview>("POST", "/import", { url }),
   commitImport: (token: string) => req<Manifest>("POST", `/import/${token}/commit`),
+  backup: (trash: boolean) => req<BackupResult>("POST", "/backup", { trash }),
+  /** The file goes as the raw body: a backup can be bigger than a form upload should be. */
+  inspectBackup: (file: File) => req<RestoreReview>("POST", "/restore", file),
+  restoreBackup: (token: string) => req<RestoreResult>("POST", `/restore/${token}`),
   community: (url: string) => req<{ name: string | null; generations: { url: string; title?: string; mode?: Mode; model?: string; poster?: string; author?: string; tags?: string[] }[] }>("GET", `/community?url=${encodeURIComponent(url)}`),
 };
 

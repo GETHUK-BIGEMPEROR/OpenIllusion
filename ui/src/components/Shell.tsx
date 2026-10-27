@@ -8,6 +8,7 @@ import { useApp } from "../lib/store";
 import { I } from "./oi";
 import { dropIntoStudio, isMediaFile, openWithFiles } from "./Drop";
 import { buildAction, workflowToBuilder } from "../screens/builder/Builder";
+import { isBackup, openBackup } from "../screens/RestoreReview";
 import { cx } from "./ui";
 
 export { gpuName, localState } from "./oi";
@@ -108,7 +109,7 @@ export function Toasts() {
   );
 }
 
-/** Drop anywhere: a .illusion, an OpenIllusion output, or a link. In a studio, plain photos go to the tray. */
+/** Drop anywhere: a .illusion, a backup, an OpenIllusion output, or a link. In a studio, plain photos go to the tray. */
 export function DropOverlay() {
   const [over, setOver] = useState(false);
   const setReview = useApp((s) => s.setReview);
@@ -148,6 +149,7 @@ export function DropOverlay() {
           if (text) setReview(await api.importText(text));
           return;
         }
+        if (isBackup(f)) return void openBackup(f);
         if (await workflowToBuilder(f)) return;
         // Only a .illusion, a PNG or an MP4 can carry a recipe. In Create, any other photo or clip is an input.
         const carries = /\.(illusion|png|mp4)$/i.test(f.name);
@@ -195,7 +197,7 @@ export function DropOverlay() {
     ? ["Drop to fill the next empty input", " · or on an input or the preview to choose"]
     : route === "explore"
       ? ["Drop on a template to run it on your file", " · or anywhere to import"]
-      : ["Drop to import", " · .illusion, OpenIllusion PNG or MP4, a ComfyUI workflow"];
+      : ["Drop to import", " · .illusion, a backup, OpenIllusion PNG or MP4, a ComfyUI workflow"];
   return (
     <div className="dropcue" role="status">
       <I n="import" />

@@ -27,7 +27,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
-from . import archive, engines, paths, settings, store
+from . import archive, engines, paths, settings, storage, store
 from . import generation as sc
 
 FORMAT = "openillusion.backup"
@@ -41,10 +41,6 @@ MAX_ENTRIES = 500_000
 CHUNK = 1 << 20
 
 Progress = Callable[[int, int], None]
-
-
-def backups_dir() -> Path:
-    return paths.output_root() / "backups"
 
 
 # ---- making one -----------------------------------------------------------------
@@ -98,7 +94,7 @@ def create(trash: bool = False, skip_ids: set[str] = frozenset(), dest_dir: Path
     from . import __version__
 
     files, skipped, counts = _collect(trash, set(skip_ids))
-    dest = dest_dir or backups_dir()
+    dest = dest_dir or storage.backups_dir()
     dest.mkdir(parents=True, exist_ok=True)
     stem = f"OpenIllusion-{time.strftime('%Y-%m-%d')}"
     out, n = dest / f"{stem}{EXT}", 2

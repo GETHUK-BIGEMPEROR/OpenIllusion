@@ -83,9 +83,10 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, remix into Create, notes, export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
 | Build | `#/build`, `#/build?from={template}` | Make a template in three steps; see [Builder](#making-a-template-builder). | `screens/builder/` |
 | Queue | drawer | Every run from both studios, grouped by what it needs from you. | `screens/QueueDrawer.tsx` |
-| Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Storage (disk use, clean working copies), Cloud (API key). | `screens/Settings.tsx` |
+| Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Storage (disk use, clean working copies, back up and restore), Cloud (API key). | `screens/Settings.tsx` |
 | Connect | `#/connect` | First run only: check the ComfyUI on this machine, then open Explore. No account. | `screens/Connect.tsx` |
 | Import | dialog | A dropped bundle, PNG or MP4 with a recipe, or a link: review, then add to the Library. A dropped ComfyUI workflow goes to Build instead. | `screens/ImportReview.tsx` |
+| Restore | dialog | A dropped `.illusionbackup` (or Settings → Storage → Choose file): what it would add, then Restore, with progress. | `screens/RestoreReview.tsx` |
 
 ## Design rules
 
@@ -250,8 +251,8 @@ each entry is; a test fails when the app writes something it doesn't list.
 
 ### Backups
 
-`POST /api/backup` writes `OpenIllusion-<date>.illusionbackup` to
-`<output folder>/backups/`: a zip of the library tier, laid out as `library/<entry>/…`,
+Settings → Storage → **Back up** writes `OpenIllusion-<date>.illusionbackup` to
+`<output folder>/backups/` (the Backups row in Storage; Download from there too): a zip of the library tier, laid out as `library/<entry>/…`,
 with a `backup.json` (format, version, app, counts, and every file's size and sha256).
 
 - **What's left out.** `secrets.json` and every machine and scratch entry; the key never
@@ -269,6 +270,7 @@ with a `backup.json` (format, version, app, counts, and every file's size and sh
   `damaged` and left out. Generations and templates already here are kept as they are; a
   template that differs from the backup's copy is listed in `kept`. Settings: only keys
   still at their default take the backup's value. Then the index is rebuilt.
+- **Progress** goes to every open page over the WebSocket as `{"type": "backup" | "restore", "data": {done, total}}` (bytes).
 - **Not while running.** Restore is refused while a run is in progress (409); one backup
   or restore at a time.
 

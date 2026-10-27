@@ -36,6 +36,7 @@ export function useJobFeed() {
         try {
           const msg = JSON.parse(ev.data);
           if (msg.type === "job") upsert(qc, msg.data as Job);
+          if (msg.type === "backup" || msg.type === "restore") qc.setQueryData(["progress", msg.type], msg.data);
           if (msg.type === "library") {
             // Deleted, restored, imported or edited elsewhere (another tab, the API).
             for (const key of ["generations", "facets", "trash"]) qc.invalidateQueries({ queryKey: [key] });
@@ -57,6 +58,11 @@ export function useJobFeed() {
       ws?.close();
     };
   }, [qc]);
+}
+
+/** How far a backup or restore has got, from the socket: `{done, total}` in bytes. */
+export function useProgress(kind: "backup" | "restore") {
+  return useQuery<{ done: number; total: number } | null>({ queryKey: ["progress", kind], queryFn: () => null, enabled: false, initialData: null });
 }
 
 export function useJobs() {
