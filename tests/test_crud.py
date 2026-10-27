@@ -77,6 +77,11 @@ def test_bulk_routes_keep_running_runs(monkeypatch):
         await c.post("/api/generations/trash", json={"ids": [a.id]})
         assert (await c.delete(f"/api/trash/{a.id}")).status == 200
         assert (await c.delete(f"/api/trash/{a.id}")).status == 404
+        await c.post("/api/generations/trash", json={"ids": [b.id]})  # still running: stays
+        c2 = gen("C")
+        store.delete_many([c2.id])
+        gone = await (await c.post("/api/trash/purge", json={"ids": [c2.id, "../x", "gone"]})).json()
+        assert gone["removed"] == [c2.id] and await (await c.get("/api/trash")).json() == []
         return True
 
     assert call(go)

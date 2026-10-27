@@ -1,12 +1,12 @@
-import { useQueries, useQuery, useQueryClient, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Masonry } from "../components/Masonry";
 import { cx, EmptyBox, I, jobProgress, Media, PageHead, QUEUED, Ring } from "../components/oi";
 import { tplModel, tplName } from "../components/TemplateCard";
 import { Spinner } from "../components/ui";
-import { api, fileUrl, trashFileUrl, type GenerationRow, type Job, type TrashItem } from "../lib/api";
+import { api, fileUrl, type GenerationRow, type Job } from "../lib/api";
 import { confirm } from "../lib/confirm";
-import { ago, bytes, dayGroup, errMsg } from "../lib/format";
+import { dayGroup, errMsg } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go } from "../lib/route";
 import { useApp } from "../lib/store";
@@ -15,18 +15,17 @@ const SOURCES = [
   { id: "mine", label: "My generations" },
   { id: "imported", label: "Imported" },
   { id: "community", label: "Community" },
-  { id: "trash", label: "Trash" },
 ] as const;
 
 type Tab = "all" | "starred" | "active" | "failed";
 const FAILED = new Set(["failed", "moderated", "cancelled"]);
 const WHAT: Record<Tab, string> = { all: "all generations", starred: "starred generations", active: "", failed: "failed runs" };
-const gens = (n: number) => (n === 1 ? "1 generation" : `${n} generations`);
+export const gens = (n: number) => (n === 1 ? "1 generation" : `${n} generations`);
 // Today and Yesterday read as words in a sentence; months stay as they are.
 const dayWords = (g: string) => (/^(Today|Yesterday|Earlier)/.test(g) ? g.toLowerCase() : g);
 type ToastFn = ReturnType<typeof useApp.getState>["toast"];
 
-function refreshLibrary(qc: QueryClient) {
+export function refreshLibrary(qc: QueryClient) {
   for (const k of ["generations", "facets", "trash"]) qc.invalidateQueries({ queryKey: [k] });
 }
 
@@ -62,14 +61,13 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
   useEffect(() => { setPicking(false); setPicked(new Set()); }, [shelf]);
 
   const community = shelf === "community";
-  const trashView = shelf === "trash";
   const qc = useQueryClient();
   const toast = useApp((s) => s.toast);
   const trash = useQuery({ queryKey: ["trash"], queryFn: api.trash });
   const rows = useQuery({
     queryKey: ["generations", shelf, model],
     queryFn: () => api.generations({ shelf, model }),
-    enabled: !community && !trashView,
+    enabled: !community,
     refetchInterval: (q) => ((q.state.data ?? []).some((r) => r.status === "running") ? 5000 : false),
   });
   const { data: jobs = [] } = useJobs();
@@ -140,12 +138,12 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
   };
   const clearView = () => void clearWhere(`Clear ${WHAT[tab]}${model ? ` from ${nameOf(model)}` : ""}?`, of[tab]);
   const clearDay = (g: string) => void clearWhere(`Clear ${dayWords(g)}?`, (r) => dayGroup(r.created) === g && of[tab](r));
-  const canClear = !community && !trashView && tab !== "active" && list.some((r) => !running(r));
+  const canClear = !community && tab !== "active" && list.some((r) => !running(r));
 
   // Other sources only show up once they hold something, or while you're on one.
   const shelves = facets.data?.shelves ?? {};
-  const sources = SOURCES.filter((x) => x.id === "mine" || x.id === shelf || (x.id !== "trash" && x.id !== "community" && (shelves[x.id] ?? 0) > 0));
-  const filters = !community && !trashView && (
+  const sources = SOURCES.filter((x) => x.id === "mine" || x.id === shelf || (x.id !== "community" && (shelves[x.id] ?? 0) > 0));
+  const filters = !community && (
     <>
       <div className="seg" role="group" aria-label="Show">
         <button type="button" aria-pressed={tab === "all"} onClick={() => setTab("all")}>All<span className="n">{all.length}</span></button>
@@ -172,7 +170,7 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
       )}
     </>
   );
-  const actions = trashView ? <TrashActions items={trash.data ?? []} /> : community ? null : (
+  const actions = community ? null : (
     <>
       <button className="icon-btn" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))} aria-label="Import a shared result"
         title="Import a shared result: a .illusion file, an OpenIllusion PNG or MP4, or a generation JSON"><I n="upload" /></button>
@@ -190,16 +188,15 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
   );
   const back = (
     <><button className="icon-btn" type="button" aria-label="Back to Library" onClick={() => go({ name: "library" })} style={{ marginRight: 4 }}><I n="left" /></button>
-      {trashView ? "Trash" : "Community"}</>
+      Community</>
   );
 
   return (
     <div className="page library">
       <div className="scroll">
-        <PageHead title={trashView || community ? back : "Library"} count={community ? null : trashView ? trash.data?.length ?? null : total ?? all.length} filters={filters || undefined} actions={actions} />
+        <PageHead title={community ? back : "Library"} count={community ? null : total ?? all.length} filters={filters || undefined} actions={actions} />
         <div className="wall-wrap lib">
           {community ? <Community />
-            : trashView ? <TrashWall q={trash} />
             : rows.isLoading ? <Skeleton />
             : rows.isError ? <EmptyBox icon="alert" title="Couldn't load generations" action={<button className="btn" type="button" onClick={() => rows.refetch()}>Try again</button>}>{errMsg(rows.error)}</EmptyBox>
             : groups.length ? groups.map(([g, v]) => (
@@ -233,7 +230,7 @@ function Empty({ shelf, tab, filtered, clear }: { shelf: string; tab: Tab; filte
   );
 }
 
-function Skeleton() {
+export function Skeleton() {
   const items = [0.8, 1, 0.75, 1.33, 0.8, 0.66, 1, 0.8, 0.75, 1.2].map((aspect, i) => ({ key: String(i), aspect }));
   return (
     <section className="lgroup" aria-busy="true" aria-label="Loading">
@@ -464,129 +461,13 @@ function Community() {
   );
 }
 
-/** A quiet way into the trash, under My generations. */
+/** Phones have no rail: a quiet way into the trash, under My generations. */
 function TrashLink({ n }: { n: number }) {
   if (!n) return null;
   return (
-    <a className="trashlink" href="#/library?shelf=trash">
+    <a className="trashlink" href="#/trash">
       <I n="trash" />Trash<span className="mono">{n}</span><span className="sub">kept 7 days</span><I n="right" />
     </a>
-  );
-}
-
-function TrashActions({ items }: { items: TrashItem[] }) {
-  const qc = useQueryClient();
-  const toast = useApp((s) => s.toast);
-  if (!items.length) return null;
-  const restoreAll = async () => {
-    try {
-      const r = await api.restoreMany(items.map((t) => t.id));
-      refreshLibrary(qc);
-      toast({ text: `${gens(r.restored.length)} restored.`, tone: "ok", action: { label: "Open library", run: () => go({ name: "library" }) } });
-    } catch (e) {
-      toast({ text: errMsg(e), tone: "error" });
-    }
-  };
-  const empty = async () => {
-    const res = await confirm({
-      hold: true,
-      view: () => ({
-        title: "Empty the trash?", count: items.length,
-        previews: items.filter((t) => t.poster).map((t) => trashFileUrl(t.id, t.poster!)),
-        body: `${gens(items.length)} ${items.length === 1 ? "is" : "are"} deleted for good. This can't be undone.`,
-        facts: [`${bytes(items.reduce((a, t) => a + t.bytes, 0))} freed`, "Full-size files in your output folder stay"],
-        action: "Hold to empty",
-      }),
-    });
-    if (!res.ok) return;
-    try {
-      const r = await api.emptyTrash();
-      qc.invalidateQueries({ queryKey: ["trash"] });
-      toast({ text: `Trash emptied. ${gens(r.removed)} deleted for good.`, tone: "ok" });
-    } catch (e) {
-      toast({ text: errMsg(e), tone: "error" });
-    }
-  };
-  return (
-    <>
-      <button className="btn" type="button" onClick={restoreAll}><I n="undo" /><span className="lbl">Restore all</span></button>
-      <button className="btn danger" type="button" onClick={empty}><I n="trash" /><span className="lbl">Empty trash</span></button>
-    </>
-  );
-}
-
-/** Deleted generations, newest first. Each can come back, or go for good. */
-function TrashWall({ q }: { q: UseQueryResult<TrashItem[]> }) {
-  if (q.isLoading) return <Skeleton />;
-  if (q.isError) return <EmptyBox icon="alert" title="Couldn't read the trash" action={<button className="btn" type="button" onClick={() => q.refetch()}>Try again</button>}>{errMsg(q.error)}</EmptyBox>;
-  const items = (q.data ?? []).map((t) => ({ key: t.id, aspect: t.width && t.height ? t.width / t.height : undefined, t }));
-  if (!items.length) {
-    return (
-      <EmptyBox icon="trash" title="Trash is empty" action={<a className="btn" href="#/library">Back to library</a>}>
-        Deleted generations wait here for 7 days, then go for good.
-      </EmptyBox>
-    );
-  }
-  return (
-    <section className="lgroup" aria-label="Trash">
-      <div className="ghead"><h3>Deleted</h3><span>{items.length}</span><span className="sub">Each goes for good 7 days after it was deleted.</span></div>
-      <Masonry label="Trash" maxCols={5} minCol={220} items={items} render={({ t }) => <TrashCard t={t} />} />
-    </section>
-  );
-}
-
-function TrashCard({ t }: { t: TrashItem }) {
-  const qc = useQueryClient();
-  const toast = useApp((s) => s.toast);
-  const [busy, setBusy] = useState(false);
-  const left = Math.max(0, Math.ceil((t.purge_at - Date.now() / 1000) / 86400));
-  const img = t.poster ? trashFileUrl(t.id, t.poster) : null;
-  const restore = async () => {
-    setBusy(true);
-    try {
-      await api.restore(t.id);
-      refreshLibrary(qc);
-      toast({ text: `“${t.title}” restored.`, tone: "ok", action: { label: "Open", run: () => go({ name: "generation", id: t.id }) } });
-    } catch (e) {
-      toast({ text: errMsg(e), tone: "error" });
-      setBusy(false);
-    }
-  };
-  const purge = async () => {
-    const res = await confirm({
-      hold: true,
-      view: () => ({
-        title: "Delete for good?", previews: img ? [img] : [], count: 1,
-        body: `“${t.title}” can't be restored after this.`, facts: [`${bytes(t.bytes)} freed`], action: "Hold to delete",
-      }),
-    });
-    if (!res.ok) return;
-    setBusy(true);
-    try {
-      await api.purge(t.id);
-      qc.invalidateQueries({ queryKey: ["trash"] });
-    } catch (e) {
-      toast({ text: errMsg(e), tone: "error" });
-      setBusy(false);
-    }
-  };
-  return (
-    <article className={cx("card gcard trcard", busy && "busy")} aria-label={`${t.prompt || t.title}, deleted`}>
-      <Media src={img} poster={img} ar={t.width && t.height ? t.width / t.height : 4 / 5}>
-        {!img && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#30233a,#1c1622)" }} />}
-      </Media>
-      <div className="ctop">
-        <span className={cx("pill", left <= 1 && "rose")} title={`Deleted ${ago(t.deleted)}`}><I n="clock" />{left <= 0 ? "Goes today" : `${left}d left`}</span>
-        <span className="fspacer" />
-        <button className="icon-btn sm glass reveal tdel" type="button" aria-label="Delete for good" title="Delete for good" onClick={() => void purge()} disabled={busy}><I n="trash" /></button>
-      </div>
-      <div className="gprompt">
-        <p>{t.prompt || t.title}</p>
-        <div className="meta"><span className="when" title={bytes(t.bytes)}>Deleted {ago(t.deleted)}</span>
-          <button className="btn sm" type="button" style={{ marginLeft: "auto" }} onClick={() => void restore()} disabled={busy}>{busy ? <Spinner size={12} /> : <I n="undo" />}Restore</button>
-        </div>
-      </div>
-    </article>
   );
 }
 

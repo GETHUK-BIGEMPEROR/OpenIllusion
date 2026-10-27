@@ -64,7 +64,7 @@ its Router docs.
 ## The app, screen by screen
 
 Hash routes keep the app one static page (`lib/route.ts`). The rail on the left
-(a tab bar on phones) holds Explore, Create, Library, Build, Queue and Settings;
+(a tab bar on phones) holds Explore, Create, Library, Build, Queue, and at the bottom Trash and Settings;
 keys 1–4 jump between the first four, Ctrl K opens the palette.
 
 Every page header ends with two status chips (`KeyStat`, `GpuStat` in
@@ -79,7 +79,8 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | --- | --- | --- | --- |
 | Explore | `#/explore` | Every published template on one wall, photos and videos together. Filter All / Local / Cloud and by tag. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Drafts never show here. | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
 | Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (photo, clip and sound tiles; crop, size, trim), edit the prompt, Run. Cloud templates show a price quote above Run. Drafts live here: tagged Draft in the template menu, with Publish on their results. | `screens/create/`, `components/Studio.tsx`, `Refs.tsx`, `Trimmer.tsx` |
-| Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community, Trash. Tabs: All, Starred, Active, Failed. | `screens/Library.tsx` |
+| Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
+| Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, remix into Create, notes, export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
 | Build | `#/build`, `#/build?from={template}` | Make a template in three steps; see [Builder](#making-a-template-builder). | `screens/builder/` |
 | Queue | drawer | Every run from both studios, grouped by what it needs from you. | `screens/QueueDrawer.tsx` |
@@ -288,7 +289,7 @@ typed call for each.
 | Files | `POST upload` (photo, clip or sound) · `GET uploads/{asset}` · `POST frame` (a still from a clip) |
 | Runs | `POST compose` (the request, without running) · `POST estimate` (price) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
 | Library | `GET generations` · `GET facets` · `GET/PATCH/DELETE generations/{id}` · `POST generations/trash` · `GET generations/{id}/file/…`, `/output`, `/workflow`, `/recipe` · `POST generations/{id}/rerun` |
-| Trash and storage | `GET trash` · `POST trash/{id}/restore` · `POST trash/restore` · `DELETE trash/{id}` · `DELETE trash` · `GET storage` · `POST storage/clean` |
+| Trash and storage | `GET trash` · `POST trash/{id}/restore` · `POST trash/restore` · `DELETE trash/{id}` · `POST trash/purge` (picked, for good) · `DELETE trash` · `GET storage` · `POST storage/clean` |
 | Backups | `POST backup` (`{trash}`) · `GET backup/file/{name}` · `POST restore` (the file as the body; answers what it would add, with a `token`) · `POST restore/{token}` |
 | Share | `GET generations/{id}/export/sizes` · `POST generations/{id}/export` · `GET exports/{name}` · `POST import` · `GET import/{token}/file/…` · `POST import/{token}/commit` · `GET community` |
 

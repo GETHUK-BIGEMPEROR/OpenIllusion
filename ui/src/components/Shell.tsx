@@ -59,6 +59,7 @@ export function Rail({ route }: { route: Route }) {
         <I n="layers" />Queue<span className="badge">{badge}</span>
       </button>
       <div className="rail-spacer" />
+      <a className="nav-btn" href={href({ name: "trash" })} aria-current={current === "trash" ? "page" : undefined} title="Deleted generations, kept 7 days"><I n="trash" />Trash</a>
       <a className="nav-btn" href={href({ name: "settings" })} aria-current={current === "settings" ? "page" : undefined}><I n="sliders" />Settings</a>
     </nav>
   );

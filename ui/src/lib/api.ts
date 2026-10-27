@@ -591,6 +591,7 @@ export const api = {
   restore: (id: string) => req<Manifest>("POST", `/trash/${id}/restore`),
   restoreMany: (ids: string[]) => req<{ restored: string[] }>("POST", "/trash/restore", { ids }),
   purge: (id: string) => req<{ ok: boolean }>("DELETE", `/trash/${id}`),
+  purgeMany: (ids: string[]) => req<{ removed: string[] }>("POST", "/trash/purge", { ids }),
   emptyTrash: () => req<{ removed: number }>("DELETE", "/trash"),
   storage: () => req<Record<StorageBucket, { bytes: number; items: number; path: string }>>("GET", "/storage"),
   cleanStorage: (bucket: StorageBucket) => req<{ removed: number; bytes: number }>("POST", "/storage/clean", { bucket }),

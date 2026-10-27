@@ -16,6 +16,7 @@ import { GenerationDetail } from "./screens/GenerationDetail";
 import { Builder, buildAction, workflowToBuilder } from "./screens/builder/Builder";
 import { ImportReview } from "./screens/ImportReview";
 import { isBackup, openBackup, RestoreReview } from "./screens/RestoreReview";
+import { Trash } from "./screens/Trash";
 import { Library } from "./screens/Library";
 import { QueueDrawer } from "./screens/QueueDrawer";
 import { Settings } from "./screens/Settings";
@@ -129,6 +130,7 @@ export function App() {
           {route.name === "edit" && <EditStudio />}
           {route.name === "generation" && <GenerationDetail key={route.id} id={route.id} />}
           {route.name === "settings" && <Settings />}
+          {route.name === "trash" && <Trash />}
           {route.name === "build" && <Builder from={route.from} />}
         </main>
         <TabBar route={route} />

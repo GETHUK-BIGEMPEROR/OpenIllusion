@@ -8,6 +8,7 @@ export type Route =
   | { name: "edit" }
   | { name: "generation"; id: string }
   | { name: "settings" }
+  | { name: "trash" }
   | { name: "build"; from?: string }
   | { name: "connect" };
 
@@ -25,6 +26,8 @@ export function parse(hash: string): Route {
       return parts[1] ? { name: "generation", id: parts[1] } : { name: "library" };
     case "settings":
       return { name: "settings" };
+    case "trash":
+      return { name: "trash" };
     case "build":
       return { name: "build", from: q.get("from") ?? undefined };
     case "connect":
@@ -32,6 +35,8 @@ export function parse(hash: string): Route {
     case "library":
       // Templates used to be a Library shelf; old links land on Explore.
       if (q.get("shelf") === "templates") return { name: "explore", t: q.get("t") ?? undefined };
+      // So was the trash.
+      if (q.get("shelf") === "trash") return { name: "trash" };
       return { name: "library", shelf: q.get("shelf") ?? undefined };
     default:
       return { name: "explore", t: q.get("t") ?? undefined };

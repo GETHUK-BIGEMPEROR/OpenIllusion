@@ -114,6 +114,23 @@ def register(routes: web.RouteTableDef) -> None:
             ok = False
         return web.json_response({"ok": ok}) if ok else err(404, "Not in the trash")
 
+    @routes.post(API + "/trash/purge")
+    async def purge_many(request):
+        """Delete the picked trashed generations for good."""
+        ids = [str(i) for i in (await body(request)).get("ids") or []]
+
+        def run():
+            gone = []
+            for i in ids:
+                try:
+                    if store.purge(i):
+                        gone.append(i)
+                except (ValueError, OSError):
+                    continue
+            return gone
+
+        return web.json_response({"removed": await asyncio.to_thread(run)})
+
     @routes.delete(API + "/trash")
     async def empty_trash(request):
         return web.json_response({"removed": await asyncio.to_thread(store.empty_trash)})

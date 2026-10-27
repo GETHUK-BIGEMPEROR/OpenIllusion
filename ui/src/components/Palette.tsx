@@ -15,6 +15,7 @@ const PAGES: { route: Route; icon: IconName; label: string }[] = [
   { route: { name: "explore" }, icon: "compass", label: "Explore templates" },
   { route: { name: "edit" }, icon: "wand", label: "Create" },
   { route: { name: "library" }, icon: "library", label: "Library" },
+  { route: { name: "trash" }, icon: "trash", label: "Trash" },
   { route: { name: "settings" }, icon: "sliders", label: "Settings" },
 ];
 
