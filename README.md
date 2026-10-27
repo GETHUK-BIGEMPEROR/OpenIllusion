@@ -78,10 +78,10 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Screen | Route | What you do there | File |
 | --- | --- | --- | --- |
 | Explore | `#/explore` | Every published template on one wall, photos and videos together. Filter All / Local / Cloud and by tag. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Drafts never show here. | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
-| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (photo, clip and sound tiles; crop, size, trim), edit the prompt, Run. Cloud templates show a price quote above Run. Drafts live here: tagged Draft in the template menu, with Publish on their results. | `screens/EditStudio.tsx`, `components/Studio.tsx`, `Refs.tsx`, `Trimmer.tsx` |
+| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (photo, clip and sound tiles; crop, size, trim), edit the prompt, Run. Cloud templates show a price quote above Run. Drafts live here: tagged Draft in the template menu, with Publish on their results. | `screens/create/`, `components/Studio.tsx`, `Refs.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Starters, Community, Trash. Tabs: All, Starred, Active, Failed. | `screens/Library.tsx` |
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, remix into Create, notes, export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
-| Build | `#/build`, `#/build?from={template}` | Make a template in three steps; see [Builder](#making-a-template-builder). | `screens/Builder.tsx` |
+| Build | `#/build`, `#/build?from={template}` | Make a template in three steps; see [Builder](#making-a-template-builder). | `screens/builder/` |
 | Queue | drawer | Every run from both studios, grouped by what it needs from you. | `screens/QueueDrawer.tsx` |
 | Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Storage (disk use, clean working copies), Cloud (API key). | `screens/Settings.tsx` |
 | Connect | `#/connect` | First run only: check the ComfyUI on this machine, then open Explore. No account. | `screens/Connect.tsx` |
@@ -194,7 +194,8 @@ Where to look when you change something.
 | `lib/route.ts` · `live.ts` · `query.ts` | Hash routes; the WebSocket feed of job updates; React Query setup. |
 | `App.tsx` · `components/Shell.tsx` · `Palette.tsx` | Layout, rail and tab bar, drops anywhere on the page, Ctrl K palette. |
 | `screens/*` | One file per screen; see [The app](#the-app-screen-by-screen). |
-| `screens/Builder.tsx` | Builder: Local workflow and Comfy Router tabs, three steps with Back, draft run, publish. On Router: a mode picker built from the adapter's sets or `models`, and the same `set`/`needs`/`models` checks as the server. |
+| `screens/builder/` | Builder: Local workflow and Comfy Router tabs, three steps with Back, draft run, publish (`Builder.tsx`); the start step (`Start.tsx`), the template's sections (`Sections.tsx`), row state from a workflow or preset (`model.ts`). On Router: a mode picker built from the adapter's sets or `models` (`modes.ts`), and the same `set`/`needs`/`models` checks as the server. |
+| `screens/create/` | Create: the page (`CreateStudio.tsx`), input tiles (`Inputs.tsx`), the canvas (`Canvas.tsx`), prompt and Run (`Panel.tsx`), this template's runs (`History.tsx`). |
 | `components/Studio.tsx` · `Refs.tsx` · `Trimmer.tsx` · `ABPlayer.tsx` | Create's parts: template seeding, input tiles and uploads, clip trimming, before/after player. |
 | `components/ui.tsx` · `oi.tsx` · `bits.tsx` · `sprite.ts` | Shared pieces: buttons, segmented tabs, fields, spinners; page head, header chips (`KeyStat`, `GpuStat`), sideways-scrolling rows, media; cost pill; the icon sprite (`<I n>`). |
 | `styles/` | The only styling: `base.css` tokens and reset, `common.css`/`fields.css` shared pieces, one stylesheet per area, `responsive.css` for phones. |
@@ -423,7 +424,7 @@ same internally (`source_videos`, `reference_images`, `first_frame`…).
 | Photo | image | an image model's input | Photo edit | none |
 
 The names in the "Mode it makes" column are the ones the app shows: the Builder's
-mode tabs (`SET_LABEL` in `Builder.tsx`, one per set name) and the mode label of a
+mode tabs (`SET_LABEL` in `builder/modes.ts`, one per set name) and the mode label of a
 run. A new set name needs a label there.
 
 A template is frozen to the roles its run used, so "Kling · edit video" and
@@ -554,7 +555,7 @@ only fills tokens and reads `result` paths.
    docs' example request. One input per role from the roles table; if a field
    doesn't fit a role, add a role to the table in this README first. Group the
    inputs into `set`s by mode; a set name the app hasn't seen needs a label in
-   `SET_LABEL` (`ui/src/screens/Builder.tsx`), or its tab shows the raw name.
+   `SET_LABEL` (`ui/src/screens/builder/modes.ts`), or its tab shows the raw name.
 3. **Set `result`** from the docs' example answer. Several paths are fine; the
    first that holds media wins.
 4. **Test.** `pytest -q` checks every adapter parses and that each role assembles
@@ -618,7 +619,7 @@ second base URL plus the key; not planned yet.
 | med | Files by link | Unknown until a real key tries it: whether uploading needs a Comfy Cloud subscription, and how long the signed link lives. | Phase 6 |
 | med | Limits | Per-model file limits (clip length, size, resolution) are in the docs, not enforced here; Router's refusal says what's wrong. | Read limits into adapters if refusals are common |
 | high | Job state | The queue lives in one process's memory, mirrored to `jobs.json`. Two servers on one home folder would both resume the same jobs. | Lock file in the home folder |
-| med | Big files | `builder.py` 918 lines, `jobs.py` 805; UI `EditStudio.tsx` 952, `Builder.tsx` 873 | Split the two screens into folders |
+| low | Big files | `server/builder.py` 918 lines, `jobs.py` 805 | Split when next reworked |
 | med | Input order | Builder lists inputs in loader order, but Create uses the template's order. | Save inputs in the order Builder showed them |
 
 ## Run

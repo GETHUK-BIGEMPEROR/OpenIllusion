@@ -7,7 +7,7 @@ import { cachedEngine } from "../lib/query";
 import { useApp } from "../lib/store";
 import { I } from "./oi";
 import { dropIntoStudio, isMediaFile, openWithFiles } from "./Drop";
-import { buildAction, workflowToBuilder } from "../screens/Builder";
+import { buildAction, workflowToBuilder } from "../screens/builder/Builder";
 import { cx } from "./ui";
 
 export { gpuName, localState } from "./oi";
