@@ -119,30 +119,12 @@ def test_video_window_is_enforced(clip_template, monkeypatch):
     assert any(x["field"] == "video" and "2–15" in x["text"] for x in w)
 
 
-def test_boxes_ride_at_end_of_prompt():
-    boxes = [
-        {"rect": [0.1, 0.2, 0.3, 0.4], "label": "replace jacket with a yellow raincoat"},
-        {"rect": [0.5, 0.5, 0.1, 0.1], "label": ""},
-    ]
-    first, json_line = engines.prompt_with_boxes("Make it rain.", boxes).split("\n")
-    assert first == "Make it rain."
-    assert json.loads(json_line) == [{
-        "id": "box_1", "from": "image_1", "src_bbox": [200, 100, 600, 400], "tgt_bbox": [200, 100, 600, 400],
-        "desc": "replace jacket with a yellow raincoat",
-    }]
-    assert engines.prompt_with_boxes("Plain.", boxes[1:]) == "Plain."
-
-
 def test_materialize_replaces_only_whole_tokens():
     t = {"a": "{{image:1}}", "b": ["{{video:1|url}}", "text {{image:1}}"], "c": {"d": "{{image:2|b64}}"}}
     out = engines.materialize(t, lambda k, n, f: f"{k}{n}-{f}")
     assert out == {"a": "image1-uri", "b": ["video1-url", "text {{image:1}}"], "c": {"d": "image2-b64"}}
     assert t["a"] == "{{image:1}}"  # template untouched
 
-
-def test_role_sentences():
-    s = engines.role_sentences([{"slot": "image:1", "role": "character"}, {"slot": "video:1", "role": "motion"}])
-    assert s == "Image 1 is the character. Video 1 is the motion."
 
 
 def test_result_parsing():

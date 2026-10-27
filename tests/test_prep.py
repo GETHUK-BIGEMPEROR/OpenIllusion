@@ -221,13 +221,6 @@ def test_clips_are_cropped_and_sized_like_photos(tmp_path):
     assert media.probe(tmp_path / "out.mp4")["width"] == p.width
 
 
-def test_area_boxes_follow_the_crop():
-    from server import engines as en
-
-    b = en.boxes_in_crop([{"rect": [0.5, 0.25, 0.25, 0.25], "label": "hat"}], [0.25, 0, 0.5, 1])
-    assert b[0]["rect"] == [0.5, 0.25, 0.5, 0.25] and b[0]["target"] is None
-
-
 def test_clips_kept_at_their_own_size_are_cut_not_resampled(tmp_path):
     from server import media
     from tests.conftest import make_video

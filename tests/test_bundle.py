@@ -119,7 +119,6 @@ def test_import_refuses_bad_manifest():
 def test_hash_mismatch_drops_file():
     man = json.loads(MAN)
     man["inputs"] = [{"slot": "image:1", "file": "refs/ref-01.png", "sha256": "0" * 64}]
-    buf = io.BytesIO()
     make_image_bytes = io.BytesIO()
     from PIL import Image
 

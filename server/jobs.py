@@ -248,7 +248,7 @@ class Manager:
             return
 
         if not job.estimate:
-            self.set(job, "estimating", f"Asking Router for a price…")
+            self.set(job, "estimating", "Asking Router for a price…")
             try:
                 job.estimate = await router.estimate(engines.router_model(m.engine.model), body)
             except RouterError as e:

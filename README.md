@@ -312,10 +312,9 @@ the model on its own, with no workflow around it.
 | --- | --- | --- | --- |
 | high | Cloud | Router has only run against fakes. Adapters are written from the docs, never checked against a real `openapi.json` or a real answer. Fields that only take a public URL can't be fed from a local app. | Phase 5 |
 | high | Job state | The queue lives in one process's memory, mirrored to `jobs.json`. Two servers on one home folder would both resume the same jobs. | Lock file in the home folder |
-| med | Dead code | `prompt_with_boxes`, `box_rows`, `boxes_in_crop` and `role_sentences` remain in `engines.py`, and specs still carry `boxes: []`. | Delete them and their tests |
-| med | Big files | `engines.py` 1206 lines, `routes.py` 1052, `builder.py` 918, `jobs.py` 777 | Split routes by area; split engines into contract / bind / covers |
+| med | Big files | `engines.py` 1131 lines, `routes.py` 1052, `builder.py` 918, `jobs.py` 777 | Split routes by area; split engines into contract / bind / covers |
 | med | Input order | Builder lists inputs in loader order, but Create uses the template's order. | Save inputs in the order Builder showed them |
-| low | Stray folder | An empty `openillusion/` folder sits at the repo root. | Delete it |
+| low | Leftover field | Generations still carry `boxes: []` from the removed area-box feature; nothing reads it. | Drop it with the next manifest version |
 | low | Explore chips | The tag row runs off-screen when there are many tags. | Scroll the row, or cap it |
 
 ## Run

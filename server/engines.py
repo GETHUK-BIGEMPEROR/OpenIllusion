@@ -34,17 +34,6 @@ log = logging.getLogger("openillusion")
 # base64 (b64), a public link (url), or just its MIME type (mime), for bodies that name it beside the bytes.
 TOKEN = re.compile(r"^\{\{(image|video|audio):(\d+)(?:\|(uri|b64|url|mime))?\}\}$")
 
-ROLE_PHRASE = {
-    "character": "the character",
-    "outfit": "the outfit",
-    "location": "the location",
-    "style": "the style",
-    "product": "the product",
-    "motion": "the motion",
-    "base": "the image to edit",
-    "edit": "the image to edit",
-}
-
 
 @dataclass
 class Engine:
@@ -92,70 +81,6 @@ class Engine:
         if self.size is None:
             slots = self.inputs or [{"slot": f"image:{n}"} for n in range(1, max(self.max_images, 1) + 1)] + ([{"slot": "video:1"}] if self.needs_video else [])
             self.size = prep.spec_of(None, slots, self.mode)
-
-
-def role_sentences(inputs: list[dict]) -> str:
-    """'Image 1 is the character. Video 1 is the motion.'"""
-    out = []
-    for i in inputs:
-        kind, _, n = i["slot"].partition(":")
-        phrase = ROLE_PHRASE.get(i.get("role", ""), f"the {i.get('role', 'reference')}")
-        out.append(f"{kind.capitalize()} {n} is {phrase}.")
-    return " ".join(out)
-
-
-def box_rows(boxes: list[dict]) -> list[dict]:
-    """FLUX 3 edit rows. Boxes arrive as fractions; FLUX wants [ymin, xmin, ymax, xmax] in 0..1000."""
-
-    def conv(b):
-        if not b:
-            return None
-        x, y, w, h = (float(v) for v in b)
-        q = lambda v: max(0, min(1000, round(v * 1000)))
-        return [q(y), q(x), q(y + h), q(x + w)]
-
-    rows = []
-    for n, b in enumerate(boxes, start=1):
-        src = conv(b.get("rect"))
-        rows.append(
-            {
-                "id": f"box_{n}",
-                "from": b.get("from") or "image_1",
-                "src_bbox": src,
-                "tgt_bbox": conv(b.get("target")) or src,
-                "desc": b.get("label", "").strip(),
-            }
-        )
-    return rows
-
-
-def boxes_in_crop(boxes: list[dict], crop) -> list[dict]:
-    """Boxes are drawn on the whole photo; once it is cropped they are placed in the kept part."""
-    if not crop:
-        return boxes
-    cx, cy, cw, ch = (float(v) for v in crop)
-    clamp = lambda v: max(0.0, min(1.0, v))
-
-    def move(r):
-        if not r:
-            return r
-        x, y, w, h = (float(v) for v in r)
-        x0, y0 = clamp((x - cx) / cw), clamp((y - cy) / ch)
-        x1, y1 = clamp((x + w - cx) / cw), clamp((y + h - cy) / ch)
-        return [x0, y0, x1 - x0, y1 - y0]
-
-    return [{**b, "rect": move(b.get("rect")), "target": move(b.get("target"))} for b in boxes]
-
-
-def prompt_with_boxes(prompt: str, boxes: list[dict], crop=None) -> str:
-    rows = box_rows([b for b in boxes_in_crop(boxes, crop) if b.get("label", "").strip()])
-    if not rows:
-        return prompt
-    return f"{prompt.rstrip()}\n{json.dumps(rows, separators=(', ', ': '))}"
-
-
-def _lead_crop(spec: dict):
-    return next((i.get("crop") for i in spec.get("inputs", []) if i.get("slot") == "image:1"), None)
 
 
 # ---- request builders -----------------------------------------------------
@@ -975,7 +900,7 @@ def compose(spec: dict) -> dict:
         template = spec["raw"]
     else:
         template = e.build(spec)
-    return {"template": template, "warnings": warnings, "role_sentences": role_sentences(spec["inputs"])}
+    return {"template": template, "warnings": warnings}
 
 
 def materialize(template: Any, resolve: Callable[[str, int, str], str]) -> Any:

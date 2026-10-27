@@ -549,7 +549,7 @@ export const api = {
     return req<Asset>("POST", "/upload", fd);
   },
   frame: (asset: string, t: number) => req<Asset>("POST", "/frame", { asset, t }),
-  compose: (spec: Spec) => req<{ template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[]; role_sentences: string; prep?: Record<string, PrepPlan> }>("POST", "/compose", spec),
+  compose: (spec: Spec) => req<{ template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[]; prep?: Record<string, PrepPlan> }>("POST", "/compose", spec),
   estimate: (spec: Spec) => req<Estimate>("POST", "/estimate", spec),
   localCheck: (spec: Spec, fresh = false) => req<LocalCheck>("POST", "/local/check", { ...spec, fresh }),
   startProxy: () => req<{ ok: boolean; reason?: string | null; local: LocalStatus }>("POST", "/local/proxy/start"),

@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from server import jobs, media, paths, settings, store
-from server.router import Router, RouterError
+from server.router import Router
 
 from conftest import make_video
 

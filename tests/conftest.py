@@ -72,9 +72,6 @@ def fixture_templates(monkeypatch):
         monkeypatch.setitem(engines.ENGINES, e.id, e)
 
 
-CLIP = "cloud/test-clip"
-
-
 @pytest.fixture
 def clip_template(monkeypatch):
     """A Router template that takes a photo and a clip: images[0] and video_url, as data URIs."""
