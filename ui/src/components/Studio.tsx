@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, HttpError, type EngineInfo, type Estimate, type LocalStatus, type Mode, type Spec } from "../lib/api";
 import { describeFailure } from "../lib/errors";
-import { errMsg, shortModel } from "../lib/format";
+import { errMsg } from "../lib/format";
 import { useElapsed, useJobs } from "../lib/live";
 import { go, href } from "../lib/route";
 import { clipSlots, clipWindow, roleOf } from "../lib/fields";
@@ -28,7 +28,7 @@ export function useStudio(mode: Mode) {
   useEffect(() => {
     const e = engines.data?.find((x) => x.id === s.engine);
     if (!e || s.seeded === e.id) return;
-    if (s.refs.length || s.prompt || s.videos.length || !e.defaults) return set(mode, { seeded: e.id });
+    if (s.refs.length || s.prompt || s.videos.length || s.sounds?.length || !e.defaults) return set(mode, { seeded: e.id });
     set(mode, seedFrom(e));
   }, [mode, s.engine, s.seeded, engines.data, set]);
   return [s, (p: Partial<StudioState> | ((s: StudioState) => Partial<StudioState>)) => set(mode, p)] as const;
@@ -49,6 +49,7 @@ export function seedFrom(e: EngineInfo): Partial<StudioState> {
     refs: e.defaults.inputs.filter((i) => i.slot.startsWith("image:")).map((i) => ({
       ...i, key: newKey(), slot: Number(i.slot.split(":")[1]), sample: true, license: "generated", contains_person: false, consent: false, role: roleOf(e, i.slot),
     })),
+    sounds: e.defaults.inputs.filter((i) => i.slot.startsWith("audio:")).map((i) => ({ ...i, sample: true, license: "generated" })),
   };
 }
 
@@ -342,47 +343,11 @@ export function useCompose(mode: Mode, s: StudioState, engine?: EngineInfo) {
 
 /* ------------------------------------------------------------------ panels */
 
-/** The request we'll send (cloud) or the workflow (local), viewable and editable. */
-export function RawRequest({ s, set, spec, compose }: { s: StudioState; set: SetStudio; spec: Spec; compose?: { template: Record<string, unknown> } }) {
-  const [editRaw, setEditRaw] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const isLocal = spec.engine.startsWith("local/");
-  const rawBad = !!s.raw && (() => { try { JSON.parse(s.raw!); return false; } catch { return true; } })();
-  const shown = s.raw ?? JSON.stringify(compose?.template ?? {}, null, 2);
-  return (
-    <details className="group border-b border-line last:border-b-0" open={editRaw || !!s.raw || undefined}>
-      <summary className="h-10 px-4 flex items-center gap-2 cursor-pointer select-none hover:bg-white/[0.02]">
-        <Chevron size={12} className="text-muted -rotate-90 group-open:rotate-0 transition-transform" />
-        <span className="eyebrow">{isLocal ? "Workflow JSON" : "Request JSON"}</span>
-        {s.raw && <span className="h-4 px-1 rounded text-[10px] font-semibold leading-4 bg-yellow/10 text-yellow-light">Edited</span>}
-        <span className="ml-auto font-mono text-xs2 text-faint truncate">{shortModel(s.engine)}</span>
-      </summary>
-      <div className="px-4 pb-3.5 flex flex-col gap-2">
-        {editRaw ? (
-          <textarea aria-label={isLocal ? "Workflow JSON" : "Request JSON"} aria-invalid={rawBad || undefined} value={shown} onChange={(e) => set({ raw: e.target.value })} rows={14} spellCheck={false}
-            className="field p-2.5 font-mono text-xs2 leading-[1.6]" />
-        ) : (
-          <pre className="m-0 rounded-lg bg-deep border border-line p-2.5 font-mono text-xs2 leading-[1.6] text-soft whitespace-pre-wrap break-all max-h-[280px] overflow-auto scroll-y">{shown}</pre>
-        )}
-        {rawBad && <span className="text-xs text-rose-text">Not valid JSON. Fix it or reset to the form.</span>}
-        <p className="m-0 text-xs text-faint">Media appear as tokens like <span className="font-mono">{"{{image:1}}"}</span> and are filled in on send{isLocal ? " as uploaded assets" : ""}.</p>
-        <div className="flex gap-1.5">
-          <Button size="xs" onClick={() => { if (!editRaw && !s.raw) set({ raw: shown }); setEditRaw(!editRaw); }}>{editRaw ? "Done" : "Edit"}</Button>
-          {s.raw && <Button size="xs" tone="ghost" onClick={() => { set({ raw: null }); setEditRaw(false); }}>Reset to form</Button>}
-          <Button size="xs" tone="ghost" className="ml-auto" onClick={() => navigator.clipboard?.writeText(shown).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}>
-            {copied ? <Check size={12} className="text-mint" /> : <Copy size={12} />}{copied ? "Copied" : "Copy"}
-          </Button>
-        </div>
-      </div>
-    </details>
-  );
-}
-
 type Composed = { template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[] };
 
 /** Everything that decides whether Run works, and Run itself. R runs from anywhere outside a text field. */
-export function useRunner({ s, set, spec, compose, estimate, onRan }: {
-  s: StudioState; set: SetStudio; spec: Spec; compose?: Composed; estimate?: Estimate | null; onRan?: (ids: string[]) => void;
+export function useRunner({ set, spec, compose, estimate, onRan }: {
+  set: SetStudio; spec: Spec; compose?: Composed; estimate?: Estimate | null; onRan?: (ids: string[]) => void;
 }) {
   const qc = useQueryClient();
   const toast = useApp((st) => st.toast);
@@ -390,7 +355,6 @@ export function useRunner({ s, set, spec, compose, estimate, onRan }: {
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const errors = compose?.warnings.filter((w) => w.level === "error") ?? [];
-  const rawBad = !!s.raw && (() => { try { JSON.parse(s.raw!); return false; } catch { return true; } })();
   const isLocal = spec.engine.startsWith("local/");
   const check = useLocalCheck(spec);
   const status = useQuery({ queryKey: ["status"], queryFn: () => api.status() });
@@ -398,11 +362,10 @@ export function useRunner({ s, set, spec, compose, estimate, onRan }: {
   const missing = split || (isLocal && !!check.data && !check.data.ok && check.data.reachable !== false);
   const unknown = !isLocal && (!estimate || estimate.source === "unknown");
   const noKey = !isLocal && status.data && !status.data.has_key;
-  const blocked = (!s.raw && errors.length > 0) || rawBad || busy || missing || !!noKey;
+  const blocked = errors.length > 0 || busy || missing || !!noKey;
   const reasons = [
     ...(noKey ? ["Add a Comfy API key in Settings to run cloud engines"] : []),
-    ...(!s.raw ? errors.map((w) => w.text) : []),
-    ...(rawBad ? ["The edited request isn't valid JSON"] : []),
+    ...errors.map((w) => w.text),
     ...(missing && !split ? ["Install what your ComfyUI is missing"] : []),
   ];
 

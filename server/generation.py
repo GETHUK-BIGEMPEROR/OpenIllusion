@@ -103,7 +103,6 @@ class Manifest(_Open):
     engine: Engine
     inputs: list[InputItem] = Field(default_factory=list)
     prompt: str = ""
-    boxes: list[dict] = Field(default_factory=list)
     params: dict[str, Any] = Field(default_factory=dict)
     request_template: dict[str, Any] = Field(default_factory=dict)
     result: Result | None = None

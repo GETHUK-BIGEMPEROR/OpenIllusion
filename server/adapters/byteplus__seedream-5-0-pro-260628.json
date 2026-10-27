@@ -1,0 +1,38 @@
+{
+  "model": "byteplus/seedream-5-0-pro-260628",
+  "name": "Seedream 5.0 Pro",
+  "makes": "photo",
+  "body": {
+    "prompt": "",
+    "size": "2K",
+    "response_format": "url",
+    "watermark": false
+  },
+  "prompt": [
+    "prompt"
+  ],
+  "inputs": [
+    {
+      "role": "Photo",
+      "type": "image",
+      "at": [
+        "image",
+        "+"
+      ],
+      "value": "{{$|uri}}",
+      "max": 9
+    }
+  ],
+  "result": [
+    [
+      "data",
+      "*",
+      "url"
+    ],
+    [
+      "data",
+      "*",
+      "b64_json"
+    ]
+  ]
+}

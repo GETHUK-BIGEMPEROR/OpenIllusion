@@ -142,11 +142,47 @@ function withPreset(p: BuildPreset, init: { media: MediaRow[]; prompt: PromptSta
   };
 }
 
-/** A Router model: one row per input its adapter takes, all empty. The ones you fill are the template's inputs. */
+/** A way a Router model runs, and the adapter inputs it shows. */
+type RouterMode = { id: string; label: string; inputs: number[] };
+
+const SET_LABEL: Record<string, string> = { frames: "Image to video", references: "From references", edit: "Video edit", extend: "Extend a video", style: "Style reference" };
+
+/** The modes a Router model has, read off its adapter: its `models` routes, else its input sets. One mode or none: no picker. */
+function routerModes(a: RouterAdapter): RouterMode[] {
+  const idx = (roles: string[]) => a.inputs.flatMap((x, i) => (roles.includes(x.role) ? [i] : []));
+  const text = { id: "text", label: a.mode === "motion" ? "Text to video" : "Text to image", inputs: [] };
+  if (a.models?.length) {
+    return a.models.map((m) => {
+      const inputs = idx(m.takes);
+      return inputs.length ? { id: m.model, label: runMode(a, inputs.map((i) => ({ sample: true, slot: i }))), inputs } : { ...text, id: m.model };
+    });
+  }
+  const sets = [...new Set(a.inputs.flatMap((x) => x.set ?? []))];
+  if (!sets.length) return [];
+  const loose = a.inputs.flatMap((x, i) => (x.set?.length ? [] : [i]));
+  return [text, ...sets.map((s) => ({
+    id: s, label: SET_LABEL[s] ?? s, inputs: a.inputs.flatMap((x, i) => (x.set?.includes(s) ? [i] : [])).concat(loose).sort((x, y) => x - y),
+  }))];
+}
+
+/** The mode the shown rows are in. */
+const modeOf = (modes: RouterMode[], rows: MediaRow[]) => {
+  const on = [...new Set(rows.filter((r) => r.on).map((r) => r.slot!))].sort((x, y) => x - y).join();
+  return modes.find((m) => m.inputs.join() === on);
+};
+
+/** Show only the inputs a mode takes. Files in inputs it doesn't take are dropped: they'd be sent otherwise. */
+const toMode = (m: RouterMode, rows: MediaRow[]): MediaRow[] =>
+  rows.map((r) => (m.inputs.includes(r.slot!) ? { ...r, on: true } : { ...r, on: false, sample: null, own: false }));
+
+/** A Router model: one row per input its adapter takes, all empty. The ones you fill are the template's inputs.
+ *  A model with modes starts on its first: only that mode's inputs show. */
 function fromAdapter(a: RouterAdapter) {
-  const media: MediaRow[] = a.inputs.map((x, i) => ({
+  const rows: MediaRow[] = a.inputs.map((x, i) => ({
     key: `${i}:0`, on: true, kind: x.type, label: x.role, hint: "", required: false, sample: null, where: x.role, slot: i, max: x.max,
   }));
+  const first = routerModes(a)[0];
+  const media = first ? toMode(first, rows) : rows;
   const prompt: PromptState = { pick: "prompt", label: "Prompt", hint: "", def: "", required: true };
   // Labels read "Name · Model": the model half is set, the name is yours to write.
   const details: Details = { label: ` · ${a.name}`, blurb: "", mode: a.mode, tags: "" };
@@ -155,16 +191,40 @@ function fromAdapter(a: RouterAdapter) {
 
 /** What a Router model can't take together, among the inputs you filled: the same rules the server checks. */
 function adapterProblems(a: RouterAdapter, rows: MediaRow[]): string[] {
-  const used = new Set(rows.filter((r) => r.sample).map((r) => r.slot!));
-  const roles = [...used].sort((x, y) => x - y).map((i) => a.inputs[i]);
+  const roles = filledInputs(a, rows);
   const p: string[] = [];
-  const sets = [...new Set(roles.map((r) => r.set).filter(Boolean))];
-  if (sets.length > 1) {
-    const by = (s: string) => roles.filter((r) => r.set === s).map((r) => r.role).join(" and ");
-    p.push(`${a.name} takes ${by(sets[0]!)} or ${by(sets[1]!)}, not both`);
-  }
+  const clash = roles.flatMap((x, i) => roles.slice(i + 1).map((y) => [x, y] as const))
+    .find(([x, y]) => x.set?.length && y.set?.length && !x.set.some((s) => y.set!.includes(s)));
+  if (clash) p.push(`${a.name} takes ${clash[0].role} or ${clash[1].role}, not both`);
   for (const r of roles) if (r.needs && !roles.some((x) => x.role === r.needs)) p.push(`${r.role} needs a ${r.needs} as well`);
+  const names = roles.map((r) => r.role);
+  if (!clash && a.models?.length && !a.models.some((m) => names.every((n) => m.takes.includes(n))))
+    p.push(`${a.name} can't take ${names.join(" and ")} together`);
+  // A mode other than text needs a file in it, and an edit or extend needs its clip.
+  const m = modeOf(routerModes(a), rows);
+  if (m?.inputs.length) {
+    const clip = m.inputs.find((i) => a.inputs[i].role.startsWith("Video to"));
+    if (clip !== undefined && !roles.includes(a.inputs[clip])) p.push(`${m.label} needs a ${a.inputs[clip].role}`);
+    else if (!roles.length) p.push(`${m.label} needs a file. Fill one of its inputs, or pick ${routerModes(a)[0].label}`);
+  }
   return p;
+}
+
+type Filled = { sample: unknown; slot?: number };
+
+/** The adapter inputs that have a file, in the adapter's order. */
+const filledInputs = (a: RouterAdapter, rows: Filled[]) =>
+  [...new Set(rows.filter((r) => r.sample).map((r) => r.slot!))].sort((x, y) => x - y).map((i) => a.inputs[i]);
+
+/** What a Router run does, read off the inputs it fills: the same model makes different things from different inputs. */
+function runMode(a: RouterAdapter, rows: Filled[]): string {
+  const has = (role: string) => filledInputs(a, rows).some((r) => r.role === role);
+  const any = rows.some((r) => r.sample);
+  if (a.mode === "edit") return any ? "Photo edit" : "Text to image";
+  if (has("Video to edit")) return "Video edit";
+  if (has("Video to extend")) return "Extend a video";
+  if (has("First frame")) return has("Last frame") ? "First and last frame" : "Image to video";
+  return any ? "From references" : "Text to video";
 }
 
 // A workflow handed over from elsewhere (Import, a drop on another page).
@@ -366,8 +426,9 @@ export function Builder({ from }: { from?: string }) {
     }
   };
 
+  // Back to step 1. Asks first only when there's something of yours to lose.
   const reset = async () => {
-    if (src) {
+    if (src && (details.label.split(" · ")[0].trim() || media.some((m) => m.own))) {
       const res = await confirm({ tone: "neutral", icon: "undo", view: () => ({ title: "Start over?", body: "What you set up for this template is lost. Nothing is saved yet.", action: "Start over" }) });
       if (!res.ok) return;
     }
@@ -386,17 +447,18 @@ export function Builder({ from }: { from?: string }) {
               <Tabs track={track} setTrack={(t) => { setTrack(t); setReadErr(null); }} />
               <h2>{track === "cloud" ? "Turn a Comfy Router model into a template." : "Turn a ComfyUI workflow into a template."}</h2>
               <p>{track === "cloud"
-                ? "Pick a model, fill the inputs you want, run it once. The result becomes its cover on Explore."
+                ? "Pick a model and what it does, fill its inputs, run it once. The result becomes its cover on Explore."
                 : "Bring a workflow that already works, drop in samples, run it once. The result becomes its cover on Explore."}</p>
             </div>
           )}
-          <Steps at={src ? 2 : 1} cloud={src ? src.kind === "cloud" : track === "cloud"} />
+          <Steps at={src ? 2 : 1} cloud={src ? src.kind === "cloud" : track === "cloud"} onBack={() => void reset()} />
           {!src ? (
             <Start track={track} reading={reading} error={readErr} onFile={readFile} onModel={pickModel} />
           ) : (
             <>
+              <button className="btn sm ghost bld-back" type="button" onClick={() => void reset()}><I n="left" />{src.kind === "cloud" ? "Back to models" : "Back to workflows"}</button>
               <TitleField d={details} setD={setDetails} invalid={tried && !details.label.split(" · ")[0].trim()} />
-              <SourceBar src={src} onReplace={reset} />
+              <SourceBar src={src} />
               <div className="bform">
                 <InputsSection src={src} rows={media} setRows={setMedia} />
                 <PromptSection src={src} p={prompt} setP={setPrompt} />
@@ -405,7 +467,7 @@ export function Builder({ from }: { from?: string }) {
               <div className="build-foot">
                 {saveErr && <div className="errbox" role="alert"><b>Couldn't save</b><p>{saveErr}</p></div>}
                 <div className="bf-row">
-                  <button className="btn ghost" type="button" onClick={() => void reset()}><I n="left" /><span className="lbl">{src.kind === "cloud" ? "Another model" : "Another workflow"}</span></button>
+                  <button className="btn ghost" type="button" onClick={() => void reset()}><I n="left" /><span className="lbl">Back</span></button>
                   <p className={cx("help", why && "why")} role={tried && why ? "alert" : undefined}>{why || "Runs it with these samples. Publish the result you like: it becomes the cover."}</p>
                   <button className="btn primary" type="button" disabled={!!saving || !!why} onClick={() => save("try")} title={why || undefined}>{saving ? <Spinner size={13} /> : <I n="zap" />}Run</button>
                 </div>
@@ -418,7 +480,7 @@ export function Builder({ from }: { from?: string }) {
   );
 }
 
-function Steps({ at, cloud }: { at: 1 | 2; cloud?: boolean }) {
+function Steps({ at, cloud, onBack }: { at: 1 | 2; cloud?: boolean; onBack: () => void }) {
   const steps = cloud
     ? [["Pick a model", "On Comfy Router"], ["Fill inputs", "Only what you fill is kept"], ["Run and publish", "The result is the cover"]]
     : [["Bring a workflow", "Saved or exported from ComfyUI"], ["Check inputs", "Found in the workflow"], ["Run and publish", "The result is the cover"]];
@@ -426,7 +488,13 @@ function Steps({ at, cloud }: { at: 1 | 2; cloud?: boolean }) {
     <ol className="steps" aria-label="Steps">
       {steps.map(([t, sub], i) => (
         <li key={t} className={cx(at === i + 1 && "on", at > i + 1 && "done")} aria-current={at === i + 1 ? "step" : undefined}>
-          <span className="n">{at > i + 1 ? <I n="check" /> : i + 1}</span><span><b>{t}</b><span>{sub}</span></span>
+          {at > i + 1 ? (
+            <button type="button" className="steps-back" onClick={onBack} title={`Back to ${t.toLowerCase()}`}>
+              <span className="n"><I n="check" /></span><span><b>{t}</b><span>Back to this step</span></span>
+            </button>
+          ) : (
+            <><span className="n">{i + 1}</span><span><b>{t}</b><span>{sub}</span></span></>
+          )}
         </li>
       ))}
     </ol>
@@ -506,27 +574,60 @@ function RouterStart({ onModel }: { onModel: (a: RouterAdapter) => void }) {
           <a className="btn primary" href="#/settings">Add a key in Settings</a>
         </div>
       ) : (
-        <div className="bc-models">
-          <div className="bc-list" role="listbox" aria-label="Models">
-            {models.isLoading ? <div className="bc-empty"><Spinner size={14} />Loading models</div>
-              : models.isError ? <div className="bc-empty">{errMsg(models.error)}</div>
-              : (models.data ?? []).map((m) => (
-                <button key={m.model} type="button" role="option" aria-selected={false} className="bc-model" onClick={() => onModel(m)}>
-                  <span className="bc-mt"><b>{m.name}</b><span className="mono">{m.model}</span></span>
-                  <span className="bc-roles">{m.inputs.map((x) => x.role).join(" · ")}</span>
-                  {m.mode === "motion" ? <span className="pill kind v"><I n="film" />Video</span> : <span className="pill kind"><I n="image" />Photo</span>}
-                  <I n="right" />
-                </button>
-              ))}
-          </div>
-        </div>
+        models.isLoading ? <div className="bc-empty"><Spinner size={14} />Loading models</div>
+          : models.isError ? <div className="bc-empty">{errMsg(models.error)}</div>
+          : (["motion", "edit"] as const).map((mode) => {
+            const list = (models.data ?? []).filter((m) => m.mode === mode);
+            return list.length > 0 && (
+              <section key={mode} className="bc-group" aria-label={mode === "motion" ? "Video models" : "Photo models"}>
+                <h3><I n={mode === "motion" ? "film" : "image"} />{mode === "motion" ? "Make video" : "Make photos"}<span className="mono">{list.length}</span></h3>
+                <div className="bc-grid">{list.map((m) => <ModelCard key={m.model} m={m} onPick={() => onModel(m)} />)}</div>
+              </section>
+            );
+          })
       )}
       <div className="contract">
-        <div><b>Five models, each by hand</b>Every model on Router has its own request format, so each one here has an adapter written for it. More come one at a time.</div>
+        <div><b>Ten models, every mode</b>Pick a model, then what it does: text to video, frames, references, an edit. Each mode shows only the inputs it takes.</div>
         <div><b>Inputs and a prompt, nothing else</b>Fill the inputs you want and leave the rest empty. The template asks for exactly what you filled, every run.</div>
         <div><b>One run, then publish</b>The first run costs credits. Its result becomes the cover on Explore.</div>
       </div>
     </>
+  );
+}
+
+const MAKER: Record<string, string> = { kling: "Kuaishou", byteplus: "ByteDance", veo: "Google", vertexai: "Google", wan: "Alibaba", openai: "OpenAI", bfl: "Black Forest Labs", xai: "xAI" };
+
+/** What a Router model can do, in the Builder's mode names: its tabs, or for a one-mode photo model, text and edit. */
+const modeNames = (a: RouterAdapter) => {
+  const tabs = routerModes(a).map((m) => m.label);
+  if (tabs.length) return tabs;
+  return a.mode === "edit" ? (a.inputs.length ? ["Text to image", "Photo edit"] : ["Text to image"]) : ["Text to video"];
+};
+
+/** One Router model on the start screen: who makes it, what it does, what it takes. */
+function ModelCard({ m, onPick }: { m: RouterAdapter; onPick: () => void }) {
+  const provider = m.model.split("/")[0];
+  const video = m.mode === "motion";
+  return (
+    <button type="button" className={cx("bc-card", video ? "v" : "p")} onClick={onPick} aria-label={`${m.name}: ${modeNames(m).join(", ")}`}>
+      <span className="bc-top">
+        <span className="bc-mono" aria-hidden>{m.name.slice(0, 2)}</span>
+        <span className="bc-mt"><b>{m.name}</b><span>{MAKER[provider] ?? provider}<i className="mono">{m.model.split("/")[1]}</i></span></span>
+        <I n="arrow" className="bc-go" />
+      </span>
+      <span className="bc-row"><span className="bc-lab">Does</span>
+        <span className="bc-chips">{modeNames(m).map((n) => <span key={n} className="bc-mode">{n}</span>)}</span>
+      </span>
+      <span className="bc-row takes"><span className="bc-lab">Takes</span>
+        <span className="bc-chips">
+          {m.inputs.length ? m.inputs.map((x) => (
+            <span key={x.role} className="bc-role" title={x.needs ? `Needs a ${x.needs}` : undefined}>
+              <I n={KIND_ICON[x.type]} />{x.role}{x.max > 1 && <span className="mono">×{x.max}</span>}
+            </span>
+          )) : <span className="bc-role none">Prompt only</span>}
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -545,14 +646,13 @@ function Sec({ id, icon, color, title, desc, aside, children }: { id: string; ic
   );
 }
 
-function SourceBar({ src, onReplace }: { src: Source; onReplace: () => void }) {
+function SourceBar({ src }: { src: Source }) {
   const [open, setOpen] = useState(false);
   if (src.kind === "cloud") {
     return (
       <div className="bld-source">
         <span className="bc-ic cloud"><I n="cloud" /></span>
         <div><b>{src.a.name}</b><span className="mono">{src.a.model} · Comfy Router · makes {src.a.mode === "motion" ? "video" : "photos"}</span></div>
-        <button className="btn sm ghost" type="button" onClick={onReplace}>Change</button>
       </div>
     );
   }
@@ -570,7 +670,6 @@ function SourceBar({ src, onReplace }: { src: Source; onReplace: () => void }) {
           <span>{a.nodes} nodes · {a.preset ? "from the template, set up as it is" : a.format === "ui" ? "converted from the saved workflow" : "API format"}</span>
         </div>
         {missing ? <span className="pill rose"><I n="alert" />{missing} missing</span> : <span className="pill"><i className="dot" />Ready to run</span>}
-        <button className="btn sm ghost" type="button" onClick={onReplace}>Change</button>
       </div>
       {(missing > 0 || bad.length > 0 || a.notes.length > 0) && (
         <div className={cx("bld-check", missing > 0 && "warn")}>
@@ -601,7 +700,7 @@ function InputsSection({ src, rows, setRows }: { src: Source; rows: MediaRow[]; 
   const up = (key: string, p: Partial<MediaRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
   const pickSample = async (r: MediaRow, f?: File) => {
     if (!f) return;
-    const [a] = await upload([f], r.kind === "audio" ? undefined : r.kind);
+    const [a] = await upload([f], r.kind);
     if (a) up(r.key, { sample: a, own: true });
   };
   // A Router input that takes several files gets one row each.
@@ -619,14 +718,25 @@ function InputsSection({ src, rows, setRows }: { src: Source; rows: MediaRow[]; 
   const filled = slotNames(shown.filter((r) => !cloud || r.sample));
   let k = 0;
   const names = shown.map((r) => (!cloud || r.sample ? filled[k++] : r.label));
+  const modes = cloud ? routerModes(src.a) : [];
+  const mode = modeOf(modes, rows);
   return (
     <Sec id="in" icon="upload" color="var(--mint)" title="Inputs"
       desc={cloud
-        ? `What ${src.a.name} takes. Fill the ones this template uses: it asks for exactly those, and empty ones aren't in it.`
+        ? `${modes.length ? `Pick what this template does, then fill` : "Fill"} the inputs it uses: it asks for exactly those, and empty ones aren't in it.`
         : "Found in the workflow. Drop a sample into each: the first run uses it, and it ships as the template's default."}
-      aside={shown.length ? <span className="mono">{cloud ? shown.filter((r) => r.sample).length : shown.length}</span> : undefined}>
+      aside={cloud ? (modes.length ? undefined : <span className="mono">{runMode(src.a, shown)}</span>) : shown.length ? <span className="mono">{shown.length}</span> : undefined}>
+      {modes.length > 0 && (
+        <div className="seg bld-modes" role="radiogroup" aria-label="What this template does">
+          {modes.map((m) => (
+            <button key={m.id} type="button" role="radio" aria-checked={mode?.id === m.id} aria-pressed={mode?.id === m.id}
+              onClick={() => setRows((rs) => toMode(m, rs))}>{m.label}</button>
+          ))}
+        </div>
+      )}
       {!shown.length ? (
-        <p className="help">{src.kind === "local" ? "No photo or video loaders in this workflow. People only write the prompt." : "This model takes no media. People only write the prompt."}</p>
+        <p className="help">{src.kind === "local" ? "No photo or video loaders in this workflow. People only write the prompt."
+          : modes.length ? "No files: people only write the prompt." : "This model takes no media. People only write the prompt."}</p>
       ) : (
         <div className="bslots">
           {shown.map((r, i) => {

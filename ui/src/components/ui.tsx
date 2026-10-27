@@ -56,10 +56,6 @@ export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTM
   },
 );
 
-export function Mono({ className, ...p }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cx("font-mono", className)} {...p} />;
-}
-
 type BadgeTone = "neutral" | "violet" | "yellow" | "mint" | "orange" | "rose" | "glass";
 const BADGE: Record<BadgeTone, string> = {
   neutral: "bg-white/[0.06] text-soft",
@@ -166,16 +162,6 @@ export function Select({ className, style, ...p }: React.SelectHTMLAttributes<HT
       style={{ backgroundImage: CHEVRON, ...style }}
       {...p}
     />
-  );
-}
-
-export function Dot({ tone, pulse }: { tone: "ok" | "warn" | "bad" | "off" | "busy"; pulse?: boolean }) {
-  const c = { ok: "#5FD39A", warn: "#FFA24C", bad: "#FF6B7E", off: "#6E6578", busy: "#FFA24C" }[tone];
-  return (
-    <span aria-hidden className="relative inline-flex w-2 h-2 shrink-0">
-      {pulse && <span className="absolute inset-0 rounded-full animate-ping opacity-60" style={{ background: c }} />}
-      <span className="relative w-2 h-2 rounded-full" style={{ background: c }} />
-    </span>
   );
 }
 

@@ -75,9 +75,6 @@ export const budget = (size: SizeSpec, choice?: unknown) => size.options.find((o
 
 const ratioOf = (aspect: string) => { const [w, h] = aspect.split(":").map(Number); return w > 0 && h > 0 ? [w, h] : null; };
 
-/** The aspect as width / height ("4:5" -> 0.8). */
-export const aspectRatio = (aspect: string) => { const r = ratioOf(aspect); return r ? r[0] / r[1] : 1; };
-
 /** Templates without inputs: the canvas for a shape and a size, as server/prep.py canvas_size makes it. */
 export function canvasSize(size: SizeSpec, aspect?: unknown, choice?: unknown): Dims | null {
   const c = size.canvas;

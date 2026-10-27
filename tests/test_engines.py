@@ -369,6 +369,5 @@ def test_variants_only_when_the_workflow_rerolls_its_seed():
 
 
 def test_the_prompt_is_sent_exactly_as_written():
-    wf = engines.ENGINES[HAT].build({"inputs": [{"slot": "image:1"}], "prompt": "A cap.", "params": {},
-                                     "boxes": [{"label": "Keep the edit inside this area", "rect": [0, 0, 0.5, 0.5]}]})
+    wf = engines.ENGINES[HAT].build({"inputs": [{"slot": "image:1"}], "prompt": "A cap.", "params": {}})
     assert wf["5"]["inputs"]["prompt"] == "A cap."

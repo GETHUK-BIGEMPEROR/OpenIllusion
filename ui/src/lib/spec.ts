@@ -42,13 +42,9 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
       size: v.size,
     });
   }
-  let raw: Record<string, unknown> | null = null;
-  if (s.raw) {
-    try {
-      raw = JSON.parse(s.raw);
-    } catch {
-      raw = null;
-    }
+  for (const a of s.sounds ?? []) {
+    if (engine?.fields?.length && !engine.fields.some((f) => f.key === a.slot)) continue;
+    inputs.push({ slot: a.slot, role: "audio", asset: a.missing ? undefined : a.asset, license: a.license, contains_person: false, consent: false });
   }
   return {
     engine: s.engine,
@@ -56,9 +52,7 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
     title: s.title || undefined,
     inputs,
     prompt: s.prompt,
-    boxes: [],
     params: { ...defaults(engine), ...s.params },
-    raw,
     variants: s.variants,
     forked_from: s.forked_from,
     chain: s.chain,

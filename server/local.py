@@ -3,7 +3,9 @@
 Two clients live here:
 
 - ``ComfyV2`` speaks the v2 contract the proxy serves: upload assets, submit
-  an API-format workflow, follow the job, download outputs.
+  an API-format workflow, follow the job, download outputs. Comfy Cloud serves
+  the same contract, so ``cloud_assets()`` reuses it to give Router a link to a
+  file (``share``).
 - ``ComfyUI`` reads ComfyUI's own ``/object_info``. v2 has no node or model
   introspection, and ComfyUI's validation stops at the first missing node, so
   ``check`` compares a workflow against object_info up front and reports
@@ -98,6 +100,23 @@ class ComfyV2:
             files = {"file": (path.name, f, ctype)}
             return await self._json("POST", "/api/v2/assets", data=data, files=files)
 
+    async def share(self, path: Path) -> str:
+        """Upload a file and return a link anyone can read for a while: the signed URL
+        the asset's content redirects to (Comfy Cloud), else the asset's own ``url``."""
+        asset = await self.upload(path)
+        if not isinstance(asset, dict) or not asset.get("id"):
+            raise V2Error(502, "upload_failed", "The upload gave no asset id")
+        async with self._client() as c:
+            resp = await c.send(c.build_request("GET", f"/api/v2/assets/{asset['id']}/content"), follow_redirects=False, stream=True)
+            await resp.aclose()
+        if resp.is_redirect and resp.headers.get("Location"):
+            return resp.headers["Location"]
+        if resp.status_code >= 400:
+            raise read_error(resp)
+        if asset.get("url"):
+            return str(asset["url"])
+        raise V2Error(502, "no_link", "Comfy Cloud gave no link for the upload")
+
     async def submit(self, workflow: dict, idempotency_key: str, extra_data: dict | None = None) -> dict:
         body: dict[str, Any] = {"workflow": workflow}
         if extra_data:
@@ -145,6 +164,11 @@ class ComfyV2:
 
 
 _info_cache: dict[str, tuple[float, dict]] = {}
+
+
+def cloud_assets() -> ComfyV2:
+    """Comfy Cloud's asset store, signed in with the Comfy API key."""
+    return ComfyV2(base=settings.load().get("cloud_base") or settings.DEFAULTS["cloud_base"], token=settings.api_key())
 
 
 class ComfyUI:

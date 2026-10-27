@@ -22,7 +22,7 @@ from .router import Router, RouterError
 
 API = "/api"
 APP_DIR = paths.package_root() / "static"
-UPLOAD_EXT = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm", ".m4v"}
+UPLOAD_EXT = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm", ".m4v", *media.AUDIO_EXT}
 MAX_UPLOAD = 500 * 1024 * 1024
 
 _status_cache: dict = {"at": 0.0, "data": None}
@@ -57,10 +57,6 @@ async def _send(ws: web.WebSocketResponse, msg: str) -> None:
 def err(status: int, message: str, **extra) -> web.Response:
     return web.json_response({"error": message, **extra}, status=status)
 
-
-def router_err(e: RouterError) -> web.Response:
-    status = e.status if 400 <= e.status < 600 else 502
-    return web.json_response({"error": e.message or e.error_type, "router": e.to_dict()}, status=status)
 
 
 async def body(request: web.Request) -> dict:
@@ -454,7 +450,7 @@ def register(routes: web.RouteTableDef) -> None:
         name = part.filename or "upload"
         ext = Path(name).suffix.lower()
         if ext not in UPLOAD_EXT:
-            return err(415, f"{ext or 'This file type'} isn't supported. Use PNG, JPEG, WebP, MP4, MOV or WebM.")
+            return err(415, f"{ext or 'This file type'} isn't supported. Use PNG, JPEG, WebP, MP4, MOV, WebM, or MP3, WAV, M4A for sound.")
         h = hashlib.sha256()
         tmp = paths.uploads_dir() / f"_incoming-{time.time_ns()}{ext}"
         size = 0
@@ -993,6 +989,8 @@ def asset_info(p: Path) -> dict:
                 poster = None
         return {"kind": "video", **info, "bytes": p.stat().st_size,
                 "url": f"{API}/uploads/{p.name}", "poster": f"{API}/uploads/{poster.name}" if poster else None}
+    if ext in media.AUDIO_EXT:
+        return {"kind": "audio", **media.audio_info(p), "bytes": p.stat().st_size, "url": f"{API}/uploads/{p.name}", "poster": None}
     img = media.open_image(p)
     return {"kind": "image", "width": img.width, "height": img.height, "bytes": p.stat().st_size,
             "url": f"{API}/uploads/{p.name}", "poster": f"{API}/uploads/{p.name}"}
@@ -1045,7 +1043,7 @@ def spec_from_generation(m: sc.Manifest) -> dict:
         inputs.append(d)
     return {
         "engine": m.engine.model, "mode": m.mode, "title": m.title, "inputs": inputs, "prompt": m.prompt,
-        "boxes": m.boxes, "params": dict(m.params), "forked_from": m.id, "tags": m.tags,
+        "params": dict(m.params), "forked_from": m.id, "tags": m.tags,
     }
 
 

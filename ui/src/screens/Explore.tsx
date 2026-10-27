@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Masonry } from "../components/Masonry";
-import { cx, EmptyBox, I, PageHead, useStatus } from "../components/oi";
-import { sharedTags, TemplateCard, tplName } from "../components/TemplateCard";
+import { EmptyBox, I, PageHead, useStatus } from "../components/oi";
+import { sharedTags, TemplateCard } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
 import { api, type EngineInfo } from "../lib/api";
 import { errMsg } from "../lib/format";
@@ -28,9 +28,8 @@ export function Explore({ t }: { t?: string }) {
   useEffect(() => { Object.assign(last, { use, kind, where }); }, [use, kind, where]);
 
   const every = useMemo(() => engines.data ?? [], [engines.data]);
-  // A draft stays off the wall until one of its results is published as its cover.
+  // A draft stays off the wall until one of its results is published as its cover; Create's template picker has it.
   const all = useMemo(() => every.filter((e) => !e.draft), [every]);
-  const drafts = every.filter((e) => e.draft);
   const uses = sharedTags(all);
   const tagged = all.filter((e) => !use || !uses.includes(use) || e.tags?.includes(use));
   const pool = tagged.filter((e) => where === "all" || e.kind === where);
@@ -67,16 +66,20 @@ export function Explore({ t }: { t?: string }) {
         <button type="button" aria-pressed={where === "local"} onClick={() => setWhere(where === "local" ? "all" : "local")} title="Runs on your ComfyUI"><I n="cpu" />Local<span className="n">{runs("local")}</span></button>
         <button type="button" aria-pressed={where === "cloud"} onClick={() => setWhere(where === "cloud" ? "all" : "cloud")} title="Runs on Comfy Router, paid per run"><I n="cloud" />Cloud<span className="n">{runs("cloud")}</span></button>
       </div>
-      {uses.length > 0 && <span className="vsep" />}
-      {uses.map((u) => <button key={u} className="chip" type="button" aria-pressed={use === u} onClick={() => setUse(use === u ? "" : u)}>{u.charAt(0).toUpperCase() + u.slice(1)}</button>)}
     </>
+  );
+  // Tags get their own row under the filters: one tap each, tap again (or Everything) to clear.
+  const tags = uses.length > 0 && (
+    <div className="tagrow" role="group" aria-label="Tags">
+      <button className="chip" type="button" aria-pressed={!use || !uses.includes(use)} onClick={() => setUse("")}>Everything</button>
+      {uses.map((u) => <button key={u} className="chip" type="button" aria-pressed={use === u} onClick={() => setUse(use === u ? "" : u)}>{u.charAt(0).toUpperCase() + u.slice(1)}</button>)}
+    </div>
   );
 
   return (
     <div className="page explore">
       <div className="scroll">
-        <PageHead filters={filters} actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow"><I n="plus" /><span className="lbl">New template</span></a>} />
-        {drafts.length > 0 && <Drafts list={drafts} selected={t} onUse={use_} onInspect={(id) => inspect(id === t ? undefined : id)} />}
+        <PageHead filters={filters} sub={tags || undefined} actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a Comfy Router model"><I n="plus" /><span className="lbl">New template</span></a>} />
         <div className="wall-wrap wtop">
           {engines.isLoading ? (
             <Masonry label="Loading templates" items={SKELETON} maxCols={4} minCol={250} render={(x) => <div aria-hidden className="card"><div className="media" style={{ "--ar": x.aspect } as CSSProperties} /></div>} />
@@ -95,26 +98,5 @@ export function Explore({ t }: { t?: string }) {
         {panel && <TemplateInspector key={panel.id} e={panel} locked={locked(panel)} onUse={() => use_(panel)} onClose={close} />}
       </aside>
     </div>
-  );
-}
-
-/** Templates built but not published yet. Each one goes on the wall once a run of it becomes its cover. */
-function Drafts({ list, selected, onUse, onInspect }: { list: EngineInfo[]; selected?: string; onUse: (e: EngineInfo) => void; onInspect: (id: string) => void }) {
-  return (
-    <section className="wall-wrap drafts" aria-label="Drafts">
-      <div className="drafts-row">
-        <span className="drafts-lab" title="Run one, then publish a result. That result becomes its cover and puts it on the wall.">Drafts</span>
-        {list.map((e) => (
-          <div key={e.id} className={cx("draft", e.id === selected && "sel")}>
-            <button className="draft-go" type="button" onClick={() => onUse(e)} title="Open in Create">
-              <span className="draft-ic"><I n={e.mode === "motion" ? "film" : "image"} /></span>
-              <span className="draft-t"><b>{tplName(e)}</b><small>Not on Explore yet · run it once to publish</small></span>
-              <span className="draft-run"><I n="play" />Run</span>
-            </button>
-            <button className="icon-btn sm" type="button" aria-label={`Details for ${tplName(e)}`} onClick={() => onInspect(e.id)}><I n="info" /></button>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }

@@ -4,10 +4,10 @@ import { ABPlayer, typing } from "../components/ABPlayer";
 import { CostPill } from "../components/bits";
 import { clipSlot as asClip, dropIntoStudio, isImage, isMediaFile, isVideo, useFileDrop } from "../components/Drop";
 import { useEngine, ParamFields } from "../components/Engine";
-import { Compare, cx, GpuStat, I, jobProgress, QUEUED, Ring, useStatus, gpuName } from "../components/oi";
+import { Compare, cx, GpuStat, I, jobProgress, KeyStat, QUEUED, Ring, useStatus, gpuName } from "../components/oi";
 import { bySlot, useUploader, withRefs } from "../components/Refs";
 import {
-  invalidFields, LocalNeeds, NoTemplates, RawRequest, StageError, useCompose, useCurrent, useRunner, useStudio, type Fix,
+  invalidFields, LocalNeeds, NoTemplates, StageError, useCompose, useCurrent, useRunner, useStudio, type Fix,
 } from "../components/Studio";
 import { TemplateTools, tplModel, tplName, useCoverActions } from "../components/TemplateCard";
 import { Trimmer } from "../components/Trimmer";
@@ -17,7 +17,7 @@ import { clipFps, clipSlots, clipWindow, leadSlot, mediaFields, promptField, rol
 import { EDIT_ROLES, errMsg } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go } from "../lib/route";
-import { autorun, clipIn, newKey, posterOf, slotOf, withClip, useApp, type RefSlot, type StudioState, type VideoSlot } from "../lib/store";
+import { autorun, clipIn, newKey, posterOf, slotOf, soundIn, withClip, withSound, useApp, type RefSlot, type SoundSlot, type StudioState, type VideoSlot } from "../lib/store";
 import { aspectName, canvasSize, choiceOf, dimsText, megapixels, plan, plans, SHAPES, shapeCrop, shapeOf, sizeNotes, usePrepImages, type Crop, type PrepInput } from "../lib/size";
 
 type View = "input" | "result" | "compare" | "grid";
@@ -25,6 +25,7 @@ type SetS = ReturnType<typeof useStudio>[1];
 
 const ACCEPT = "image/png,image/jpeg,image/webp";
 const ACCEPT_VIDEO = "video/mp4,video/quicktime,video/webm,.m4v";
+const ACCEPT_AUDIO = "audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac";
 const FAILED = new Set(["failed", "moderated", "cancelled"]);
 
 /** A studio change to one input's attributes (shape, size), photo or clip alike. */
@@ -120,7 +121,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
   }, [leadAsset]);
 
   const runner = useRunner({
-    s, set, spec, compose, estimate,
+    set, spec, compose, estimate,
     onRan: (ids) => { set({ group: ids }); setView(ids.length > 1 ? "grid" : "compare"); },
   });
 
@@ -202,7 +203,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
       const smallerOut = canvasAt > 0 ? steps[canvasAt - 1].label : null;
       if (smallerOut) fixes.push({ label: `Use ${smallerOut}`, run: () => { setParam("out_size", smallerOut); toast({ text: `Output set to ${smallerOut}. Press Run.`, tone: "ok" }); } });
       else if (smaller && leadIn) fixes.push({ label: `Use ${smaller.o.label} (${dimsText(smaller.p)})`, run: () => { set(withInput(leadIn.slot, { size: smaller.o.label })); toast({ text: `Size set to ${smaller.o.label}. Press Run.`, tone: "ok" }); } });
-      else if (size) fixes.push({ label: "Use a smaller size", run: () => { const opts = size.options ?? []; const i = opts.indexOf(String(s.params[size.key] ?? size.default)); if (opts.length && i > 0) { set((st) => ({ params: { ...st.params, [size.key]: opts[i - 1] }, raw: null })); toast({ text: `${size.label} set to ${opts[i - 1]}. Press Run.`, tone: "ok" }); } else if (size.type === "int") { set((st) => ({ params: { ...st.params, [size.key]: size.min ?? size.default }, raw: null })); } } });
+      else if (size) fixes.push({ label: "Use a smaller size", run: () => { const opts = size.options ?? []; const i = opts.indexOf(String(s.params[size.key] ?? size.default)); if (opts.length && i > 0) { set((st) => ({ params: { ...st.params, [size.key]: opts[i - 1] } })); toast({ text: `${size.label} set to ${opts[i - 1]}. Press Run.`, tone: "ok" }); } else if (size.type === "int") { set((st) => ({ params: { ...st.params, [size.key]: size.min ?? size.default } })); } } });
     }
     if (suggested.includes("trim") && s.videos.length) {
       // Every clip over its input's length gets cut to it.
@@ -220,7 +221,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
   if (!s.engine && !engine) return <NoTemplates mode={mode} />;
 
   const pickRun = (id: string) => { set({ current: id, group: [id] }); setView("compare"); };
-  const setParam = (k: string, v: unknown) => set((st) => ({ params: { ...st.params, [k]: v }, raw: null }));
+  const setParam = (k: string, v: unknown) => set((st) => ({ params: { ...st.params, [k]: v } }));
   const required = media.filter((f) => f.required !== false).length;
 
   return (
@@ -235,7 +236,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
           <section className="sec" aria-labelledby="sec-inputs">
             <div className="sec-h"><h4 id="sec-inputs">Inputs</h4>{media.length > required && <span className="mono">{media.length - required} optional</span>}</div>
             <div className="tiles">
-              {media.map((f) => <Tile key={f.key} e={engine} f={f} s={s} set={set} />)}
+              {media.map((f) => (f.type === "audio" ? <SoundTile key={f.key} e={engine} f={f} s={s} set={set} /> : <Tile key={f.key} e={engine} f={f} s={s} set={set} />))}
             </div>
             {media.map((f) => <InputExtras key={f.key} e={engine} f={f} s={s} set={set} staged={f.key === lead} named={media.length > 1} />)}
           </section>
@@ -256,7 +257,6 @@ function CreateStudio({ mode }: { mode: Mode }) {
             <summary><I n="sliders" />Advanced<span className="mono">{advSummary(settings.advanced, s)}</span><I n="down" className="chev" /></summary>
             <div className="adv-body">
               {engine && <ParamFields params={settings.advanced} values={s.params} invalid={invalid} onChange={setParam} />}
-              <div style={{ margin: "0 -14px -14px", borderTop: "1px solid var(--line)" }}><RawRequest s={s} set={set} spec={spec} compose={compose} /></div>
             </div>
           </details>}
         </div>
@@ -281,6 +281,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
           )}
           <button className="icon-btn" type="button" aria-label="Open in Library" title="Open in Library" disabled={!shown} style={shown ? undefined : { opacity: 0.35 }}
             onClick={() => shown && go({ name: "generation", id: shown.id })}><I n="expand" /></button>
+          <KeyStat />
           <GpuStat />
         </div>
 
@@ -303,7 +304,6 @@ function advSummary(params: ParamSpec[], s: StudioState) {
   const parts = [];
   if (steps) parts.push(`${s.params.steps ?? steps.default} steps`);
   if (seed) { const v = Number(s.params[seed.key] ?? -1); parts.push(v < 0 ? "random seed" : `seed ${v}`); }
-  if (s.raw) parts.push("edited JSON");
   return parts.join(" · ");
 }
 
@@ -340,7 +340,7 @@ function Hero({ e }: { e: EngineInfo }) {
             <button key={x.id} type="button" role="option" aria-selected={x.id === e.id} aria-current={x.id === e.id}
               onClick={() => { setOpen(false); if (x.id !== e.id) openTemplate(e.mode, x.id); }}>
               {x.cover ? <img src={x.cover} alt="" /> : <span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n={x.mode === "motion" ? "film" : "image"} /></span>}
-              {tplName(x)}<small>{tplModel(x)}</small>
+              {tplName(x)}{x.draft && <em className="tdraft" title="Not on Explore yet. Run it, then Publish the result you like.">Draft</em>}<small>{tplModel(x)}</small>
             </button>
           ))}
           <button type="button" onClick={() => { setOpen(false); openTemplate(e.mode, e.id); }}><span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="undo" /></span>Start over with the samples</button>
@@ -413,6 +413,45 @@ function Tile({ e, f, s, set }: { e: EngineInfo; f: MediaField; s: StudioState; 
       {held?.url
         ? <button className="icon-btn sm glass tile-x" type="button" onClick={clear} aria-label={`Remove ${f.label}`} title="Remove"><I n="x" /></button>
         : sample && <button className="tile-sample" type="button" onClick={useSample}>Use sample</button>}
+    </div>
+  );
+}
+
+/** A sound input as a tile: click or drop to fill or replace. Sent as it is: no trim, no size. */
+function SoundTile({ e, f, s, set }: { e: EngineInfo; f: MediaField; s: StudioState; set: SetS }) {
+  const { upload, busy } = useUploader();
+  const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const a = soundIn(s, f.key);
+  const put = (x: Omit<SoundSlot, "slot"> | null) => set((st) => ({ sounds: withSound(st, f.key, x), current: null }));
+  const d = e.defaults?.inputs.find((x) => x.slot === f.key);
+  const sample = d ? { ...d, sample: true, license: "generated" } : null;
+  const fill = async (files: File[]) => {
+    const file = files.find((x) => x.type.startsWith("audio/")) ?? files[0];
+    if (!file) return;
+    const [got] = await upload([file], "audio");
+    if (got) put({ ...got, license: "own" });
+  };
+  const drop = {
+    onDragOver: (ev: React.DragEvent) => { if (ev.dataTransfer.types.includes("Files")) { ev.preventDefault(); ev.stopPropagation(); setOver(true); } },
+    onDragLeave: (ev: React.DragEvent) => { if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) setOver(false); },
+    onDrop: (ev: React.DragEvent) => { if (!ev.dataTransfer.files.length) return; ev.preventDefault(); ev.stopPropagation(); setOver(false); void fill([...ev.dataTransfer.files]); },
+  };
+  return (
+    <div data-own-drop {...drop} className={cx("tile", !a?.url && "empty", over && "drag", a?.missing && "missing", !a?.url && sample && "has-sample")}>
+      <input ref={input} type="file" accept={ACCEPT_AUDIO} hidden onChange={(ev) => { void fill([...(ev.target.files ?? [])]); ev.target.value = ""; }} />
+      <button className="tile-main" type="button" onClick={() => input.current?.click()} aria-label={a?.url ? `Replace ${f.label}` : `Add ${f.label}`}
+        title={a?.url ? `${a.name}: click or drop to replace` : "Drop a sound or click to browse"}>
+        <I n="zap" />
+        {busy > 0 && <span className="tile-busy"><Spinner size={16} /></span>}
+      </button>
+      <span className="tile-n">{f.label}{!a?.url && f.required === false ? " · optional" : ""}</span>
+      {a?.url && a.sample && !a.missing && <span className="tag-sample tile-tag">SAMPLE</span>}
+      {a?.missing && <span className="tile-miss">File missing</span>}
+      {a?.url && !a.missing && !!a.duration && <span className="tile-dur">{a.duration.toFixed(1)}s</span>}
+      {a?.url
+        ? <button className="icon-btn sm glass tile-x" type="button" onClick={() => put(null)} aria-label={`Remove ${f.label}`} title="Remove"><I n="x" /></button>
+        : sample && <button className="tile-sample" type="button" onClick={() => put(sample)}>Use sample</button>}
     </div>
   );
 }
@@ -823,7 +862,7 @@ function RunBar({ s, set, engine, runner, estimate, queued, varies }: {
 }) {
   const status = useStatus();
   const media = mediaFields(engine);
-  const held = (f: MediaField) => f.type === "video"
+  const held = (f: MediaField) => f.type === "audio" ? !!soundIn(s, f.key)?.url && !soundIn(s, f.key)!.missing : f.type === "video"
     ? !!clipIn(s, f.key) && !clipIn(s, f.key)!.missing
     : s.refs.some((r, k) => `image:${slotOf(r, k)}` === f.key && r.url && !r.missing);
   const missing = media.find((f) => f.required !== false && !held(f));

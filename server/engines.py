@@ -17,6 +17,7 @@ import copy
 import functools
 import json
 import logging
+import mimetypes
 import random
 import re
 from dataclasses import dataclass, field
@@ -31,7 +32,8 @@ from . import media, paths, prep, settings
 log = logging.getLogger("openillusion")
 
 # A media slot inside a cloud body. The form says how the file goes in: a data URI (uri), bare
-# base64 (b64), a public link (url), or just its MIME type (mime), for bodies that name it beside the bytes.
+# base64 (b64), a link (url: uploaded to Comfy Cloud's assets at run time), or just its MIME type
+# (mime), for bodies that name it beside the bytes.
 TOKEN = re.compile(r"^\{\{(image|video|audio):(\d+)(?:\|(uri|b64|url|mime))?\}\}$")
 
 
@@ -804,6 +806,8 @@ def defaults_info(e: Engine) -> dict:
             info = _clip(str(p), v)
             item.update(kind="video", width=info["width"], height=info["height"], duration=info["duration"], fps=info["fps"],
                         has_audio=info["has_audio"], poster=f"{url}&poster=1")
+        elif p.suffix.lower() in media.AUDIO_EXT:
+            item.update(kind="audio", duration=media.audio_info(p)["duration"])
         else:
             w, h = _dims(str(p), v)
             item.update(kind="image", width=w, height=h)
@@ -952,11 +956,15 @@ def file_resolver(inputs: list[dict], base: Path) -> Callable[[str, int, str], s
             raise KeyError(f"{slot} is referenced in the request but has no input")
         if form == "url":
             if not item.get("url"):
-                raise KeyError(f"{slot} needs a public URL for this engine")
+                raise KeyError(f"{slot} goes in as a link, but it wasn't uploaded")
             return item["url"]
         if slot not in encoded:
             path = base / item["file"]
-            encoded[slot] = media.image_payload(path)[0] if kind == "image" else media.file_data_uri(path, {"video": "video/mp4", "audio": "audio/mpeg"}[kind])
+            if kind == "image":
+                encoded[slot] = media.image_payload(path)[0]
+            else:
+                mime = mimetypes.guess_type(path.name)[0] or ""
+                encoded[slot] = media.file_data_uri(path, mime if mime.startswith(kind + "/") else {"video": "video/mp4", "audio": "audio/mpeg"}[kind])
         uri = encoded[slot]
         head, _, data = uri.partition(",")
         if form == "mime":

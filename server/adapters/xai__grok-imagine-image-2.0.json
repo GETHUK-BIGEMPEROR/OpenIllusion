@@ -1,0 +1,26 @@
+{
+  "model": "xai/grok-imagine-image-2.0",
+  "name": "Grok Imagine Image 2.0",
+  "makes": "photo",
+  "body": {
+    "prompt": "",
+    "n": 1,
+    "aspect_ratio": "auto"
+  },
+  "prompt": [
+    "prompt"
+  ],
+  "inputs": [],
+  "result": [
+    [
+      "data",
+      "*",
+      "url"
+    ],
+    [
+      "data",
+      "*",
+      "b64_json"
+    ]
+  ]
+}

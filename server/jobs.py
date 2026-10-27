@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import mimetypes
 import random
 import shutil
 import time
@@ -75,6 +74,7 @@ class Manager:
         self.router_factory: Callable[[], Router] = Router
         self.v2_factory: Callable[[], local.ComfyV2] = local.ComfyV2
         self.comfyui_factory: Callable[[], local.ComfyUI] = local.ComfyUI
+        self.assets_factory: Callable[[], local.ComfyV2] = local.cloud_assets
         self.ensure_proxy: Callable[[], Any] = proxy.ensure
 
     # ---- plumbing ------------------------------------------------------
@@ -234,6 +234,8 @@ class Manager:
         router = self.router_factory()
         inputs = [i.model_dump() for i in m.inputs]
 
+        if not await self._share_files(job, m.request_template, inputs, folder):
+            return
         self.set(job, "estimating", "Building the request")
         resolve = engines.file_resolver(inputs, folder)
         body = await asyncio.to_thread(engines.materialize, m.request_template, resolve)
@@ -309,6 +311,30 @@ class Manager:
         self.set(job, "downloading", "Saving before the link expires")
         result, meta = await router.collect(job.model, job.request_id)
         await self._finish_result(job, result, meta)
+
+    async def _share_files(self, job: Job, template: Any, inputs: list[dict], folder: Path) -> bool:
+        """Inputs the request takes as a link go to Comfy Cloud's asset store first; the
+        signed link replaces their ``url`` token. Uploaded again on every attempt, so a
+        resumed run never sends a link that has run out."""
+        slots = {f"{k}:{n}" for k, n, form in engines.tokens_in(template) if form == "url"}
+        todo = [i for i in inputs if i.get("slot") in slots]
+        if not todo:
+            return True
+        cloud = self.assets_factory()
+        for n, item in enumerate(todo, 1):
+            self.set(job, "estimating", f"Uploading {item['slot'].replace(':', ' ')} to Comfy Cloud ({n}/{len(todo)})")
+            try:
+                item["url"] = await cloud.share(folder / item["file"])
+            except local.V2Error as e:
+                why = "refused the API key" if e.status in (401, 403) else e.message or e.code
+                self._finish(job, "failed", f"Comfy Cloud {why} while uploading {item['slot']}",
+                             error={**e.to_dict(), "error_type": "upload_failed"}, fixes=["rerun"])
+                return False
+            except httpx.HTTPError as e:
+                self._finish(job, "failed", f"Couldn't reach Comfy Cloud to upload {item['slot']}: {e.__class__.__name__}",
+                             error={"error_type": "unreachable", "message": str(e)}, fixes=["rerun"])
+                return False
+        return True
 
     async def _run_sync(self, job: Job, router: Router, body: dict) -> None:
         self.set(job, "running", f"Running on {job.model} (synchronous route)")
@@ -680,6 +706,11 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
             item.file, item.width, item.height, item.duration = rel, info["width"], info["height"], info["duration"]
             item.trim = [float(trim[0] or 0), float(trim[1] or 0)]
             item.role = "motion"
+        elif slot.startswith("audio:") and src:
+            (folder / "refs").mkdir(exist_ok=True)
+            rel = f"refs/{slot.replace(':', '-')}{src.suffix.lower() or '.mp3'}"
+            shutil.copyfile(src, folder / rel)
+            item.file = rel
         if item.file:
             item.sha256 = sc.sha256_file(folder / item.file)
         items.append(item)
@@ -695,7 +726,7 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
     m = sc.Manifest(
         id=sid, title=title, mode=e.mode if e.curated else spec.get("mode", e.mode),
         engine=sc.Engine(kind="local" if e.kind == "local" else "router", model=e.id, provider=e.provider, schema_version=spec.get("schema_version")),
-        inputs=items, prompt=spec.get("prompt", ""), boxes=spec.get("boxes") or [],
+        inputs=items, prompt=spec.get("prompt", ""),
         params=spec.get("params") or {}, request_template=template, status="running",
         tags=spec.get("tags") or [], lineage=lineage,
     )
@@ -772,6 +803,3 @@ def _fmt_elapsed(s: float) -> str:
     s = int(s)
     return f"{s // 60}m {s % 60:02d}s" if s >= 60 else f"{s}s"
 
-
-def guess_ext(ctype: str, default: str = ".bin") -> str:
-    return mimetypes.guess_extension(ctype.split(";")[0].strip()) or default

@@ -16,20 +16,19 @@ from . import paths
 DEFAULTS: dict = {
     "api_key": "",
     "router_base": "https://api.comfy.org",
+    # Comfy Cloud's asset store: files a Router model only takes as a link are uploaded here.
+    "cloud_base": "https://cloud.comfy.org",
     # Local: Comfy API v2 served by comfy-api-proxy in front of ComfyUI.
     "local_v2_url": "http://127.0.0.1:8189",
     "local_comfyui_url": "http://127.0.0.1:8188",
     "local_token": "",
     "local_autostart_proxy": True,
-    "default_motion_engine": "",
-    "default_edit_engine": "local/qwen21-add-hat",
     "output_folder": "",
     "max_parallel": 2,
     "community_indexes": [],
     "strip_exif": True,
     # Photos run at up to 3 MP and videos at up to 1.5 MP unless this lifts the cap (see prep.py).
     "uncap_size": False,
-    "grounding_default": False,
     "confirm_unknown_cost": True,
     "onboarded": False,
 }
@@ -57,7 +56,7 @@ def save(changes: dict) -> dict:
             if k in DEFAULTS:
                 data[k] = v
         data["max_parallel"] = max(1, min(8, int(data.get("max_parallel") or 1)))
-        for k in ("local_v2_url", "local_comfyui_url", "router_base"):
+        for k in ("local_v2_url", "local_comfyui_url", "router_base", "cloud_base"):
             data[k] = (data.get(k) or DEFAULTS[k]).strip().rstrip("/")
         paths.settings_file().write_text(json.dumps(data, indent=2), "utf-8")
         return data

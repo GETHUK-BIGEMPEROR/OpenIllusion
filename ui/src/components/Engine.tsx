@@ -66,6 +66,7 @@ function EngineList({ list, value, pick }: { list: EngineInfo[]; value: string; 
             <span className="flex-1 min-w-0">
               <span className="flex items-center gap-1.5">
                 <span className="font-semibold text-sm truncate">{e.label}</span>
+                {e.draft && <span className="shrink-0 px-1.5 h-[17px] leading-[17px] rounded text-[10px] font-semibold uppercase tracking-wide bg-yellow/10 text-yellow-light" title="Not on Explore yet. Run it, then Publish the result you like.">Draft</span>}
               </span>
               <span className="block text-xs text-muted line-clamp-2">{e.blurb}</span>
             </span>

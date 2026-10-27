@@ -307,8 +307,6 @@ function CloudCard({ s, save }: { s: S; save: Save }) {
               <Stepper value={s.max_parallel} min={1} max={8} onChange={(v) => save({ max_parallel: v })} label="Max parallel runs" />
             </Toggle>
             <Toggle title="Ask before unpriced runs" desc="When Router returns no estimate for a run." checked={s.confirm_unknown_cost} onChange={(v) => save({ confirm_unknown_cost: v })} />
-            <Toggle title="Web grounding on by default" desc="Lets supported cloud models look things up on the web." checked={s.grounding_default}
-              onChange={(v) => { save({ grounding_default: v }); useApp.getState().setStudio("edit", (e) => ({ params: { ...e.params, grounding: v } })); }} />
             {s.key_source === "settings" && <button className="btn ghost sm" type="button" onClick={forget} style={{ justifySelf: "start" }}><I n="trash" />Forget key</button>}
           </div>
         </details>

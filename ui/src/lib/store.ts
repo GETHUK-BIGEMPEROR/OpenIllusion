@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { Box, ImportReview, Manifest, Mode } from "./api";
+import type { ImportReview, Manifest, Mode } from "./api";
 import { fileUrl } from "./api";
 
 export interface Media {
   asset: string; // upload id or gen:<id>/<rel>
   name: string;
-  kind: "image" | "video";
+  kind: "image" | "video" | "audio";
   url: string;
   poster?: string | null;
   width?: number;
@@ -55,17 +55,25 @@ export interface VideoSlot extends Media {
   sample?: boolean;
 }
 
+export interface SoundSlot extends Media {
+  /** The template input this sound fills, like "audio:1". */
+  slot: string;
+  license: string;
+  /** The template's sample sound, not the user's own. */
+  sample?: boolean;
+}
+
 export interface StudioState {
   engine: string;
   title: string;
   /** One clip per video input, by slot. */
   videos: VideoSlot[];
+  /** One sound per audio input, by slot. Missing in drafts saved before audio inputs. */
+  sounds?: SoundSlot[];
   refs: RefSlot[];
   prompt: string;
   params: Record<string, unknown>;
-  boxes: Box[];
   variants: number;
-  raw: string | null;
   forked_from: string | null;
   chain: string[];
   tags: string[];
@@ -79,7 +87,7 @@ export interface StudioState {
 }
 
 /** What belongs to one template's draft. Engine-independent studio settings (variants, session) stay put. */
-const DRAFT_KEYS = ["title", "videos", "refs", "prompt", "params", "boxes", "raw", "forked_from", "chain", "tags", "current", "group", "selected", "returnRole", "seeded"] as const;
+const DRAFT_KEYS = ["title", "videos", "sounds", "refs", "prompt", "params", "forked_from", "chain", "tags", "current", "group", "selected", "returnRole", "seeded"] as const;
 
 /** A studio on a template, from scratch: the draft is cleared, the run history and variant count stay. */
 const fresh = (prev: StudioState, engine: string): StudioState => {
@@ -91,12 +99,11 @@ const blankStudio = (): StudioState => ({
   engine: "", // filled from Settings' default, else the mode's first template (useStudio)
   title: "",
   videos: [],
+  sounds: [],
   refs: [],
   prompt: "",
   params: {},
-  boxes: [],
   variants: 1,
-  raw: null,
   forked_from: null,
   chain: [],
   tags: [],
@@ -121,6 +128,13 @@ export const clipIn = (s: Pick<StudioState, "videos">, slot: string) => s.videos
 export const withClip = (s: Pick<StudioState, "videos">, slot: string, v: Omit<VideoSlot, "slot"> | null): VideoSlot[] => {
   const rest = s.videos.filter((x) => x.slot !== slot);
   return v ? [...rest, { ...v, slot }].sort((a, b) => a.slot.localeCompare(b.slot, undefined, { numeric: true })) : rest;
+};
+/** The sound in an audio input, if one is there. */
+export const soundIn = (s: Pick<StudioState, "sounds">, slot: string) => (s.sounds ?? []).find((x) => x.slot === slot) ?? null;
+/** The studio's sounds with one input's sound put in, or (null) taken out. */
+export const withSound = (s: Pick<StudioState, "sounds">, slot: string, x: Omit<SoundSlot, "slot"> | null): SoundSlot[] => {
+  const rest = (s.sounds ?? []).filter((y) => y.slot !== slot);
+  return x ? [...rest, { ...x, slot }].sort((a, b) => a.slot.localeCompare(b.slot, undefined, { numeric: true })) : rest;
 };
 
 export interface Toast {
@@ -233,6 +247,9 @@ export const useApp = create<AppState>()(
                 consent: v.consent,
                 publicUrl: v.url ?? undefined,
           }));
+        const sounds: SoundSlot[] = m.inputs
+          .filter((a) => a.slot.startsWith("audio:") && a.file)
+          .map((a) => ({ slot: a.slot, asset: src(a.file), name: a.file!.split("/").pop()!, kind: "audio", url: fileUrl(m.id, a.file!), license: a.license }));
         const prev = get()[mode];
         const engine = opts.engine ?? m.engine.model;
         const next: StudioState = {
@@ -242,10 +259,10 @@ export const useApp = create<AppState>()(
           // A remix is a new run: it takes its template's name unless someone renames it.
           title: "",
           videos,
+          sounds,
           refs,
           prompt: m.prompt,
           params: { ...m.params },
-          boxes: m.boxes ?? [],
           forked_from: m.id,
           chain: m.lineage.chain ?? [],
           tags: m.tags ?? [],

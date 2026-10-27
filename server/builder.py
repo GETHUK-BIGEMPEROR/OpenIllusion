@@ -836,13 +836,13 @@ def assemble_cloud(spec: dict) -> dict:
     if not prompt["default"]:
         raise BuildError("Write the prompt the first run uses")
     try:
-        body, where = adapters.assemble(a, [(m["input"], m["slot"]) for m in media], prompt["default"])
+        body, where, model = adapters.assemble(a, [(m["input"], m["slot"]) for m in media], prompt["default"])
     except adapters.AdapterError as e:
         raise BuildError(str(e)) from None
     for m in media:
         _input(data, m["slot"])["bind"] = [where[m["slot"]]]
     prompt["bind"] = [list(a.prompt)]
-    data.update(kind="cloud", model=a.model, provider=a.model.split("/", 1)[0], body=body, result=a.result,
+    data.update(kind="cloud", model=model, provider=model.split("/", 1)[0], body=body, result=a.result,
                 source=f"Comfy Router · {a.name}")
     return data
 

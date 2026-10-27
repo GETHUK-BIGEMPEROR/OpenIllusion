@@ -41,14 +41,8 @@ export const Search = ({ size = 15, ...p }: P) => (
 export const Download = ({ size = 15, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
 );
-export const Upload = ({ size = 15, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><path d="M12 20V9M7 14l5-5 5 5M5 4h14" /></svg>
-);
 export const Close = ({ size = 13, ...p }: P) => (
   <svg {...base(size, 2.4)} {...p}><path d="m7 7 10 10M17 7 7 17" /></svg>
-);
-export const Plus = ({ size = 14, ...p }: P) => (
-  <svg {...base(size, 2)} {...p}><path d="M12 5v14M5 12h14" /></svg>
 );
 export const Check = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 2.4)} {...p}><path d="m5 12 5 5 9-10" /></svg>
@@ -94,9 +88,6 @@ export const Link = ({ size = 14, ...p }: P) => (
 export const Copy = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><rect x="8" y="8" width="12" height="12" rx="3" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
 );
-export const Box = ({ size = 14, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><rect x="4" y="4" width="16" height="16" rx="3" strokeDasharray="3 3" /></svg>
-);
 export const Frame = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m3 15 5-4 4 3 3-2 6 4" /></svg>
 );
@@ -120,9 +111,6 @@ export const More = ({ size = 16, ...p }: P) => (
 );
 export const Cloud = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5a4.75 4.75 0 0 1-.5 9.5z" /></svg>
-);
-export const Cpu = ({ size = 14, ...p }: P) => (
-  <svg {...base(size, 1.8)} {...p}><rect x="6" y="6" width="12" height="12" rx="2.5" /><path d="M10 10h4v4h-4zM9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" /></svg>
 );
 export const ArrowRight = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 1.8)} {...p}><path d="M5 12h14M13 6l6 6-6 6" /></svg>

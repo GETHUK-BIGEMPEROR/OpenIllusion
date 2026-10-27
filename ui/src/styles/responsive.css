@@ -33,13 +33,16 @@
   .tab.create span{color:var(--text-3)}
   .tab.create[aria-current="page"] span{color:var(--text)}
   .phead-row{padding:12px 14px 10px;gap:8px}
+  .phead-sub{padding:0 14px 10px}
   .ptitle h1{font-size:18px}
   .phead-row.hrow{padding:10px 12px 10px 14px;gap:8px}
   .hfilters .chip,.hfilters .vsep,.hfilters .seg .n,.hfilters .seg .i{display:none}
   .hactions .btn{width:34px;padding:0}
   .hactions .btn .lbl{display:none}
   .gchip b,.gchip .gv,.gchip .gp{display:none}
-  .gchip{padding:0 7px}
+  .gchip{padding:0 7px;gap:6px}
+  .gchip .gcv{display:none}
+  .kchip .kic{display:block}
   .filters{padding:0 14px 10px;gap:6px}
   .filters .hint{display:none}
   .wall-wrap{padding:12px 10px 32px}

@@ -1,10 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { api, type Job, type LocalStatus } from "../lib/api";
+import { api, type Job, type LocalStatus, type Status } from "../lib/api";
 import { isActive, useJobs } from "../lib/live";
 import { useApp } from "../lib/store";
 import { SPRITE, type IconName } from "./sprite";
-import { cx } from "./ui";
+import { cx, Spinner } from "./ui";
 
 export { cx };
 
@@ -126,21 +126,20 @@ export function localState(l?: LocalStatus): { tone: "ok" | "warn" | "off"; text
   return { tone: "warn", text: gpu ?? "ComfyUI up", title: `ComfyUI up · Comfy API v2 not running at ${l.v2_url}${l.autostart && l.proxy_installed ? " (starts when you run)" : ""}` };
 }
 
-export const dotStyle = (tone: "ok" | "warn" | "off" | "bad"): CSSProperties | undefined =>
-  tone === "warn" ? { background: "var(--orange)", boxShadow: "0 0 0 3px rgba(255,162,76,.15)" } : tone === "bad" ? { background: "var(--rose)", boxShadow: "0 0 0 3px rgba(255,107,126,.15)" } : undefined;
-
 export function useStatus() {
   return useQuery({ queryKey: ["status"], queryFn: () => api.status(), refetchInterval: 30_000 });
 }
 
-/** Sticky page header. With a title: title, actions, search, GPU. Without one (Explore): the filters take the title's place. */
-export function PageHead({ title, count, filters, actions }: { title?: ReactNode; count?: number | null; filters?: ReactNode; actions?: ReactNode }) {
+/** Sticky page header. With a title: title, actions, search, Comfy API, GPU. Without one (Explore): the filters take the
+ *  title's place, and `sub` is a second row under them (Explore's tags). */
+export function PageHead({ title, count, filters, actions, sub }: { title?: ReactNode; count?: number | null; filters?: ReactNode; actions?: ReactNode; sub?: ReactNode }) {
   const setPalette = useApp((s) => s.setPalette);
   const mac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
   const right = (
     <div className="hactions">
       {actions}
       <button className="icon-btn" type="button" aria-label="Search templates and results" title={`Search (${mac ? "⌘K" : "Ctrl K"})`} onClick={() => setPalette(true)}><I n="search" /></button>
+      <KeyStat />
       <GpuStat />
     </div>
   );
@@ -148,6 +147,7 @@ export function PageHead({ title, count, filters, actions }: { title?: ReactNode
     return (
       <header className="phead">
         <div className="phead-row hrow"><div className="hfilters">{filters}</div>{right}</div>
+        {sub && <div className="phead-sub"><SideScroll className="hsub">{sub}</SideScroll></div>}
       </header>
     );
   }
@@ -162,16 +162,43 @@ export function PageHead({ title, count, filters, actions }: { title?: ReactNode
   );
 }
 
+/** A row wider than its box scrolls sideways: trackpads and Shift-wheel do already, and a plain mouse wheel does
+ *  too while there's room left that way. `data-start`/`data-end` say which edges have more, for the fades. */
+function SideScroll({ className, children }: { className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const edges = () => {
+      el.dataset.start = String(el.scrollLeft <= 1);
+      el.dataset.end = String(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
+    };
+    const wheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || e.shiftKey) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0 || (e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max - 1)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    edges();
+    el.addEventListener("scroll", edges, { passive: true });
+    el.addEventListener("wheel", wheel, { passive: false });
+    const ro = new ResizeObserver(edges);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => { el.removeEventListener("scroll", edges); el.removeEventListener("wheel", wheel); ro.disconnect(); };
+  }, []);
+  return <div ref={ref} className={className}>{children}</div>;
+}
+
 const GB = (b?: number | null) => (b ? b / 1024 ** 3 : 0);
 
 /** The local GPU in the page header: name and ComfyUI version, a ring while a run is going.
  *  Only there when a local ComfyUI answers; click for memory, the run in flight and the addresses. */
-export function GpuStat() {
-  const status = useStatus();
-  const { data: jobs = [] } = useJobs();
+/** A header chip's card: closes on a click outside or Escape, which hands focus back to the chip. */
+function usePop() {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-  const l = status.data?.local;
   useEffect(() => {
     if (!open) return;
     const down = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
@@ -180,6 +207,76 @@ export function GpuStat() {
     window.addEventListener("keydown", key);
     return () => { window.removeEventListener("pointerdown", down); window.removeEventListener("keydown", key); };
   }, [open]);
+  return { open, setOpen, box };
+}
+
+type KeyState = { tone: "ok" | "off" | "warn" | "bad"; word: string; pill: string; pillTone: "mint" | "orange" | "rose" | ""; say: string };
+
+/** Where the Comfy API key stands, in the words the header and its card use. */
+export function keyState(s?: Status): KeyState {
+  if (!s) return { tone: "off", word: "Checking", pill: "Checking", pillTone: "", say: "Asking Comfy whether your key works." };
+  const r = s.router;
+  if (!s.has_key) return { tone: "off", word: "No key", pill: "Not set", pillTone: "", say: "Cloud templates need a Comfy API key. Local templates never do." };
+  if (r.ok) return { tone: "ok", word: "Connected", pill: "Connected", pillTone: "mint", say: "Cloud templates run on Comfy Router and bill your Comfy account per run." };
+  if (r.ok === null) return { tone: "off", word: "Checking", pill: "Checking", pillTone: "", say: "Asking Comfy whether your key works." };
+  if (r.reason === "unreachable" || (r.status ?? 0) >= 500)
+    return { tone: "warn", word: "Can't reach", pill: "Offline", pillTone: "orange", say: `Comfy didn't answer, so cloud runs wait. Your key is kept.${r.message ? ` ${r.message}` : ""}` };
+  return { tone: "bad", word: "Key refused", pill: "Refused", pillTone: "rose", say: r.message || "Comfy refused this key. Paste a new one in Settings." };
+}
+
+/** The Comfy API key in the page header: one word for where it stands; click for the key, what it's for, and a re-check. */
+export function KeyStat() {
+  const status = useStatus();
+  const { open, setOpen, box } = usePop();
+  const k = keyState(status.data);
+  return (
+    <div className="gstat" ref={box}>
+      <button className={cx("gchip kchip", k.tone)} type="button" aria-expanded={open} aria-label={`Comfy API: ${k.word}. Show details`} onClick={() => setOpen(!open)}>
+        <span className="gring"><i className={cx("dot", k.tone === "off" && "off", k.tone === "warn" && "warn", k.tone === "bad" && "bad")} /></span>
+        <I n="key" className="kic" /><b>Comfy API</b><span className="gv">{k.word}</span>
+        <I n="down" className="gcv" />
+      </button>
+      {open && <KeyPop k={k} has={!!status.data?.has_key} />}
+    </div>
+  );
+}
+
+function KeyPop({ k, has }: { k: KeyState; has: boolean }) {
+  const qc = useQueryClient();
+  const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings });
+  const [checking, setChecking] = useState(false);
+  const recheck = async () => {
+    setChecking(true);
+    try { qc.setQueryData(["status"], await api.status(true)); } catch { /* the chip keeps its last word */ } finally { setChecking(false); }
+  };
+  const s = settings.data;
+  return (
+    <div className="gpop" role="dialog" aria-label="Comfy API key">
+      <div className="gp-h">
+        <span className="ic key"><I n="key" /></span>
+        <div><b>Comfy API key</b><span>{has && s?.key_hint ? `${s.key_hint} · ${s.key_source === "env" ? "from COMFY_API_KEY" : "saved in Settings"}` : "Not set"}</span></div>
+        <span className={cx("pill", k.pillTone)}>{k.pill}</span>
+      </div>
+      <p className="gp-say">{k.say}</p>
+      <div className="gp-rows">
+        <div><span>Runs on</span><b>Comfy Router</b></div>
+        <div><span>Cost</span><b>Per run, quoted above Run</b></div>
+        <div><span>Files by link</span><b>Comfy Cloud, same key</b></div>
+      </div>
+      <div className="gp-f">
+        {has ? <button className="btn sm" type="button" disabled={checking} onClick={() => void recheck()}>{checking ? <Spinner size={13} /> : <I n="refresh" />}Check again</button>
+          : <a className="btn sm primary" href="#/settings"><I n="key" />Add key</a>}
+        <a className="btn sm ghost" href="#/settings"><I n="sliders" />Settings</a>
+      </div>
+    </div>
+  );
+}
+
+export function GpuStat() {
+  const status = useStatus();
+  const { data: jobs = [] } = useJobs();
+  const { open, setOpen, box } = usePop();
+  const l = status.data?.local;
   if (!l?.comfyui) return null;
   const local = jobs.filter((j) => j.kind === "local" && isActive(j));
   const cur = local.find((j) => j.state === "running" || j.state === "downloading");

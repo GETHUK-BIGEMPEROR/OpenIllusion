@@ -35,7 +35,7 @@ export interface PromptIdea { label: string; text: string }
  * the prompt `prompt`, settings by name. `bind` says where the value goes in the workflow (or cloud body).
  */
 export type Field = (
-  | { type: MediaType; size?: string; area?: boolean; window?: [number, number]; fps?: [number, number]; role?: string; sample?: (Asset & { slot: string }) | null }
+  | { type: MediaType; size?: string; window?: [number, number]; fps?: [number, number]; role?: string; sample?: (Asset & { slot: string }) | null }
   | (Omit<ParamSpec, "key" | "label"> & { examples?: PromptIdea[] })
   /** A declared output size: the width and height it writes come from the shape and step picked under Output. */
   | { type: "size"; aspect?: string; aspects?: string[]; default?: string }
@@ -144,7 +144,10 @@ export interface BuildPreset {
  *  `set`: inputs of different sets can't go together. `needs`: the role that has to be filled too. */
 export interface RouterAdapter {
   model: string; name: string; mode: Mode;
-  inputs: { role: string; type: MediaKind; max: number; set?: string; needs?: string }[];
+  /** set: groups of inputs that go together (two filled inputs must share one). needs: another input this one needs. */
+  inputs: { role: string; type: MediaKind; max: number; set?: string[]; needs?: string }[];
+  /** A family on several model ids: the first whose takes covers every filled role gets the run. */
+  models?: { model: string; takes: string[] }[];
 }
 
 export interface BuildPrompt { node?: string; input?: string; label: string; hint: string; default: string; required: boolean; examples?: string[] }
@@ -221,7 +224,7 @@ export interface LocalCheck {
 export interface Asset {
   asset: string;
   name: string;
-  kind: "image" | "video";
+  kind: "image" | "video" | "audio";
   url: string;
   poster?: string | null;
   width?: number;
@@ -251,13 +254,6 @@ export interface InputItem {
   prep?: PrepPlan | null;
 }
 
-export interface Box {
-  id: string;
-  rect: [number, number, number, number]; // x, y, w, h as fractions
-  label: string;
-  from?: string;
-}
-
 export interface Result {
   file?: string | null;
   poster?: string | null;
@@ -280,7 +276,6 @@ export interface Manifest {
   engine: { kind: string; model: string; provider?: string | null; schema_version?: string | null };
   inputs: InputItem[];
   prompt: string;
-  boxes: Box[];
   params: Record<string, unknown>;
   request_template: Record<string, unknown>;
   result: Result | null;
@@ -393,7 +388,7 @@ export interface LocalStatus {
 export interface Status {
   version: string;
   has_key: boolean;
-  router: { ok: boolean | null; reason: string | null; message?: string };
+  router: { ok: boolean | null; reason: string | null; message?: string; status?: number };
   local: LocalStatus;
   onboarded: boolean;
 }
@@ -403,14 +398,11 @@ export interface Settings {
   key_hint: string;
   key_source: "settings" | "env" | null;
   router_base: string;
-  default_motion_engine: string;
-  default_edit_engine: string;
   output_folder: string;
   max_parallel: number;
   community_indexes: string[];
   strip_exif: boolean;
   uncap_size: boolean;
-  grounding_default: boolean;
   confirm_unknown_cost: boolean;
   local_v2_url: string;
   local_comfyui_url: string;
@@ -441,9 +433,7 @@ export interface Spec {
   title?: string;
   inputs: SpecInput[];
   prompt: string;
-  boxes?: Box[];
   params: Record<string, unknown>;
-  raw?: Record<string, unknown> | null;
   variants?: number;
   forked_from?: string | null;
   chain?: string[];

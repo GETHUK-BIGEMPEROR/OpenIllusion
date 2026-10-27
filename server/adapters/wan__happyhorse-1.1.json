@@ -1,0 +1,97 @@
+{
+  "model": "wan/happyhorse-1.1",
+  "name": "HappyHorse 1.1",
+  "makes": "video",
+  "body": {
+    "input": {
+      "prompt": ""
+    },
+    "parameters": {
+      "resolution": "720P",
+      "duration": 5
+    }
+  },
+  "prompt": [
+    "input",
+    "prompt"
+  ],
+  "inputs": [
+    {
+      "role": "First frame",
+      "type": "image",
+      "at": [
+        "input",
+        "media",
+        "+"
+      ],
+      "value": {
+        "type": "first_frame",
+        "url": "{{$|uri}}"
+      }
+    },
+    {
+      "role": "Reference image",
+      "type": "image",
+      "at": [
+        "input",
+        "media",
+        "+"
+      ],
+      "value": {
+        "type": "reference_image",
+        "url": "{{$|uri}}"
+      },
+      "max": 9
+    },
+    {
+      "role": "Video to edit",
+      "type": "video",
+      "at": [
+        "input",
+        "media",
+        "+"
+      ],
+      "value": {
+        "type": "video",
+        "url": "{{$|url}}"
+      },
+      "drop": [
+        [
+          "parameters",
+          "duration"
+        ]
+      ]
+    }
+  ],
+  "models": [
+    {
+      "model": "wan/happyhorse-1.1-t2v",
+      "takes": []
+    },
+    {
+      "model": "wan/happyhorse-1.1-i2v",
+      "takes": [
+        "First frame"
+      ]
+    },
+    {
+      "model": "wan/happyhorse-1.1-r2v",
+      "takes": [
+        "Reference image"
+      ]
+    },
+    {
+      "model": "wan/happyhorse-1.0-video-edit",
+      "takes": [
+        "Video to edit",
+        "Reference image"
+      ]
+    }
+  ],
+  "result": [
+    [
+      "output",
+      "video_url"
+    ]
+  ]
+}

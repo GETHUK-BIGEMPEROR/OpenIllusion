@@ -1,0 +1,59 @@
+{
+  "model": "bfl/flux-2-max",
+  "name": "FLUX 2 Max",
+  "makes": "photo",
+  "body": {
+    "prompt": "",
+    "width": 1024,
+    "height": 1024,
+    "output_format": "jpeg"
+  },
+  "prompt": [
+    "prompt"
+  ],
+  "inputs": [
+    {
+      "role": "Photo",
+      "type": "image",
+      "at": [
+        [
+          "input_image"
+        ],
+        [
+          "input_image_2"
+        ],
+        [
+          "input_image_3"
+        ],
+        [
+          "input_image_4"
+        ],
+        [
+          "input_image_5"
+        ],
+        [
+          "input_image_6"
+        ],
+        [
+          "input_image_7"
+        ],
+        [
+          "input_image_8"
+        ],
+        [
+          "input_image_9"
+        ]
+      ],
+      "value": "{{$|b64}}"
+    }
+  ],
+  "result": [
+    [
+      "result",
+      "sample"
+    ],
+    [
+      "sample"
+    ]
+  ]
+}

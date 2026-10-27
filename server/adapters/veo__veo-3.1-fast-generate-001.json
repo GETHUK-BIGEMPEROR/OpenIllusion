@@ -4,40 +4,132 @@
   "makes": "video",
   "body": {
     "instances": [
-      { "prompt": "" }
+      {
+        "prompt": ""
+      }
     ],
     "parameters": {
       "sampleCount": 1
     }
   },
-  "prompt": ["instances", 0, "prompt"],
+  "prompt": [
+    "instances",
+    0,
+    "prompt"
+  ],
   "inputs": [
     {
       "role": "First frame",
       "type": "image",
-      "at": ["instances", 0, "image"],
-      "value": { "bytesBase64Encoded": "{{$|b64}}", "mimeType": "{{$|mime}}" },
-      "set": "frames"
+      "at": [
+        "instances",
+        0,
+        "image"
+      ],
+      "value": {
+        "bytesBase64Encoded": "{{$|b64}}",
+        "mimeType": "{{$|mime}}"
+      },
+      "set": [
+        "frames"
+      ]
     },
     {
       "role": "Last frame",
       "type": "image",
-      "at": ["instances", 0, "lastFrame"],
-      "value": { "bytesBase64Encoded": "{{$|b64}}", "mimeType": "{{$|mime}}" },
-      "set": "frames",
+      "at": [
+        "instances",
+        0,
+        "lastFrame"
+      ],
+      "value": {
+        "bytesBase64Encoded": "{{$|b64}}",
+        "mimeType": "{{$|mime}}"
+      },
+      "set": [
+        "frames"
+      ],
       "needs": "First frame"
     },
     {
-      "role": "Reference",
+      "role": "Reference image",
       "type": "image",
-      "at": ["instances", 0, "referenceImages", "+"],
-      "value": { "image": { "bytesBase64Encoded": "{{$|b64}}", "mimeType": "{{$|mime}}" }, "referenceType": "asset" },
-      "set": "references",
+      "at": [
+        "instances",
+        0,
+        "referenceImages",
+        "+"
+      ],
+      "value": {
+        "image": {
+          "bytesBase64Encoded": "{{$|b64}}",
+          "mimeType": "{{$|mime}}"
+        },
+        "referenceType": "asset"
+      },
+      "set": [
+        "references"
+      ],
       "max": 3
+    },
+    {
+      "role": "Style image",
+      "type": "image",
+      "at": [
+        "instances",
+        0,
+        "referenceImages",
+        "+"
+      ],
+      "value": {
+        "image": {
+          "bytesBase64Encoded": "{{$|b64}}",
+          "mimeType": "{{$|mime}}"
+        },
+        "referenceType": "style"
+      },
+      "set": [
+        "style"
+      ]
+    },
+    {
+      "role": "Video to extend",
+      "type": "video",
+      "at": [
+        "instances",
+        0,
+        "video"
+      ],
+      "value": {
+        "bytesBase64Encoded": "{{$|b64}}",
+        "mimeType": "{{$|mime}}"
+      },
+      "set": [
+        "extend"
+      ],
+      "with": [
+        [
+          [
+            "parameters",
+            "task"
+          ],
+          "extend"
+        ]
+      ]
     }
   ],
   "result": [
-    ["response", "videos", "*", "bytesBase64Encoded"],
-    ["response", "videos", "*", "gcsUri"]
+    [
+      "response",
+      "videos",
+      "*",
+      "bytesBase64Encoded"
+    ],
+    [
+      "response",
+      "videos",
+      "*",
+      "gcsUri"
+    ]
   ]
 }

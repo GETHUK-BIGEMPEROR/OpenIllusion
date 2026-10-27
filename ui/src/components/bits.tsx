@@ -1,7 +1,6 @@
-// Small shared pieces: cost line, outcome toggle/mark, mode and kind badges,
-// model chip, validation row.
+// Small shared pieces: cost line, outcome toggle, mode badge, validation row.
 import type { Estimate, Outcome } from "../lib/api";
-import { money, OUTCOME, shortModel } from "../lib/format";
+import { money, OUTCOME } from "../lib/format";
 import { AlertTriangle, Check, CheckCircle, Close, Dash, Info } from "./Icons";
 import { Badge, cx } from "./ui";
 
@@ -52,33 +51,8 @@ export function OutcomeToggle({ value, onChange, size = "md" }: { value: Outcome
   );
 }
 
-export function OutcomeMark({ outcome, className }: { outcome: Outcome | null; className?: string }) {
-  if (!outcome) return null;
-  const s = OUTCOME[outcome];
-  return (
-    <span className={cx("inline-flex items-center gap-1 text-xs", className)} style={{ color: s.color }}>
-      {s.glyph} <span className="text-soft">{s.word}</span>
-    </span>
-  );
-}
-
 export function ModeBadge({ mode, className, glass }: { mode: "motion" | "edit"; className?: string; glass?: boolean }) {
   return <Badge tone={glass ? "glass" : "neutral"} className={cx("uppercase", className)}>{mode}</Badge>;
-}
-
-/** Where a generation runs: Cloud (Comfy Router) or Local (the user's ComfyUI). */
-export function KindBadge({ model, className, glass }: { model: string; className?: string; glass?: boolean }) {
-  const local = model.startsWith("local/");
-  return (
-    <Badge tone={glass ? "glass" : local ? "yellow" : "violet"} dot={local ? "#F2FF59" : "#9A86F0"} className={cx("uppercase", className)}
-      title={local ? "Runs in your ComfyUI through Comfy API v2" : "Runs on Comfy Router with your API key"}>
-      {local ? "Local" : "Cloud"}
-    </Badge>
-  );
-}
-
-export function ModelChip({ model, className }: { model: string; className?: string }) {
-  return <span className={cx("font-mono text-xs text-muted truncate", className)}>{shortModel(model)}</span>;
 }
 
 export function ValidationRow({ level, text, detail }: { level: "pass" | "warn" | "info"; text: string; detail?: string }) {

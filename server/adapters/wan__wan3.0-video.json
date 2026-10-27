@@ -1,0 +1,110 @@
+{
+  "model": "wan/wan3.0-video",
+  "name": "Wan 3.0",
+  "makes": "video",
+  "body": {
+    "input": {
+      "prompt": ""
+    },
+    "parameters": {
+      "resolution": "720P",
+      "duration": 5
+    }
+  },
+  "prompt": [
+    "input",
+    "prompt"
+  ],
+  "inputs": [
+    {
+      "role": "First frame",
+      "type": "image",
+      "at": [
+        "input",
+        "media",
+        "+"
+      ],
+      "value": {
+        "type": "first_frame",
+        "url": "{{$|uri}}"
+      },
+      "set": [
+        "frames"
+      ]
+    },
+    {
+      "role": "Last frame",
+      "type": "image",
+      "at": [
+        "input",
+        "media",
+        "+"
+      ],
+      "value": {
+        "type": "last_frame",
+        "url": "{{$|uri}}"
+      },
+      "set": [
+        "frames"
+      ],
+      "needs": "First frame"
+    },
+    {
+      "role": "Reference image",
+      "type": "image",
+      "at": [
+        "input",
+        "media",
+        "+"
+      ],
+      "value": {
+        "type": "reference_image",
+        "url": "{{$|uri}}"
+      },
+      "set": [
+        "references"
+      ],
+      "max": 9
+    },
+    {
+      "role": "Reference video",
+      "type": "video",
+      "at": [
+        "input",
+        "media",
+        "+"
+      ],
+      "value": {
+        "type": "reference_video",
+        "url": "{{$|url}}"
+      },
+      "set": [
+        "references"
+      ],
+      "max": 5
+    },
+    {
+      "role": "Reference audio",
+      "type": "audio",
+      "at": [
+        "input",
+        "media",
+        "+"
+      ],
+      "value": {
+        "type": "reference_audio",
+        "url": "{{$|url}}"
+      },
+      "set": [
+        "references"
+      ],
+      "max": 5
+    }
+  ],
+  "result": [
+    [
+      "output",
+      "video_url"
+    ]
+  ]
+}

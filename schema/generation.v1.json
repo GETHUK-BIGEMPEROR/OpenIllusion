@@ -437,14 +437,6 @@
       "title": "Prompt",
       "type": "string"
     },
-    "boxes": {
-      "items": {
-        "additionalProperties": true,
-        "type": "object"
-      },
-      "title": "Boxes",
-      "type": "array"
-    },
     "params": {
       "additionalProperties": true,
       "title": "Params",

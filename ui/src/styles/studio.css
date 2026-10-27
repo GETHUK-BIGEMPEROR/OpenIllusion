@@ -26,7 +26,8 @@
 .tmenu button{display:flex;align-items:center;gap:10px;width:100%;padding:6px;border-radius:10px;font-size:13px}
 .tmenu button:hover,.tmenu button[aria-current="true"]{background:var(--hover)}
 .tmenu img{width:34px;height:34px;border-radius:8px;object-fit:cover}
-.tmenu small{margin-left:auto;font-size:11px;color:var(--text-3)}
+.tmenu .tdraft{flex:none;font:600 9.5px/17px var(--body);font-style:normal;letter-spacing:.06em;text-transform:uppercase;padding:0 6px;border-radius:5px;background:rgba(242,255,89,.1);color:var(--yellow)}
+.tmenu small{margin-left:auto;white-space:nowrap;flex:none;font-size:11px;color:var(--text-3)}
 .slots{display:flex;flex-direction:column;gap:8px}
 .slotrow{display:flex;align-items:center;gap:12px;padding:8px 6px 8px 8px;border-radius:14px;background:var(--raised);border:1px solid var(--line);transition:border-color .15s,background .15s,box-shadow .15s}
 .slotrow .sth{width:64px;height:64px;border-radius:10px;overflow:hidden;flex:none;position:relative;background:var(--field)}

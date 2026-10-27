@@ -25,6 +25,18 @@ MP4_PREFIX = "openillusion:"
 # of the body needs headroom, so raw media should stay under ~75 MB in total.
 REQUEST_MEDIA_BUDGET = 75 * 1024 * 1024
 
+# Sound files a template can take (a Router model's reference audio). Sent as they are.
+AUDIO_EXT = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
+
+
+def audio_info(path: str | Path) -> dict:
+    """A sound file's length, or 0 when it can't be read."""
+    try:
+        with av.open(str(path)) as c:
+            return {"duration": round(float(c.duration / av.time_base), 3) if c.duration else 0.0}
+    except (av.FFmpegError, OSError):
+        return {"duration": 0.0}
+
 
 # ---- video ---------------------------------------------------------------
 

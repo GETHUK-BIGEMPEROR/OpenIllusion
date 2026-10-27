@@ -14,6 +14,13 @@
 .steps li.on .n{background:var(--yellow);color:var(--on-yellow)}
 .steps li.on b{color:var(--text)}
 .steps li.done .n{background:rgba(95,211,154,.2);color:var(--mint)}
+.steps li:has(.steps-back){padding:0}
+.steps-back{display:flex;align-items:center;gap:10px;width:100%;min-width:0;padding:10px 12px;border-radius:12px;text-align:left;color:inherit;cursor:pointer;transition:background .15s}
+.steps-back:hover{background:var(--hover)}
+.steps-back:hover b{color:var(--text)}
+.steps-back>span:last-child{min-width:0}
+.bld-back{justify-self:start;margin-bottom:-8px}
+.bld-modes{margin:0 0 14px;flex-wrap:wrap;width:fit-content;max-width:100%}
 
 /* step 1 */
 .bld-start{display:grid;gap:16px;padding-bottom:64px}
@@ -41,17 +48,35 @@
 .bc-ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none}
 .bc-ic.local{background:rgba(95,211,154,.12);color:var(--mint)}
 .bc-ic.cloud{background:rgba(154,134,240,.14);color:var(--violet)}
-.bc-models{display:flex;flex-direction:column;gap:8px;min-height:0}
-.bc-list{max-height:420px;overflow:auto;display:grid;gap:2px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--hover) transparent}
-.bc-model{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;text-align:left;font-size:13px}
-.bc-model:hover{background:var(--hover)}
-.bc-mt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.bc-mt b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bc-mt .mono{font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bc-roles{font-size:12px;color:var(--text-2);white-space:nowrap}
-@media (max-width:640px){.bc-roles{display:none}}
-.bc-model .i{width:14px;height:14px;color:var(--text-3)}
 .bc-empty{display:flex;gap:8px;align-items:center;padding:12px;font-size:12.5px;color:var(--text-3)}
+/* Router start: models as cards, grouped by what they make */
+.bc-group{display:grid;gap:10px}
+.bc-group h3{margin:0;display:flex;align-items:center;gap:8px;font:600 11px/1 var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--text-3)}
+.bc-group h3 .i{width:14px;height:14px}
+.bc-group h3 .mono{font-size:10.5px;letter-spacing:0;padding:2px 6px;border-radius:6px;background:var(--raised);color:var(--text-2)}
+.bc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:10px}
+.bc-card{--k:95,211,154;display:grid;gap:12px;align-content:start;padding:14px;border-radius:16px;text-align:left;background:var(--panel);border:1px solid var(--line);position:relative;overflow:hidden;transition:border-color .2s,background .2s,transform .25s var(--spring)}
+.bc-card.v{--k:255,162,76}
+.bc-card::before{content:"";position:absolute;inset:0 0 auto;height:90px;background:radial-gradient(120% 100% at 0% 0%,rgba(var(--k),.10),transparent 70%);pointer-events:none}
+.bc-card:hover{border-color:rgba(var(--k),.4);background:var(--raised);transform:translateY(-2px)}
+.bc-card:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.bc-top{display:flex;align-items:center;gap:12px;position:relative}
+.bc-mono{width:40px;height:40px;flex:none;border-radius:12px;display:grid;place-items:center;font:600 14px var(--display);color:rgb(var(--k));background:rgba(var(--k),.13);box-shadow:inset 0 0 0 1px rgba(var(--k),.22)}
+.bc-mt{flex:1;min-width:0;display:grid;gap:3px}
+.bc-mt b{font-size:14.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bc-mt>span{font-size:12px;color:var(--text-3);display:flex;gap:8px;min-width:0;white-space:nowrap}
+.bc-mt i{font-style:normal;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;opacity:.75}
+.bc-go{width:16px;height:16px;flex:none;color:var(--text-3);transition:transform .25s var(--spring),color .2s}
+.bc-card:hover .bc-go{transform:translateX(3px);color:rgb(var(--k))}
+.bc-row{display:grid;grid-template-columns:44px 1fr;align-items:start;gap:0 6px;position:relative}
+.bc-chips{display:flex;flex-wrap:wrap;gap:5px;min-width:0}
+.bc-mode{height:22px;padding:0 8px;border-radius:7px;display:inline-flex;align-items:center;font-size:11.5px;font-weight:500;color:var(--text);background:rgba(var(--k),.12);box-shadow:inset 0 0 0 1px rgba(var(--k),.2)}
+.bc-row.takes{padding-top:10px;border-top:1px dashed var(--line-2)}
+.bc-role{height:22px;padding:0 7px;border-radius:7px;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2);background:rgba(226,214,255,.04);border:1px solid var(--line)}
+.bc-role .i{width:12px;height:12px;color:var(--text-3)}
+.bc-role .mono{font-size:10px;color:var(--text-3)}
+.bc-lab{padding-top:6px;font:600 9.5px/1 var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--text-3)}
+.bc-role.none{color:var(--text-3);font-style:italic}
 
 /* step 2: the form mirrors what Create will show; the side says what gets written */
 .bld-source-wrap{display:grid;gap:8px}
@@ -248,6 +273,3 @@ select.bld-val{height:32px}
 .bc-gate:hover{border-color:var(--line-2);background:var(--panel)}
 .bc-gate .ic{color:var(--violet)}
 .bc-gate .btn{margin-top:6px}
-.bc-models{padding:12px;border-radius:18px;background:var(--panel);border:1px solid var(--line)}
-.bc-model .pill.kind{height:20px;font-size:10.5px;padding:0 7px;flex:none}
-.bc-model .pill.kind .i{width:11px;height:11px}

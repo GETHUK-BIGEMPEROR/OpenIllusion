@@ -224,11 +224,11 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
             <div className="kv-h">Inputs<span>{media.length} input{media.length > 1 ? "s" : ""}</span></div>
             {media.map((f) => {
               const sm = samples.find((y) => y.slot === f.key);
-              const thumb = sm ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : "image"} /></span>;
+              const thumb = sm && f.type !== "audio" ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : f.type === "audio" ? "zap" : "image"} /></span>;
               return (
                 <div key={f.key} className="inrow">
                   {thumb}
-                  <div><b>{f.label}{f.required === false ? " · optional" : ""}</b><span>{sm ? "Sample included" : f.type === "video" ? "Your clip" : "Your photo"}</span></div>
+                  <div><b>{f.label}{f.required === false ? " · optional" : ""}</b><span>{sm ? "Sample included" : f.type === "video" ? "Your clip" : f.type === "audio" ? "Your sound" : "Your photo"}</span></div>
                 </div>
               );
             })}

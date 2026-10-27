@@ -8,29 +8,59 @@ import json
 import httpx
 import pytest
 
-from server import adapters, builder, engines, jobs, media, settings, store
+from server import adapters, builder, engines, jobs, local, media, settings, store
 from server.router import Router
 
 from conftest import make_image, make_video
 
 VEO = "veo/veo-3.1-fast-generate-001"
-SEEDANCE = "byteplus/dreamina-seedance-2-0-260128"
+SEEDANCE = "byteplus/dreamina-seedance-2-5-260628"
+KLING = "kling/kling-v3-omni"
+HORSE = "wan/happyhorse-1.1"
+TEN = {"openai/gpt-image-2", "vertexai/gemini-nano-banana-2.1", "byteplus/seedream-5-0-pro-260628", "bfl/flux-2-max",
+       "xai/grok-imagine-image-2.0", SEEDANCE, KLING, VEO, "wan/wan3.0-video", HORSE}
 
 
 def _spec(model=VEO, media=(), prompt="a fox in the snow", **kw):
-    return {"model": model, "label": "Fox clip", "media": [{"input": i, "kind": "image"} for i in media],
-            "prompt": {"default": prompt}, **kw}
+    """``media``: adapter-input indexes (images) or (index, kind) pairs."""
+    rows = [{"input": i, "kind": "image"} if isinstance(i, int) else {"input": i[0], "kind": i[1]} for i in media]
+    return {"model": model, "label": "Fox clip", "media": rows, "prompt": {"default": prompt}, **kw}
+
+
+def _roles(a, *roles):
+    """(input index, slot) rows for these roles, slots numbered per kind as the Builder does."""
+    out, n = [], {}
+    for r in roles:
+        i = next(k for k, x in enumerate(a.inputs) if x["role"] == r)
+        kind = a.inputs[i]["type"]
+        n[kind] = n.get(kind, 0) + 1
+        out.append((i, f"{kind}:{n[kind]}"))
+    return out
+
+
+def _run(model, *roles, prompt="p"):
+    a = adapters.get(model)
+    return adapters.assemble(a, _roles(a, *roles), prompt)
 
 
 # ---- the adapters themselves -----------------------------------------------------
 
-def test_five_models_ship_with_an_adapter():
+def test_ten_models_ship_with_an_adapter():
     got = adapters.all_adapters()
-    assert set(got) == {"openai/gpt-image-2", "vertexai/gemini-nano-banana-2.1", SEEDANCE, "kling/kling-v3-omni", VEO}
-    assert {m: a.mode for m, a in got.items()}["openai/gpt-image-2"] == "edit" and got[VEO].mode == "motion"
+    assert set(got) == TEN
+    assert got["openai/gpt-image-2"].mode == "edit" and got[VEO].mode == "motion"
     for a in got.values():
-        body, _ = adapters.assemble(a, [], "x")  # prompt only: every model takes that
-        assert "{{" not in json.dumps(body)
+        body, where, _ = adapters.assemble(a, [], "x")  # prompt only: every model takes that
+        assert "{{" not in json.dumps(body) and where == {}
+    assert adapters.assemble(got[HORSE], [], "x")[2] == "wan/happyhorse-1.1-t2v"
+
+
+GOOD = {"model": "acme/m", "makes": "photo", "body": {"prompt": ""}, "prompt": ["prompt"],
+        "inputs": [{"role": "Photo", "type": "image", "at": ["image"], "value": "{{$|uri}}"}], "result": [["url"]]}
+
+
+def _inp(**kw):
+    return {"inputs": [{**GOOD["inputs"][0], **kw}]}
 
 
 @pytest.mark.parametrize("bad,match", [
@@ -38,44 +68,108 @@ def test_five_models_ship_with_an_adapter():
     ({"makes": "audio"}, "photo or video"),
     ({"body": {"image": "{{$|uri}}"}}, "without file tokens"),
     ({"prompt": "prompt"}, "path"),
-    ({"inputs": [{"role": "A", "type": "image", "at": ["a"], "value": "https://x"}]}, "token"),
-    ({"inputs": [{"role": "A", "type": "image", "at": ["a"], "value": "{{$|uri}}", "max": 3}]}, "ends in \\+"),
-    ({"inputs": [{"role": "A", "type": "image", "at": ["a", "+", "b"], "value": "{{$|uri}}"}]}, "path"),
-    ({"inputs": [{"role": "A", "type": "image", "at": ["a"], "value": "{{$|uri}}", "needs": "B"}]}, "needs"),
+    (_inp(value="https://x"), "token"),
+    (_inp(value="{{$|uri}} and more"), "alone in a string"),
+    (_inp(type="text"), "image, video or audio"),
+    (_inp(max=3), "ends in \\+"),
+    (_inp(at=["a", "+", "b"]), "path"),
+    (_inp(needs="B"), "needs"),
+    (_inp(set=[]), "set is a name"),
+    (_inp(**{"with": [["task", "extend"]]}), "with lists"),
+    (_inp(**{"with": [[["image2"], "{{$|uri}}"]]}), "not file tokens"),
+    (_inp(drop=["duration"]), "drop lists paths"),
+    (_inp(at=[["a"], ["b"]], max=3), "number of paths"),
+    ({"models": [{"model": "acme/m-i2v", "takes": ["Nope"]}]}, "models lists"),
+    ({"inputs": [GOOD["inputs"][0], GOOD["inputs"][0]]}, "its own role"),
     ({"result": []}, "result"),
 ])
 def test_a_broken_adapter_is_refused(bad, match):
-    good = {"model": "acme/m", "makes": "photo", "body": {"prompt": ""}, "prompt": ["prompt"],
-            "inputs": [{"role": "Photo", "type": "image", "at": ["image"], "value": "{{$|uri}}"}], "result": [["url"]]}
     with pytest.raises(adapters.AdapterError, match=match):
-        adapters.parse({**good, **bad})
+        adapters.parse({**GOOD, **bad})
 
 
 def test_inputs_go_where_the_adapter_says():
-    seed = adapters.get(SEEDANCE)
-    body, where = adapters.assemble(seed, [(0, "image:1"), (1, "image:2")], "dolly in")
+    body, where, model = _run(SEEDANCE, "First frame", "Last frame", prompt="dolly in")
     assert body["content"] == [
         {"type": "text", "text": "dolly in"},
         {"type": "image_url", "role": "first_frame", "image_url": {"url": "{{image:1|uri}}"}},
         {"type": "image_url", "role": "last_frame", "image_url": {"url": "{{image:2|uri}}"}},
     ]
-    assert where == {"image:1": ["content", 1], "image:2": ["content", 2]}
-    gpt, _ = adapters.assemble(adapters.get("openai/gpt-image-2"), [(0, "image:1"), (0, "image:2")], "p")
+    assert where == {"image:1": ["content", 1], "image:2": ["content", 2]} and model == SEEDANCE
+    gpt = adapters.assemble(adapters.get("openai/gpt-image-2"), [(0, "image:1"), (0, "image:2")], "p")[0]
     assert gpt == {"prompt": "p", "image": ["{{image:1|uri}}", "{{image:2|uri}}"]}
-    veo, _ = adapters.assemble(adapters.get(VEO), [(2, "image:1")], "p")
-    assert veo["instances"][0]["referenceImages"] == [
-        {"image": {"bytesBase64Encoded": "{{image:1|b64}}", "mimeType": "{{image:1|mime}}"}, "referenceType": "asset"}]
+    veo = _run(VEO, "Reference image", "Reference image")[0]
+    assert [r["referenceType"] for r in veo["instances"][0]["referenceImages"]] == ["asset", "asset"]
+    assert veo["instances"][0]["referenceImages"][0]["image"] == {"bytesBase64Encoded": "{{image:1|b64}}", "mimeType": "{{image:1|mime}}"}
 
 
-@pytest.mark.parametrize("used,match", [
-    ([0, 2], "First frame or Reference, not both"),
-    ([1], "needs a First frame"),
-    ([2, 2, 2, 2, 2], "up to 4"),
-    ([7], "no such input"),
+def test_one_path_per_file():
+    """FLUX names each reference its own field: input_image, input_image_2, ..."""
+    flux = adapters.get("bfl/flux-2-max")
+    body, where, _ = adapters.assemble(flux, [(0, "image:1"), (0, "image:2"), (0, "image:3")], "p")
+    assert body == {"prompt": "p", "width": 1024, "height": 1024, "output_format": "jpeg",
+                    "input_image": "{{image:1|b64}}", "input_image_2": "{{image:2|b64}}", "input_image_3": "{{image:3|b64}}"}
+    assert where["image:3"] == ["input_image_3"] and flux.inputs[0]["max"] == 9
+    with pytest.raises(adapters.AdapterError, match="up to 9"):
+        adapters.assemble(flux, [(0, f"image:{n}") for n in range(1, 11)], "p")
+
+
+def test_an_edit_reshapes_the_request():
+    """Mode is the inputs filled, and some of them change the settings around them."""
+    kling = _run(KLING, "Video to edit", "Reference image")[0]
+    assert kling["video_list"] == [{"video_url": "{{video:1|url}}", "refer_type": "base", "keep_original_sound": "yes"}]
+    assert kling["image_list"] == [{"image_url": "{{image:1|b64}}"}]
+    assert "duration" not in kling and "aspect_ratio" not in kling and kling["mode"] == "pro"
+    feature = _run(KLING, "Reference video")[0]
+    assert feature["video_list"][0]["refer_type"] == "feature" and feature["duration"] == "5"
+    frames = _run(KLING, "First frame", "Last frame")[0]
+    assert [x["type"] for x in frames["image_list"]] == ["first_frame", "end_frame"] and "aspect_ratio" not in frames
+    seed = _run(SEEDANCE, "Video to edit", "Reference audio")[0]
+    assert seed["duration"] == -1 and [c.get("role") for c in seed["content"]] == [None, "reference_video", "reference_audio"]
+    assert _run(SEEDANCE, "Reference video")[0]["duration"] == 5
+    veo = _run(VEO, "Video to extend")[0]
+    assert veo["parameters"] == {"sampleCount": 1, "task": "extend"}
+    assert veo["instances"][0]["video"] == {"bytesBase64Encoded": "{{video:1|b64}}", "mimeType": "{{video:1|mime}}"}
+    assert "task" not in _run(VEO, "First frame")[0]["parameters"]
+
+
+@pytest.mark.parametrize("roles,model", [
+    ((), "wan/happyhorse-1.1-t2v"),
+    (("First frame",), "wan/happyhorse-1.1-i2v"),
+    (("Reference image", "Reference image"), "wan/happyhorse-1.1-r2v"),
+    (("Video to edit",), "wan/happyhorse-1.0-video-edit"),
+    (("Video to edit", "Reference image"), "wan/happyhorse-1.0-video-edit"),
 ])
-def test_inputs_the_model_cant_take_together(used, match):
+def test_a_family_picks_its_model_from_the_inputs(roles, model):
+    body, _, got = _run(HORSE, *roles)
+    assert got == model
+    assert ("duration" in body["parameters"]) == ("Video to edit" not in roles)
+
+
+@pytest.mark.parametrize("model,roles,match", [
+    (SEEDANCE, ("First frame", "Reference image"), "First frame or Reference image, not both"),
+    (SEEDANCE, ("Last frame",), "needs a First frame"),
+    (SEEDANCE, ("Video to edit", "Reference video"), "not both"),
+    (SEEDANCE, ("Reference image",) * 10, "up to 9"),
+    (KLING, ("Video to edit", "Reference video"), "not both"),
+    (KLING, ("First frame", "Video to edit"), "not both"),
+    (VEO, ("Style image", "Reference image"), "not both"),
+    (VEO, ("Video to extend", "First frame"), "not both"),
+    (HORSE, ("First frame", "Reference image"), "can't take First frame and Reference image together"),
+    (HORSE, ("First frame", "Video to edit"), "together"),
+])
+def test_inputs_the_model_cant_take_together(model, roles, match):
     with pytest.raises(adapters.AdapterError, match=match):
-        adapters.assemble(adapters.get(SEEDANCE), [(i, f"image:{n + 1}") for n, i in enumerate(used)], "x")
+        _run(model, *roles)
+
+
+def test_inputs_that_share_a_set_go_together():
+    _run(KLING, "Reference image", "Reference video")
+    _run(KLING, "Reference image", "Video to edit")
+    _run(SEEDANCE, "Reference image", "Reference video", "Reference audio")
+    _run("wan/wan3.0-video", "Reference image", "Reference video", "Reference audio")
+    with pytest.raises(adapters.AdapterError, match="no such input"):
+        adapters.assemble(adapters.get(SEEDANCE), [(7, "image:1")], "x")
 
 
 # ---- a template from an adapter --------------------------------------------------
@@ -97,6 +191,16 @@ def test_template_is_frozen_to_the_files_its_run_used():
     assert [f["key"] for f in plain["inputs"]] == ["prompt"]
 
 
+def test_template_goes_to_the_model_its_inputs_picked():
+    data = builder.assemble_cloud(_spec(model=HORSE, media=[(2, "video"), 1]))
+    assert data["model"] == "wan/happyhorse-1.0-video-edit" and data["provider"] == "wan"
+    assert data["body"]["input"]["media"] == [{"type": "video", "url": "{{video:1|url}}"},
+                                              {"type": "reference_image", "url": "{{image:1|uri}}"}]
+    assert [f["key"] for f in data["inputs"]] == ["video:1", "image:1", "prompt"]
+    talk = builder.assemble_cloud(_spec(model=SEEDANCE, media=[2, (4, "audio")]))
+    assert talk["body"]["content"][2]["audio_url"] == {"url": "{{audio:1|uri}}"}
+
+
 def test_template_carries_its_own_copy_of_the_request():
     data = builder.assemble_cloud(_spec(media=[0]))
     data["body"]["instances"][0]["prompt"] = "changed"
@@ -110,6 +214,7 @@ def test_template_carries_its_own_copy_of_the_request():
     (_spec(prompt=""), "Write the prompt"),
     ({**_spec(), "media": [{"input": 0, "kind": "video"}]}, "no such video input"),
     ({**_spec(), "media": [{"input": "0", "kind": "image"}]}, "no such image input"),
+    (_spec(model=HORSE, media=[0, 1]), "together"),
 ])
 def test_assemble_refuses_what_the_model_cant_take(spec, match):
     with pytest.raises(builder.BuildError, match=match):
@@ -124,10 +229,14 @@ def test_builder_lists_only_adapter_models():
         return await r.json()
 
     got = call(go)
-    assert [m["model"] for m in got] == sorted(m["model"] for m in got) and len(got) == 5
+    assert [m["model"] for m in got] == sorted(m["model"] for m in got) and {m["model"] for m in got} == TEN
     seed = next(m for m in got if m["model"] == SEEDANCE)
-    assert seed["mode"] == "motion" and [i["role"] for i in seed["inputs"]] == ["First frame", "Last frame", "Reference"]
-    assert seed["inputs"][1] == {"role": "Last frame", "type": "image", "max": 1, "set": "frames", "needs": "First frame"}
+    assert seed["mode"] == "motion" and [i["role"] for i in seed["inputs"]] == [
+        "First frame", "Last frame", "Reference image", "Reference video", "Reference audio", "Video to edit"]
+    assert seed["inputs"][1] == {"role": "Last frame", "type": "image", "max": 1, "set": ["frames"], "needs": "First frame"}
+    assert seed["inputs"][2]["set"] == ["references", "edit"] and seed["inputs"][4]["type"] == "audio"
+    horse = next(m for m in got if m["model"] == HORSE)
+    assert horse["models"][0] == {"model": "wan/happyhorse-1.1-t2v", "takes": []} and "set" not in horse["inputs"][0]
 
 
 # ---- running one -------------------------------------------------------------------
@@ -135,13 +244,18 @@ def test_builder_lists_only_adapter_models():
 def test_file_resolver_forms(tmp_path):
     make_image(tmp_path / "a.png", (64, 48))
     (tmp_path / "v.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64)
-    r = engines.file_resolver([{"slot": "image:1", "file": "a.png"}, {"slot": "video:1", "file": "v.mp4"}], tmp_path)
+    (tmp_path / "voice.wav").write_bytes(b"RIFF" + b"\x00" * 64)
+    r = engines.file_resolver([{"slot": "image:1", "file": "a.png"}, {"slot": "video:1", "file": "v.mp4"},
+                               {"slot": "audio:1", "file": "voice.wav"}, {"slot": "video:2", "file": "v.mp4", "url": "https://signed.test/v"}],
+                              tmp_path)
     uri = r("image", 1, "uri")
     assert uri.startswith("data:image/") and r("image", 1, "b64") == uri.split(",", 1)[1]
     assert r("image", 1, "mime") == uri[5:].split(";", 1)[0]
     assert r("video", 1, "mime") == "video/mp4"
     assert base64.b64decode(r("video", 1, "b64")).startswith(b"\x00\x00\x00\x18ftyp")
-    with pytest.raises(KeyError):
+    assert r("audio", 1, "mime") in ("audio/wav", "audio/x-wav") and r("audio", 1, "uri").startswith("data:audio/")
+    assert r("video", 2, "url") == "https://signed.test/v"
+    with pytest.raises(KeyError, match="wasn't uploaded"):
         r("image", 1, "url")
 
 
@@ -173,15 +287,21 @@ def test_provider_failures_inside_a_200(result, kind):
     assert engines.classify_failure(result)["error_type"] == kind
 
 
-def test_built_template_runs_on_router(tmp_path, monkeypatch):
-    """Veo with a first frame: the photo goes in as base64 beside its MIME type, and the
-    video comes back inline as base64, where the adapter says."""
-    clip = make_video(tmp_path / "out.mp4", seconds=1).read_bytes()
-    make_image(tmp_path / "frame.png", (640, 360))
-    sent = {}
+def _fast(monkeypatch):
+    real = asyncio.sleep
 
+    async def fast(*a, **k):
+        await real(0)
+
+    monkeypatch.setattr(asyncio, "sleep", fast)
+
+
+def _router(sent, answer, files=None):
+    """A fake Router: takes one request, answers ``answer``; ``files`` are links it serves."""
     def fake(request: httpx.Request) -> httpx.Response:
         path = request.url.path
+        if str(request.url) in (files or {}):
+            return httpx.Response(200, content=files[str(request.url)], headers={"content-type": "video/mp4"})
         if path.endswith("/estimate"):
             return httpx.Response(200, json={"source": "unknown"})
         if request.method == "POST" and path.endswith("/requests"):
@@ -190,40 +310,145 @@ def test_built_template_runs_on_router(tmp_path, monkeypatch):
         if path.endswith("/status"):
             return httpx.Response(200, json={"status": "COMPLETED"})
         if request.method == "GET" and path.endswith("/requests/r1"):
-            return httpx.Response(200, json={"response": {"videos": [{"bytesBase64Encoded": base64.b64encode(clip).decode()}]}})
+            return httpx.Response(200, json=answer)
         return httpx.Response(404)
+    return fake
 
+
+def _start(mgr, tid, inputs, prompt="a fox in the snow"):
+    async def go():
+        ids = await mgr.start({"engine": tid, "inputs": inputs, "prompt": prompt, "params": {}})
+        await asyncio.gather(*mgr.tasks.values())
+        return ids
+
+    return mgr.jobs[asyncio.run(go())[0]]
+
+
+def test_built_template_runs_on_router(tmp_path, monkeypatch):
+    """Veo with a first frame: the photo goes in as base64 beside its MIME type, and the
+    video comes back inline as base64, where the adapter says."""
+    clip = make_video(tmp_path / "out.mp4", seconds=1).read_bytes()
+    make_image(tmp_path / "frame.png", (640, 360))
+    sent = {}
     tid = builder.save(builder.assemble_cloud(_spec(media=[0])), {"image:1": tmp_path / "frame.png"})
     engines.reload_templates()
     e = engines.ENGINES[tid]
     assert e.result == adapters.get(VEO).result and e.min_images == 1
     settings.save({"api_key": "comfyui-test-key-1234"})
     mgr = jobs.Manager()
-    mgr.router_factory = lambda: Router(transport=httpx.MockTransport(fake))
-    real = asyncio.sleep
-
-    async def fast(*a, **k):
-        await real(0)
-
-    monkeypatch.setattr(asyncio, "sleep", fast)
+    mgr.router_factory = lambda: Router(transport=httpx.MockTransport(
+        _router(sent, {"response": {"videos": [{"bytesBase64Encoded": base64.b64encode(clip).decode()}]}})))
+    _fast(monkeypatch)
     from PIL import Image
 
     Image.new("RGB", (640, 360), (200, 120, 40)).save(jobs.paths.uploads_dir() / "frame.png")
-
-    async def go():
-        ids = await mgr.start({"engine": tid, "inputs": [{"slot": "image:1", "asset": "frame.png"}], "prompt": "a fox in the snow", "params": {}})
-        await asyncio.gather(*mgr.tasks.values())
-        return ids
-
-    ids = asyncio.run(go())
-    job = mgr.jobs[ids[0]]
+    job = _start(mgr, tid, [{"slot": "image:1", "asset": "frame.png"}])
     assert job.state == "done", job.detail
     assert VEO in sent["path"]
     inst = sent["body"]["instances"][0]
     assert inst["prompt"] == "a fox in the snow" and inst["image"]["mimeType"] == "image/jpeg"
     assert base64.b64decode(inst["image"]["bytesBase64Encoded"])[:3] == b"\xff\xd8\xff"
-    m = store.get(ids[0])
+    m = store.get(job.id)
     assert m.result.kind == "video" and media.read_mp4_recipe(m.result.output_file)["id"] == m.id
+
+
+def _cloud(seen, status=201):
+    """A fake Comfy Cloud asset store: an upload, then its content redirects to a signed link."""
+    def fake(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path, request.headers.get("authorization")))
+        if request.method == "POST" and request.url.path == "/api/v2/assets":
+            if status >= 400:
+                return httpx.Response(status, json={"error": {"code": "unauthorized", "message": "bad key"}})
+            assert b"video/mp4" in request.content and b'name="file"' in request.content
+            return httpx.Response(status, json={"id": "a1", "name": "clip.mp4"})
+        if request.url.path == "/api/v2/assets/a1/content":
+            return httpx.Response(302, headers={"Location": "https://signed.test/a1.mp4?sig=x"})
+        return httpx.Response(404)
+    return fake
+
+
+def _kling_edit(tmp_path, monkeypatch, cloud_status=201):
+    make_video(tmp_path / "clip.mp4", seconds=1)
+    out = make_video(tmp_path / "out.mp4", seconds=1).read_bytes()
+    tid = builder.save(builder.assemble_cloud(_spec(model=KLING, media=[(4, "video")], prompt="make it snow")), {})
+    engines.reload_templates()
+    settings.save({"api_key": "comfyui-test-key-1234"})
+    sent, seen = {}, []
+    mgr = jobs.Manager()
+    answer = {"data": {"task_status": "succeed", "task_result": {"videos": [{"url": "https://cdn.test/o.mp4"}]}}}
+    mgr.router_factory = lambda: Router(transport=httpx.MockTransport(_router(sent, answer, {"https://cdn.test/o.mp4": out})))
+    mgr.assets_factory = lambda: local.ComfyV2(base="https://cloud.test", token=settings.api_key(),
+                                               transport=httpx.MockTransport(_cloud(seen, cloud_status)))
+    _fast(monkeypatch)
+    (jobs.paths.uploads_dir() / "clip.mp4").write_bytes((tmp_path / "clip.mp4").read_bytes())
+    return _start(mgr, tid, [{"slot": "video:1", "asset": "clip.mp4"}], "make it snow"), sent, seen
+
+
+def test_a_file_the_model_takes_as_a_link_goes_up_to_comfy_cloud_first(tmp_path, monkeypatch):
+    job, sent, seen = _kling_edit(tmp_path, monkeypatch)
+    assert job.state == "done", job.detail
+    assert [s[:2] for s in seen] == [("POST", "/api/v2/assets"), ("GET", "/api/v2/assets/a1/content")]
+    assert all(s[2] == "Bearer comfyui-test-key-1234" for s in seen)
+    assert KLING in sent["path"]
+    assert sent["body"]["video_list"] == [{"video_url": "https://signed.test/a1.mp4?sig=x", "refer_type": "base", "keep_original_sound": "yes"}]
+    assert "duration" not in sent["body"] and sent["body"]["prompt"] == "make it snow"
+    # The signed link runs out: it isn't kept with the generation.
+    assert "signed.test" not in store.get(job.id).model_dump_json()
+
+
+def test_a_refused_upload_stops_the_run(tmp_path, monkeypatch):
+    job, sent, seen = _kling_edit(tmp_path, monkeypatch, cloud_status=401)
+    assert job.state == "failed" and "refused the API key" in job.detail and "video:1" in job.detail
+    assert sent == {} and len(seen) == 1
+
+
+def test_an_audio_input_goes_in_with_the_run(tmp_path, monkeypatch):
+    out = make_video(tmp_path / "out.mp4", seconds=1).read_bytes()
+    tid = builder.save(builder.assemble_cloud(_spec(model=SEEDANCE, media=[2, (4, "audio")], prompt="she sings")), {})
+    engines.reload_templates()
+    settings.save({"api_key": "comfyui-test-key-1234"})
+    sent = {}
+    mgr = jobs.Manager()
+    mgr.router_factory = lambda: Router(transport=httpx.MockTransport(
+        _router(sent, {"content": {"video_url": "https://cdn.test/o.mp4"}}, {"https://cdn.test/o.mp4": out})))
+    _fast(monkeypatch)
+    from PIL import Image
+
+    Image.new("RGB", (640, 360), (20, 120, 200)).save(jobs.paths.uploads_dir() / "face.png")
+    (jobs.paths.uploads_dir() / "voice.mp3").write_bytes(b"ID3\x04\x00\x00\x00\x00\x00\x00" + b"\x00" * 200)
+    job = _start(mgr, tid, [{"slot": "image:1", "asset": "face.png"}, {"slot": "audio:1", "asset": "voice.mp3"}], "she sings")
+    assert job.state == "done", job.detail
+    content = sent["body"]["content"]
+    assert content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+    audio = content[2]["audio_url"]["url"]
+    assert audio.startswith("data:audio/mpeg;base64,") and base64.b64decode(audio.split(",", 1)[1]).startswith(b"ID3")
+    m = store.get(job.id)
+    assert any(i.slot == "audio:1" and i.file and i.file.endswith(".mp3") for i in m.inputs)
+
+
+def test_a_sound_uploads_and_ships_as_a_sample(tmp_path):
+    """Audio goes up like a photo or a clip, and a template can carry one as its sample."""
+    import aiohttp
+    from test_crud import call
+
+    wav = tmp_path / "voice.wav"
+    import wave
+    with wave.open(str(wav), "wb") as w:
+        w.setnchannels(1), w.setsampwidth(2), w.setframerate(8000), w.writeframes(b"\x00\x00" * 8000)
+
+    async def go(c):
+        fd = aiohttp.FormData()
+        fd.add_field("file", wav.read_bytes(), filename="voice.wav", content_type="audio/wav")
+        return await (await c.post("/api/upload", data=fd)).json()
+
+    got = call(go)
+    assert got["kind"] == "audio" and got["asset"].endswith(".wav") and abs(got["duration"] - 1.0) < 0.1
+    make_image(tmp_path / "face.png", (64, 64))
+    tid = builder.save(builder.assemble_cloud(_spec(model=SEEDANCE, media=[2, (4, "audio")])),
+                       {"image:1": tmp_path / "face.png", "audio:1": wav})
+    engines.reload_templates()
+    d = {i["slot"]: i for i in engines.defaults_info(engines.ENGINES[tid])["inputs"]}
+    assert d["audio:1"]["kind"] == "audio" and abs(d["audio:1"]["duration"] - 1.0) < 0.1 and d["image:1"]["kind"] == "image"
 
 
 def test_an_unknown_engine_doesnt_run():

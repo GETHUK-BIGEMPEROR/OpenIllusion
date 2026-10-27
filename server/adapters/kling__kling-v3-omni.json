@@ -6,35 +6,113 @@
     "prompt": "",
     "mode": "pro",
     "duration": "5",
-    "aspect_ratio": "16:9"
+    "aspect_ratio": "16:9",
+    "sound": "off"
   },
-  "prompt": ["prompt"],
+  "prompt": [
+    "prompt"
+  ],
   "inputs": [
     {
       "role": "First frame",
       "type": "image",
-      "at": ["image_list", "+"],
-      "value": { "image_url": "{{$|b64}}", "type": "first_frame" },
-      "set": "frames"
+      "at": [
+        "image_list",
+        "+"
+      ],
+      "value": {
+        "image_url": "{{$|b64}}",
+        "type": "first_frame"
+      },
+      "set": [
+        "frames"
+      ],
+      "drop": [
+        [
+          "aspect_ratio"
+        ]
+      ]
     },
     {
       "role": "Last frame",
       "type": "image",
-      "at": ["image_list", "+"],
-      "value": { "image_url": "{{$|b64}}", "type": "end_frame" },
-      "set": "frames",
+      "at": [
+        "image_list",
+        "+"
+      ],
+      "value": {
+        "image_url": "{{$|b64}}",
+        "type": "end_frame"
+      },
+      "set": [
+        "frames"
+      ],
       "needs": "First frame"
     },
     {
-      "role": "Reference",
+      "role": "Reference image",
       "type": "image",
-      "at": ["image_list", "+"],
-      "value": { "image_url": "{{$|b64}}" },
-      "set": "references",
+      "at": [
+        "image_list",
+        "+"
+      ],
+      "value": {
+        "image_url": "{{$|b64}}"
+      },
+      "set": [
+        "references",
+        "edit"
+      ],
       "max": 4
+    },
+    {
+      "role": "Reference video",
+      "type": "video",
+      "at": [
+        "video_list",
+        "+"
+      ],
+      "value": {
+        "video_url": "{{$|url}}",
+        "refer_type": "feature",
+        "keep_original_sound": "no"
+      },
+      "set": [
+        "references"
+      ]
+    },
+    {
+      "role": "Video to edit",
+      "type": "video",
+      "at": [
+        "video_list",
+        "+"
+      ],
+      "value": {
+        "video_url": "{{$|url}}",
+        "refer_type": "base",
+        "keep_original_sound": "yes"
+      },
+      "set": [
+        "edit"
+      ],
+      "drop": [
+        [
+          "duration"
+        ],
+        [
+          "aspect_ratio"
+        ]
+      ]
     }
   ],
   "result": [
-    ["data", "task_result", "videos", "*", "url"]
+    [
+      "data",
+      "task_result",
+      "videos",
+      "*",
+      "url"
+    ]
   ]
 }
