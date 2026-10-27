@@ -170,7 +170,7 @@ Where to look when you change something.
 
 | File | What it does |
 | --- | --- |
-| `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), moves secrets out of an old `settings.json`, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), and refuses cross-origin requests (`_same_origin`). |
+| `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), moves secrets out of an old `settings.json`, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), cleans scratch and old trash every 6 h, and refuses cross-origin requests (`_same_origin`). |
 | `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, estimate, run, jobs), `library` (generations, trash, storage, re-run, export, import); shared helpers in `common`. Thin: it checks input and calls the modules below. |
 | `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
 | `builder/` | The Builder, in layers: `workflow` (read a dropped file, `read_workflow`; UI graph to API graph, `ui_to_api`), `analysis` (detect inputs, prompt, settings and result nodes, `analyze`), `assemble` (drafts, `assemble_local`, `assemble_cloud`, `preset`, `save`). `__init__` re-exports them. |
@@ -226,7 +226,7 @@ each entry is; a test fails when the app writes something it doesn't list.
 | --- | --- | --- | --- |
 | library | `generations/`, `templates/`, `covers/`, `trash/`, `settings.json` | yes (trash optional) | trash after 7 days |
 | machine | `secrets.json`, `index.sqlite`, `jobs.json`, `proxy-state/`, `proxy.log`, `server.lock` | no | never |
-| scratch | `uploads/`, `cache/` | no | from Settings → Storage |
+| scratch | `uploads/`, `cache/` | no | on their own after 30 days unused (Builder drafts: 1 day), or from Settings → Storage |
 
 `outputs/` is the default export folder: the user's files, not the app's.
 
@@ -242,6 +242,9 @@ each entry is; a test fails when the app writes something it doesn't list.
   version drops it and reindexes the folders.
 - **Edited shipped templates** name the shipped samples and covers as
   `shipped:local/media/<file>`, not a path on this machine, so they work on any install.
+- **Cleaning itself.** Every 6 hours (and at start-up) `storage.auto_clean` removes scratch
+  nobody has used, and old trash goes. Showing an upload on a page or running it restarts
+  its clock (`storage.touch`), so a draft left open in Create keeps its files.
 - **One server per home** (`server.lock`, see `server.py`).
 
 Planned: `.illusionbackup`, a zip of the library tier with a `backup.json` of counts and

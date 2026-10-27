@@ -108,9 +108,9 @@ export function Settings() {
 const BUCKETS: { id: StorageBucket; label: string; desc: string; color: string }[] = [
   { id: "generations", label: "Generations", desc: "Your library: inputs, previews and recipes.", color: "var(--violet)" },
   { id: "trash", label: "Trash", desc: "Deleted generations, kept 7 days.", color: "var(--rose)" },
-  { id: "uploads", label: "Uploads", desc: "Files dropped into forms. Runs copy what they use, so these are working copies.", color: "var(--orange)" },
+  { id: "uploads", label: "Uploads", desc: "Files dropped into forms. Runs copy what they use, so these are working copies. Cleaned on their own after 30 days unused.", color: "var(--orange)" },
   { id: "exports", label: "Exports", desc: ".illusion packages you exported, in your output folder.", color: "var(--mint)" },
-  { id: "cache", label: "Cache", desc: "Thumbnails and schemas. Rebuilt when needed.", color: "var(--text-3)" },
+  { id: "cache", label: "Cache", desc: "Thumbnails and schemas. Rebuilt when needed; cleaned on their own after 30 days unused.", color: "var(--text-3)" },
 ];
 
 /** Where the disk goes, and a way to take back what's only working copies. */

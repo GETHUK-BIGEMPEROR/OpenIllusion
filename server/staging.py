@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import engines, media, paths, prep, settings, store
+from . import engines, media, paths, prep, settings, storage, store
 from . import generation as sc
 
 
@@ -31,7 +31,9 @@ def resolve_asset(ref: str) -> Path:
     if base not in p.parents and p != base:
         raise ValueError("asset path escapes its folder")
     if not p.is_file():
-        raise FileNotFoundError(ref)
+        raise FileNotFoundError(f"An input file isn't here anymore ({ref}). Drop it again.")
+    if base == paths.uploads_dir().resolve():
+        storage.touch(p)
     return p
 
 

@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 from aiohttp import web
 
-from . import __version__, jobs, local, paths, proxy, routes, settings, store
+from . import __version__, jobs, local, paths, proxy, routes, settings, storage, store
 
 log = logging.getLogger("openillusion")
 
@@ -32,6 +32,21 @@ async def _startup(app: web.Application) -> None:
     if n:
         log.info("OpenIllusion: resumed %d run(s)", n)
     app["proxy_keeper"] = asyncio.ensure_future(_keep_proxy())
+    app["janitor"] = asyncio.ensure_future(_keep_clean())
+
+
+async def _keep_clean(every: float = 6 * 3600) -> None:
+    """Empty old trash and scratch now and then, so the home folder doesn't only grow."""
+    while True:
+        try:
+            gone = await asyncio.to_thread(storage.auto_clean)
+            purged = await asyncio.to_thread(store.purge_trash)
+            if gone["files"] or purged:
+                log.info("OpenIllusion: cleaned %d scratch file(s), %.1f MB; %d generation(s) out of the trash",
+                         gone["files"], gone["bytes"] / 1e6, purged)
+        except Exception:
+            log.exception("OpenIllusion: cleaning failed")
+        await asyncio.sleep(every)
 
 
 async def _keep_proxy(every: float = 15.0) -> None:
@@ -47,9 +62,9 @@ async def _keep_proxy(every: float = 15.0) -> None:
 
 
 async def _cleanup(app: web.Application) -> None:
-    keeper = app.get("proxy_keeper")
-    if keeper:
-        keeper.cancel()
+    for task in (app.get("proxy_keeper"), app.get("janitor")):
+        if task:
+            task.cancel()
     for ws in list(routes._sockets):
         await ws.close()
     proxy.stop()

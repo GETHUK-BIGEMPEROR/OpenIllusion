@@ -85,3 +85,35 @@ def test_every_entry_of_the_home_folder_is_classified():
     finally:
         paths.release_home()
     assert names - set(paths.TIERS) == set(), "add new home entries to paths.TIERS (backup and cleaning read it)"
+
+
+def _aged(p, days, now):
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"x" * 10)
+    os.utime(p, (now - days * 86400, now - days * 86400))
+    return p
+
+
+def test_scratch_cleans_itself_after_going_unused():
+    import time
+
+    from server import staging, storage
+
+    now = time.time()
+    up, cache = paths.uploads_dir(), paths.cache_dir()
+    stale = _aged(up / "old.png", 40, now)
+    fresh = _aged(up / "new.png", 2, now)
+    shown = _aged(up / "shown.png", 40, now)
+    used = _aged(up / "used.png", 40, now)
+    staged = _aged(up / "staging" / str(time.time_ns()) / "a.png", 40, now)  # import staging goes by its folder's name
+    draft = _aged(cache / "builder" / "d.json", 2, now)
+    schema = _aged(cache / "schemas" / "s.json", 10, now)
+    thumb = _aged(cache / "samples" / "t.webp", 40, now)
+    storage.touch(shown)  # a page showed it
+    assert staging.resolve_asset("used.png") == used.resolve()  # a run used it
+    gone = storage.auto_clean(now=now + 1)
+    assert gone["files"] == 3 and gone["bytes"] == 30
+    assert not stale.exists() and not draft.exists() and not thumb.exists()
+    assert fresh.exists() and shown.exists() and used.exists() and schema.exists() and staged.exists()
+    with pytest.raises(FileNotFoundError, match="Drop it again"):
+        staging.resolve_asset("old.png")

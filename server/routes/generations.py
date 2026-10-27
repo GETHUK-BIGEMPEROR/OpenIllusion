@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from .. import engines, jobs, media, paths, settings, staging
+from .. import engines, jobs, media, paths, settings, staging, storage
 from ..router import Router, RouterError
 from .common import API, UPLOAD_EXT, MAX_UPLOAD, err, body, _safe_file, asset_info, _norm_spec, _spec_resolver
 
@@ -53,6 +53,7 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.get(API + "/uploads/{asset}")
     async def get_upload(request):
+        storage.touch(paths.uploads_dir() / Path(request.match_info["asset"]).name)  # shown on a page: still in use
         return _safe_file(paths.uploads_dir(), request.match_info["asset"])
 
     @routes.post(API + "/frame")
