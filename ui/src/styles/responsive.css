@@ -51,6 +51,8 @@
   .cap h3{font-size:12.5px}
   .cap p{font-size:10.5px}
   .ctop{top:7px;left:7px;right:7px}
+  .cacts{top:38px;right:7px}
+  .ctags .pill.minor{display:none} /* the inspector still says it; setup matters more on a small card */
   .card{border-radius:14px}
   .go{display:none}
   .gcard:not(.trcard) .gprompt,.gcard:not(.trcard) .reveal{display:none}

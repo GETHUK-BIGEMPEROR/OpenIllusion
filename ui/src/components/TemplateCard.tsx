@@ -51,10 +51,15 @@ export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: Eng
         )}
       </Media>
       <div className="ctop">
-        {!local && <span className="pill" title={locked ?? "Runs on Comfy Router"} style={locked ? { color: "#FFC48F" } : undefined}><i className="dot violet" />Cloud</span>}
-        {n > 1 ? <span className="pill">{n} inputs</span> : n === 0 ? <span className="pill">Words only</span> : null}
-        {locked && local && <span className="pill" title={locked} style={{ color: "#FFC48F" }}>Needs setup</span>}
-        <span className="fspacer" />
+        <div className="ctags">
+          {!local && <span className="pill" title={locked ?? "Runs on Comfy Router"} style={locked ? { color: "#FFC48F" } : undefined}><i className="dot violet" />Cloud</span>}
+          {n > 1 ? <span className="pill minor">{n} inputs</span> : n === 0 ? <span className="pill minor">Words only</span> : null}
+          {locked && local && <span className="pill" title={locked} style={{ color: "#FFC48F" }}>Needs setup</span>}
+        </div>
+        <span className="pill kindb" title={video ? "Makes a video" : "Makes a photo"}><I n={video ? "film" : "image"} />{video ? "Video" : "Photo"}</span>
+      </div>
+      {/* Shown on hover, under the kind badge, so they never take room from the tags. */}
+      <div className="cacts">
         {local && (
           <>
             <a className="icon-btn sm glass reveal" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} aria-label={`Download the ComfyUI workflow of ${tplName(e)}`} title="Download ComfyUI workflow"
@@ -64,7 +69,6 @@ export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: Eng
           </>
         )}
         <button className="icon-btn sm glass reveal" type="button" aria-label={`Details for ${tplName(e)}`} onClick={(ev) => { ev.stopPropagation(); onInspect(); }}><I n="info" /></button>
-        <span className="pill kindb" title={video ? "Makes a video" : "Makes a photo"}><I n={video ? "film" : "image"} />{video ? "Video" : "Photo"}</span>
       </div>
       <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)}</p></div><span className="go"><I n="arrow" /></span></div>
     </article>
