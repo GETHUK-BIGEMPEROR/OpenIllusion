@@ -297,6 +297,20 @@ def test_sample_clip_is_described_as_video_with_a_poster():
     assert p.suffix == ".webp" and p.is_file() and p.parent.parent == engines.paths.cache_dir()
 
 
+
+@pytest.mark.parametrize("tid", [SWAP, "local/minimax-h3-character-refmod"])
+def test_a_swap_renders_at_the_clips_own_frame(tid):
+    """The clip as prepared sets the frame: its shape, at the template's 0.4 MP unless you pick another size."""
+    e = engines.ENGINES[tid]
+    assert e.size["inputs"]["video:1"] == "0.4 MP" and e.size["multiple"] == 32
+    wf = e.build({"inputs": [{"slot": "video:1"}, {"slot": "image:1"}], "prompt": "x", "params": {}})
+    assert not any(n["class_type"] == "ResolutionSelector" for n in wf.values())
+    ref = next(n for n in wf.values() if n["class_type"] == "MiniMaxH3ReferenceToVideo")["inputs"]
+    size = wf[ref["width"][0]]
+    assert ref["width"] == [ref["width"][0], 0] and ref["height"] == [ref["width"][0], 1]
+    assert size["class_type"] == "GetImageSize" and wf[size["inputs"]["image"][0]]["class_type"] == "GetVideoComponents"
+
+
 # ---- the template format ---------------------------------------------------------
 
 
@@ -316,7 +330,8 @@ def test_version_1_files_load_with_their_hidden_text_moved_into_the_prompt():
     assert [(f["key"], f.get("required")) for f in e.fields] == [("image:1", True), ("image:2", False), ("prompt", True), ("steps", None)]
     assert e.default_prompt == "Give <image1> a beret. Keep the rest."
     assert e.examples == [{"label": "a cap", "text": "Give <image1> a cap. Keep the rest."}]
-    assert e.min_images == 1 and e.max_images == 2 and e.inputs[0] == {"slot": "image:1", "label": "Image 1"}
+    assert e.min_images == 1 and e.max_images == 2 and e.inputs[0] == {"slot": "image:1", "label": "Image 1", "size": "1 MP"}
+    assert e.size["inputs"] == {"image:1": "1 MP", "image:2": "Original"}  # a size the template names is the input's default
     wf = e.build({"inputs": [{"slot": "image:1"}], "prompt": "Give <image1> a cap.", "params": {"steps": 9}})
     # The fixed text now lives in the prompt; the workflow's own copy is empty, so it isn't sent twice.
     assert wf["2"]["inputs"]["string_a"] == "" and wf["2"]["inputs"]["string_b"] == "Give <image1> a cap." and wf["3"]["inputs"]["string_b"] == ""

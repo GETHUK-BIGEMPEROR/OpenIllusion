@@ -10,6 +10,9 @@
     "refmod",
     "lora"
   ],
+  "size": {
+    "multiple": 32
+  },
   "inputs": [
     {
       "key": "video:1",
@@ -21,7 +24,8 @@
           "file"
         ]
       ],
-      "default": "media/walk-street.mp4"
+      "default": "media/walk-street.mp4",
+      "size": "0.4 MP"
     },
     {
       "key": "refmod:1",
@@ -88,17 +92,6 @@
         ]
       }
     },
-    "115": {
-      "class_type": "ResolutionSelector",
-      "inputs": {
-        "aspect_ratio": "16:9 (Widescreen)",
-        "megapixels": 0.4,
-        "multiple": 32
-      },
-      "_meta": {
-        "title": "Resolution Selector (Size)"
-      }
-    },
     "119": {
       "class_type": "VAELoader",
       "inputs": {
@@ -153,7 +146,7 @@
         ],
         "denoise": 1.0,
         "model": [
-          "147",
+          "141",
           0
         ]
       }
@@ -266,11 +259,11 @@
           0
         ],
         "width": [
-          "115",
+          "149",
           0
         ],
         "height": [
-          "115",
+          "149",
           1
         ],
         "length": [
@@ -330,7 +323,7 @@
           0
         ],
         "on_true": [
-          "147",
+          "203",
           0
         ]
       },
@@ -379,10 +372,10 @@
     "146": {
       "class_type": "PrimitiveBoolean",
       "inputs": {
-        "value": false
+        "value": true
       },
       "_meta": {
-        "title": "Enable optional Turbo (off by default)"
+        "title": "Turbo (on: 4 steps)"
       }
     },
     "147": {
@@ -471,6 +464,32 @@
       "_meta": {
         "title": "Apply H3 RefMod"
       }
+    },
+    "203": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "lora_name": "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+        "strength_model": 1.0,
+        "model": [
+          "147",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "Ref2V turbo LoRA (4 steps)"
+      }
+    },
+    "149": {
+      "class_type": "GetImageSize",
+      "inputs": {
+        "image": [
+          "148",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "Clip frame size"
+      }
     }
   },
   "source": "akatz-ai/MiniMax-H3-Character-Swap-LoRA, examples/H3 Character Swap v1 Ref2VA.json as published; text encoder set to the int8_convrot file (nvfp4 isn't installed); RefMod loader and apply from Luisacaotica/ComfyUI-MiniMaxH3Mod spliced between the H3 conditioning and the guider",
@@ -495,6 +514,10 @@
       "minimax_h3_audio_vae_fp32.safetensors": {
         "folder": "vae",
         "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors"
+      },
+      "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors": {
+        "folder": "loras",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
       }
     },
     "nodes": {

@@ -9,6 +9,9 @@
     "character",
     "lora"
   ],
+  "size": {
+    "multiple": 32
+  },
   "inputs": [
     {
       "key": "video:1",
@@ -20,7 +23,8 @@
           "file"
         ]
       ],
-      "default": "media/walk-street.mp4"
+      "default": "media/walk-street.mp4",
+      "size": "0.4 MP"
     },
     {
       "key": "image:1",
@@ -65,17 +69,6 @@
           "130",
           0
         ]
-      }
-    },
-    "115": {
-      "class_type": "ResolutionSelector",
-      "inputs": {
-        "aspect_ratio": "16:9 (Widescreen)",
-        "megapixels": 0.4,
-        "multiple": 32
-      },
-      "_meta": {
-        "title": "Resolution Selector (Size)"
       }
     },
     "119": {
@@ -245,11 +238,11 @@
           0
         ],
         "width": [
-          "115",
+          "149",
           0
         ],
         "height": [
-          "115",
+          "149",
           1
         ],
         "length": [
@@ -394,6 +387,18 @@
       },
       "_meta": {
         "title": "Source frames (optional source audio)"
+      }
+    },
+    "149": {
+      "class_type": "GetImageSize",
+      "inputs": {
+        "image": [
+          "148",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "Clip frame size"
       }
     }
   },

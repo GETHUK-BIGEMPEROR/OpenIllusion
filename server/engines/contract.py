@@ -195,7 +195,7 @@ def _field(f: Any) -> dict:
     out = {**f, "bind": [list(b) for b in f.get("bind") or []]}
     # A photo or clip is named by its place ("Image 1"), the prompt is "Prompt": the prompt says what each one is.
     if t in (*MEDIA, "refmod"):
-        for k in ("hint", "size", "role", "area"):
+        for k in ("hint", "role", "area"):
             out.pop(k, None)
         out["label"] = f"{'RefMod' if t == 'refmod' else t.capitalize()} {key.split(':')[1]}"
     elif key == "prompt":
@@ -276,7 +276,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
     bindings = {}
     for f in fields:
         bindings[f["key"] if f["type"] in (*MEDIA, "refmod", "size") or f["key"] == "prompt" else f"params.{f['key']}"] = f["bind"]
-    slots = [{"slot": f["key"], "label": f["label"]} for f in media]
+    slots = [{"slot": f["key"], "label": f["label"], **({"size": f["size"]} if f.get("size") else {})} for f in media]
     e = Engine(
         id=tid, mode=data.get("mode", "edit"), label=data["label"].strip(), provider=data.get("provider", "local"),
         blurb=data.get("blurb", ""), max_images=len(images), min_images=sum(1 for f in images if f.get("required", True)),

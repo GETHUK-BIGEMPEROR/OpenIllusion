@@ -164,7 +164,7 @@ export function usePrepImages(refs: { url: string; width?: number; height?: numb
 }
 
 /** Shapes the studio offers on top of the input's own. */
-export const SHAPES = [["Own", 0], ["9:16", 9 / 16], ["16:9", 16 / 9], ["1:1", 1], ["4:5", 4 / 5]] as const;
+export const SHAPES = [["Original", 0], ["9:16", 9 / 16], ["16:9", 16 / 9], ["1:1", 1], ["4:5", 4 / 5]] as const;
 
 /** The largest centred crop of a w x h picture at shape r (width / height), as fractions [x, y, w, h]. */
 export function shapeCrop(w: number, h: number, r: number): Crop {
@@ -173,9 +173,9 @@ export function shapeCrop(w: number, h: number, r: number): Crop {
   return [0, (1 - ch) / 2, 1, ch];
 }
 
-/** Which of SHAPES a crop gives ("Own" when there is none). */
+/** Which of SHAPES a crop gives ("Original" when there is none). */
 export function shapeOf(w: number, h: number, crop?: Crop): string {
-  if (!crop) return "Own";
+  if (!crop) return "Original";
   const r = (crop[2] * w) / (crop[3] * h);
   return SHAPES.find(([, x]) => x && Math.abs(r / x - 1) < 0.01)?.[0] ?? "Custom";
 }

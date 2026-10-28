@@ -171,7 +171,7 @@ function RunsAt({ size, input, onPick }: { size: SizeSpec; input: PrepInput; onP
       <div className="ed-chips">
         {size.options.map((o) => (
           <button key={o.label} type="button" aria-pressed={choice === o.label} onClick={() => onPick(o.label)} title={o.px ? `About ${o.label} at its shape` : "Its own pixels"}>
-            {o.px ? o.label : "Own"}<span className="mono">{dimsText(plans(size, [{ ...input, size: o.label }])[input.slot])}</span>
+            {o.px ? o.label : "Original"}<span className="mono">{dimsText(plans(size, [{ ...input, size: o.label }])[input.slot])}</span>
           </button>
         ))}
       </div>

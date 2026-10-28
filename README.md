@@ -40,7 +40,7 @@ same commit as the code it describes.
 **MiniMax H3 is the core model.** Every video template the app ships runs MiniMax H3
 locally through ComfyUI's built-in H3 nodes: Create a video (from words) and Animate a
 photo (photo as first frame), both video with sound on H3 FL2VA with its 4-step turbo LoRA; Character swap (H3 Ref2VA with a character swap
-LoRA), and Character swap with RefMod. Character Lab is built on H3 too: it turns a
+LoRA), and Character swap with RefMod (the same, plus H3's 4-step Ref2V turbo LoRA). Character Lab is built on H3 too: it turns a
 person's photos into an H3 RefMod with H3's video VAE and feeds it to H3 runs. The
 photo templates (Qwen Image 2.1) are there to make and fix the stills those videos start from.
 
@@ -99,6 +99,7 @@ links) before it runs; the app never downloads models. Into ComfyUI's `models/` 
 | [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) | `diffusion_models` | 21 GB | Create a video, Animate a photo |
 | [minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors) | `loras` | 2 GB | Create a video, Animate a photo |
 | [minimax_h3_ref2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors) | `diffusion_models` | 21 GB | Character swap (both) |
+| [minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors) | `loras` | 2 GB | Character swap with RefMod |
 | [h3_character_swap_pro4500_1000](https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA/resolve/main/h3_character_swap_pro4500_1000.safetensors) | `loras` | 0.2 GB | Character swap (both) |
 | [qwen3vl_32b_minimax_h3_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors) | `text_encoders` | 27 GB | every H3 template |
 | [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) | `vae` | 2.8 GB | every H3 template, Character Lab |
@@ -653,6 +654,13 @@ size; both MiniMax H3 templates ask for a length. A cloud template saved before
 models had settings gets its job's settings at their defaults when it loads
 (`contract._model_settings`).
 
+A template that starts from a photo or clip renders at that input's frame, as prepared:
+its own shape (or the crop), at the size step picked in Create (Original keeps it, under
+the cap). An input can name the step it opens at (`"size": "0.4 MP"` on the input); the
+two character swaps do, so a clip of any shape runs at H3's usual 0.4 MP budget. Their
+workflows read the frame from the clip (`GetImageSize` on `GetVideoComponents`), the way
+Animate a photo reads it from the photo, so no shape is fixed in the graph.
+
 ## Character Lab
 
 A character is someone you keep for runs: a name, a few photos, and the **RefMod**
@@ -707,7 +715,8 @@ flowchart LR
 - **Template:** `local/minimax-h3-character-refmod` is the character swap with a RefMod
   loader and apply node before the guider. The RefMod is the character; `image:1` is optional
   (no sample, no paired face): left empty, its loader is pruned and the reference node keeps only the clip.
-  The prompt names the clip, not a picture, so it reads the same either way. 4 steps take about 11 minutes on an RTX 4060 Ti.
+  The prompt names the clip, not a picture, so it reads the same either way. It runs H3's Ref2V turbo LoRA on top of the swap LoRA at 4 steps
+  (the workflow's Turbo switch, on); the plain Character swap keeps it off and runs 20.
 - **Characters are RefMods only.** Cloud "omni reference" (Seedance, Kling) is not a saved
   character: it is several reference photos sent with each request, which a cloud template
   takes as ordinary photo inputs. Nothing on Router keeps a person between runs.

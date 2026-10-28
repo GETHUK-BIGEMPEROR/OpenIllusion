@@ -215,7 +215,7 @@ export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, o
             <label><span>H</span><input className="mono" type="number" min={8} max={8192} value={o.h} onChange={(ev) => setSide(+ev.target.value, "h")} aria-label="Height" /></label>
           </div>
           <div className="ed-chips">
-            {([["Own", null], ["75%", 0.75], ["50%", 0.5], ["25%", 0.25], ["2×", 2]] as const).map(([label, k]) => (
+            {([["Original", null], ["75%", 0.75], ["50%", 0.5], ["25%", 0.25], ["2×", 2]] as const).map(([label, k]) => (
               <button key={label} type="button" aria-pressed={k == null ? e.width == null : e.width === Math.round(cw * k)} onClick={() => set({ width: k == null ? null : Math.round(cw * k) })}>{label}</button>
             ))}
           </div>
@@ -237,7 +237,7 @@ export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, o
         <section className="ed-sec">
           <h3>Frame rate</h3>
           <div className="ed-chips">
-            <button type="button" aria-pressed={e.fps == null} onClick={() => set({ fps: null })}>Own{m.fps ? ` ${+m.fps.toFixed(2)}` : ""}</button>
+            <button type="button" aria-pressed={e.fps == null} onClick={() => set({ fps: null })}>Original{m.fps ? ` ${+m.fps.toFixed(2)}` : ""}</button>
             {RATES.map((r) => <button key={r} type="button" aria-pressed={e.fps === r} className={cx(fit?.fps && !inRange(r, fit.fps) && "out")} onClick={() => set({ fps: r })}>{r}</button>)}
           </div>
           <p className="ed-hint">{fit?.fps ? "Faded rates are outside what the model takes." : "Frames are dropped or repeated to the new rate."}</p>
