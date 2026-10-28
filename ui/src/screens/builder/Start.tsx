@@ -7,7 +7,7 @@ import { cx, Spinner } from "../../components/ui";
 import { api, type RouterAdapter } from "../../lib/api";
 import { errMsg } from "../../lib/format";
 import { go } from "../../lib/route";
-import { KIND_ICON } from "./model";
+import { KIND_ICON, KIND_NOUN } from "./model";
 import { routerJobs } from "./modes";
 
 export type Track = "local" | "cloud";
@@ -94,6 +94,16 @@ function RouterStart({ onModel }: { onModel: (a: RouterAdapter) => void }) {
 
 const MAKER: Record<string, string> = { kling: "Kuaishou", byteplus: "ByteDance", veo: "Google", vertexai: "Google", wan: "Alibaba", openai: "OpenAI", bfl: "Black Forest Labs", xai: "xAI" };
 
+/** How a model reads a file named in the prompt: Kling's "<<<image_1>>>", Seedance's "@Image 1", or the name as written.
+ *  Null when it takes no files. */
+function readsAs(m: RouterAdapter): { name: string; token: string | null } | null {
+  const kind = m.inputs[0]?.type;
+  if (!kind) return null;
+  const name = `${KIND_NOUN[kind]} 1`;
+  const form = m.mentions?.[kind];
+  return { name, token: form ? form.replace("{n}", "1") : null };
+}
+
 /** What a Router model can do: its jobs, in the words the Builder's job cards use. */
 const modeNames = (a: RouterAdapter) => routerJobs(a).map((j) => j.label);
 
@@ -101,6 +111,7 @@ const modeNames = (a: RouterAdapter) => routerJobs(a).map((j) => j.label);
 function ModelCard({ m, onPick }: { m: RouterAdapter; onPick: () => void }) {
   const provider = m.model.split("/")[0];
   const video = m.mode === "motion";
+  const reads = readsAs(m);
   return (
     <button type="button" className={cx("bc-card", video ? "v" : "p")} onClick={onPick} aria-label={`${m.name}: ${modeNames(m).join(", ")}`}>
       <span className="bc-top">
@@ -120,6 +131,16 @@ function ModelCard({ m, onPick }: { m: RouterAdapter; onPick: () => void }) {
           )) : <span className="bc-role none">Prompt only</span>}
         </span>
       </span>
+      {reads && (
+        <span className="bc-row reads" title={reads.token ? `Write ${reads.name} in the prompt; ${m.name} gets ${reads.token}` : `${m.name} has no names for its files`}>
+          <span className="bc-lab">Reads</span>
+          <span className="bc-chips">
+            {!reads.token ? <span className="bc-role none">No file names: describe each in words</span>
+              : reads.token === reads.name ? <span className="bc-role">{reads.name}, as written</span>
+              : <span className="bc-tok">{reads.name}<I n="arrow" /><code>{reads.token}</code></span>}
+          </span>
+        </span>
+      )}
     </button>
   );
 }

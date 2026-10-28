@@ -79,3 +79,20 @@ export function mentions(names: Record<string, string> | undefined, files: Omit<
 export const noNames = (names: Record<string, string> | undefined, files: unknown[], model: string) =>
   names && files.length && !Object.keys(names).length ? `${model} has no names for its files. Describe each one in words.` : null;
 
+
+/** The prompt cut where it names a file the run sends, with that name in the model's own form: what the model
+ *  reads. The same rule the server sends by (engines.name_files): "@Image 1" or "Images 2" stay as written. */
+export function sentAs(prompt: string, list: Mention[]): { text: string; token: boolean }[] {
+  const tokens = new Map(list.map((m) => [m.name, m.token]));
+  const out: { text: string; token: boolean }[] = [];
+  let at = 0;
+  for (const m of prompt.matchAll(/(?<![@<\w])(Image|Video|Audio) (\d+)(?![>\w])/g)) {
+    const t = tokens.get(m[0]);
+    if (!t) continue;
+    if (m.index > at) out.push({ text: prompt.slice(at, m.index), token: false });
+    out.push({ text: t, token: true });
+    at = m.index + m[0].length;
+  }
+  if (at < prompt.length) out.push({ text: prompt.slice(at), token: false });
+  return out;
+}

@@ -6,8 +6,11 @@ import { EmptyBox, I, PageHead, useStatus } from "../components/oi";
 import type { IconName } from "../components/sprite";
 import { sharedTags, TemplateCard, tplModel } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
+import { useFileDrop } from "../components/Drop";
+import { cx, Spinner } from "../components/ui";
 import { api, type EngineInfo } from "../lib/api";
 import { errMsg } from "../lib/format";
+import { landImport } from "../lib/imports";
 import { go, href } from "../lib/route";
 import { useApp } from "../lib/store";
 
@@ -208,6 +211,7 @@ export function Explore({ t }: { t?: string }) {
               {f.q ? "Try another word: what it does (hat, swap, relight), the model, or a tag." : "Clear the filters to see all of them."}
             </EmptyBox>
           )}
+          <AddTemplate />
         </div>
       </div>
       <div className={open ? "scrim on" : "scrim"} onClick={close} />
@@ -279,5 +283,36 @@ function Opt({ on, n, dim, say, icon, onPick, children }: { on: boolean; n?: num
       {n != null && <span className="xo-n mono">{n}</span>}
       <I n="check" size={14} className="xo-on" />
     </button>
+  );
+}
+
+/** Under the templates: add one someone exported, by dropping its .illusion here or choosing it. */
+function AddTemplate() {
+  const toast = useApp((s) => s.toast);
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const add = async (files: File[]) => {
+    const f = files[0];
+    if (!f || busy) return;
+    setBusy(true);
+    try {
+      landImport(await api.importFile(f));
+    } catch (e) {
+      toast({ text: errMsg(e), tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const drop = useFileDrop((files) => void add(files));
+  return (
+    <section {...drop.props} className={cx("xadd", drop.over && "over")} aria-label="Add a shared template">
+      <input ref={input} type="file" accept=".illusion" hidden onChange={(ev) => { void add([...(ev.target.files ?? [])]); ev.target.value = ""; }} />
+      <span className="xadd-ic">{busy ? <Spinner size={18} /> : <I n="import" />}</span>
+      <div className="xadd-t">
+        <b>Add a template someone shared</b>
+        <p>Drop its .illusion here. It brings its samples and cover, and lands on Explore as yours. Export one from any template in Create.</p>
+      </div>
+      <button className="btn" type="button" disabled={busy} onClick={() => input.current?.click()}><I n="upload" />Choose file</button>
+    </section>
   );
 }

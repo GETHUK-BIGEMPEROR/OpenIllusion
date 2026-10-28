@@ -3,7 +3,6 @@ import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Mentions } from "../../components/Mentions";
 import { mentions, noNames, type Mention } from "../../lib/fields";
 import { I } from "../../components/oi";
-import type { IconName } from "../../components/sprite";
 import { isAudio, isImage, isVideo, useFileDrop, usePageDrop } from "../../components/Drop";
 import { FitLine, MediaSheet, MediaThumb, metaOf } from "../../components/MediaEditor";
 import { ACCEPT, ACCEPT_AUDIO, ACCEPT_VIDEO } from "../create/shared";
@@ -16,44 +15,57 @@ import { useApp } from "../../lib/store";
 import { type Details, human, KIND_ICON, KIND_NOUN, type MediaRow, type OutputState, type PromptState, type Source } from "./model";
 import { adapterProblems, fitText, jobOf, type JobKind, maxOf, type Need, placeFiles, placeMiss, ROLE_HINT, routerJobs, runSays, toJob } from "./modes";
 
-export function Sec({ id, icon, color, title, desc, aside, children }: { id: string; icon: IconName; color?: string; title: string; desc: ReactNode; aside?: ReactNode; children: ReactNode }) {
+/** One step of the set-up: numbered in page order (a CSS counter), joined to the next by the spine. */
+export function Sec({ id, title, desc, aside, children }: { id: string; title: string; desc: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
-    <section className="bsec" aria-labelledby={`bld-${id}`} style={color ? ({ "--c": color } as CSSProperties) : undefined}>
-      <div className="bsec-h">
-        <span className="ic"><I n={icon} /></span>
-        <div><h3 id={`bld-${id}`}>{title}</h3><p>{desc}</p></div>
-        {aside}
+    <section className="bsec" aria-labelledby={`bld-${id}`}>
+      <div className="bsec-n" aria-hidden><span /></div>
+      <div className="bsec-b">
+        <div className="bsec-h">
+          <div><h3 id={`bld-${id}`}>{title}</h3><p>{desc}</p></div>
+          {aside}
+        </div>
+        {children}
       </div>
-      {children}
     </section>
   );
 }
 
+/** What the template is made from: the Router model, or the workflow file and whether this ComfyUI can run it. */
 export function SourceBar({ src }: { src: Source }) {
-  const [open, setOpen] = useState(false);
   if (src.kind === "cloud") {
     return (
       <div className="bld-source">
-        <span className="bc-ic cloud"><I n="cloud" /></span>
+        <span className="bc-ic cloud" aria-hidden>{src.a.name.slice(0, 2)}</span>
         <div><b>{src.a.name}</b><span className="mono">{src.a.model} · Comfy Router · makes {src.a.mode === "motion" ? "video" : "photos"}</span></div>
       </div>
     );
   }
+  const a = src.a;
+  const missing = a.check.missing_nodes.length + a.check.missing_models.length;
+  return (
+    <div className="bld-source">
+      <span className="bc-ic local"><I n="graph" /></span>
+      <div>
+        <b className="mono">{a.source}</b>
+        <span>{a.nodes} nodes · {a.preset ? "from the template, set up as it is" : a.format === "ui" ? "converted from the saved workflow" : "API format"}</span>
+      </div>
+      {missing ? <span className="pill rose"><I n="alert" />{missing} missing</span> : <span className="pill"><i className="dot" />Ready to run</span>}
+    </div>
+  );
+}
+
+/** A workflow's gaps on this ComfyUI: missing nodes and models, values it won't take, notes. Nothing when there are none. */
+export function SourceCheck({ src }: { src: Source }) {
+  const [open, setOpen] = useState(false);
+  if (src.kind === "cloud") return null;
   const a = src.a;
   const c = a.check;
   const loaders = new Set(a.media.map((m) => m.node));
   const bad = c.bad_values.filter((b) => !loaders.has(b.node_id));
   const missing = c.missing_nodes.length + c.missing_models.length;
   return (
-    <div className="bld-source-wrap">
-      <div className="bld-source">
-        <span className="bc-ic local"><I n="graph" /></span>
-        <div>
-          <b className="mono">{a.source}</b>
-          <span>{a.nodes} nodes · {a.preset ? "from the template, set up as it is" : a.format === "ui" ? "converted from the saved workflow" : "API format"}</span>
-        </div>
-        {missing ? <span className="pill rose"><I n="alert" />{missing} missing</span> : <span className="pill"><i className="dot" />Ready to run</span>}
-      </div>
+    <>
       {(missing > 0 || bad.length > 0 || a.notes.length > 0) && (
         <div className={cx("bld-check", missing > 0 && "warn")}>
           {missing > 0 && <p><b>Your ComfyUI is missing things this workflow uses.</b> The template saves anyway; runs fail until they're installed.</p>}
@@ -68,7 +80,7 @@ export function SourceBar({ src }: { src: Source }) {
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -101,7 +113,7 @@ export function InputsSection({ rows, setRows }: { rows: MediaRow[]; setRows: (f
   }, "Drop photos, clips or sounds to fill the empty inputs");
   const names = slotNames(shown);
   return (
-    <Sec id="in" icon="upload" color="var(--mint)" title="Inputs"
+    <Sec id="in" title="Inputs"
       desc="Found in the workflow. Drop a sample into each: the first run uses it, and it ships as the template's default. Edit a sample to crop, turn, size or cut it."
       aside={shown.length ? <span className="mono">{shown.length}</span> : undefined}>
       {!shown.length ? (
@@ -127,7 +139,7 @@ export function JobSection({ a, rows, setRows }: { a: RouterAdapter; rows: Media
   if (jobs.length < 2) return null;
   const out: MediaKind = a.mode === "motion" ? "video" : "image";
   return (
-    <Sec id="job" icon="wand" color="var(--yellow)" title="What it does" desc={`${a.name} does ${jobs.length} things. Pick one: it decides what people are asked for.`}>
+    <Sec id="job" title="What it does" desc={`${a.name} does ${jobs.length} things. Pick one: it decides what people are asked for.`}>
       <div className="bjobs" role="radiogroup" aria-label="What this template does">
         {jobs.map((j) => {
           // What goes in: the kinds of file the job takes, then the prompt.
@@ -203,7 +215,7 @@ export function CloudInputs({ a, rows, setRows }: { a: RouterAdapter; rows: Medi
     }
   };
   return (
-    <Sec id="in" icon="upload" color="var(--mint)" title="Inputs"
+    <Sec id="in" title="Inputs"
       desc={j?.inputs.length ? "Drop a sample in each one you want. People are asked for every input you fill, and your samples are the defaults. Edit a sample to fit the model, or leave it: a run fits it anyway." : "None: people only write the prompt."}>
       {/* What the job must have comes first. */}
       {j && [...j.inputs].sort((x, y) => +(j.need[y] === "yes") - +(j.need[x] === "yes")).map((i) => {
@@ -338,9 +350,10 @@ export function PromptSection({ src, p, setP, files = [] }: { src: Source; p: Pr
   });
   const unsure = src.kind === "local" && !p.pick && !src.a.prompt && src.a.texts.filter((t) => t.polarity !== "negative").length > 1;
   return (
-    <Sec id="pr" icon="pencil" color="var(--violet)" title="Prompt" desc={src.kind === "cloud" && Object.keys(src.a.mentions ?? {}).length
+    <Sec id="pr" title="Prompt" desc={src.kind === "cloud" && Object.keys(src.a.mentions ?? {}).length
       ? `What the template opens with. People can change any word on Create. Name files as Image 1, Video 1…; ${src.a.name} gets them in its own form.`
-      : "What the template opens with. People can change any word on Create; it's sent exactly as written."}>
+      : src.kind === "cloud" ? "What the template opens with. People can change any word on Create."
+      : "Pick the text box people write in. What the template opens with; it's sent exactly as written."}>
       {!options.length ? (
         <p className="help">No text box in this workflow takes a prompt. The template runs on its inputs alone.</p>
       ) : (
@@ -357,10 +370,14 @@ export function PromptSection({ src, p, setP, files = [] }: { src: Source; p: Pr
             <button type="button" role="radio" aria-checked={!p.pick} onClick={() => setP((x) => ({ ...x, pick: "" }))}><span className="tx">No prompt. The text stays as saved.</span></button>
           </div>}
           {p.pick && (
-            <textarea ref={ta} className="textarea bprompt" aria-label="The prompt the template opens with" rows={Math.min(10, Math.max(3, Math.ceil(p.def.length / 70)))} value={p.def} maxLength={4000} onChange={set("def")} placeholder="The prompt the template starts with" spellCheck={false} />
-          )}
-          {p.pick && src.kind === "cloud" && (
-            <Mentions list={mentions(src.a.mentions, files)} none={noNames(src.a.mentions, files, src.a.name)} model={src.a.name} ta={ta} value={p.def} onChange={(v) => setP((x) => ({ ...x, def: v }))} />
+            <div className="bpr-box">
+              <textarea ref={ta} className="bprompt" aria-label="The prompt the template opens with" rows={Math.min(10, Math.max(3, Math.ceil(p.def.length / 70)))} value={p.def} maxLength={4000} onChange={set("def")} placeholder="The prompt the template starts with" spellCheck={false} />
+              {src.kind === "cloud" && (mentions(src.a.mentions, files).length > 0 || noNames(src.a.mentions, files, src.a.name)) && (
+                <div className="bpr-names">
+                  <Mentions list={mentions(src.a.mentions, files)} none={noNames(src.a.mentions, files, src.a.name)} model={src.a.name} ta={ta} value={p.def} onChange={(v) => setP((x) => ({ ...x, def: v }))} preview />
+                </div>
+              )}
+            </div>
           )}
         </>
       )}
@@ -372,7 +389,7 @@ export function PromptSection({ src, p, setP, files = [] }: { src: Source; p: Pr
 export function ResultSection({ a, o, setO }: { a: WorkflowAnalysis; o: OutputState; setO: (f: (o: OutputState) => OutputState) => void }) {
   const pick = (id: string) => setO((x) => ({ ...x, result: id }));
   return (
-    <Sec id="rs" icon="check" color="var(--yellow)" title="The result" desc="This workflow saves more than one thing. Pick the one a run keeps.">
+    <Sec id="rs" title="The result" desc="This workflow saves more than one thing. Pick the one a run keeps.">
       {!a.results.length ? (
         <p className="bwarn err"><I n="alert" />No save node. Add Save Image or Save Video in ComfyUI, then drop the workflow again.</p>
       ) : (
@@ -393,13 +410,13 @@ export function ResultSection({ a, o, setO }: { a: WorkflowAnalysis; o: OutputSt
 }
 
 /** The template's name, up top: it's what Explore, Create and the Library show. */
-export function TitleField({ d, setD, invalid }: { d: Details; setD: (f: (d: Details) => Details) => void; invalid: boolean }) {
+export function TitleField({ d, setD, invalid, from }: { d: Details; setD: (f: (d: Details) => Details) => void; invalid: boolean; from?: string }) {
   // Labels read "Name · Model"; the model half rides along untouched.
   const [name, ...rest] = d.label.split(" · ");
   const model = rest.join(" · ");
   return (
     <div className={cx("bname", invalid && "bad")}>
-      <label htmlFor="bd-label">Template name</label>
+      <label htmlFor="bd-label">Template name, as Explore, Create and your Library show it</label>
       <div className="bname-in">
         <span className="bname-f">
           <input id="bd-label" value={name} maxLength={60} placeholder="Name your template" spellCheck={false} aria-invalid={invalid || undefined}
@@ -409,6 +426,7 @@ export function TitleField({ d, setD, invalid }: { d: Details; setD: (f: (d: Det
         {model && <span className="pill bname-m" title="The model, shown under the name on Explore">{model}</span>}
       </div>
       {invalid && <span className="bname-err" role="alert">Give it a name. Explore, Create and your Library show it.</span>}
+      {from && <p className="bname-from">Built from <b>{from}</b>. Keeps its prompt ideas.</p>}
     </div>
   );
 }

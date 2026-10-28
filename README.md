@@ -169,7 +169,7 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 
 | Screen | Route | What you do there | File |
 | --- | --- | --- | --- |
-| Explore | `#/explore` | Every published template on one wall: photos and videos, your GPU and cloud together. On top, one search field (`/` jumps to it, Esc clears; it reads the name, model, tags, blurb and prompts, best matches first) with how many match. Under it the filters: Photo / Video, Model (each says Your GPU or Cloud; that is where it runs), Input (a photo, a clip, a sound, words only), Clear, and Sort on the right (Recently used, the default, then Featured, Most used, A to Z; used = your runs). Each filter's counts follow the others. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Moving the mouse over a card wipes between the cover and the input it was made from (photo or clip; a clip plays only while hovered). Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back). A template without a cover yet shows its name until a result is made its cover. The inspector shows the cover beside its input as a slider you drag across, photos or clips (two clips loop in step). | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
+| Explore | `#/explore` | Every published template on one wall: photos and videos, your GPU and cloud together. On top, one search field (`/` jumps to it, Esc clears; it reads the name, model, tags, blurb and prompts, best matches first) with how many match. Under it the filters: Photo / Video, Model (each says Your GPU or Cloud; that is where it runs), Input (a photo, a clip, a sound, words only), Clear, and Sort on the right (Recently used, the default, then Featured, Most used, A to Z; used = your runs). Each filter's counts follow the others. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Moving the mouse over a card wipes between the cover and the input it was made from (photo or clip; a clip plays only while hovered). Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back); the card's hover buttons end with the same trash (right of (i)), and Create's header has it too, with Export .illusion. Under the wall, **Add a template someone shared** takes a template's `.illusion` (drop or Choose file; dropping one anywhere does the same): it lands on Explore as yours, opened in the inspector. A template without a cover yet shows its name until a result is made its cover. The inspector shows the cover beside its input as a slider you drag across, photos or clips (two clips loop in step). | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
 | Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips put each filled file's name, Image 1 or Video 1, at the cursor), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. Opening a template shows a finished run, as after Run: your latest run of it, else its Example (the cover beside the input it was made from); Inputs flips to editing. Input and result compare the same way for photos and clips: a framed picture at the result's shape, Input and Result on it, a slider you drag across (clips add a transport under the frame and Side by side). Under the header: Build from this (every template; a cloud one opens on its model with its inputs, prompt and settings) and, for local ones, the ComfyUI workflow. A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
 | Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
@@ -178,9 +178,10 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Queue | drawer | Every run from both studios, grouped by what it needs from you. | `screens/QueueDrawer.tsx` |
 | Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Templates (shipped ones taken off Explore, each with Put back), Storage (disk use, clean working copies, back up and restore), Cloud (API key). | `screens/Settings.tsx` |
 | Connect | `#/connect` | First run only: check the ComfyUI on this machine, then open Explore. No account. | `screens/Connect.tsx` |
+| Export template | Create's header, the inspector | **Export .illusion**: one template with its samples and the cover you set, to share. The other OpenIllusion drops it on Explore's Add a template (or anywhere) and it's theirs: deletable, under a new id if theirs is taken. Local templates also keep **ComfyUI workflow**, a `.json` for ComfyUI itself (dropped back here it starts a new template in Build). | `server/template_pack.py`, `components/TemplateCard.tsx` |
 | Export | sheet | Export on a finished run (Create, the Generation page): a `.illusion` file (Light, Full, or Recipe only), the recipe as JSON, or a link. It says what the file is for: drop it on any OpenIllusion page or press Library → Import; it opens under Imported, and Remix loads it into Create. | `screens/ShareSheet.tsx` |
 | Import | dialog | Library → Import, a drop anywhere, or a link: a bundle, PNG or MP4 with a recipe. Review, then add to the Library. A dropped ComfyUI workflow goes to Build instead. | `screens/ImportReview.tsx` |
-| Edit a file | Create's stage; a sheet in the Builder | One workbench for every photo, clip and sound: the model's limits as pills on top (green fits, orange a run changes it, red can't run; a pill opens its tool) with **Fit to spec**, tools on the left (crop, turn, size, cut, rate, sound), the file in the middle with what the model keeps outlined, the tool's settings on the right, a clip's timeline below (past the model's length is hatched: not sent), and what changes along the bottom. Hold for original. In Create the edits wait on the input and are made when it runs (crop and cut go through the run's own crop and trim; turn, size, rate and sound make a new file just before the run, or now with Apply now). In the Builder, Save makes the new file. The original always stays. | `components/MediaEditor.tsx`, `lib/edits.ts` |
+| Edit a file | Create's stage; a sheet in the Builder | One workbench for every photo, clip and sound: the model's limits as pills on top (green fits, orange a run changes it, red can't run; a pill opens its tool) with **Fit to spec**, tools on the left (crop, turn, size, cut, rate, sound), the file in the middle with what the model keeps outlined, the tool's settings on the right, a clip's timeline below (past the model's length is hatched: not sent), and what changes along the bottom. Hold for original. In Create the edits wait on the input and are made when it runs (crop and cut go through the run's own crop and trim; turn, size, rate and sound make a new file just before the run, or now with Apply now). In the Builder, Save makes the new file. The original always stays. On a local template the size tool is **Size it runs at**: the template's steps (0.5 MP, 1 MP…, each with the pixels it makes at the crop's shape) or Custom, which opens width and height; picking a step drops a typed size. Every "Runs at" sizes the file as its edits will make it (`runInput`). | `components/MediaEditor.tsx`, `lib/edits.ts` |
 | Restore | dialog | A dropped `.illusionbackup` (or Settings → Storage → Choose file): what it would add, then Restore, with progress. | `screens/RestoreReview.tsx` |
 
 ## Design rules
@@ -201,7 +202,7 @@ here in the same commit.
 - **Every gate says why.** Run is never greyed out without the reason next to it
   ("Video edit needs a Video to edit", "Give the template a name").
 - **Steps you can walk back.** The Builder's steps show where you are; Back sits at
-  the top and in the footer, and a finished step is clickable. Leaving asks first
+  the top, and a finished step is clickable. Leaving asks first
   only when something of yours would be lost (a name, a dropped file).
 - **One editor per file, everywhere.** A photo, clip or sound is the same card
   and opens the same editor wherever it sits (Create's input list, the Builder's
@@ -286,6 +287,7 @@ Where to look when you change something.
 | `fit.py` | What a model takes in each file (`fit`: sides, shape, MB, seconds, total, fps) and how a photo or clip's plan and a clip's span change to meet it. `staging.fitted` applies it to a run. |
 | `store.py` · `generation.py` | The library: one folder per generation with `generation.json` (pydantic `Manifest`), indexed in SQLite with full-text search; trash. |
 | `bundle.py` · `archive.py` | Export a generation as a zip, import one back; the checks every zip from outside passes first (`archive.files`: paths stay inside, allowed types, count and size caps). |
+| `template_pack.py` | One template as a `.illusion` (`illusion.json` with a sha256 per file, `template.json`, `media/`, `cover/`): `export`, `is_pack` (a template's, not a generation's), `install` (checked like any zip from outside, every media name must be in the package, the template must load before anything moves in). |
 | `backup.py` | Whole-library backups (`.illusionbackup`): `create`, `inspect` (what a restore would add), `restore` (merge). See [Backups](#backups). |
 | `settings.py` · `storage.py` · `paths.py` | Settings (on disk) and the secrets (in memory, `remember`); disk usage and cleanup; home folder paths, what each entry is (`TIERS`), and `write_atomic`. See [Storage](#storage). |
 
@@ -295,11 +297,11 @@ Where to look when you change something.
 | --- | --- |
 | `lib/api.ts` | Every API call and its types. Start here. |
 | `lib/store.ts` | App state (zustand): the open studio's inputs, prompt and sounds, one unsent draft per template, remix (`loadGeneration`). |
-| `lib/spec.ts` · `fields.ts` | Studio state → the run spec the server composes (`toSpec`); which inputs a template shows. |
+| `lib/spec.ts` · `fields.ts` | Studio state → the run spec the server composes (`toSpec`); which inputs a template shows; a prompt as the model gets it, names swapped for tokens (`sentAs`). |
 | `lib/route.ts` · `live.ts` · `query.ts` | Hash routes; the WebSocket feed of job updates; React Query setup. |
 | `App.tsx` · `components/Shell.tsx` · `Palette.tsx` | Layout, rail and tab bar, drops anywhere on the page (files from outside only: a drag that starts on the page, like selected text, is ignored; a page with inputs of its own takes media through `usePageDrop`), Ctrl K palette. |
 | `screens/*` | One file per screen; see [The app](#the-app-screen-by-screen). |
-| `screens/builder/` | Builder: Local workflow and Comfy Router tabs, three steps with Back, save and first run (`Builder.tsx`); the start step (`Start.tsx`), the template's sections (`Sections.tsx`), output size and settings (`Settings.tsx`), row state from a workflow or preset (`model.ts`). On Router: job cards built from the adapter's sets or `models` (`modes.ts`), inputs grouped by role (each role's limits as pills counted across its files, **Fit all to spec**, a card per sample with Edit, Replace, Remove), a sentence on what the run makes, and the same `set`/`needs`/`models` checks as the server. |
+| `screens/builder/` | Builder: Local workflow and Comfy Router tabs, three steps with Back, the checklist, save and first run (`Builder.tsx`); the start step and model cards (`Start.tsx`), the template's numbered sections and the workflow's missing nodes and models (`Sections.tsx`, `SourceCheck`), output size and settings with Ask/Lock (`Settings.tsx`), the side panel: Create's view, the checklist, Run (`Rail.tsx`), row state from a workflow or preset (`model.ts`). On Router: job cards built from the adapter's sets or `models` (`modes.ts`), inputs grouped by role (each role's limits as pills counted across its files, **Fit all to spec**, a card per sample with Edit, Replace, Remove), a sentence on what the run makes, and the same `set`/`needs`/`models` checks as the server. |
 | `screens/create/` | Create: the page (`CreateStudio.tsx`; the stage shows the picked input in the editor, or the run), input cards, the inline editor and the edits made just before Run (`Inputs.tsx`), the canvas (`Canvas.tsx`), prompt and Run (`Panel.tsx`), this template's runs (`History.tsx`). |
 | `components/Studio.tsx` · `Refs.tsx` · `Trimmer.tsx` · `ABPlayer.tsx` | Create's parts: template seeding, `useRunner` (with a `prepare` step before the run), uploads, clip and sound trimming (filmstrip or wave; past the model's length hatched), before/after player. |
 | `components/MediaEditor.tsx` | The one editor for photos, clips and sounds: `Editor` (inline on Create's stage), `MediaSheet` (the Builder's sheet, saves a new file), `MediaThumb` (a file as its edits leave it), `FitLine` ("Fits Kling", "Run crops it to 5:2"). |
@@ -392,7 +394,7 @@ typed call for each.
 | --- | --- |
 | Status and setup | `GET status` · `POST local/check` · `POST local/proxy/start` · `POST onboarded` · `GET ws` (job updates) |
 | Settings and key | `GET/POST settings` · `POST key/test` · `POST key/forget` |
-| Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `POST templates/hide` (`{engine, hidden}`: a shipped template off Explore or back) · `GET templates/input` · `GET templates/workflow` · `GET/PUT/DELETE cover` |
+| Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `POST templates/hide` (`{engine, hidden}`: a shipped template off Explore or back) · `GET templates/input` · `GET templates/workflow` · `GET templates/export` (a template's `.illusion`; `POST import` adds one) · `GET/PUT/DELETE cover` |
 | Builder | `POST builder/workflow` · `POST builder/from-template` · `GET builder/models` (every adapter) · `POST builder/save` · `DELETE builder/template` |
 | Files | `POST upload` (photo, clip or sound; other formats converted) · `GET uploads/{asset}` · `POST frame` (a still from a clip) · `POST media/edit` (`{asset, ops: {rotate, flip, crop, width, height, start, end, fps, mute}}` → a new upload) |
 | Runs | `POST compose` (the request, without running) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
@@ -420,8 +422,19 @@ Explore and opens it in Create, running once.
 ## Making a template (Builder)
 
 The Builder has two tabs, **Local workflow** and **Comfy Router**, and three
-steps shown at the top: 1 bring a workflow or pick a model, 2 fill inputs, 3 run
-it. The tabs differ only in step 1, where the input list comes from.
+steps shown at the top: 1 bring a workflow or pick a model, 2 set it up, 3 run
+it once. The tabs differ only in step 1, where the input list comes from.
+
+Step 2 is one numbered column of sections (a spine down the left counts only the
+sections shown) beside a side panel that stays in view:
+
+- **On Create, people see**: the template as Create will show it, its name, model,
+  the files it asks for by the names Create gives them, the prompt, the settings
+  asked on Create with their starting values, and the locked ones in one line.
+- **Before the first run**: a checklist (named, inputs fit the model, every asked
+  setting named, result picked, prompt written, every input has a sample), each
+  met or with what's missing.
+- **Run**, with the first unmet item as the reason when it can't run.
 
 ```mermaid
 flowchart LR
@@ -443,7 +456,15 @@ flowchart LR
 - **Picking a model**: each adapter is a card under *Make video* and *Make photos*.
   Each card says what the model **Does** (its mode names, `modeNames`) and what it
   **Takes** (its roles, with the most files each takes, e.g. Reference image ×9),
-  both read off the adapter, so a new adapter gets its card for free.
+  both read off the adapter, so a new adapter gets its card for free. A third row,
+  **Reads**, says how it reads a file named in the prompt: Image 1 → `<<<image_1>>>`
+  (Kling), → `@Image 1` (Seedance), as written, or no names at all (Veo: describe
+  each file in words).
+- **Prompt names** (Router): under the prompt, a chip per filled file inserts its
+  name at the cursor; each chip also shows the token the model gets when it differs.
+  Below, *{model} gets* shows the prompt as sent, names swapped for tokens
+  (`sentAs`, the same swap as the server's `engines.name_files`). Create's chips
+  show the tokens too.
 - **An adapter** lists every input its model takes, by role (First frame, Video to
   edit…). The Builder turns its input `set`s (or its `models` routes) into **job
   cards** (`routerJobs`): Text to video, Animate a photo, From references, Edit a
@@ -455,24 +476,25 @@ flowchart LR
   least one). Switching jobs drops files from inputs the new job doesn't take.
   Under the inputs, one line says what the run makes, or what's missing. Each
   filled tile shows the name Create gives it (Image 1, Image 2). Step *Run* is
-  `builder.assemble_cloud`. Back (top, footer, or step 1) returns to the model or
+  `builder.assemble_cloud`. Back (top, or step 1) returns to the model or
   workflow list, asking first only if you named the template or dropped a file.
 - **Output size** (local): a workflow with a node that sets width and height (an
   empty latent, a video node) can hand both to Create: pick the node, then the shape
   and step it opens at. It's picked for you when the workflow takes no file and has
   one such node; with an input photo or clip, the input sets the size.
 - **Settings** (local): every widget value in the workflow can be one people change
-  on Create. All start off; the likely ones (seed, steps, length, denoise) are listed
-  first, the rest under *Show all*. Off, a value you change here is fixed into the
-  saved workflow. A template opened with *Build from this* keeps its controls as
+  on Create. Each row has **Ask on Create | Lock**; all start locked, the likely ones
+  (seed, steps, length, denoise) are listed first, the rest under *Show all*. Locked,
+  a value you change here is fixed into the saved workflow; asked, it gets the name
+  Create shows. A template opened with *Build from this* keeps its controls as
   they were (Duration stays 3/5/8/10/15 s, not a bare number box).
 - **Build from this, cloud.** A Router template opens on the Comfy Router tab with its
   model, each sample in the model input it fills (read off where the template's request
   holds it), its prompt and its settings; one the template fixed comes back fixed at its
   value (`builder.cloud_preset`). Saved, the copy keeps the original's prompt ideas.
 - **Settings** (Router): the model's own options the job asks for (below), each
-  with a starting value and a switch: on, people pick it on Create; off, every run
-  uses that value.
+  with a value and **Ask on Create | Lock**: asked, people pick it on Create,
+  starting at your value; locked, every run uses it.
 - **Dropping samples:** a file dropped on an input becomes its sample; drop several
   and the rest fill the empty inputs of their kind (that role first, then what the
   job must have), and a Router role takes more up to its cap. Files dropped anywhere

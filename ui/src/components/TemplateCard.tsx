@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type CSSProperties, type PointerEvent, type SyntheticEvent } from "react";
-import { api, templateWorkflowUrl, type EngineInfo } from "../lib/api";
+import { api, templateExportUrl, templateWorkflowUrl, type EngineInfo } from "../lib/api";
+import { confirm } from "../lib/confirm";
 import { errMsg } from "../lib/format";
 import { go } from "../lib/route";
 import { useApp } from "../lib/store";
@@ -23,6 +24,7 @@ export function sharedTags(list: Pick<EngineInfo, "tags">[]): string[] {
 /** A template on the Explore wall. Click opens it in Create; the (i) button opens its details. */
 export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: EngineInfo; selected?: boolean; locked?: string | null; onUse: () => void; onInspect: () => void }) {
   const n = e.inputs?.length ?? 0;
+  const del = useRemoveTemplate(e, () => {});
   const local = e.kind === "local";
   const video = e.mode === "motion";
   // The cover's input under the cursor, photo or clip: left of it is what goes in, right is what comes out.
@@ -76,7 +78,11 @@ export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: Eng
         )}
         <button className="icon-btn sm glass reveal" type="button" aria-label={`Build a template from ${tplName(e)}`} title="Build from this"
           onClick={(ev) => { ev.stopPropagation(); go({ name: "build", from: e.id }); }}><I n="graph" /></button>
-        <button className="icon-btn sm glass reveal" type="button" aria-label={`Details for ${tplName(e)}`} onClick={(ev) => { ev.stopPropagation(); onInspect(); }}><I n="info" /></button>
+        <button className="icon-btn sm glass reveal" type="button" aria-label={`Details for ${tplName(e)}`} title="Details" onClick={(ev) => { ev.stopPropagation(); onInspect(); }}><I n="info" /></button>
+        {del && (
+          <button className="icon-btn sm glass reveal del" type="button" aria-label={`${del.label}: ${tplName(e)}`} title={del.label} disabled={del.busy}
+            onClick={(ev) => { ev.stopPropagation(); void del.run(); }}><I n="trash" /></button>
+        )}
       </div>
       <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)}</p></div><span className="go"><I n="arrow" /></span></div>
     </article>
@@ -100,18 +106,64 @@ function NoCover({ e }: { e: EngineInfo }) {
   );
 }
 
-/** Under a template's header in Create: start a new template from it, or (local) take its workflow to ComfyUI. */
+/** Built by you, in your templates folder: deleted for real. A shipped template made in the Builder is still shipped. */
+export const mine = (e: EngineInfo) => !!e.built && e.origin === "user" && !e.edited;
+
+/** Deleting a template: yours goes for good; a shipped one only comes off Explore (an update would bring its file back),
+ *  and Settings → Templates puts it back. Null for a template that can't go. */
+export function useRemoveTemplate(e: EngineInfo, onDone: () => void) {
+  const qc = useQueryClient();
+  const toast = useApp((s) => s.toast);
+  const [busy, setBusy] = useState(false);
+  if (!e.origin) return null;
+  const own = mine(e);
+  const run = async () => {
+    const res = await confirm(own
+      ? { hold: true, view: () => ({ title: `Delete ${tplName(e)}?`, previews: e.cover ? [e.cover] : [], body: "Its samples and cover go too. This can't be undone.", facts: ["Generations made with it stay"], action: "Hold to delete" }) }
+      : { tone: "neutral", icon: "trash", view: () => ({ title: `Remove ${tplName(e)} from Explore?`, previews: e.cover ? [e.cover] : [], body: "It ships with OpenIllusion, so its file stays. Settings → Templates puts it back.", facts: ["Generations made with it stay"], action: "Remove" }) });
+    if (!res.ok) return;
+    setBusy(true);
+    try {
+      if (own) {
+        await api.deleteTemplate(e.id);
+        qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.filter((x) => x.id !== e.id));
+      } else {
+        await api.hideTemplate(e.id, true);
+        qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.map((x) => (x.id === e.id ? { ...x, hidden: true } : x)));
+      }
+      onDone();
+      toast({ text: own ? `${tplName(e)} deleted.` : `${tplName(e)} is off Explore. Settings → Templates puts it back.`, tone: "ok" });
+    } catch (x) {
+      toast({ text: `Couldn't ${own ? "delete" : "remove"}: ${errMsg(x)}`, tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { run, busy, label: own ? "Delete template" : "Remove from Explore" };
+}
+
+/** Under a template's header in Create: start a new template from it, export it to share, (local) take its workflow
+ *  to ComfyUI, or delete it. */
 export function TemplateTools({ e }: { e: EngineInfo }) {
+  const del = useRemoveTemplate(e, () => go({ name: "explore" }));
   return (
     <div className="ttools">
       <button className="ttool" type="button" onClick={() => go({ name: "build", from: e.id })}
         title={e.kind === "local" ? "A new template from this one's workflow, inputs and prompt" : "A new template on the same model, with this one's inputs, prompt and settings"}>
         <I n="graph" />Build from this
       </button>
+      <a className="ttool" href={templateExportUrl(e.id)} download title="One .illusion file with this template, its samples and cover. Anyone drops it on Explore to add it.">
+        <I n="share" />Export .illusion
+      </a>
       {e.kind === "local" && (
         <a className="ttool" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} title="The ComfyUI workflow with this template's prompt, settings and samples. Drop it into ComfyUI.">
           <I n="download" />ComfyUI workflow
         </a>
+      )}
+      {del && (
+        <button className="ttool del" type="button" onClick={() => void del.run()} disabled={del.busy} aria-label={del.label} title={del.label}>
+          <I n="trash" />
+        </button>
       )}
     </div>
   );

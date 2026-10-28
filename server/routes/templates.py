@@ -1,4 +1,4 @@
-"""Templates as the app sees them: the list, covers, text edits, duplicate and reset."""
+"""Templates as the app sees them: the list, covers, text edits, duplicate, reset and export."""
 
 from __future__ import annotations
 
@@ -6,11 +6,21 @@ import asyncio
 
 from aiohttp import web
 
-from .. import engines, store
+from .. import engines, store, template_pack
 from .common import API, err, body
 
 
 def register(routes: web.RouteTableDef) -> None:
+    @routes.get(API + "/templates/export")
+    async def export_template(request):
+        """One template as a .illusion: its samples and cover inside. Adding it is /import."""
+        try:
+            data, name = await asyncio.to_thread(template_pack.export, request.query.get("engine", ""))
+        except KeyError:
+            return err(404, "No such template")
+        return web.Response(body=data, content_type="application/zip",
+                            headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
     @routes.get(API + "/engines")
     async def list_engines(request):
         if request.query.get("reload"):

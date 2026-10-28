@@ -471,6 +471,9 @@ export interface Check {
   detail: string;
 }
 
+/** A dropped file as the server took it: a template's .illusion is added at once, anything else is a review. */
+export type Imported = ImportReview | { template: EngineInfo };
+
 export interface ImportReview {
   token: string;
   manifest: Manifest;
@@ -674,7 +677,7 @@ export const api = {
   importFile: (file: File) => {
     const fd = new FormData();
     fd.append("file", file, file.name);
-    return req<ImportReview>("POST", "/import", fd);
+    return req<Imported>("POST", "/import", fd);
   },
   importText: (text: string) => req<ImportReview>("POST", "/import", text.trim().startsWith("http") && !text.includes("#gen=") ? { url: text.trim() } : { text }),
   importUrl: (url: string) => req<ImportReview>("POST", "/import", { url }),
@@ -689,5 +692,6 @@ export const api = {
 export const fileUrl = (id: string, rel: string) => `${API}/generations/${id}/file/${rel}`;
 export const trashFileUrl = (id: string, rel: string) => `${API}/trash/${id}/file/${rel}`;
 /** A local template as a ComfyUI workflow with its defaults; its samples land in ComfyUI's input folder. */
+export const templateExportUrl = (engine: string) => `${API}/templates/export?engine=${encodeURIComponent(engine)}`;
 export const templateWorkflowUrl = (engine: string) => `${API}/templates/workflow?engine=${encodeURIComponent(engine)}`;
 export const workflowUrl = (id: string) => `${API}/generations/${id}/workflow`;

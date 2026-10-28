@@ -1,14 +1,16 @@
 // Build: turn a ComfyUI workflow or a Router model into a template. The page and its two steps.
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { I, PageHead } from "../../components/oi";
-import { cx, Spinner } from "../../components/ui";
+import { tplName } from "../../components/TemplateCard";
+import { cx } from "../../components/ui";
 import { api, type BuildSpec, type CloudPreset, type RouterAdapter } from "../../lib/api";
 import { confirm } from "../../lib/confirm";
 import { errMsg } from "../../lib/format";
 import { go } from "../../lib/route";
 import { autorun, useApp } from "../../lib/store";
-import { CloudInputs, InputsSection, JobSection, PromptSection, ResultSection, slotNames, SourceBar, TitleField } from "./Sections";
+import { type Check, Rail, type RailSetting, shownValue } from "./Rail";
+import { CloudInputs, InputsSection, JobSection, PromptSection, ResultSection, slotNames, SourceBar, SourceCheck, TitleField } from "./Sections";
 import { CloudSettings, type CloudSettingState, ControlsSection, SizeSection } from "./Settings";
 import { Start, Tabs, type Track } from "./Start";
 import { type Details, fromWorkflow, type MediaRow, type OutputState, type ParamRow, type PromptState, type Source } from "./model";
@@ -175,19 +177,37 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     return () => window.removeEventListener("paste", on);
   }, [src, track]);
 
-  const problems = useMemo(() => {
-    const p: string[] = [];
-    if (!details.label.split(" · ")[0].trim()) p.push("Give the template a name");
-    if (src && !media.some((m) => m.on) && !prompt.pick) p.push("Ask for at least one input or a prompt");
-    if (params.some((r) => r.on && !r.label.trim())) p.push("Name every control");
-    if (src?.kind === "local" && !output.result) p.push("Pick the node the result comes from");
-    if (src && prompt.pick && prompt.required && !prompt.def.trim()) p.push("Write the prompt the first run uses");
-    if (src?.kind === "cloud") p.push(...adapterProblems(src.a, media));
-    return p;
+  // What the first run needs, met or not: the side panel lists them, Run waits for all.
+  const checks = useMemo(() => {
+    const c: Check[] = [];
+    const named = !!details.label.split(" · ")[0].trim();
+    c.push({ ok: named, text: named ? "Named" : "Give the template a name" });
+    if (!src) return c;
+    if (!media.some((m) => m.on) && !prompt.pick) c.push({ ok: false, text: "Ask for at least one input or a prompt" });
+    if (src.kind === "cloud") {
+      const bad = adapterProblems(src.a, media);
+      c.push(...(bad.length ? bad.map((text) => ({ ok: false, text })) : [{ ok: true, text: `Inputs fit ${src.a.name}` }]));
+    }
+    if (params.some((r) => r.on)) {
+      const ok = !params.some((r) => r.on && !r.label.trim());
+      c.push({ ok, text: ok ? "Every asked setting named" : "Name every control" });
+    }
+    if (src.kind === "local") c.push({ ok: !!output.result, text: output.result ? "Result picked" : "Pick the node the result comes from" });
+    if (prompt.pick && prompt.required) {
+      const ok = !!prompt.def.trim();
+      c.push({ ok, text: ok ? "Prompt written" : "Write the prompt the first run uses" });
+    }
+    return c;
   }, [details.label, media, prompt.pick, prompt.required, prompt.def, params, src, output.result]);
+  const problems = checks.filter((c) => !c.ok).map((c) => c.text);
 
   // Width and height on the output size's node belong to it, not to the controls.
   const sizeOwns = (r: ParamRow) => !!output.size && r.node === output.size && (r.input === "width" || r.input === "height");
+
+  // The template this one is built from, by name.
+  const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
+  const fromId = src?.kind === "cloud" ? base : src?.a.preset?.base;
+  const fromTpl = fromId ? engines.data?.find((e) => e.id === fromId) : undefined;
 
   const spec = (): BuildSpec | null => {
     if (!src) return null;
@@ -218,7 +238,18 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
 
   // A first run needs something in every input it asks for.
   const noSample = media.find((m) => m.on && m.required && !m.sample);
-  const why = problems[0] ?? (noSample ? `Drop a sample into ${slotNames(media.filter((m) => m.on))[media.filter((m) => m.on).indexOf(noSample)]} first.` : "");
+  const sampleCheck: Check[] = noSample
+    ? [{ ok: false, text: `Drop a sample into ${slotNames(media.filter((m) => m.on))[media.filter((m) => m.on).indexOf(noSample)]}` }]
+    : media.some((m) => m.on && m.required) ? [{ ok: true, text: "Every input has a sample" }] : [];
+  const why = problems[0] ?? sampleCheck.find((c) => !c.ok)?.text ?? "";
+
+  // Settings as Create shows them: asked there with the value it opens at, or locked at what every run uses.
+  const railSets: RailSetting[] = !src ? [] : src.kind === "cloud"
+    ? settingsFor(src.a, media.filter((m) => m.on)).map((s) => ({ label: s.label, value: shownValue(settingValue(s, csets[s.key]?.value), s), asked: !csets[s.key]?.locked }))
+    : [
+      ...(output.size ? [{ label: "Shape and size", value: output.keep?.aspect ? shownValue({ aspect: output.keep.aspect, size: output.keep.default }) : "Picked on Create", asked: true }] : []),
+      ...params.filter((r) => r.on && !sizeOwns(r)).map((r) => ({ label: r.label.trim() || "Unnamed", value: shownValue(r.value, { unit: r.unit ?? undefined }), asked: true })),
+    ];
 
   const save = async (then: "save" | "try") => {
     setTried(true);
@@ -264,21 +295,30 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
         <div className={cx("build", src && "wide")}>
           {!src && (
             <div className="build-h">
+              <div>
+                <h2>{track === "cloud" ? "Turn a Comfy Router model into a template." : "Turn a ComfyUI workflow into a template."}</h2>
+                <p>{track === "cloud"
+                  ? "Pick a model and what it does, fill its inputs, run it once. The result becomes its cover on Explore."
+                  : "Bring a workflow that already works, drop in samples, run it once. The result becomes its cover on Explore."}</p>
+              </div>
               <Tabs track={track} setTrack={(t) => { setTrack(t); setReadErr(null); }} />
-              <h2>{track === "cloud" ? "Turn a Comfy Router model into a template." : "Turn a ComfyUI workflow into a template."}</h2>
-              <p>{track === "cloud"
-                ? "Pick a model and what it does, fill its inputs, run it once. The result becomes its cover on Explore."
-                : "Bring a workflow that already works, drop in samples, run it once. The result becomes its cover on Explore."}</p>
             </div>
           )}
-          <Steps at={src ? 2 : 1} cloud={src ? src.kind === "cloud" : track === "cloud"} onBack={() => void reset()} />
           {!src ? (
-            <Start track={track} reading={reading} error={readErr} onFile={readFile} onModel={pickModel} />
+            <>
+              <Steps cloud={track === "cloud"} />
+              <Start track={track} reading={reading} error={readErr} onFile={readFile} onModel={pickModel} />
+            </>
           ) : (
             <>
-              <button className="btn sm ghost bld-back" type="button" onClick={() => void reset()}><I n="left" />{src.kind === "cloud" ? "Back to models" : "Back to workflows"}</button>
-              <TitleField d={details} setD={setDetails} invalid={tried && !details.label.split(" · ")[0].trim()} />
-              <SourceBar src={src} />
+              <div className="bld-top">
+                <button className="btn sm ghost" type="button" onClick={() => void reset()}><I n="left" />{src.kind === "cloud" ? "Models" : "Workflows"}</button>
+                <MiniSteps cloud={src.kind === "cloud"} onBack={() => void reset()} />
+                <SourceBar src={src} />
+              </div>
+              <SourceCheck src={src} />
+              <TitleField d={details} setD={setDetails} invalid={tried && !details.label.split(" · ")[0].trim()} from={fromTpl && tplName(fromTpl)} />
+              <div className="bld-main">
               {src.kind === "cloud" ? (
                 <div className="bform">
                   <JobSection a={src.a} rows={media} setRows={setMedia} />
@@ -296,13 +336,8 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
                   {src.a.results.length !== 1 && <ResultSection a={src.a} o={output} setO={setOutput} />}
                 </div>
               )}
-              <div className="build-foot">
-                {saveErr && <div className="errbox" role="alert"><b>Couldn't save</b><p>{saveErr}</p></div>}
-                <div className="bf-row">
-                  <button className="btn ghost" type="button" onClick={() => void reset()}><I n="left" /><span className="lbl">Back</span></button>
-                  <p className={cx("help", why && "why")} role={tried && why ? "alert" : undefined}>{why || "Runs it with these samples. Make the result you like its cover."}</p>
-                  <button className="btn primary" type="button" disabled={!!saving || !!why} onClick={() => save("try")} title={why || undefined}>{saving ? <Spinner size={13} /> : <I n="zap" />}Run</button>
-                </div>
+              <Rail src={src} name={details.label.split(" · ")[0].trim()} model={src.kind === "cloud" ? src.a.name : "Your GPU"} media={media} prompt={prompt}
+                settings={railSets} checks={[...checks, ...sampleCheck]} why={why} tried={tried} saving={!!saving} saveErr={saveErr} onRun={() => void save("try")} />
               </div>
             </>
           )}
@@ -312,23 +347,32 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
   );
 }
 
-function Steps({ at, cloud, onBack }: { at: 1 | 2; cloud?: boolean; onBack: () => void }) {
-  const steps = cloud
-    ? [["Pick a model", "On Comfy Router"], ["Fill inputs", "Only what you fill is kept"], ["Run it", "A result becomes the cover"]]
-    : [["Bring a workflow", "Saved or exported from ComfyUI"], ["Check inputs", "Found in the workflow"], ["Run it", "A result becomes the cover"]];
+const STEPS = {
+  cloud: [["Pick a model", "On Comfy Router"], ["Set it up", "Only what you fill is asked for"], ["Run once", "A result becomes the cover"]],
+  local: [["Bring a workflow", "Saved or exported from ComfyUI"], ["Check what it asks", "Found in the workflow"], ["Run once", "A result becomes the cover"]],
+};
+
+/** Step 1's three steps, the first one current. */
+function Steps({ cloud }: { cloud: boolean }) {
   return (
     <ol className="steps" aria-label="Steps">
-      {steps.map(([t, sub], i) => (
-        <li key={t} className={cx(at === i + 1 && "on", at > i + 1 && "done")} aria-current={at === i + 1 ? "step" : undefined}>
-          {at > i + 1 ? (
-            <button type="button" className="steps-back" onClick={onBack} title={`Back to ${t.toLowerCase()}`}>
-              <span className="n"><I n="check" /></span><span><b>{t}</b><span>Back to this step</span></span>
-            </button>
-          ) : (
-            <><span className="n">{i + 1}</span><span><b>{t}</b><span>{sub}</span></span></>
-          )}
+      {STEPS[cloud ? "cloud" : "local"].map(([t, sub], i) => (
+        <li key={t} className={cx(i === 0 && "on")} aria-current={i === 0 ? "step" : undefined}>
+          <span className="n">{i + 1}</span><span><b>{t}</b><span>{sub}</span></span>
         </li>
       ))}
+    </ol>
+  );
+}
+
+/** Step 2's steps in a line: the first one done (back to it), this one, then the run. */
+function MiniSteps({ cloud, onBack }: { cloud: boolean; onBack: () => void }) {
+  const [first, now, last] = STEPS[cloud ? "cloud" : "local"].map(([t]) => t);
+  return (
+    <ol className="msteps" aria-label="Steps">
+      <li className="done"><button type="button" onClick={onBack} title={`Back to ${first.toLowerCase()}`}><span className="n"><I n="check" /></span>{first}</button></li>
+      <li className="on" aria-current="step"><span className="n">2</span>{now}</li>
+      <li><span className="n">3</span>{last} for its cover</li>
     </ol>
   );
 }

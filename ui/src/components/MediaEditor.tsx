@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { api, type Asset, type Fit } from "../lib/api";
 import { byState, checks, deltaOf, fitEdits, inRange, isEdited, keepBox, NO_EDITS, outOf, statusOf, toOps, type Edits, type MediaLike, type Rot, type Tool } from "../lib/edits";
 import { clock, errMsg } from "../lib/format";
-import { shapeCrop, type Crop } from "../lib/size";
+import { dimsText, shapeCrop, type Crop } from "../lib/size";
 import { useApp } from "../lib/store";
 import { I } from "./oi";
 import type { IconName } from "./sprite";
@@ -130,11 +130,17 @@ export interface EditorProps {
   m: Media; fit?: Fit; model?: string; role?: string;
   edits: Edits; onEdits: (e: Edits) => void;
   title: string; sheet?: boolean; onClose?: () => void;
-  note?: string; actions: ReactNode; sizeExtra?: ReactNode;
+  note?: string; actions: ReactNode; runs?: RunSizes;
+}
+
+/** The sizes a local template runs a photo or clip at: its steps, and its own pixels (`own`), each as the run makes it. */
+export interface RunSizes {
+  options: { label: string; own: boolean; dims: { width: number; height: number } }[];
+  choice: string; multiple: number; onPick: (label: string) => void;
 }
 
 /** The editor. The host keys it by file, so a new file starts on its first tool. */
-export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, onClose, note, actions, sizeExtra }: EditorProps) {
+export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, onClose, note, actions, runs }: EditorProps) {
   const video = useRef<HTMLVideoElement>(null);
   const audio = useRef<HTMLAudioElement>(null);
   const [tool, setTool] = useState<Tool>(m.kind === "audio" ? "cut" : "crop");
@@ -175,6 +181,10 @@ export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, o
     setFlash((x) => ({ tools: f.changed, n: x.n + 1 }));
   };
   const outShape = (r: number) => !!fit?.aspect && !inRange(r, fit.aspect, 0.002);
+  // A template's step sets the pixels itself, so picking one drops a size typed here.
+  const runAt = runs?.options.find((x) => x.label === runs.choice);
+  const custom = !runs || !!runAt?.own;
+  const pickRun = (x: RunSizes["options"][number]) => { runs?.onPick(x.label); if (!x.own && e.width != null) set({ width: null }); };
 
   const panel = (t: Tool) => {
     switch (t) {
@@ -208,7 +218,21 @@ export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, o
       );
       case "size": return (
         <section className="ed-sec">
-          <h3>Size</h3>
+          <h3>{runs ? "Size it runs at" : "Size"}</h3>
+          {runs && <>
+            <div className="ed-chips ed-steps" role="group" aria-label="Size it runs at">
+              {runs.options.map((x) => (
+                <button key={x.label} type="button" aria-pressed={runs.choice === x.label} onClick={() => pickRun(x)}
+                  title={x.own ? "Set the pixels yourself" : `About ${x.label}, at the crop's shape`}>
+                  {x.own ? "Custom" : x.label}<span className="mono">{dimsText(x.dims)}</span>
+                </button>
+              ))}
+            </div>
+            <p className="ed-hint">{custom
+              ? "Custom: the pixels you set below."
+              : "This template's sizes, at the crop's shape. Bigger is sharper and slower. Custom sets the pixels yourself."}</p>
+          </>}
+          {custom && <div className={cx(runs && "ed-own")}>
           <div className="ed-wh">
             <label><span>W</span><input className="mono" type="number" min={8} max={8192} value={o.w} onChange={(ev) => setSide(+ev.target.value, "w")} aria-label="Width" /></label>
             <i>×</i>
@@ -219,8 +243,10 @@ export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, o
               <button key={label} type="button" aria-pressed={k == null ? e.width == null : e.width === Math.round(cw * k)} onClick={() => set({ width: k == null ? null : Math.round(cw * k) })}>{label}</button>
             ))}
           </div>
-          <p className="ed-hint">Keeps the crop's shape: nothing is stretched.</p>
-          {sizeExtra}
+          <p className="ed-hint">{runAt && (runAt.dims.width !== o.w || runAt.dims.height !== o.h)
+            ? `Keeps the crop's shape. Runs at ${dimsText(runAt.dims)}: the workflow takes sides in steps of ${runs!.multiple}.`
+            : "Keeps the crop's shape: nothing is stretched."}</p>
+          </div>}
         </section>
       );
       case "cut": return (

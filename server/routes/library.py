@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from .. import bundle, engines, jobs, paths, storage, store
+from .. import bundle, engines, jobs, paths, storage, store, template_pack
 from .. import generation as sc
 from .common import API, library_changed, err, body, _safe_file, _fetch_remote, spec_from_generation
 
@@ -290,6 +290,13 @@ def register(routes: web.RouteTableDef) -> None:
                 data = (b.get("text") or "").encode()
         else:
             data = await request.read()
+        # A template's .illusion goes straight into your templates; a generation's is reviewed first.
+        if template_pack.is_pack(data):
+            try:
+                e = await asyncio.to_thread(template_pack.install, data)
+            except template_pack.archive.Refused as ex:
+                return err(422, str(ex))
+            return web.json_response({"template": engines.describe(e)})
         try:
             review = await asyncio.to_thread(bundle.inspect, data, name)
         except bundle.ImportRefused as e:

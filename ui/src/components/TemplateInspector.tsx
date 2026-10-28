@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { api, isMedia, type EngineInfo, type Field as InputField, type PromptIdea, type Spec, type TemplatePatch } from "../lib/api";
+import { api, isMedia, templateExportUrl, type EngineInfo, type Field as InputField, type PromptIdea, type Spec, type TemplatePatch } from "../lib/api";
 import { fieldsOf, promptField, roleOf } from "../lib/fields";
 import { confirm } from "../lib/confirm";
 import { errMsg } from "../lib/format";
@@ -11,7 +11,7 @@ import { optionText } from "./Engine";
 import { clampAspect } from "./Masonry";
 import { Compare, gpuName, I, useStatus } from "./oi";
 import { useLocalCheck } from "./Studio";
-import { tplModel, tplName, useCoverActions } from "./TemplateCard";
+import { mine, tplModel, tplName, useCoverActions, useRemoveTemplate } from "./TemplateCard";
 import { Spinner } from "./ui";
 
 /** The prompt as the form holds it: its default and ideas. Photos and clips have nothing to edit. */
@@ -25,8 +25,6 @@ interface Draft {
 }
 
 const isText = (f: InputField) => f.type === "text";
-/** Built by you, in your templates folder: deleted for real. A shipped template made in the Builder is still shipped. */
-const mine = (e: EngineInfo) => !!e.built && e.origin === "user" && !e.edited;
 /** A setting's starting value as Create shows it: "16:9 · 0.4 MP", "5 s", "On", "Auto". */
 function startText(f: InputField) {
   const d = "default" in f ? f.default : undefined;
@@ -132,50 +130,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
       setSaving(false);
     }
   };
-  const remove = async () => {
-    const res = await confirm({
-      hold: true,
-      view: () => ({
-        title: `Delete ${tplName(e)}?`, previews: e.cover ? [e.cover] : [],
-        body: "Its samples and cover go too. This can't be undone.", facts: ["Generations made with it stay"], action: "Hold to delete",
-      }),
-    });
-    if (!res.ok) return;
-    setSaving(true);
-    try {
-      await api.deleteTemplate(e.id);
-      qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.filter((x) => x.id !== e.id));
-      drafts.delete(e.id);
-      onClose();
-      toast({ text: `${e.label} deleted.`, tone: "ok" });
-    } catch (x) {
-      toast({ text: `Couldn't delete: ${errMsg(x)}`, tone: "error" });
-    } finally {
-      setSaving(false);
-    }
-  };
-  // Shipped templates can't be deleted (an update brings the file back): they come off Explore, and Settings puts them back.
-  const hide = async () => {
-    const res = await confirm({
-      tone: "neutral", icon: "trash",
-      view: () => ({
-        title: `Remove ${tplName(e)} from Explore?`, previews: e.cover ? [e.cover] : [],
-        body: "It ships with OpenIllusion, so its file stays. Settings → Templates puts it back.", facts: ["Generations made with it stay"], action: "Remove",
-      }),
-    });
-    if (!res.ok) return;
-    setSaving(true);
-    try {
-      await api.hideTemplate(e.id, true);
-      qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.map((x) => (x.id === e.id ? { ...x, hidden: true } : x)));
-      onClose();
-      toast({ text: `${tplName(e)} is off Explore. Settings → Templates puts it back.`, tone: "ok" });
-    } catch (x) {
-      toast({ text: `Couldn't remove: ${errMsg(x)}`, tone: "error" });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const del = useRemoveTemplate(e, () => { drafts.delete(e.id); onClose(); });
   const duplicate = async () => {
     setSaving(true);
     try {
@@ -227,9 +182,8 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
             <I n={editing ? "check" : "pencil"} />{editing ? "Done editing" : "Edit details"}
           </button>
         )}
-        {mine(e)
-          ? <button className="icon-btn sm" type="button" onClick={remove} disabled={saving} aria-label="Delete template" title="Delete this template"><I n="trash" /></button>
-          : e.origin && <button className="icon-btn sm" type="button" onClick={hide} disabled={saving} aria-label="Remove from Explore" title="Remove from Explore"><I n="trash" /></button>}
+        <a className="icon-btn sm" href={templateExportUrl(e.id)} download aria-label="Export .illusion" title="Export .illusion: this template, its samples and cover, to share"><I n="share" /></a>
+        {del && <button className="icon-btn sm" type="button" onClick={() => void del.run()} disabled={saving || del.busy} aria-label={del.label} title={del.label}><I n="trash" /></button>}
         <button className="icon-btn sm" type="button" aria-label="Close details" onClick={onClose}><I n="x" /></button>
       </div>
 
@@ -332,7 +286,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
         ) : (
           <>
             {e.edited && editing && <button className="btn" type="button" onClick={resetAll} disabled={saving}><I n="undo" />Reset to shipped</button>}
-            {mine(e) && editing && <button className="btn danger" type="button" onClick={remove} disabled={saving}><I n="trash" />Delete</button>}
+            {mine(e) && editing && del && <button className="btn danger" type="button" onClick={() => void del.run()} disabled={saving || del.busy}><I n="trash" />Delete</button>}
             <button className="icon-btn" type="button" onClick={duplicate} disabled={saving} aria-label="Duplicate" title="Duplicate: make your own copy to change"><I n="copy" /></button>
             <button className="btn primary" type="button" style={{ flex: 1, justifyContent: "center" }} onClick={onUse}>Use template<I n="arrow" /></button>
           </>

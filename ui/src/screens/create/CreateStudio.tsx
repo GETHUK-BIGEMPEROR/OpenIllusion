@@ -9,6 +9,7 @@ import { invalidFields, LocalNeeds, NoTemplates, useCompose, useCurrent, useRunn
 import { tplName } from "../../components/TemplateCard";
 import { api, isMedia, type Manifest, type Mode } from "../../lib/api";
 import { clipSlots, clipWindow, fieldsOf, leadSlot, mediaFields, settingsOf, videoField } from "../../lib/fields";
+import { needsFile, runInput } from "../../lib/edits";
 import { errMsg } from "../../lib/format";
 import { isActive, useJobs } from "../../lib/live";
 import { go } from "../../lib/route";
@@ -56,10 +57,13 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const hasInput = leadVideo ? !!clip : !!base;
   const photos = usePrepImages(s.refs);
   const images: PrepInput[] = [...photos, ...s.videos.filter((v) => slots.includes(v.slot) && !v.missing && v.width && v.height)
-    .map((v) => ({ slot: v.slot, width: v.width!, height: v.height!, crop: v.crop, size: v.size }))];
+    .map((v) => runInput({ kind: "video" }, v.edits, { slot: v.slot, width: v.width!, height: v.height!, crop: v.crop, size: v.size }))];
   const sized = engine?.size;
   const local = sized ? plans(sized, images) : {};
-  const planOf = (slot: string) => compose?.prep?.[slot] ?? local[slot] ?? null;
+  // Edits not made into a file yet: the server still sizes the old one, so the plan made here is the one a run gets.
+  const waiting = new Set([...s.refs.flatMap((r, i) => (needsFile(r.edits, { kind: "image" }) ? [`image:${slotOf(r, i)}`] : [])),
+    ...s.videos.flatMap((v) => (needsFile(v.edits, { kind: "video" }) ? [v.slot] : []))]);
+  const planOf = (slot: string) => (waiting.has(slot) ? local[slot] : compose?.prep?.[slot]) ?? local[slot] ?? null;
   // The input the stage edits: the one you picked, else the lead.
   const [picked, setPicked] = useState<string | null>(null);
   useEffect(() => setPicked(null), [s.engine]);

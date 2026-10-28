@@ -2,7 +2,7 @@
 // Router: the model's own options (shape, size, resolution, length, sound) for the job the samples fill.
 import { useState } from "react";
 import { I } from "../../components/oi";
-import { cx, Toggle } from "../../components/ui";
+import { cx } from "../../components/ui";
 import { OutputSize, ParamFields } from "../../components/Engine";
 import type { AdapterSetting, ParamSpec, SizeSpec, WorkflowAnalysis } from "../../lib/api";
 import { human, type OutputState, type ParamRow } from "./model";
@@ -15,6 +15,16 @@ const sizeSpec = (aspects: string[], steps: string[], aspect: string, step: stri
   multiple: 16, inputs: {}, original: "", cap: 0,
   canvas: { aspects, aspect, size: step, ...extra },
 });
+
+/** Whether people pick a value on Create or every run uses the one set here. */
+function AskLock({ asked, name, onChange }: { asked: boolean; name: string; onChange: (asked: boolean) => void }) {
+  return (
+    <div className="asklock" role="group" aria-label={`${name} on Create`}>
+      <button type="button" aria-pressed={asked} onClick={() => onChange(true)}>Ask on Create</button>
+      <button type="button" aria-pressed={!asked} onClick={() => onChange(false)}><I n="lock" />Lock</button>
+    </div>
+  );
+}
 
 const ratio = (a: string) => { const [p, q] = a.split(":").map(Number); return p / q; };
 
@@ -34,7 +44,7 @@ export function SizeSection({ a, mode, o, setO }: { a: WorkflowAnalysis; mode: "
     return { ...x, size: id, keep: n ? { ...x.keep, ...near(n.width, n.height) } : x.keep };
   });
   return (
-    <Sec id="sz" icon="crop" color="var(--mint)" title="Output size"
+    <Sec id="sz" title="Output size"
       desc="Lets people pick the result's shape and size on Create. Leave it to the workflow when an input photo or clip sets the size.">
       <div className="bchoice" role="radiogroup" aria-label="Output size goes to">
         {a.sizes.map((x) => (
@@ -70,18 +80,20 @@ export function ControlsSection({ rows, setRows, owned }: { rows: ParamRow[]; se
   const set = (id: string, ch: Partial<ParamRow>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...ch } : r)));
   const on = list.filter((r) => r.on).length;
   return (
-    <Sec id="ct" icon="sliders" color="var(--violet)" title="Settings"
-      desc="Values people can change on Create, like length, steps or seed. Off, a value runs as set here."
-      aside={<span className="mono">{on ? `${on} on Create` : "None on Create"}</span>}>
+    <Sec id="ct" title="Settings"
+      desc="Values people can change on Create, like length, steps or seed. Locked ones run as set here. Name an asked one the way Create should say it."
+      aside={<span className="mono">{on ? `${on} asked on Create` : "None asked on Create"}</span>}>
       {!!shown.length && <div className="bsets">
         {shown.map((r) => (
           <div key={r.id} className={cx("bset", r.on && "on")}>
             <div className="bset-h">
-              <Toggle checked={r.on} label={`Ask for ${r.label || human(r.name)} on Create`} onChange={(v) => set(r.id, { on: v })} />
-              {r.on
-                ? <input className="input sm" aria-label="Its name on Create" value={r.label} maxLength={40} onChange={(e) => set(r.id, { label: e.target.value })} />
-                : <b>{r.label || human(r.name)}</b>}
-              <span className="nd mono">{r.group}</span>
+              <div className="bset-name">
+                {r.on
+                  ? <input className="input sm" aria-label="Its name on Create" value={r.label} maxLength={40} onChange={(e) => set(r.id, { label: e.target.value })} />
+                  : <b>{r.label || human(r.name)}</b>}
+                <span className="nd mono">{r.group}</span>
+              </div>
+              <AskLock asked={r.on} name={r.label || human(r.name)} onChange={(v) => set(r.id, { on: v })} />
             </div>
             <div className="bset-body">
               <ParamFields params={[{ key: r.id, label: r.on ? "Starts at" : "Runs at", type: PARAM_TYPE[r.type], min: r.min ?? undefined, max: r.max ?? undefined, step: r.step ?? undefined, options: r.options, unit: r.unit, help: r.help ?? undefined }]}
@@ -107,8 +119,8 @@ export function CloudSettings({ list, st, setSt }: { list: AdapterSetting[]; st:
   if (!list.length) return null;
   const set = (key: string, ch: { value?: unknown; locked?: boolean }) => setSt((s) => ({ ...s, [key]: { ...s[key], ...ch } }));
   return (
-    <Sec id="cs" icon="sliders" color="var(--violet)" title="Settings"
-      desc="The model's options for the result. On, people pick it on Create; off, every run uses the value set here.">
+    <Sec id="cs" title="Settings"
+      desc="The model's options for the result. Ask: people pick it on Create, starting at your value. Lock: every run uses your value.">
       <div className="bsets">
         {list.map((s) => {
           const v = settingValue(s, st[s.key]?.value);
@@ -116,9 +128,8 @@ export function CloudSettings({ list, st, setSt }: { list: AdapterSetting[]; st:
           return (
             <div key={s.key} className={cx("bset", open && "on")}>
               <div className="bset-h">
-                <Toggle checked={open} label={`Ask for ${s.label} on Create`} onChange={(x) => set(s.key, { locked: !x })} />
-                <b>{s.label}</b>
-                <span className="nd mono">{open ? "Asked on Create" : "Fixed"}</span>
+                <div className="bset-name"><b>{s.label}</b><span className="nd">{open ? "People pick it on Create" : "Every run uses this"}</span></div>
+                <AskLock asked={open} name={s.label} onChange={(x) => set(s.key, { locked: !x })} />
               </div>
               <div className="bset-body">
                 {s.type === "size" ? (

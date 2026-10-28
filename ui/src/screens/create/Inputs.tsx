@@ -3,13 +3,13 @@
 // new file when it runs (bakePending), or now with "Apply now".
 import { useRef, useState } from "react";
 import { clipSlot as asClip, isAudio, isImage, isVideo } from "../../components/Drop";
-import { Editor, FitLine, MediaThumb, metaOf, type Media } from "../../components/MediaEditor";
+import { Editor, FitLine, MediaThumb, metaOf, type Media, type RunSizes } from "../../components/MediaEditor";
 import { cx, I } from "../../components/oi";
 import { bySlot, useUploader, withRefs } from "../../components/Refs";
 import { tplModel } from "../../components/TemplateCard";
 import { Spinner } from "../../components/ui";
 import { api, type Asset, type EngineInfo, type SizeSpec } from "../../lib/api";
-import { fitEdits, isEdited, needsFile, NO_EDITS, statusOf, toOps, type Edits } from "../../lib/edits";
+import { fitEdits, isEdited, needsFile, NO_EDITS, runInput, statusOf, toOps, type Edits } from "../../lib/edits";
 import { fitOf, roleOf, slotNo, type MediaField } from "../../lib/fields";
 import { EDIT_ROLES, errMsg } from "../../lib/format";
 import { choiceOf, dimsText, plans, type PrepInput } from "../../lib/size";
@@ -162,22 +162,12 @@ export function FileCard({ e, f, s, set, photos, on, plan, onPick }: {
   );
 }
 
-/** Local templates: the pixel budget a photo or clip runs at, its own or one of the template's steps. */
-function RunsAt({ size, input, onPick }: { size: SizeSpec; input: PrepInput; onPick: (label: string) => void }) {
-  const choice = choiceOf(size, input.slot, input.size);
-  return (
-    <div className="ed-runs">
-      <h4>When it runs</h4>
-      <div className="ed-chips">
-        {size.options.map((o) => (
-          <button key={o.label} type="button" aria-pressed={choice === o.label} onClick={() => onPick(o.label)} title={o.px ? `About ${o.label} at its shape` : "Its own pixels"}>
-            {o.px ? o.label : "Original"}<span className="mono">{dimsText(plans(size, [{ ...input, size: o.label }])[input.slot])}</span>
-          </button>
-        ))}
-      </div>
-      <p className="ed-hint">What the workflow gets, at the file's shape. Never stretched.</p>
-    </div>
-  );
+/** Local templates: the sizes a photo or clip can run at, the template's steps or its own pixels, each as the run makes it. */
+function runSizes(size: SizeSpec, input: PrepInput, onPick: (label: string) => void): RunSizes {
+  return {
+    options: size.options.map((o) => ({ label: o.label, own: !o.px, dims: plans(size, [{ ...input, size: o.label }])[input.slot] })),
+    choice: choiceOf(size, input.slot, input.size), multiple: size.multiple, onPick,
+  };
 }
 
 /** The stage while you set up a run: the picked input in the editor, or a place to drop one. */
@@ -215,13 +205,13 @@ export function InputStage({ e, f, s, set, photos }: { e: EngineInfo; f: MediaFi
       setBusy(false);
     }
   };
-  const runSize = e.size && k !== "audio" && h.width && h.height
-    ? <RunsAt size={e.size} input={{ slot: f.key, width: h.width, height: h.height, crop: (h as RefSlot).crop, size: (h as RefSlot).size }}
-      onPick={(label) => set((st) => { const x = heldOf(st, f, photos); return x ? withHeld(st, f, { ...x, size: label } as Held) : {}; })} />
+  const runs = e.size && k !== "audio" && h.width && h.height
+    ? runSizes(e.size, runInput(h as Media, h.edits, { slot: f.key, width: h.width, height: h.height, crop: (h as RefSlot).crop, size: (h as RefSlot).size }),
+    (label) => set((st) => { const x = heldOf(st, f, photos); return x ? withHeld(st, f, { ...x, size: label } as Held) : {}; }))
     : undefined;
   return (
     <Editor key={h.asset} m={h as Media} fit={fitOf(e, f.key)} model={tplModel(e)} role={(f as { role?: string }).role} edits={edits} onEdits={slot.setEdits}
-      title={f.label} sizeExtra={runSize}
+      title={f.label} runs={runs}
       note={changed ? (pending ? "Made into a new file when it runs · the original stays" : "Applied when it runs · the original stays") : undefined}
       actions={<>
         <button type="button" className="btn ghost" disabled={!changed || busy} onClick={() => slot.setEdits(NO_EDITS)}>Undo edits</button>

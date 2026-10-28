@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { errMsg } from "../lib/format";
+import { landImport } from "../lib/imports";
 import { isActive, useJobs } from "../lib/live";
 import { go, href, parse, type Route } from "../lib/route";
 import { cachedEngine } from "../lib/query";
@@ -193,7 +194,7 @@ export function DropOverlay() {
         const carries = /\.(illusion|png|mp4)$/i.test(f.name);
         if (studio && isMediaFile(f) && !carries) return void dropIntoStudio(studio, files);
         try {
-          setReview(await api.importFile(f));
+          landImport(await api.importFile(f));
         } catch (err) {
           if (studio && isMediaFile(f)) return void dropIntoStudio(studio, files);
           // Elsewhere a plain photo or clip can still go straight into the last template you used.
@@ -240,7 +241,7 @@ export function DropOverlay() {
     ? ["Drop to fill the next empty input", " · or on an input or the preview to choose"]
     : route === "explore"
       ? ["Drop on a template to run it on your file", " · or anywhere to import"]
-      : ["Drop to import", " · .illusion, a backup, OpenIllusion PNG or MP4, a ComfyUI workflow"];
+      : ["Drop to import", " · a template or generation .illusion, a backup, OpenIllusion PNG or MP4, a ComfyUI workflow"];
   return (
     <div className="dropcue" role="status">
       <I n="import" />

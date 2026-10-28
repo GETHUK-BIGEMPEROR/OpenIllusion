@@ -48,6 +48,13 @@ export function outOf(m: MediaLike, e: Edits): Out {
   return { tw, th, w, h, len: Math.max(0, t[1] - t[0]), fps: e.fps ?? m.fps ?? 0 };
 }
 
+/** A picture or clip as a run sizes it: the new file its edits make, else this one with its crop. */
+export function runInput<T extends { width: number; height: number; crop?: Crop }>(m: MediaLike, e: Edits | null | undefined, d: T): T {
+  if (!needsFile(e, m)) return d;
+  const o = outOf({ ...m, width: d.width, height: d.height }, e!);
+  return { ...d, width: o.w, height: o.h, crop: undefined };
+}
+
 /** 2.5 → "5:2", like server/fit.py. */
 export function ratioText(r: number): string {
   for (let d = 1; d <= 16; d++) {

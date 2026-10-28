@@ -51,3 +51,4 @@
 .ctags{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
 .ctags>.pill{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cacts{position:absolute;top:44px;right:10px;display:flex;gap:6px;z-index:3}
+.cacts .del:hover{color:var(--rose);border-color:var(--rose)}

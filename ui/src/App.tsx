@@ -6,6 +6,7 @@ import { ConfirmHost } from "./components/Confirm";
 import { DropOverlay, Rail, TabBar, Toasts } from "./components/Shell";
 import { api } from "./lib/api";
 import { errMsg } from "./lib/format";
+import { landImport } from "./lib/imports";
 import { useJobFeed } from "./lib/live";
 import { go, useRoute } from "./lib/route";
 import { useApp } from "./lib/store";
@@ -102,7 +103,7 @@ export function App() {
     if (isBackup(f)) return void openBackup(f);
     if (await workflowToBuilder(f)) return;
     try {
-      setReview(await api.importFile(f));
+      landImport(await api.importFile(f));
     } catch (e) {
       toast({ text: errMsg(e), tone: "error", action: buildAction(f) });
     }

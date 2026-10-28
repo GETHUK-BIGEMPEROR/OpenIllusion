@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PrepPlan, SizeSpec } from "./api";
+import { runInput, type Edits } from "./edits";
 
 /**
  * Live previews of what server/prep.py will do to each image. Same formulas, line for line;
@@ -145,7 +146,7 @@ export function sizeNotes(p: PrepPlan): string[] {
 }
 
 /** A run's images with their pixel sizes and crops, as prep sees them. Sizes the upload didn't record are read from the files. */
-export function usePrepImages(refs: { url: string; width?: number; height?: number; slot?: number; crop?: Crop; size?: string; missing?: boolean }[]) {
+export function usePrepImages(refs: { url: string; width?: number; height?: number; slot?: number; crop?: Crop; size?: string; missing?: boolean; edits?: Edits }[]) {
   const [read, setRead] = useState<Record<string, Dims>>({});
   const unknown = refs.filter((r) => r.url && !(r.width && r.height) && !read[r.url]).map((r) => r.url);
   useEffect(() => {
@@ -159,7 +160,7 @@ export function usePrepImages(refs: { url: string; width?: number; height?: numb
   }, [unknown.join("|")]);
   return refs.flatMap((r, i) => {
     const d = r.width && r.height ? { width: r.width, height: r.height } : read[r.url];
-    return d && !r.missing ? [{ slot: `image:${r.slot ?? i + 1}`, ...d, crop: r.crop, size: r.size }] : [];
+    return d && !r.missing ? [runInput({ kind: "image" }, r.edits, { slot: `image:${r.slot ?? i + 1}`, ...d, crop: r.crop, size: r.size })] : [];
   });
 }
 
