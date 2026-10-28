@@ -49,6 +49,51 @@
       }
     }
   ],
+  "settings": [
+    {
+      "key": "aspect",
+      "label": "Aspect",
+      "type": "aspect",
+      "at": [
+        "generationConfig",
+        "imageConfig",
+        "aspectRatio"
+      ],
+      "options": [
+        "",
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9"
+      ],
+      "labels": {
+        "": "Auto"
+      },
+      "default": ""
+    },
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "segmented",
+      "at": [
+        "generationConfig",
+        "imageConfig",
+        "imageSize"
+      ],
+      "options": [
+        "1K",
+        "2K",
+        "4K"
+      ],
+      "default": "1K"
+    }
+  ],
   "media_mb": 14,
   "result": [
     [

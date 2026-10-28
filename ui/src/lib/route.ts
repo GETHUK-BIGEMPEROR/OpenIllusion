@@ -9,6 +9,7 @@ export type Route =
   | { name: "generation"; id: string }
   | { name: "settings" }
   | { name: "trash" }
+  | { name: "characters"; id?: string }
   | { name: "build"; from?: string }
   | { name: "connect" };
 
@@ -28,6 +29,8 @@ export function parse(hash: string): Route {
       return { name: "settings" };
     case "trash":
       return { name: "trash" };
+    case "characters":
+      return { name: "characters", id: parts[1] };
     case "build":
       return { name: "build", from: q.get("from") ?? undefined };
     case "connect":
@@ -51,6 +54,8 @@ export function href(r: Route): string {
       return "#/create";
     case "explore":
       return r.t ? `#/explore?t=${encodeURIComponent(r.t)}` : "#/explore";
+    case "characters":
+      return r.id ? `#/characters/${r.id}` : "#/characters";
     case "build":
       return r.from ? `#/build?from=${encodeURIComponent(r.from)}` : "#/build";
     case "library":

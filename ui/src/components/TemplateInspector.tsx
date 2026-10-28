@@ -176,9 +176,9 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
   const lead = samples.find((x) => x.slot === "image:1");
   const ar = Math.max(clampAspect(e.cover ? e.cover_aspect : lead?.width && lead?.height ? lead.width / lead.height : 4 / 5), 4 / 5);
   const fields = fieldsOf(e);
-  const media = fields.filter(isMedia);
+  const media = fields.filter((f) => isMedia(f) || f.type === "refmod");
   const texts = fields.length ? fields.filter(isText) : [];
-  const settings = fields.filter((f) => !isMedia(f) && !isText(f));
+  const settings = fields.filter((f) => !isMedia(f) && !isText(f) && f.type !== "refmod");
   const rawPrompt = !fields.length ? promptField(e) : undefined;
 
   return (
@@ -199,7 +199,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
           {e.cover_video ? <video key={e.cover_video} src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={fill} />
             : e.cover && lead && !e.cover_custom ? <Compare before={lead.url} after={e.cover} lb="Sample" la="Result" />
             : e.cover ? <img src={e.cover} alt="" style={fill} />
-            : <div className="empty" style={{ padding: 30 }}><div className="empty-ic"><I n="image" /></div><h3>{e.draft ? "Not published yet" : "No cover yet"}</h3>{e.draft && <p>Its first published result becomes the cover.</p>}</div>}
+            : <div className="empty" style={{ padding: 30 }}><div className="empty-ic"><I n="image" /></div><h3>No cover yet</h3><p>Run it, then make a result you like its cover.</p></div>}
         </div>
 
         {editing ? (
@@ -224,11 +224,11 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
             <div className="kv-h">Inputs<span>{media.length} input{media.length > 1 ? "s" : ""}</span></div>
             {media.map((f) => {
               const sm = samples.find((y) => y.slot === f.key);
-              const thumb = sm && f.type !== "audio" ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : f.type === "audio" ? "zap" : "image"} /></span>;
+              const thumb = sm && f.type !== "audio" ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : f.type === "audio" ? "zap" : f.type === "refmod" ? "person" : "image"} /></span>;
               return (
                 <div key={f.key} className="inrow">
                   {thumb}
-                  <div><b>{f.label}{f.required === false ? " · optional" : ""}</b><span>{sm ? "Sample included" : f.type === "video" ? "Your clip" : f.type === "audio" ? "Your sound" : "Your photo"}</span></div>
+                  <div><b>{f.label}{f.required === false ? " · optional" : ""}</b><span>{sm ? "Sample included" : f.type === "refmod" ? "A RefMod from your RefMod folder" : f.type === "video" ? "Your clip" : f.type === "audio" ? "Your sound" : "Your photo"}</span></div>
                 </div>
               );
             })}
@@ -377,19 +377,11 @@ function IdeasEditor({ ideas, seed, onChange }: { ideas: PromptIdea[]; seed: str
 
 function CoverBox({ e, onUse }: { e: EngineInfo; onUse: () => void }) {
   const { busy, reset } = useCoverActions(e);
-  if (e.draft) {
-    return (
-      <div className="kv">
-        <div className="kv-h">Cover</div>
-        <div className="draft-note"><I n="info" /><p><b>Draft. Not on Explore yet.</b> Run it once, then publish your best result. That result becomes the cover.</p></div>
-        <button className="btn primary" type="button" style={{ justifyContent: "center" }} onClick={onUse}><I n="play" />Run it</button>
-      </div>
-    );
-  }
   return (
     <div className="kv">
       <div className="kv-h">Cover</div>
       <p className="help">A cover is always a real result. Open a finished run of this template and choose <b>Use as template cover</b>.</p>
+      {!e.cover && !e.cover_video && <button className="btn primary" type="button" style={{ justifyContent: "center" }} onClick={onUse}><I n="play" />Run it</button>}
       {e.cover_custom && !e.built && <button className="btn ghost sm" type="button" style={{ justifySelf: "start" }} onClick={reset} disabled={busy}>{busy ? <Spinner size={13} /> : <I n="undo" />}Use the shipped cover</button>}
     </div>
   );

@@ -34,6 +34,8 @@ compose returns this module's plans, which the studio shows once they arrive.
 from __future__ import annotations
 
 import math
+import re
+from typing import Any
 from dataclasses import dataclass
 
 from PIL import Image
@@ -89,9 +91,13 @@ def spec_of(size: dict | None, inputs: list[dict] | None = None, mode: str = "ed
             "multiple": int(size.get("multiple") or DEFAULT_MULTIPLE), "inputs": defaults, "original": ORIGINAL}
     if out is not None:
         aspects = [a for a in out.get("aspects") or ASPECTS if _ratio(a)]
-        named = [o["label"] for o in steps]
+        # A cloud model's size names its own steps (megapixels) and limits; a workflow's uses the steps above.
+        named = [f"{x:g} MP" for x in out["steps"]] if out.get("steps") else [o["label"] for o in steps]
         spec["canvas"] = {"aspects": aspects, "aspect": out.get("aspect") if out.get("aspect") in aspects else aspects[0],
-                          "size": out.get("default") if out.get("default") in named else named[1]}
+                          "size": out.get("default") if out.get("default") in named else named[min(1, len(named) - 1)]}
+        if out.get("steps"):
+            spec["canvas"].update(steps=list(out["steps"]), multiple=int(out.get("multiple") or DEFAULT_MULTIPLE),
+                                  **{k: out[k] for k in ("sides", "pixels") if out.get(k)})
     return spec
 
 
@@ -111,12 +117,47 @@ def _ratio(aspect: str) -> tuple[float, float] | None:
         return None
 
 
+def shape(aspect: Any) -> tuple[float, float] | None:
+    """``16:9`` (or ``1536x1024``, ``1280*720``) as (16, 9); None for ``auto`` and the like."""
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)[:x*](\d+(?:\.\d+)?)", str(aspect))
+    return (float(m[1]), float(m[2])) if m and float(m[1]) > 0 and float(m[2]) > 0 else None
+
+
+def fit_dims(s: dict, aspect: Any, step: Any) -> tuple[int, int]:
+    """Pixels for a cloud model's size (an adapter's size setting, or a template's size input
+    built from one): the shape at the step's megapixels, on the multiple, inside the model's
+    sides and pixel range. ``s``: aspect, default, steps (megapixels), sides, pixels, multiple."""
+    w, h = shape(aspect) or shape(s.get("aspect")) or (1.0, 1.0)
+    steps = {f"{x:g} MP": x for x in s["steps"]}
+    mp = steps.get(str(step)) or steps.get(str(s.get("default"))) or next(iter(steps.values()))
+    px = mp * 1024 * 1024  # 1 MP is 1024 × 1024, the size models are trained around
+    lo_px, hi_px = s.get("pixels") or (0, float("inf"))
+    px = min(max(px, lo_px), hi_px)
+    k = (px / (w * h)) ** 0.5
+    W, H = w * k, h * k
+    lo, hi = s.get("sides") or (0, float("inf"))
+    f = min(1.0, hi / max(W, H))
+    W, H = W * f, H * f
+    f = max(1.0, lo / min(W, H))
+    W, H = W * f, H * f
+    m = int(s.get("multiple") or 16)
+    W, H = max(m, round(W / m) * m), max(m, round(H / m) * m)
+    # Rounding may pass a most: step down by the multiple until inside.
+    while W > hi or W * H > hi_px:
+        W -= m
+    while H > hi or W * H > hi_px:
+        H -= m
+    return int(W), int(H)
+
+
 def canvas_size(size: dict, aspect: str | None, choice: str | None) -> tuple[int, int] | None:
     """Width and height for a template's declared output size: the picked shape at the picked
     step (the template's defaults when either isn't offered)."""
     c = size.get("canvas")
     if not c:
         return None
+    if c.get("steps"):  # a cloud model's size
+        return fit_dims({**c, "default": c["size"]}, aspect if aspect in c["aspects"] else c["aspect"], choice)
     w, h = _ratio(aspect if aspect in c["aspects"] else c["aspect"])  # type: ignore[misc]
     px = budget(size, choice) or budget(size, c["size"])
     return target(w, h, px, size["multiple"])

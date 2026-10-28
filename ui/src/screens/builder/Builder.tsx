@@ -9,9 +9,10 @@ import { errMsg } from "../../lib/format";
 import { go } from "../../lib/route";
 import { autorun, useApp } from "../../lib/store";
 import { CloudInputs, InputsSection, JobSection, PromptSection, ResultSection, slotNames, SourceBar, TitleField } from "./Sections";
+import { CloudSettings, type CloudSettingState, ControlsSection, SizeSection } from "./Settings";
 import { Start, Tabs, type Track } from "./Start";
-import { type Details, fromWorkflow, type MediaRow, type OutputState, type ParamRow, type PromptState, type Source } from "./model";
-import { adapterProblems, fromAdapter } from "./modes";
+import { type Details, fromWorkflow, type MediaRow, type OutputState, type ParamRow, type PromptState, type RefModRow, type Source } from "./model";
+import { adapterProblems, fromAdapter, settingDefault, settingsFor } from "./modes";
 
 // A workflow handed over from elsewhere (Import, a drop on another page).
 let pending: File | null = null;
@@ -55,10 +56,12 @@ export function Builder({ from }: { from?: string }) {
   const [reading, setReading] = useState<string | null>(null);
   const [readErr, setReadErr] = useState<string | null>(null);
   const [media, setMedia] = useState<MediaRow[]>([]);
+  const [mods, setMods] = useState<RefModRow[]>([]);
   const [prompt, setPrompt] = useState<PromptState>({ pick: "", label: "", hint: "", def: "", required: true });
   const [params, setParams] = useState<ParamRow[]>([]);
   const [details, setDetails] = useState<Details>({ label: "", blurb: "", mode: "edit", tags: "" });
   const [output, setOutput] = useState<OutputState>({ result: "", size: "" });
+  const [csets, setCsets] = useState<CloudSettingState>({});
   const [saving, setSaving] = useState<"save" | "try" | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
@@ -68,10 +71,12 @@ export function Builder({ from }: { from?: string }) {
     const init = s.kind === "local" ? fromWorkflow(s.a) : fromAdapter(s.a);
     setSrc(s);
     setMedia(init.media);
+    setMods(init.mods);
     setPrompt(init.prompt);
     setParams(init.params);
     setDetails(init.details);
     setOutput(init.output);
+    setCsets({});
     setSaveErr(null);
     setTried(false);
   };
@@ -144,13 +149,13 @@ export function Builder({ from }: { from?: string }) {
   const problems = useMemo(() => {
     const p: string[] = [];
     if (!details.label.split(" · ")[0].trim()) p.push("Give the template a name");
-    if (src && !media.some((m) => m.on) && !prompt.pick) p.push("Ask for at least one input or a prompt");
+    if (src && !media.some((m) => m.on) && !mods.some((m) => m.on) && !prompt.pick) p.push("Ask for at least one input or a prompt");
     if (params.some((r) => r.on && !r.label.trim())) p.push("Name every control");
     if (src?.kind === "local" && !output.result) p.push("Pick the node the result comes from");
     if (src && prompt.pick && prompt.required && !prompt.def.trim()) p.push("Write the prompt the first run uses");
     if (src?.kind === "cloud") p.push(...adapterProblems(src.a, media));
     return p;
-  }, [details.label, media, prompt.pick, prompt.required, prompt.def, params, src, output.result]);
+  }, [details.label, media, mods, prompt.pick, prompt.required, prompt.def, params, src, output.result]);
 
   // Width and height on the output size's node belong to it, not to the controls.
   const sizeOwns = (r: ParamRow) => !!output.size && r.node === output.size && (r.input === "width" || r.input === "height");
@@ -170,15 +175,19 @@ export function Builder({ from }: { from?: string }) {
         label: "Prompt", hint: "", default: prompt.def, required: prompt.required,
         ...(src.kind === "local" ? { node: prompt.pick.split("|")[0], input: prompt.pick.split("|")[1] } : {}),
       } : null,
-      params: shown.map((r) => ({ node: r.node, input: r.input, key: r.key ?? r.name.split(".").pop(), type: r.type, label: r.label.trim(), min: r.min, max: r.max, step: r.step, options: r.options, default: r.value, help: r.help })),
+      params: shown.map((r) => ({ node: r.node, input: r.input, key: r.key ?? r.name.split(".").pop(), type: r.type, label: r.label.trim(), min: r.min, max: r.max, step: r.step, options: r.options, unit: r.unit, default: r.value, help: r.help })),
     };
     if (src.kind === "local") {
       const fixed = params.filter((r) => !r.on && !sizeOwns(r) && JSON.stringify(r.value) !== JSON.stringify(r.orig)).map((r) => ({ node: r.node!, input: r.input!, value: r.value }));
       const size = output.size ? { node: output.size, ...(output.keep ?? {}) } : null;
-      return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...base, fixed, outputs: [output.result], size };
+      // A RefMod's face goes into a photo input the template keeps.
+      const faces = new Map(on.filter((m) => m.kind === "image").map((m) => [m.key, { node: m.node!, input: String(m.input) }]));
+      const refmods = mods.filter((r) => r.on).map((r) => ({ node: r.node, input: r.input, photo: faces.get(r.photo) ?? null }));
+      return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...base, refmods, fixed, outputs: [output.result], size };
     }
-    // The adapter writes the request: the files go where it says, the rest is the model's defaults.
-    return { kind: "cloud", model: src.a.model, ...base };
+    // The adapter writes the request: the files go where it says, the settings at the values picked here.
+    const settings = settingsFor(src.a, on).map((x) => ({ key: x.key, value: csets[x.key]?.value ?? settingDefault(x), locked: !!csets[x.key]?.locked }));
+    return { kind: "cloud", model: src.a.model, ...base, settings };
   };
 
   // A first run needs something in every input it asks for.
@@ -199,10 +208,10 @@ export function Builder({ from }: { from?: string }) {
         openTemplate(e.mode, e.id);
         autorun.engine = e.id;
         go({ name: e.mode });
-        toast({ text: `${e.label} saved as a draft and running once. Publish the result you like: it becomes the cover.`, tone: "ok" });
+        toast({ text: `${e.label} is on Explore and running once. Make the result you like its cover.`, tone: "ok" });
       } else {
         go({ name: "explore", t: e.id });
-        toast({ text: `${e.label} saved to your drafts. It goes on Explore once you publish a result.`, tone: "ok" });
+        toast({ text: `${e.label} is on Explore. Run it and make a result you like its cover.`, tone: "ok" });
       }
     } catch (e) {
       setSaveErr(errMsg(e));
@@ -249,11 +258,14 @@ export function Builder({ from }: { from?: string }) {
                   <JobSection a={src.a} rows={media} setRows={setMedia} />
                   <CloudInputs a={src.a} rows={media} setRows={setMedia} />
                   <PromptSection src={src} p={prompt} setP={setPrompt} />
+                  <CloudSettings list={settingsFor(src.a, media.filter((m) => m.on))} st={csets} setSt={setCsets} />
                 </div>
               ) : (
                 <div className="bform">
-                  <InputsSection rows={media} setRows={setMedia} />
+                  <InputsSection rows={media} setRows={setMedia} mods={mods} setMods={setMods} />
                   <PromptSection src={src} p={prompt} setP={setPrompt} />
+                  <SizeSection a={src.a} mode={src.a.results.find((r) => r.node === output.result)?.kind === "video" ? "motion" : "edit"} o={output} setO={setOutput} />
+                  <ControlsSection rows={params} setRows={setParams} owned={sizeOwns} />
                   {src.a.results.length !== 1 && <ResultSection a={src.a} o={output} setO={setOutput} />}
                 </div>
               )}
@@ -261,7 +273,7 @@ export function Builder({ from }: { from?: string }) {
                 {saveErr && <div className="errbox" role="alert"><b>Couldn't save</b><p>{saveErr}</p></div>}
                 <div className="bf-row">
                   <button className="btn ghost" type="button" onClick={() => void reset()}><I n="left" /><span className="lbl">Back</span></button>
-                  <p className={cx("help", why && "why")} role={tried && why ? "alert" : undefined}>{why || "Runs it with these samples. Publish the result you like: it becomes the cover."}</p>
+                  <p className={cx("help", why && "why")} role={tried && why ? "alert" : undefined}>{why || "Runs it with these samples. Make the result you like its cover."}</p>
                   <button className="btn primary" type="button" disabled={!!saving || !!why} onClick={() => save("try")} title={why || undefined}>{saving ? <Spinner size={13} /> : <I n="zap" />}Run</button>
                 </div>
               </div>
@@ -275,8 +287,8 @@ export function Builder({ from }: { from?: string }) {
 
 function Steps({ at, cloud, onBack }: { at: 1 | 2; cloud?: boolean; onBack: () => void }) {
   const steps = cloud
-    ? [["Pick a model", "On Comfy Router"], ["Fill inputs", "Only what you fill is kept"], ["Run and publish", "The result is the cover"]]
-    : [["Bring a workflow", "Saved or exported from ComfyUI"], ["Check inputs", "Found in the workflow"], ["Run and publish", "The result is the cover"]];
+    ? [["Pick a model", "On Comfy Router"], ["Fill inputs", "Only what you fill is kept"], ["Run it", "A result becomes the cover"]]
+    : [["Bring a workflow", "Saved or exported from ComfyUI"], ["Check inputs", "Found in the workflow"], ["Run it", "A result becomes the cover"]];
   return (
     <ol className="steps" aria-label="Steps">
       {steps.map(([t, sub], i) => (

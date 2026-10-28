@@ -45,6 +45,35 @@
           "prompt"
         ]
       ]
+    },
+    {
+      "key": "size",
+      "type": "size",
+      "label": "Output size",
+      "aspects": [
+        "1:1",
+        "4:5",
+        "3:4",
+        "2:3",
+        "9:16",
+        "16:9",
+        "3:2",
+        "4:3"
+      ],
+      "aspect": "4:5",
+      "default": "2 MP",
+      "bind": [
+        [
+          "459:456",
+          "width",
+          "width"
+        ],
+        [
+          "459:456",
+          "height",
+          "height"
+        ]
+      ]
     }
   ],
   "size": {

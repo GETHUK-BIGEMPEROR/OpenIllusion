@@ -25,6 +25,16 @@ export interface MediaRow {
   fps?: [number, number] | null;
 }
 
+/** Local: a RefMod loader's slot. On, people pick a RefMod for it; `photo` is the media row its face goes in ("" for none). */
+export interface RefModRow {
+  key: string;
+  on: boolean;
+  node: string;
+  input: string;
+  where: string;
+  photo: string;
+}
+
 export interface ParamRow {
   id: string;
   on: boolean;
@@ -38,6 +48,7 @@ export interface ParamRow {
   max?: number | null;
   step?: number | null;
   options?: (string | number)[];
+  unit?: string;
   help?: string | null;
   suggested: boolean;
   node?: string;
@@ -89,25 +100,37 @@ function mediaLabels<T extends { kind: MediaKind; title?: string; class_type?: s
   });
 }
 
-export function fromWorkflow(a: WorkflowAnalysis) {
+export function fromWorkflow(a: WorkflowAnalysis): { media: MediaRow[]; mods: RefModRow[]; prompt: PromptState; params: ParamRow[]; details: Details; output: OutputState } {
   const labels = mediaLabels(a.media);
   const media: MediaRow[] = a.media.map((m, i) => ({
     key: `${m.node}|${m.input}`, on: m.suggested, kind: m.kind, label: labels[i], hint: "", required: true, sample: m.sample,
     where: m.found === "setting" ? `${m.title} · ${m.input} · #${m.node}` : `${m.title} · #${m.node}`, node: m.node, input: m.input,
     found: m.found, value: m.value,
   }));
+  // One photo input: a RefMod's face goes there unless the author says otherwise.
+  const photos = media.filter((m) => m.on && m.kind === "image");
+  const mods: RefModRow[] = (a.refmods ?? []).map((r) => ({
+    key: `${r.node}|${r.input}`, on: r.suggested, node: r.node, input: r.input, where: `${r.title} · ${r.input} · #${r.node}`,
+    photo: photos.length === 1 ? photos[0].key : "",
+  }));
   const pick = a.prompt ? `${a.prompt.node}|${a.prompt.input}` : "";
   const text = a.texts.find((t) => `${t.node}|${t.input}` === pick);
   const prompt: PromptState = { pick, label: "Prompt", hint: "Describe what you want", def: text?.value ?? "", required: true };
-  // The workflow is a black box: a template writes its inputs and its prompt, nothing else.
-  const params: ParamRow[] = [];
+  // Every widget value could be a setting people change on Create. All start off: the workflow runs as saved
+  // until the author turns one on (the likely ones are listed first).
+  const params: ParamRow[] = a.params.map((p) => ({
+    id: `${p.node}|${p.input}`, on: false, label: human(p.input), type: p.type, value: p.value, orig: p.value,
+    group: `${p.title} · #${p.node}`, name: p.input, min: p.min, max: p.max, step: p.step, options: p.options, help: p.help,
+    suggested: p.suggested, node: p.node, input: p.input,
+  }));
   const details: Details = { label: fileTitle(a.source), blurb: "", mode: a.mode, tags: "" };
-  const output: OutputState = { result: a.outputs[0] ?? "", size: "" };
-  return a.preset ? withPreset(a.preset, { media, prompt, params, details, output }) : { media, prompt, params, details, output };
+  // Made from words alone with one place to set width and height: people pick the output's shape and size.
+  const output: OutputState = { result: a.outputs[0] ?? "", size: a.size?.node ?? "" };
+  return a.preset ? withPreset(a.preset, { media, mods, prompt, params, details, output }) : { media, mods, prompt, params, details, output };
 }
 
 /** Opened from a template: start from what it asks for, with its names, hints and defaults. */
-function withPreset(p: BuildPreset, init: { media: MediaRow[]; prompt: PromptState; params: ParamRow[]; details: Details; output: OutputState }) {
+function withPreset(p: BuildPreset, init: { media: MediaRow[]; mods: RefModRow[]; prompt: PromptState; params: ParamRow[]; details: Details; output: OutputState }) {
   const at = (x: { node: string; input: string }) => `${x.node}|${x.input}`;
   const pm = new Map(p.media.map((m) => [at(m), m]));
   const pp = new Map(p.params.map((x) => [at(x), x]));
@@ -118,16 +141,23 @@ function withPreset(p: BuildPreset, init: { media: MediaRow[]; prompt: PromptSta
       const m = pm.get(r.key);
       return m ? { ...r, on: true, label: m.label ?? r.label, hint: m.hint ?? "", required: m.required ?? true, window: m.window ?? null, fps: m.fps ?? null } : { ...r, on: false };
     }),
+    mods: init.mods.map((r) => {
+      const m = (p.refmods ?? []).find((x) => at(x) === r.key);
+      return m ? { ...r, on: true, photo: m.photo ? at(m.photo) : "" } : { ...r, on: false };
+    }),
     output: {
       result: p.outputs.find((o) => o) ?? init.output.result,
-      size: "",
+      size: p.size?.node ?? "",
+      keep: p.size ? { label: p.size.label, aspect: p.size.aspect, default: p.size.default } : undefined,
     },
     prompt: p.prompt
       ? { pick: at(p.prompt), label: p.prompt.label ?? "Prompt", hint: p.prompt.hint ?? "", def: p.prompt.default, required: p.prompt.required ?? true }
       : { ...init.prompt, pick: "" },
     params: init.params.map((r) => {
       const x = pp.get(r.id);
-      return x ? { ...r, on: true, label: x.label, key: x.key, help: x.help ?? r.help } : { ...r, on: false };
+      // The template's own control: its type, options and unit (Duration 3/5/8 s, not a bare number box).
+      const own = x ? Object.fromEntries((["type", "options", "unit", "min", "max", "step"] as const).filter((k) => x[k] !== undefined).map((k) => [k, x[k]])) : {};
+      return x ? { ...r, ...own, on: true, label: x.label, key: x.key, value: x.default ?? r.value, help: x.help ?? r.help } : { ...r, on: false };
     }),
     details: { label: p.label, blurb: p.blurb, mode: p.mode, tags: p.tags.join(", ") },
   };

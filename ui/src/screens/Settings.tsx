@@ -188,6 +188,8 @@ function StorageSection({ s, save }: { s: S; save: Save }) {
       <BackupCard />
       <div className="set-card">
         <TextSetting id="out" label="Output folder" help="Leave empty for the default." value={s.output_folder} placeholder="~/.openillusion/outputs" mono onSave={(v) => save({ output_folder: v })} />
+        <TextSetting id="refmods" label="RefMod folder" help="Character Lab saves RefMods here, and a template's RefMod input picks from it. Leave empty for the default."
+          value={s.refmod_folder} placeholder="~/.openillusion/refmods" mono onSave={(v) => save({ refmod_folder: v }).then((ok) => { void qc.invalidateQueries({ queryKey: ["refmods"] }); return ok; })} />
         <Toggle title="Strip EXIF and GPS" desc="From your photos and from everything you export."
           checked={s.strip_exif} onChange={(v) => save({ strip_exif: v })} />
       </div>

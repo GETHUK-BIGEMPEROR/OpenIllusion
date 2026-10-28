@@ -24,13 +24,13 @@ from pathlib import Path
 from typing import Any
 
 from .. import fit, media, paths
-from .build import TOKEN, MEDIA, _images, _videos, SEED_TOKEN, build_local, reroll, defaults_workflow, fill_media, build_cloud, prune, materialize, tokens_in, file_resolver, run_size
+from .build import TOKEN, MEDIA, _images, _videos, SEED_TOKEN, build_local, reroll, defaults_workflow, fill_media, fill_refmods, build_cloud, prune, materialize, tokens_in, file_resolver, run_size
 from .contract import Engine, FIELD_TYPES, upgrade, lift_computed, load_template, media_path, shipped_ref, template_dirs, load_templates
 from .covers import COVER_SIDE, COVER_LOOP_SECONDS, CACHE_ERA, user_cover, cover_files, cover_file, defaults_info, _cover_info, set_cover, clear_cover, clip_limits, clip_file, poster_file
 from .results import VIDEO_EXT, IMAGE_EXT, classify_failure, find_assets, result_media, decode_media, slim, result_seed
 
 __all__ = [
-    "TOKEN", "MEDIA", "SEED_TOKEN", "build_local", "reroll", "defaults_workflow", "fill_media",
+    "TOKEN", "MEDIA", "SEED_TOKEN", "build_local", "reroll", "defaults_workflow", "fill_media", "fill_refmods",
     "build_cloud", "prune", "materialize", "tokens_in", "file_resolver", "run_size", "Engine",
     "FIELD_TYPES", "upgrade", "lift_computed", "load_template", "template_dirs",
     "load_templates", "COVER_SIDE", "COVER_LOOP_SECONDS", "CACHE_ERA", "user_cover",
@@ -38,7 +38,7 @@ __all__ = [
     "clip_file", "poster_file", "VIDEO_EXT", "IMAGE_EXT", "classify_failure", "find_assets",
     "result_media", "decode_media", "slim", "result_seed", "edit_template", "delete_template",
     "duplicate_template", "reset_template", "ENGINES", "reload_templates",
-    "router_model", "get", "describe", "varies", "is_draft", "requirements", "default_input",
+    "router_model", "get", "describe", "varies", "requirements", "default_input",
     "default_poster", "compose",
 ]
 
@@ -237,7 +237,7 @@ def describe(e: Engine) -> dict:
         "examples": e.examples, "tags": e.tags, "varies": varies(e), "inputs": e.inputs, "fields": fields, "requires": requirements(e),
         "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "model": e.model,
         "defaults": defaults,
-        **_cover_info(e), "cover_custom": user_cover(e.id).is_file(), "draft": is_draft(e),
+        **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),
     }
 
 
@@ -248,11 +248,6 @@ def varies(e: Engine) -> bool:
         return True
     return any(m != "fixed" for n in (e.workflow or {}).values()
                for m in ((n.get("_meta") or {}).get("control_after_generate") or {}).values())
-
-
-def is_draft(e: Engine) -> bool:
-    """A built template stays a draft until one of its own results becomes its cover."""
-    return e.built and cover_files(e)[0] is None
 
 
 def requirements(e: Engine) -> dict:
@@ -302,9 +297,19 @@ def compose(spec: dict) -> dict:
         for f in e.fields:
             if f["type"] in MEDIA and f.get("required", True) and f["key"] not in given:
                 warnings.append({"field": "video" if f["type"] == "video" else "inputs", "level": "error", "text": f"Add {f['label']}"})
+            elif f["type"] == "refmod" and f["key"] not in given:
+                warnings.append({"field": "inputs", "level": "error", "text": f"Pick {f['label']}"})
     elif len(imgs) < e.min_images:
         n = e.min_images
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} needs at least {n} image{'' if n == 1 else 's'}"})
+    for i in spec["inputs"]:
+        if i["slot"].startswith("refmod:") and i.get("refmod"):
+            from .. import characters
+
+            try:
+                characters.refmod_file(i["refmod"])
+            except FileNotFoundError:
+                warnings.append({"field": "inputs", "level": "error", "text": f"{i['refmod']} isn't in your RefMod folder any more. Pick another."})
     for v in vids:  # longer than the model takes is cut at the run (staging.fitted); shorter can't run
         window, _ = clip_limits(e, v["slot"])
         d = v.get("trimmed_duration") or v.get("duration")

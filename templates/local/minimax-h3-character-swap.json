@@ -400,6 +400,10 @@
   "source": "akatz-ai/MiniMax-H3-Character-Swap-LoRA, examples/H3 Character Swap v1 Ref2VA.json as published; text encoder set to the int8_convrot file (nvfp4 isn't installed)",
   "hints": {
     "models": {
+      "h3_character_swap_pro4500_1000.safetensors": {
+        "folder": "loras",
+        "url": "https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA/resolve/main/h3_character_swap_pro4500_1000.safetensors"
+      },
       "minimax_h3_ref2va_pruned_int8_convrot.safetensors": {
         "folder": "diffusion_models",
         "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors"

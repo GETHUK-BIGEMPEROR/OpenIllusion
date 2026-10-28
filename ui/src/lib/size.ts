@@ -79,8 +79,36 @@ const ratioOf = (aspect: string) => { const [w, h] = aspect.split(":").map(Numbe
 export function canvasSize(size: SizeSpec, aspect?: unknown, choice?: unknown): Dims | null {
   const c = size.canvas;
   if (!c) return null;
-  const [w, h] = ratioOf(c.aspects.includes(String(aspect)) ? String(aspect) : c.aspect) ?? [1, 1];
+  const shape = c.aspects.includes(String(aspect)) ? String(aspect) : c.aspect;
+  if (c.steps) return fitDims(c, shape, choice);
+  const [w, h] = ratioOf(shape) ?? [1, 1];
   return target(w, h, budget(size, choice) || budget(size, c.size), size.multiple);
+}
+
+/** The steps an output size offers: a cloud model's own megapixels, else the template's steps (Original left out). */
+export const canvasSteps = (size: SizeSpec): string[] =>
+  size.canvas?.steps ? size.canvas.steps.map((x) => `${x} MP`) : size.options.filter((o) => o.px).map((o) => o.label);
+
+/** A cloud model's size in pixels, as server/prep.py fit_dims makes it: the shape at the step's megapixels
+ *  (1 MP = 1024²), on the multiple, inside the model's sides and pixel range. */
+function fitDims(c: NonNullable<SizeSpec["canvas"]>, aspect: string, choice?: unknown): Dims {
+  const [w, h] = ratioOf(aspect) ?? [1, 1];
+  const steps = c.steps ?? [1];
+  const mp = steps.find((x) => `${x} MP` === String(choice)) ?? steps.find((x) => `${x} MP` === c.size) ?? steps[0];
+  const [loPx, hiPx] = c.pixels ?? [0, Infinity];
+  const px = Math.min(Math.max(mp * 1024 * 1024, loPx), hiPx);
+  const k = Math.sqrt(px / (w * h));
+  let W = w * k, H = h * k;
+  const [lo, hi] = c.sides ?? [0, Infinity];
+  let f = Math.min(1, hi / Math.max(W, H));
+  W *= f; H *= f;
+  f = Math.max(1, lo / Math.min(W, H));
+  W *= f; H *= f;
+  const m = c.multiple ?? 16;
+  W = Math.max(m, pyRound(W / m) * m); H = Math.max(m, pyRound(H / m) * m);
+  while (W > hi || W * H > hiPx) W -= m;
+  while (H > hi || W * H > hiPx) H -= m;
+  return { width: W, height: H };
 }
 
 /** Plans for every input of a run, each at its own size. */

@@ -100,7 +100,7 @@ def test_inputs_go_where_the_adapter_says():
     ]
     assert where == {"image:1": ["content", 1], "image:2": ["content", 2]} and model == SEEDANCE
     gpt = adapters.assemble(adapters.get("openai/gpt-image-2"), [(0, "image:1"), (0, "image:2")], "p")[0]
-    assert gpt == {"prompt": "p", "image": ["{{image:1|uri}}", "{{image:2|uri}}"]}
+    assert gpt == {"prompt": "p", "size": "auto", "quality": "auto", "image": ["{{image:1|uri}}", "{{image:2|uri}}"]}
     veo = _run(VEO, "Reference image", "Reference image")[0]
     assert [r["referenceType"] for r in veo["instances"][0]["referenceImages"]] == ["asset", "asset"]
     assert veo["instances"][0]["referenceImages"][0]["image"] == {"bytesBase64Encoded": "{{image:1|b64}}", "mimeType": "{{image:1|mime}}"}
@@ -110,7 +110,7 @@ def test_one_path_per_file():
     """FLUX names each reference its own field: input_image, input_image_2, ..."""
     flux = adapters.get("bfl/flux-2-max")
     body, where, _ = adapters.assemble(flux, [(0, "image:1"), (0, "image:2"), (0, "image:3")], "p")
-    assert body == {"prompt": "p", "width": 1024, "height": 1024, "output_format": "jpeg",
+    assert body == {"prompt": "p", "output_format": "jpeg",  # the photos set the size
                     "input_image": "{{image:1|b64}}", "input_image_2": "{{image:2|b64}}", "input_image_3": "{{image:3|b64}}"}
     assert where["image:3"] == ["input_image_3"] and flux.inputs[0]["max"] == 9
     with pytest.raises(adapters.AdapterError, match="up to 9"):
@@ -192,14 +192,18 @@ def test_template_is_frozen_to_the_files_its_run_used():
         "image": {"bytesBase64Encoded": "{{image:1|b64}}", "mimeType": "{{image:1|mime}}"},
         "lastFrame": {"bytesBase64Encoded": "{{image:2|b64}}", "mimeType": "{{image:2|mime}}"},
     }
-    assert [(f["key"], f["required"], f["bind"]) for f in data["inputs"]] == [
+    assert [(f["key"], f.get("required"), f["bind"]) for f in data["inputs"]] == [
         ("image:1", True, [["instances", 0, "image"]]), ("image:2", True, [["instances", 0, "lastFrame"]]),
-        ("prompt", True, [["instances", 0, "prompt"]])]
+        ("prompt", True, [["instances", 0, "prompt"]]),
+        # The model's settings, at its defaults, after the prompt
+        ("aspect", None, [["parameters", "aspectRatio"]]), ("resolution", None, [["parameters", "resolution"]]),
+        ("duration", None, [["parameters", "durationSeconds"]]), ("sound", None, [["parameters", "generateAudio"]])]
     assert data["result"] == adapters.get(VEO).result and data["mode"] == "motion" and data["kind"] == "cloud"
     # Text only: no image fields in the request at all.
     plain = builder.assemble_cloud(_spec())
-    assert plain["body"] == {"instances": [{"prompt": "a fox in the snow"}], "parameters": {"sampleCount": 1}}
-    assert [f["key"] for f in plain["inputs"]] == ["prompt"]
+    assert plain["body"] == {"instances": [{"prompt": "a fox in the snow"}], "parameters": {
+        "sampleCount": 1, "aspectRatio": "16:9", "resolution": "720p", "durationSeconds": 8, "generateAudio": True}}
+    assert [f["key"] for f in plain["inputs"]] == ["prompt", "aspect", "resolution", "duration", "sound"]
 
 
 def test_template_goes_to_the_model_its_inputs_picked():
@@ -207,7 +211,7 @@ def test_template_goes_to_the_model_its_inputs_picked():
     assert data["model"] == "wan/happyhorse-1.0-video-edit" and data["provider"] == "wan"
     assert data["body"]["input"]["media"] == [{"type": "video", "url": "{{video:1|url}}"},
                                               {"type": "reference_image", "url": "{{image:1|uri}}"}]
-    assert [f["key"] for f in data["inputs"]] == ["video:1", "image:1", "prompt"]
+    assert [f["key"] for f in data["inputs"]] == ["video:1", "image:1", "prompt", "resolution"]  # the clip sets the length
     talk = builder.assemble_cloud(_spec(model=SEEDANCE, media=[2, (4, "audio")]))
     assert talk["body"]["content"][2]["audio_url"] == {"url": "{{audio:1|uri}}"}
 

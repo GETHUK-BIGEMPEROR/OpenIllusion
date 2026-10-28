@@ -3,12 +3,12 @@ import { useQueries } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { typing } from "../../components/ABPlayer";
 import { dropIntoStudio, isMediaFile, useFileDrop } from "../../components/Drop";
-import { useEngine, ParamFields } from "../../components/Engine";
+import { OutputSize, useEngine, ParamFields } from "../../components/Engine";
 import { cx, GpuStat, I, KeyStat } from "../../components/oi";
 import { invalidFields, LocalNeeds, NoTemplates, useCompose, useCurrent, useRunner, useStudio, type Fix } from "../../components/Studio";
 import { tplName } from "../../components/TemplateCard";
-import { api, type Manifest, type Mode } from "../../lib/api";
-import { clipSlots, clipWindow, leadSlot, mediaFields, settingsOf, videoField } from "../../lib/fields";
+import { api, isMedia, type Manifest, type Mode } from "../../lib/api";
+import { clipSlots, clipWindow, fieldsOf, leadSlot, mediaFields, refmodFields, settingsOf, videoField } from "../../lib/fields";
 import { errMsg } from "../../lib/format";
 import { isActive, useJobs } from "../../lib/live";
 import { go } from "../../lib/route";
@@ -17,8 +17,9 @@ import { canvasSize, dimsText, plans, usePrepImages, type PrepInput } from "../.
 import { Canvas } from "./Canvas";
 import { HistList, HistStrip } from "./History";
 import { bakePending, FileCard, InputStage } from "./Inputs";
+import { RefModCard, RefModStage } from "./RefModInput";
 import { toSpec } from "../../lib/spec";
-import { advSummary, Hero, PromptSection, Publish, RunBar } from "./Panel";
+import { advSummary, Hero, PromptSection, RunBar, UseAsCover } from "./Panel";
 import { FAILED, type View, withInput } from "./shared";
 
 export const EditStudio = () => <CreateStudio mode="edit" />;
@@ -34,6 +35,9 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const [s, set] = useStudio(mode);
   const engine = useEngine(mode, s.engine);
   const media = mediaFields(engine);
+  const mods = refmodFields(engine);
+  // The inputs list: photos, clips, sounds and RefMods, in the template's order.
+  const cards = fieldsOf(engine).filter((f) => isMedia(f) || f.type === "refmod");
   const vField = videoField(engine);
   const lead = leadSlot(engine);
   const leadVideo = lead.startsWith("video:");
@@ -61,6 +65,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
   // The input the stage edits: the one you picked, else the lead.
   const [picked, setPicked] = useState<string | null>(null);
   useEffect(() => setPicked(null), [s.engine]);
+  const selMod = mods.find((f) => f.key === picked);
   const selField = media.find((f) => f.key === picked) ?? media.find((f) => f.key === lead) ?? media[0];
   // A declared output size: the shape and step picked under Output. Without one, the workflow sizes its own output.
   const canvas = sized?.canvas ? canvasSize(sized, s.params.aspect, s.params.out_size) : null;
@@ -184,10 +189,10 @@ function CreateStudio({ mode }: { mode: Mode }) {
   if (!s.engine && !engine) return <NoTemplates mode={mode} />;
 
   const inputView = eff === "input" || eff === "empty";
-  const editing = inputView && !!engine && !!selField;
+  const editing = inputView && !!engine && (!!selMod || !!selField);
   const pickRun = (id: string) => { set({ current: id, group: [id] }); setView("compare"); };
   const setParam = (k: string, v: unknown) => set((st) => ({ params: { ...st.params, [k]: v } }));
-  const required = media.filter((f) => f.required !== false).length;
+  const required = cards.filter((f) => f.required !== false).length;
 
   return (
     <div className="page studio">
@@ -197,13 +202,16 @@ function CreateStudio({ mode }: { mode: Mode }) {
           <HistStrip engine={s.engine} current={s.current} jobs={jobs} onPick={pickRun} />
           {engine?.kind === "local" && <div style={{ display: "grid", gap: 8 }}><LocalNeeds spec={spec} /></div>}
 
-          {engine && !!media.length && (
+          {engine && !!cards.length && (
           <section className="sec" aria-labelledby="sec-inputs">
-            <div className="sec-h"><h4 id="sec-inputs">Inputs</h4><span className="mono">{media.length > required ? `${media.length - required} optional` : `${media.length} ${media.length === 1 ? "file" : "files"}`}</span></div>
+            <div className="sec-h"><h4 id="sec-inputs">Inputs</h4><span className="mono">{cards.length > required ? `${cards.length - required} optional` : `${cards.length} ${cards.length === 1 ? "input" : "inputs"}`}</span></div>
             <div className="flist">
-              {media.map((f) => (
-                <FileCard key={f.key} e={engine} f={f} s={s} set={set} photos={photos} plan={planOf(f.key)}
-                  on={inputView && f.key === selField?.key} onPick={() => { setPicked(f.key); setView("input"); }} />
+              {cards.map((f) => f.type === "refmod" ? (
+                <RefModCard key={f.key} e={engine} f={f as (typeof mods)[number]} s={s} set={set}
+                  on={inputView && f.key === selMod?.key} onPick={() => { setPicked(f.key); setView("input"); }} />
+              ) : (
+                <FileCard key={f.key} e={engine} f={f as (typeof media)[number]} s={s} set={set} photos={photos} plan={planOf(f.key)}
+                  on={inputView && !selMod && f.key === selField?.key} onPick={() => { setPicked(f.key); setView("input"); }} />
               ))}
             </div>
           </section>
@@ -211,11 +219,12 @@ function CreateStudio({ mode }: { mode: Mode }) {
 
           <PromptSection s={s} set={set} engine={engine} invalid={invalid.has("prompt")} onRun={() => void runner.run()} />
 
-          {!!settings.main.length && (
+          {(!!settings.main.length || !!sized?.canvas) && (
             <section className="sec" aria-labelledby="sec-set">
               <div className="sec-h"><h4 id="sec-set">Settings</h4></div>
               <div className="adv-body" style={{ padding: 0 }}>
-                <ParamFields params={settings.main} values={s.params} invalid={invalid} onChange={setParam} />
+                {sized?.canvas && <OutputSize size={sized} aspect={s.params.aspect} step={s.params.out_size} onChange={setParam} />}
+                {!!settings.main.length && <ParamFields params={settings.main} values={s.params} invalid={invalid} onChange={setParam} />}
               </div>
             </section>
           )}
@@ -249,7 +258,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
               {varies && <button className="btn sm ghost" type="button" onClick={() => rerun(shown.id)} title="Same inputs, new seed"><I n="refresh" /><span className="lbl">Re-run</span></button>}
               <button className="btn sm ghost" type="button" onClick={() => remix(shown)} title="Load this run's inputs and settings as a new draft"><I n="remix" /><span className="lbl">Remix</span></button>
               <button className="btn sm" type="button" onClick={() => share(shown.id)} aria-keyshortcuts="E" title="Export (E)"><I n="share" /><span className="lbl">Export</span></button>
-              {engine?.draft && shown.engine.model === engine.id && <Publish e={engine} run={shown.id} />}
+              {engine && !engine.cover && !engine.cover_video && shown.engine.model === engine.id && <UseAsCover e={engine} run={shown.id} />}
             </>
           )}
           <button className="icon-btn" type="button" aria-label="Open in Library" title="Open in Library" disabled={!shown} style={shown ? undefined : { opacity: 0.35 }}
@@ -260,7 +269,8 @@ function CreateStudio({ mode }: { mode: Mode }) {
 
         {editing ? (
           <div className="stage-ed">
-            <InputStage key={selField.key} e={engine} f={selField} s={s} set={set} photos={photos} />
+            {selMod ? <RefModStage e={engine} f={selMod} s={s} set={set} />
+              : <InputStage key={selField!.key} e={engine} f={selField!} s={s} set={set} photos={photos} />}
           </div>
         ) : (
         <div className={cx("canvas", stageDrop.over && "drop")} {...stageDrop.props} data-drop="Drop to fill the inputs in order">

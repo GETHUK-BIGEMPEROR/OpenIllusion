@@ -46,6 +46,8 @@ export function RestoreReview() {
         res.generations && plural(res.generations, "generation"),
         res.trash && `${res.trash} in trash`,
         res.templates && plural(res.templates, "template"),
+        res.characters && plural(res.characters, "character"),
+        res.refmods && plural(res.refmods, "RefMod"),
         res.covers && plural(res.covers, "cover"),
         res.settings.length && plural(res.settings.length, "setting"),
       ].filter(Boolean);
@@ -59,7 +61,7 @@ export function RestoreReview() {
     }
   };
 
-  const nothing = r && !r.generations.new && !r.trash.new && !r.templates.new && !r.covers;
+  const nothing = r && !r.generations.new && !r.trash.new && !r.templates.new && !r.characters?.new && !r.refmods?.new && !r.covers;
   const pct = busy && progress?.total ? progress.done / progress.total : 0;
   return (
     <Dialog.Root open={!!restoring} onOpenChange={(o) => !o && !busy && setRestoring(null)}>
@@ -92,6 +94,8 @@ export function RestoreReview() {
                         <Row label="Generations" n={r.generations.new} desc={`${r.generations.total} in the backup`} />
                         {r.trash.total > 0 && <Row label="In trash" n={r.trash.new} desc={`${r.trash.total} in the backup's trash`} />}
                         <Row label="Templates" n={r.templates.new} desc={`${r.templates.total} of your own in the backup`} />
+                        {!!r.characters?.total && <Row label="Characters" n={r.characters.new} desc={`${r.characters.total} in the backup, with their photos`} />}
+                        {!!r.refmods?.total && <Row label="RefMods" n={r.refmods.new} desc={`${r.refmods.total} in the backup, into your RefMod folder`} />}
                         {r.covers > 0 && <Row label="Covers" n={r.covers} desc="Covers you set that this install doesn't have" />}
                       </div>
                     </section>

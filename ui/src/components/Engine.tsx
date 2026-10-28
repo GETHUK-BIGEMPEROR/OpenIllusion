@@ -1,8 +1,9 @@
 import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { api, type EngineInfo, type Mode, type ParamSpec } from "../lib/api";
+import { api, type EngineInfo, type Mode, type ParamSpec, type SizeSpec } from "../lib/api";
 import { randomSeed } from "../lib/format";
+import { canvasSize, canvasSteps, dimsText } from "../lib/size";
 import { IconButton, Segmented, Select, Slider, TextInput, Toggle, cx } from "./ui";
 import { I } from "./oi";
 
@@ -64,7 +65,7 @@ function EngineList({ list, value, pick }: { list: EngineInfo[]; value: string; 
           <button type="button" role="option" aria-selected={e.id === value} onClick={() => pick(e.id)} className="eng-opt">
             <span aria-hidden className={cx("eng-glyph sm", e.kind === "local" && "local")}>{engineGlyph(e)}</span>
             <span className="eng-t">
-              <span className="eng-name"><b>{e.label}</b>{e.draft && <em className="tdraft" title="Not on Explore yet. Run it, then Publish the result you like.">Draft</em>}</span>
+              <span className="eng-name"><b>{e.label}</b></span>
               <span className="eng-blurb">{e.blurb}</span>
             </span>
             {e.id === value && <I n="check" size={13} className="eng-on" />}
@@ -96,12 +97,23 @@ export function ParamFields({ params, values, onChange, invalid }: { params: Par
             </div>
           );
         }
-        if (p.type === "segmented") {
-          const opts = p.options ?? [];
+        // Options are the model's values (strings or numbers); what's picked goes back as the value itself.
+        const opts = p.options ?? [];
+        const strs = opts.map(String);
+        const pick = (x: string) => onChange(p.key, opts[strs.indexOf(x)] ?? x);
+        if (p.type === "aspect") {
           return (
             <div key={p.key} className="prm">
               <span>{lbl}</span>
-              <Segmented label={p.label} value={String(v)} options={opts} onChange={(x) => onChange(p.key, x)} cols={Math.min(opts.length, opts.length > 5 ? 4 : 5)} />
+              <AspectPicker label={p.label} value={String(v ?? "")} options={strs} labels={p.labels} onChange={pick} />
+            </div>
+          );
+        }
+        if (p.type === "segmented") {
+          return (
+            <div key={p.key} className="prm">
+              <span>{lbl}</span>
+              <Segmented label={p.label} value={String(v)} options={strs} onChange={pick} render={(o) => optionText(p, o)} cols={Math.min(opts.length, opts.length > 5 ? 4 : 5)} />
             </div>
           );
         }
@@ -109,8 +121,8 @@ export function ParamFields({ params, values, onChange, invalid }: { params: Par
           return (
             <div key={p.key} className="prm">
               <label htmlFor={id}>{lbl}</label>
-              <Select id={id} aria-invalid={bad || undefined} value={String(v ?? "")} onChange={(e) => onChange(p.key, e.target.value)} className="wide">
-                {(p.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+              <Select id={id} aria-invalid={bad || undefined} value={String(v ?? "")} onChange={(e) => pick(e.target.value)} className="wide">
+                {strs.map((o) => <option key={o} value={o}>{optionText(p, o)}</option>)}
               </Select>
             </div>
           );
@@ -151,6 +163,57 @@ export function ParamFields({ params, values, onChange, invalid }: { params: Par
           </div>
         );
       })}
+    </>
+  );
+}
+
+/** What people see for an option: its label, else the value, with the unit ("5 s"). "" is Auto. */
+export const optionText = (p: { labels?: Record<string, string>; unit?: string }, o: string) =>
+  p.labels?.[o] ?? (o === "" ? "Auto" : `${o}${p.unit ? ` ${p.unit}` : ""}`);
+
+/** "16:9" or "1536x1024" as a width/height ratio; null for Auto and other words. */
+const shapeOf = (o: string): number | null => {
+  const m = /^(\d+(?:\.\d+)?)\s*[:x*]\s*(\d+(?:\.\d+)?)$/.exec(o.trim());
+  return m && +m[1] > 0 && +m[2] > 0 ? +m[1] / +m[2] : null;
+};
+
+/** Output shapes as tiles, each drawn at its shape. */
+export function AspectPicker({ value, options, labels, onChange, label }: { value: string; options: string[]; labels?: Record<string, string>; onChange: (v: string) => void; label: string }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="aspects">
+      {options.map((o) => {
+        const r = shapeOf(o);
+        const name = labels?.[o] ?? (r === null ? "Auto" : o);
+        const [w, h] = r === null ? [14, 14] : r >= 1 ? [18, 18 / r] : [18 * r, 18];
+        return (
+          <button key={o} type="button" role="radio" aria-checked={o === value} onClick={() => onChange(o)} title={name}>
+            <i aria-hidden className={cx(r === null && "auto")} style={{ width: Math.max(5, w), height: Math.max(5, h) }} />
+            <span>{name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A template's declared output size: a shape and a step, and the pixels they make. */
+export function OutputSize({ size, aspect, step, onChange }: { size: SizeSpec; aspect: unknown; step: unknown; onChange: (key: "aspect" | "out_size", v: string) => void }) {
+  const c = size.canvas;
+  if (!c) return null;
+  const steps = canvasSteps(size);
+  const a = c.aspects.includes(String(aspect)) ? String(aspect) : c.aspect;
+  const st = steps.includes(String(step)) ? String(step) : c.size;
+  const dims = canvasSize(size, a, st);
+  return (
+    <>
+      <div className="prm">
+        <span className="prm-l">Aspect</span>
+        <AspectPicker label="Aspect" value={a} options={c.aspects} onChange={(v) => onChange("aspect", v)} />
+      </div>
+      <div className="prm">
+        <div className="prm-h"><span className="prm-l">Size</span>{dims && <span className="mono">{dimsText(dims)}</span>}</div>
+        <Segmented label="Size" value={st} options={steps} onChange={(v) => onChange("out_size", v)} cols={Math.min(steps.length, 5)} />
+      </div>
     </>
   );
 }

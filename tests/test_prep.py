@@ -153,8 +153,9 @@ def test_shipped_templates_only_write_what_they_declare():
         if e.kind != "local" or e.origin != "shipped":
             continue
         assert "follows" not in (e.data.get("size") or {}) and "computed" not in e.data, e.id
-        # Inputs and the prompt only: the output size is whatever the workflow says.
-        assert not any(f["type"] == "size" for f in e.fields) and not e.params, e.id
+        # Made from words alone, it asks for an output size; from a photo or clip, the input sets it.
+        assert any(f["type"] == "size" for f in e.fields) == (not e.inputs), e.id
+        assert [p["key"] for p in e.params] in ([], ["duration"]), e.id
 
 
 # ---- template defaults: samples and prompt -------------------------------------
@@ -169,7 +170,9 @@ def test_every_template_opens_ready_to_run():
         want = [f"image:{n}" for n in range(1, e.max_images + 1)] + (["video:1"] if e.needs_video else [])
         assert sorted(i["slot"] for i in d["inputs"]) == sorted(want), e.id
         spec = {"engine": e.id, "prompt": d["prompt"], "params": {}, "inputs": [{"slot": i["slot"], "asset": i["asset"], "duration": i.get("duration")} for i in d["inputs"]]}
-        assert not [w for w in engines.compose(spec)["warnings"] if w["level"] == "error"], e.id
+        # A template that takes a RefMod opens asking for one; nothing else.
+        picks = [f"Pick {f['label']}" for f in e.fields if f["type"] == "refmod"]
+        assert [w["text"] for w in engines.compose(spec)["warnings"] if w["level"] == "error"] == picks, e.id
 
 
 def test_samples_resolve_like_uploads():
@@ -205,9 +208,10 @@ def test_default_prompt_is_editable_and_samples_stay_put():
 def test_every_template_ships_its_cover_and_samples():
     for e in engines.ENGINES.values():
         if e.kind == "local":
-            assert e.cover and e.cover.is_file(), e.id  # the result of running it on its defaults
+            if not e.built:  # a built one gets its cover from a run of it
+                assert e.cover and e.cover.is_file(), e.id  # the result of running it on its defaults
+                assert engines.describe(e)["cover"], e.id
             assert all(p.is_file() for p in e.default_inputs.values()), e.id
-            assert engines.describe(e)["cover"], e.id
 
 
 def test_clips_are_cropped_and_sized_like_photos(tmp_path):

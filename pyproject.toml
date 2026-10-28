@@ -7,6 +7,7 @@ name = "openillusion"
 dynamic = ["version"]
 description = "Motion + Edit studio for Comfy: run on Comfy Router with an API key, or on your own GPU through Comfy API v2."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
   "aiohttp>=3.9",

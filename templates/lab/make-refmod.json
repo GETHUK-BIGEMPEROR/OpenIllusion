@@ -1,0 +1,55 @@
+{
+  "about": "Character Lab: make a MiniMax H3 RefMod from a character's photos. API format; node 10 is copied once per photo (10, 11, ...) and wired to refs_image.ref_image_<n>. Needs ComfyUI-MiniMaxH3Mod; the RefMod is saved to the first registered refmods folder (output/refmods, see README) and fetched from there like a result.",
+  "source": "Luisacaotica/ComfyUI-MiniMaxH3Mod, Create H3 RefMod with the identity_encode preset",
+  "node": "3",
+  "photo": "10",
+  "workflow": {
+    "2": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      }
+    },
+    "3": {
+      "class_type": "MiniMaxH3RefModExtract",
+      "inputs": {
+        "name": "",
+        "subfolder": "openillusion",
+        "mode": "Full Reference",
+        "concept_type": "identity",
+        "extraction_preset": "identity_encode",
+        "background_retention": 0.0,
+        "ref_resolution": 1024,
+        "pool_h": 16,
+        "pool_w": 16,
+        "latent_frames": 16,
+        "identity": 500,
+        "merge": false,
+        "motion_only": false,
+        "multiplier": 1,
+        "max_tokens": 5120,
+        "budget_policy": "truncate",
+        "description": "",
+        "save": true,
+        "vae": ["2", 0]
+      }
+    },
+    "10": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": ""
+      }
+    }
+  },
+  "hints": {
+    "models": {
+      "minimax_h3_video_vae_int8_convrot.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors"
+      }
+    },
+    "nodes": {
+      "MiniMaxH3RefModExtract": "https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod"
+    }
+  }
+}

@@ -8,20 +8,25 @@ from __future__ import annotations
 
 import json
 import random
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from PIL import Image
 
-from . import engines, fit, media, paths, prep, settings, storage, store
+from . import characters, engines, fit, media, paths, prep, settings, storage, store
 from . import generation as sc
 
 
 def resolve_asset(ref: str) -> Path:
-    """An input's source: an upload id, ``gen:<id>/<relative path>``, or a template's sample ``tpl:<engine>|<slot>``."""
+    """An input's source: an upload id, ``gen:<id>/<relative path>``, a template's sample ``tpl:<engine>|<slot>``,
+    or a character's photo ``char:<id>/<photo>``."""
     if ref.startswith("tpl:"):
         engine_id, _, slot = ref[len("tpl:"):].rpartition("|")
         return engines.default_input(engine_id, slot)
+    if ref.startswith("char:"):
+        cid, _, name = ref[len("char:"):].partition("/")
+        return characters.photo_path(cid, name)
     if ref.startswith("gen:"):
         sid, _, rel = ref[len("gen:"):].partition("/")
         base = store.folder(sid).resolve()
@@ -179,7 +184,17 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
             url=raw.get("url") or None, label=raw.get("label"),
         )
         src = resolve_asset(raw["asset"]) if raw.get("asset") else None
-        if slot.startswith("image:") and src:
+        if slot.startswith("refmod:") and raw.get("refmod"):
+            try:  # a rerun names the generation's own copy as its asset instead
+                src = characters.refmod_file(raw["refmod"])
+            except FileNotFoundError:
+                raise ValueError(f"{raw['refmod']} isn't in your RefMod folder") from None
+            item.label = item.label or src.stem
+        if slot.startswith("refmod:") and src:
+            rel = f"refs/{slot.replace(':', '-')}.safetensors"
+            shutil.copyfile(src, folder / rel)
+            item.file, item.role = rel, "character"
+        elif slot.startswith("image:") and src:
             img_n += 1
             img = pictures[slot]
             if slot in plans:
@@ -254,7 +269,8 @@ def workflow_file(m: sc.Manifest) -> dict:
     """The API-format workflow with media tokens swapped for the input filenames.
 
     ComfyUI loads API-format JSON by drag and drop; the user copies the generation's
-    refs into ComfyUI's input folder (or re-picks them) before queueing.
+    refs into ComfyUI's input folder (or re-picks them) before queueing. A character's
+    RefMod is named as a run uploads it (``input/refmods/openillusion/<sha>``).
     """
     by_slot = {i.slot: i for i in m.inputs}
 
@@ -262,7 +278,8 @@ def workflow_file(m: sc.Manifest) -> dict:
         item = by_slot.get(f"{kind}:{n}")
         return Path(item.file).name if item and item.file else f"{kind}_{n}"
 
-    return engines.materialize(m.request_template, name)
+    refmods = {i.slot: characters.mod_name(i.sha256) for i in m.inputs if i.slot.startswith("refmod:") and i.sha256}
+    return engines.materialize(engines.fill_refmods(m.request_template, refmods), name)
 
 
 def recipe_manifest(m: sc.Manifest, res: sc.Result | None = None) -> dict:

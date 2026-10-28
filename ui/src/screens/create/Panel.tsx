@@ -54,7 +54,7 @@ export function Hero({ e }: { e: EngineInfo }) {
             <button key={x.id} type="button" role="option" aria-selected={x.id === e.id} aria-current={x.id === e.id}
               onClick={() => { setOpen(false); if (x.id !== e.id) openTemplate(e.mode, x.id); }}>
               {x.cover ? <img src={x.cover} alt="" /> : <span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n={x.mode === "motion" ? "film" : "image"} /></span>}
-              {tplName(x)}{x.draft && <em className="tdraft" title="Not on Explore yet. Run it, then Publish the result you like.">Draft</em>}<small>{tplModel(x)}</small>
+              {tplName(x)}<small>{tplModel(x)}</small>
             </button>
           ))}
           <button type="button" onClick={() => { setOpen(false); openTemplate(e.mode, e.id); }}><span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="undo" /></span>Start over with the samples</button>
@@ -62,18 +62,17 @@ export function Hero({ e }: { e: EngineInfo }) {
         </div>
       )}
       <TemplateTools e={e} />
-      {e.draft && <div className="draft-note"><I n="info" /><p><b>Draft. Not on Explore yet.</b> Run it, then press Publish on the result you like. That result becomes its cover.</p></div>}
       {e.blurb && <p className="thero-blurb">{e.blurb}</p>}
     </div>
   );
 }
 
-/** Puts a draft on the wall, with this run's result as its cover. */
-export function Publish({ e, run }: { e: EngineInfo; run: string }) {
+/** For a template with no cover yet: this run's result becomes it. */
+export function UseAsCover({ e, run }: { e: EngineInfo; run: string }) {
   const { busy, fromRun } = useCoverActions(e);
   return (
-    <button className="btn sm primary" type="button" disabled={busy} onClick={() => void fromRun(run)} title="This result becomes the cover and the template goes on Explore">
-      {busy ? <Spinner size={13} /> : <I n="upload" />}<span className="lbl">Publish</span>
+    <button className="btn sm primary" type="button" disabled={busy} onClick={() => void fromRun(run)} title="This result becomes the template's cover on Explore">
+      {busy ? <Spinner size={13} /> : <I n="image" />}<span className="lbl">Use as cover</span>
     </button>
   );
 }

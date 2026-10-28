@@ -403,12 +403,12 @@ function Lineage({ m }: { m: Manifest }) {
   );
 }
 
-/** "Use as template cover", or for a draft, publish it with this result as the cover. */
+/** "Use as template cover": this result becomes the template's cover. */
 function CoverItem({ e, run, close }: { e: EngineInfo; run: string; close: () => void }) {
   const { busy, fromRun } = useCoverActions(e);
   return (
     <button role="menuitem" type="button" disabled={busy} onClick={async () => { if (await fromRun(run)) close(); }}>
-      <I n={e.draft ? "upload" : "image"} />{e.draft ? "Publish template with this cover" : "Use as template cover"}
+      <I n="image" />Use as template cover
     </button>
   );
 }

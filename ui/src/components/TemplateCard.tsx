@@ -107,8 +107,7 @@ export function TemplateTools({ e }: { e: EngineInfo }) {
   );
 }
 
-/** Covers come from results: a finished run of the template becomes its cover, and a
- *  draft's first one publishes it to the wall. The engines list updates in place. */
+/** Covers come from results: a finished run of the template becomes its cover. The engines list updates in place. */
 export function useCoverActions(e: EngineInfo) {
   const qc = useQueryClient();
   const toast = useApp((s) => s.toast);
@@ -129,9 +128,7 @@ export function useCoverActions(e: EngineInfo) {
     }
   };
   const fromRun = (generation: string) => apply(() => api.setCover(e.id, generation), () =>
-    toast(e.draft
-      ? { text: `${tplName(e)} is on Explore now.`, tone: "ok", action: { label: "View", run: () => go({ name: "explore", t: e.id }) } }
-      : { text: "Template cover updated.", tone: "ok", action: { label: "View", run: () => go({ name: "explore", t: e.id }) } }));
+    toast({ text: "Template cover updated.", tone: "ok", action: { label: "View", run: () => go({ name: "explore", t: e.id }) } }));
   const reset = () => apply(() => api.resetCover(e.id), () => toast({ text: "Cover reset.", tone: "ok" }));
   return { busy, fromRun, reset };
 }

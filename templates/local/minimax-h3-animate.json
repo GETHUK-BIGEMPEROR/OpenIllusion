@@ -53,6 +53,27 @@
           "prompt"
         ]
       ]
+    },
+    {
+      "key": "duration",
+      "type": "segmented",
+      "label": "Duration",
+      "options": [
+        3,
+        5,
+        8,
+        10,
+        15
+      ],
+      "default": 5,
+      "unit": "s",
+      "bind": [
+        [
+          "105:111",
+          "value",
+          "float"
+        ]
+      ]
     }
   ],
   "size": {

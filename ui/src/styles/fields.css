@@ -37,3 +37,13 @@
 .prm.seed{flex-direction:row;align-items:center;gap:8px}
 .prm.seed label{flex:none;width:56px}
 .prm.seed .input{flex:1;text-align:right}
+/* output shape tiles (AspectPicker) */
+.aspects{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:4px;padding:3px;border-radius:11px;background:var(--panel);border:1px solid var(--line)}
+.aspects button{display:grid;justify-items:center;align-content:center;gap:5px;height:50px;border-radius:8px;color:var(--text-2);font-size:11px;font-weight:500;min-width:0;transition:background .15s,color .15s}
+.aspects button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
+.aspects button i{display:block;border:1.5px solid currentColor;border-radius:2.5px;opacity:.75}
+.aspects button i.auto{border-style:dashed}
+.aspects button:hover{color:var(--text)}
+.aspects button[aria-checked="true"]{background:var(--hover);color:var(--text);box-shadow:inset 0 0 0 1px var(--line-2)}
+.aspects button[aria-checked="true"] i{border-color:var(--yellow);opacity:1}
+.aspects button:focus-visible{outline:2px solid var(--violet);outline-offset:1px}

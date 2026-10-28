@@ -251,6 +251,78 @@
       }
     }
   ],
+  "settings": [
+    {
+      "key": "aspect",
+      "label": "Aspect",
+      "type": "aspect",
+      "at": [
+        "ratio"
+      ],
+      "options": [
+        "16:9",
+        "4:3",
+        "1:1",
+        "3:4",
+        "9:16",
+        "21:9",
+        "9:21",
+        "adaptive"
+      ],
+      "labels": {
+        "adaptive": "Auto"
+      },
+      "default": "16:9",
+      "off_with": [
+        "First frame",
+        "Last frame",
+        "Video to edit"
+      ]
+    },
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "segmented",
+      "at": [
+        "resolution"
+      ],
+      "options": [
+        "480p",
+        "720p",
+        "1080p",
+        "4k"
+      ],
+      "labels": {
+        "4k": "4K"
+      },
+      "default": "720p"
+    },
+    {
+      "key": "duration",
+      "label": "Duration",
+      "type": "int",
+      "at": [
+        "duration"
+      ],
+      "min": 4,
+      "max": 30,
+      "default": 5,
+      "unit": "s",
+      "off_with": [
+        "Video to edit"
+      ]
+    },
+    {
+      "key": "sound",
+      "label": "Sound",
+      "type": "bool",
+      "at": [
+        "generate_audio"
+      ],
+      "default": true,
+      "help": "Make sound with the clip"
+    }
+  ],
   "result": [
     [
       "content",

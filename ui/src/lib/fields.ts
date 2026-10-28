@@ -17,6 +17,11 @@ export function fitOf(e: EngineInfo | undefined, slot: string): Fit | undefined 
 /** Photos and clips, in the template's order. */
 export const mediaFields = (e?: EngineInfo): MediaField[] => fieldsOf(e).filter(isMedia);
 
+export type RefModField = Field & { type: "refmod"; photo?: string };
+
+/** The RefMods a template takes, each picked from the RefMod folder. */
+export const refmodFields = (e?: EngineInfo): RefModField[] => fieldsOf(e).filter((f): f is RefModField => f.type === "refmod");
+
 export const videoField = (e?: EngineInfo): MediaField | undefined => mediaFields(e).find((f) => f.type === "video");
 
 /** The video inputs: a template's own, or video:1 for a raw Router model opened for video. */
@@ -41,10 +46,10 @@ export interface PromptField { key: "prompt"; label: string; hint?: string; requ
 export const promptField = (e?: EngineInfo): PromptField | undefined =>
   e?.fields?.length ? (e.fields.find((f) => f.key === "prompt") as PromptField | undefined) : e ? { key: "prompt", label: "Prompt", examples: e.examples } : undefined;
 
-/** Settings: everything that isn't a photo, a clip or the prompt. `advanced` ones go under Advanced. */
+/** Settings: everything that isn't a photo, a clip, a RefMod or the prompt. `advanced` ones go under Advanced. */
 export function settingsOf(e?: EngineInfo): { main: ParamSpec[]; advanced: ParamSpec[] } {
   if (!e?.fields?.length) return { main: [], advanced: e?.params ?? [] };
-  const all = e.fields.filter((f) => !isMedia(f) && f.key !== "prompt" && f.type !== "size") as ParamSpec[];
+  const all = e.fields.filter((f) => !isMedia(f) && f.key !== "prompt" && f.type !== "size" && f.type !== "refmod") as ParamSpec[];
   return { main: all.filter((p) => !p.advanced), advanced: all.filter((p) => p.advanced) };
 }
 

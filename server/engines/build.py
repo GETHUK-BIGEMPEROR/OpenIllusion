@@ -80,6 +80,8 @@ def build_local(e: "Engine", spec: dict) -> dict:
             for node, inp, side in (t for t in targets if str(t[0]) in wf):
                 wf[str(node)]["inputs"][inp] = dims[0] if side == "width" else dims[1]
             continue
+        elif key.startswith("refmod:"):  # a RefMod slot: left empty, the loader loads nothing there
+            value, cast_ok = ("{{%s}}" % key if key in slots else NO_REFMOD), False
         elif ":" in key:  # a media slot
             value, cast_ok = ("{{%s}}" % key if key in slots else None), False
         else:
@@ -130,6 +132,33 @@ def fill_media(wf: dict, names: dict[str, str]) -> dict:
     return wf
 
 
+REFMOD = re.compile(r"^\{\{refmod:\d+\}\}$")
+NO_REFMOD = "(none)"  # what a RefMod loader's empty slot holds
+
+
+def fill_refmods(wf: dict, names: dict[str, str]) -> dict:
+    """Swap ``{{refmod:N}}`` for the name ComfyUI loads that RefMod by (``names`` by slot)."""
+    def one(v):
+        return names.get(v[2:-2], v) if isinstance(v, str) and REFMOD.match(v) else v
+    return {nid: {**n, "inputs": {k: one(v) for k, v in n.get("inputs", {}).items()}} for nid, n in wf.items()}
+
+
+def _setting_value(f: dict, v: Any) -> Any:
+    """A setting as the model reads it: an option in its own type (Create sends "8" for 8), a
+    switch as the model's off/on words when it has them."""
+    if f.get("type") == "bool" and f.get("values"):
+        return f["values"][1] if v in (True, "true", 1) else f["values"][0]
+    for o in f.get("options") or []:
+        if str(o) == str(v):
+            return o
+    if f.get("type") == "int" and v not in (None, ""):
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return v
+    return v
+
+
 def build_cloud(e: "Engine", spec: dict) -> dict:
     """A cloud template's body with the studio's fields written in.
 
@@ -139,17 +168,29 @@ def build_cloud(e: "Engine", spec: dict) -> dict:
     body = copy.deepcopy(e.body or {})
     p = spec.get("params", {})
     slots = {i["slot"] for i in spec.get("inputs", [])}
+    fields = {f["key"]: f for f in e.fields}
     drop: list[list] = []
     for key, targets in e.bindings.items():
         if key == "prompt":
             value: Any = spec.get("prompt", "")
+        elif key == "size":  # the model's size: the shape and step picked, as pixels
+            w, h = prep.canvas_size(run_size(e), p.get("aspect"), p.get("out_size")) or (None, None)
+            if w is None:
+                continue
+            f = fields["size"]
+            for path, side in targets:
+                _set(body, path, f"{w}{f.get('sep', 'x')}{h}" if side == "text" else w if side == "width" else h)
+            continue
         elif key.startswith("params."):
             name = key[len("params."):]
             if name not in p:
                 continue
-            value = p[name]
+            value = _setting_value(fields.get(name) or {}, p[name])
             if name == "seed" and (value in (None, "") or int(value) < 0):
                 value = random.randint(0, 2**31 - 1)
+            if value == "" and (fields.get(name) or {}).get("type") in ("aspect", "select", "segmented"):
+                drop.extend(targets)  # "Auto": the model decides, so the field isn't sent
+                continue
         elif ":" in key:
             if key in slots:
                 continue  # the token is already in the body

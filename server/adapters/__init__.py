@@ -55,7 +55,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .. import fit
+from .. import fit, prep
 
 HERE = Path(__file__).parent
 MODEL_ID = re.compile(r"[\w.-]+/[\w.:-]+")
@@ -78,6 +78,7 @@ class Adapter:
     result: list[list] = field(default_factory=list)
     models: list[dict] = field(default_factory=list)  # [{model, takes: [role]}] when a family spans ids
     media_mb: float | None = None  # MB of files one request may carry inline, when the model says
+    settings: list[dict] = field(default_factory=list)  # what people can choose about the result (see _setting)
 
 
 def _is_path(p: Any, plus: bool = False) -> bool:
@@ -153,6 +154,130 @@ def _input(model: str, i: dict, roles: list) -> dict:
     return {**i, "max": mx, "set": list(sets or []), "with": w, "drop": d, "fit": ft}
 
 
+# ---- settings: what people choose about the result ------------------------------------
+# The model's own output options (shape, resolution, length, sound…), each with where it goes
+# in the request and the values the model's docs list. ``off_with``: roles that decide it
+# instead (a first frame sets the shape), so it isn't asked and leaves the request; ``only_with``:
+# roles it needs. A ``size`` setting turns a shape and a megapixel step into pixels.
+
+SETTING_TYPES = ("aspect", "select", "segmented", "int", "bool", "size")
+_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+
+
+def _num(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+ratio = prep.shape  # "16:9" as (16, 9); None for "auto" and the like
+
+
+def _setting(model: str, s: Any, roles: list) -> dict:
+    what = f"{model} setting {s.get('key') if isinstance(s, dict) else s!r}"
+    if not isinstance(s, dict) or not isinstance(s.get("key"), str) or not _KEY.match(s["key"]) or s.get("type") not in SETTING_TYPES:
+        raise AdapterError(f"{what}: key is a short lowercase name, type one of {', '.join(SETTING_TYPES)}")
+    t = s["type"]
+    if (t == "size") != (s["key"] == "size"):
+        raise AdapterError(f"{what}: the size setting, and only it, is keyed size")
+    for k in ("off_with", "only_with"):
+        if not (isinstance(s.get(k, []), list) and all(r in roles for r in s.get(k, []))):
+            raise AdapterError(f"{what}: {k} lists roles")
+    out = {**s, "label": str(s.get("label") or s["key"].capitalize()),
+           "off_with": list(s.get("off_with") or []), "only_with": list(s.get("only_with") or [])}
+    if t == "size":
+        at = s.get("at")
+        if not (isinstance(at, dict) and (set(at) == {"width", "height"} or set(at) == {"text"}) and all(_is_path(p) for p in at.values())):
+            raise AdapterError(f"{what}: at is {{width: path, height: path}} or {{text: path}} (\"WxH\")")
+        steps = s.get("steps")
+        if not (isinstance(steps, list) and steps and all(_num(x) and x > 0 for x in steps)):
+            raise AdapterError(f"{what}: steps lists megapixels")
+        aspects = s.get("aspects")
+        if not (isinstance(aspects, list) and aspects and all(ratio(a) for a in aspects)) or s.get("aspect") not in aspects:
+            raise AdapterError(f"{what}: aspects lists shapes (16:9) and aspect is one of them")
+        if s.get("default") not in [f"{x:g} MP" for x in steps]:
+            raise AdapterError(f"{what}: default is one of the steps, as \"1 MP\"")
+        for k in ("sides", "pixels"):
+            r = s.get(k)
+            if r is not None and not (isinstance(r, list) and len(r) == 2 and all(_num(x) for x in r) and 0 < r[0] < r[1]):
+                raise AdapterError(f"{what}: {k} is [least, most]")
+        out["multiple"] = int(s.get("multiple") or 16)
+        return out
+    _path(s.get("at"), what)
+    d = s.get("default")
+    if t == "bool":
+        v = s.get("values")
+        if not isinstance(d, bool) or (v is not None and not (isinstance(v, list) and len(v) == 2)):
+            raise AdapterError(f"{what}: default is true or false; values, if given, is [off, on]")
+    elif t == "int":
+        if not (all(isinstance(s.get(k), int) for k in ("min", "max")) and isinstance(d, int) and s["min"] <= d <= s["max"]):
+            raise AdapterError(f"{what}: min, max and a default between them")
+    else:
+        opts = s.get("options")
+        if not (isinstance(opts, list) and opts and all(isinstance(x, (str, int, float)) for x in opts)) or d not in opts:
+            raise AdapterError(f"{what}: options lists the model's values and default is one of them")
+        lb = s.get("labels") or {}
+        if not (isinstance(lb, dict) and all(isinstance(v, str) for v in lb.values())):
+            raise AdapterError(f"{what}: labels maps a value to what people see")
+    return out
+
+
+def settings_for(a: Adapter, roles: list[str]) -> list[dict]:
+    """The settings a run with these roles asks for."""
+    rs = set(roles)
+    return [s for s in a.settings if not rs & set(s["off_with"]) and (not s["only_with"] or rs & set(s["only_with"]))]
+
+
+def setting_paths(s: dict) -> list[list]:
+    return [list(p) for p in s["at"].values()] if s["type"] == "size" else [list(s["at"])]
+
+
+def setting_default(s: dict) -> Any:
+    return {"aspect": s["aspect"], "size": s["default"]} if s["type"] == "size" else s["default"]
+
+
+def setting_ok(s: dict, v: Any) -> bool:
+    t = s["type"]
+    if t == "size":
+        return isinstance(v, dict) and v.get("aspect") in s["aspects"] and v.get("size") in [f"{x:g} MP" for x in s["steps"]]
+    if t == "bool":
+        return isinstance(v, bool)
+    if t == "int":
+        return isinstance(v, int) and not isinstance(v, bool) and s["min"] <= v <= s["max"]
+    return v in s["options"]
+
+
+def size_dims(s: dict, aspect: Any, step: Any) -> tuple[int, int]:
+    """Pixels for a size setting: see ``prep.fit_dims``."""
+    return prep.fit_dims(s, aspect, step)
+
+
+def write_setting(body: dict, s: dict, v: Any) -> None:
+    """Put a setting's value into the request where the model reads it."""
+    if s["type"] == "size":
+        w, h = size_dims(s, v.get("aspect"), v.get("size"))
+        if "text" in s["at"]:
+            _put(body, list(s["at"]["text"]), f"{w}{s.get('sep', 'x')}{h}")
+        else:
+            _put(body, list(s["at"]["width"]), w)
+            _put(body, list(s["at"]["height"]), h)
+    elif v == "":  # "Auto": the model decides, so the field isn't sent
+        _remove(body, list(s["at"]))
+    else:
+        _put(body, list(s["at"]), s["values"][int(v)] if s["type"] == "bool" and s.get("values") else v)
+
+
+def setting_field(s: dict, v: Any) -> dict:
+    """A setting as a template input people change in Create, starting at ``v``."""
+    if s["type"] == "size":
+        at = s["at"]
+        bind = [[list(at["text"]), "text"]] if "text" in at else [[list(at["width"]), "width"], [list(at["height"]), "height"]]
+        return {"key": "size", "type": "size", "label": s["label"], "aspect": v["aspect"], "default": v["size"],
+                "aspects": list(s["aspects"]), "steps": list(s["steps"]), "multiple": s["multiple"], "bind": bind,
+                **{k: s[k] for k in ("sides", "pixels", "sep", "help") if s.get(k)}}
+    f = {"key": s["key"], "type": s["type"], "label": s["label"], "default": v, "bind": [list(s["at"])]}
+    f.update({k: s[k] for k in ("options", "labels", "values", "min", "max", "step", "unit", "help") if s.get(k) is not None})
+    return f
+
+
 def parse(d: dict) -> Adapter:
     """Check an adapter file and return it."""
     model = d.get("model")
@@ -181,10 +306,16 @@ def parse(d: dict) -> Adapter:
     mmb = d.get("media_mb")
     if mmb is not None and not (isinstance(mmb, (int, float)) and not isinstance(mmb, bool) and mmb > 0):
         raise AdapterError(f"{model}: media_mb is a number above 0")
+    st = d.get("settings") or []
+    if not isinstance(st, list):
+        raise AdapterError(f"{model}: settings is a list")
+    settings = [_setting(model, x, roles) for x in st]
+    if len({x["key"] for x in settings}) != len(settings):
+        raise AdapterError(f"{model}: two settings share a key")
     return Adapter(model=model, name=name.strip(), mode="motion" if d["makes"] == "video" else "edit",
                    body=body, prompt=prompt, inputs=inputs, result=[list(p) for p in result],
                    models=[{"model": m["model"], "takes": list(m["takes"])} for m in models],
-                   media_mb=float(mmb) if mmb is not None else None)
+                   media_mb=float(mmb) if mmb is not None else None, settings=settings)
 
 
 _cache: dict[str, Adapter] | None = None
@@ -229,6 +360,7 @@ def describe(a: Adapter) -> dict:
                     **({"fit": i["fit"]} if i.get("fit") else {}),
                     **({"set": i["set"]} if i["set"] else {}), **({"needs": i["needs"]} if i.get("needs") else {})} for i in a.inputs],
         **({"models": a.models} if a.models else {}),
+        "settings": [{k: v for k, v in s.items() if k != "at"} for s in a.settings],
     }
 
 
@@ -319,18 +451,32 @@ def pick_model(a: Adapter, roles: list[str]) -> str:
     raise AdapterError(f"{a.name} can't take " + " and ".join(dict.fromkeys(roles)) + " together")
 
 
-def assemble(a: Adapter, files: list[tuple[int, str]], prompt: str) -> tuple[dict, dict[str, list], str]:
+def assemble(a: Adapter, files: list[tuple[int, str]], prompt: str, values: dict | None = None) -> tuple[dict, dict[str, list], str]:
     """The request for a run that uses exactly these files, where each one went, and
     the model id it goes to.
 
     ``files``: (adapter-input index, slot) in the order they're used. Inputs left out
-    aren't in the request at all: the model does what these files make it do."""
+    aren't in the request at all: the model does what these files make it do. ``values``:
+    the settings picked, by key; the rest go in at their defaults, and settings these
+    inputs decide instead leave the request."""
     if any(not (isinstance(i, int) and 0 <= i < len(a.inputs)) for i, _ in files):
         raise AdapterError(f"{a.name} has no such input")
     used = [i for i, _ in files]
     check(a, used)
     body = copy.deepcopy(a.body)
     _put(body, a.prompt, prompt)
+    # Settings first: what an input does to the request (with, drop) has the last word.
+    roles = [a.inputs[i]["role"] for i in used]
+    on = settings_for(a, roles)
+    for s in a.settings:
+        if s not in on:
+            for path in setting_paths(s):
+                _remove(body, path)
+    for s in on:
+        v = (values or {}).get(s["key"], setting_default(s))
+        if not setting_ok(s, v):
+            raise AdapterError(f"{a.name}: {s['label']} can't be {v!r}")
+        write_setting(body, s, v)
     where: dict[str, list] = {}
     nth: dict[int, int] = {}
     for i, slot in files:
@@ -355,4 +501,4 @@ def assemble(a: Adapter, files: list[tuple[int, str]], prompt: str) -> tuple[dic
             _remove(body, list(path))
         for path, value in a.inputs[i]["with"]:
             _put(body, list(path), copy.deepcopy(value))
-    return body, where, pick_model(a, [a.inputs[i]["role"] for i in used])
+    return body, where, pick_model(a, roles)

@@ -6,15 +6,15 @@ import { isAudio, isImage, isVideo, useFileDrop } from "../../components/Drop";
 import { FitLine, MediaSheet, MediaThumb, metaOf } from "../../components/MediaEditor";
 import { ACCEPT, ACCEPT_AUDIO, ACCEPT_VIDEO } from "../create/shared";
 import { useUploader } from "../../components/Refs";
-import { cx, Spinner } from "../../components/ui";
+import { cx, Select, Spinner, Toggle } from "../../components/ui";
 import { api, type Asset, type Fit, type MediaKind, type RouterAdapter, type WorkflowAnalysis } from "../../lib/api";
 import { checks, fitEdits, NO_EDITS, outOf, statusOf, toOps, type State } from "../../lib/edits";
 import { errMsg } from "../../lib/format";
 import { useApp } from "../../lib/store";
-import { type Details, human, KIND_ICON, KIND_NOUN, type MediaRow, type OutputState, type PromptState, type Source } from "./model";
+import { type Details, human, KIND_ICON, KIND_NOUN, type MediaRow, type OutputState, type PromptState, type RefModRow, type Source } from "./model";
 import { adapterProblems, fitText, jobOf, type JobKind, maxOf, type Need, ROLE_HINT, routerJobs, runSays, toJob } from "./modes";
 
-function Sec({ id, icon, color, title, desc, aside, children }: { id: string; icon: IconName; color?: string; title: string; desc: ReactNode; aside?: ReactNode; children: ReactNode }) {
+export function Sec({ id, icon, color, title, desc, aside, children }: { id: string; icon: IconName; color?: string; title: string; desc: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
     <section className="bsec" aria-labelledby={`bld-${id}`} style={color ? ({ "--c": color } as CSSProperties) : undefined}>
       <div className="bsec-h">
@@ -76,9 +76,12 @@ export const slotNames = (rows: { kind: MediaKind }[]) => {
   return rows.map((r) => `${KIND_NOUN[r.kind]} ${(n[r.kind] = (n[r.kind] ?? 0) + 1)}`);
 };
 
-export function InputsSection({ rows, setRows }: { rows: MediaRow[]; setRows: (f: (r: MediaRow[]) => MediaRow[]) => void }) {
+export function InputsSection({ rows, setRows, mods, setMods }: {
+  rows: MediaRow[]; setRows: (f: (r: MediaRow[]) => MediaRow[]) => void; mods: RefModRow[]; setMods: (f: (r: RefModRow[]) => RefModRow[]) => void;
+}) {
   const { upload, busy } = useUploader();
   const up = (key: string, p: Partial<MediaRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
+  const upMod = (key: string, p: Partial<RefModRow>) => setMods((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
   const pickSample = async (r: MediaRow, f?: File) => {
     if (!f) return;
     const [a] = await upload([f], r.kind);
@@ -86,18 +89,46 @@ export function InputsSection({ rows, setRows }: { rows: MediaRow[]; setRows: (f
   };
   const shown = rows.filter((r) => r.on);
   const names = slotNames(shown);
+  const photos = shown.map((r, i) => ({ r, name: names[i] })).filter((x) => x.r.kind === "image");
+  const kept = mods.filter((r) => r.on);
   return (
     <Sec id="in" icon="upload" color="var(--mint)" title="Inputs"
       desc="Found in the workflow. Drop a sample into each: the first run uses it, and it ships as the template's default. Edit a sample to crop, turn, size or cut it."
-      aside={shown.length ? <span className="mono">{shown.length}</span> : undefined}>
+      aside={shown.length + kept.length ? <span className="mono">{shown.length + kept.length}</span> : undefined}>
       {!shown.length ? (
-        <p className="help">No photo or video loaders in this workflow. People only write the prompt.</p>
+        !mods.length && <p className="help">No photo or video loaders in this workflow. People only write the prompt.</p>
       ) : (
         <div className="bcards">
           {shown.map((r, i) => (
             <SampleCard key={r.key} r={r} name={names[i]} sub={r.where} busy={busy > 0} onFile={(f) => void pickSample(r, f)}
               onApply={(a) => up(r.key, { sample: a, own: true })} onRemove={() => up(r.key, { sample: null, own: false })} style={{ "--i": i } as CSSProperties} />
           ))}
+        </div>
+      )}
+      {mods.length > 0 && (
+        <div className="bmods" role="group" aria-labelledby="bld-mods">
+          <p id="bld-mods" className="bmods-h"><I n="person" />RefMod slots. Each one you switch on asks for a RefMod from the RefMod folder; Character Lab makes them.</p>
+          {mods.map((r) => {
+            const n = kept.indexOf(r) + 1;
+            return (
+              <div key={r.key} className={cx("bmod", r.on && "on")}>
+                <Toggle checked={r.on} onChange={(on) => upMod(r.key, { on })} label={`Ask for a RefMod in ${r.input}`} />
+                <div className="bmod-b">
+                  <b>{r.on ? `RefMod ${n}` : r.input}</b>
+                  <small className="mono" title={r.where}>{r.where}</small>
+                </div>
+                {r.on && photos.length > 0 && (
+                  <label className="bmod-face">
+                    <span>Its face goes in</span>
+                    <Select value={photos.some((p) => p.r.key === r.photo) ? r.photo : ""} onChange={(e) => upMod(r.key, { photo: e.target.value })}>
+                      <option value="">No photo input</option>
+                      {photos.map((p) => <option key={p.r.key} value={p.r.key}>{p.name}</option>)}
+                    </Select>
+                  </label>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </Sec>

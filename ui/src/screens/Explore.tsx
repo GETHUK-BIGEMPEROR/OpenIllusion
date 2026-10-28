@@ -28,8 +28,7 @@ export function Explore({ t }: { t?: string }) {
   useEffect(() => { Object.assign(last, { use, kind, where }); }, [use, kind, where]);
 
   const every = useMemo(() => engines.data ?? [], [engines.data]);
-  // A draft stays off the wall until one of its results is published as its cover; Create's template picker has it.
-  const all = useMemo(() => every.filter((e) => !e.draft), [every]);
+  const all = every;
   const uses = sharedTags(all);
   const tagged = all.filter((e) => !use || !uses.includes(use) || e.tags?.includes(use));
   const pool = tagged.filter((e) => where === "all" || e.kind === where);

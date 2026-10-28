@@ -13,7 +13,8 @@ from pathlib import PurePosixPath
 from . import media
 
 # What a generation folder holds. Scripts, binaries and anything else are refused.
-GENERATION_EXT = {".json", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mov", ".md", *media.AUDIO_EXT}
+# .safetensors: a RefMod (a run's copy, or the RefMod folder in a backup). Tensors only; nothing in it runs.
+GENERATION_EXT = {".json", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mov", ".md", ".safetensors", *media.AUDIO_EXT}
 
 
 class Refused(ValueError):

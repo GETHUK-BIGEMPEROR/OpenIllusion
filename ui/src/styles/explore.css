@@ -28,7 +28,3 @@
 .checks .mono{margin-left:auto;color:var(--text-3);font-size:11px}
 .scrim{display:none}
 .wall-wrap.wtop{padding-top:14px}
-.draft-note{display:flex;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(242,255,89,.06);border:1px solid rgba(242,255,89,.18);color:var(--text-2);font-size:12.5px;line-height:1.5}
-.draft-note p{margin:0}
-.draft-note b{color:var(--text);font-weight:500}
-.draft-note svg{flex:none;width:15px;height:15px;margin-top:2px;color:var(--yellow)}

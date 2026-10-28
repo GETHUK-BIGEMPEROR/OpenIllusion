@@ -1,13 +1,16 @@
 """Whole-library backups: one ``.illusionbackup`` file, restored by merging.
 
 A backup is a zip of the library tier of the home folder (``paths.TIERS``): generations,
-the user's templates and covers, settings without secrets, and the trash if asked.
+the user's templates and covers, characters, the RefMod folder, settings without secrets, and
+the trash if asked.
 Nothing machine-bound goes in: no key, no queue, no index (restore rebuilds it).
 
     backup.json                     format, version, counts, a sha256 per file
     library/settings.json
     library/generations/<id>/...    each folder as it is
     library/templates/...  library/covers/...  library/trash/<id>/...
+    library/characters/<id>/...     each character as it is (its photos)
+    library/refmods/<name>.safetensors   the RefMod folder (wherever Settings puts it)
 
 Restoring merges: what's already here stays as it is, what's missing is added. Into a
 fresh install that's a full restore; run twice, the second adds nothing. A backup is
@@ -27,7 +30,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
-from . import archive, engines, paths, settings, storage, store
+from . import archive, characters, engines, paths, settings, storage, store
 from . import generation as sc
 
 FORMAT = "openillusion.backup"
@@ -51,7 +54,7 @@ def _collect(trash: bool, skip_ids: set[str]) -> tuple[list[tuple[str, Path]], l
     root = paths.user_root()
     out: list[tuple[str, Path]] = []
     skipped: list[dict] = []
-    counts = {"generations": 0, "templates": 0, "covers": 0, "trash": 0}
+    counts = {"generations": 0, "templates": 0, "covers": 0, "trash": 0, "characters": 0, "refmods": 0}
 
     def add_tree(d: Path, arc: str) -> None:
         for f in sorted(d.rglob("*")):
@@ -83,6 +86,16 @@ def _collect(trash: bool, skip_ids: set[str]) -> tuple[list[tuple[str, Path]], l
         d = root / shelf
         if d.is_dir():
             add_tree(d, f"library/{shelf}")
+    for c in characters.list_all():
+        if c["making"] and c["making"]["state"] != "failed":
+            skipped.append({"id": c["id"], "why": "making its RefMod"})
+            continue
+        add_tree(characters.folder(c["id"]), f"library/characters/{c['id']}")
+        counts["characters"] += 1
+    for f in sorted(paths.refmods_dir().iterdir()):
+        if f.is_file() and f.suffix.lower() == characters.EXT:
+            out.append((f"library/refmods/{f.name}", f))
+            counts["refmods"] += 1
     counts["templates"] = sum(1 for a, _ in out if a.startswith("library/templates/") and a.count("/") == 2 and a.endswith(".json"))
     counts["covers"] = sum(1 for a, _ in out if a.startswith("library/covers/"))
     return out, skipped, counts
@@ -167,6 +180,15 @@ def _open(path: Path) -> tuple[zipfile.ZipFile, dict, list[zipfile.ZipInfo]]:
             except ValueError:
                 z.close()
                 raise archive.Refused(f"Not a generation folder: {i.filename}") from None
+        if parts[1] == "characters":
+            try:
+                characters.folder(parts[2] if len(parts) > 3 else "")
+            except FileNotFoundError:
+                z.close()
+                raise archive.Refused(f"Not a character folder: {i.filename}") from None
+        if parts[1] == "refmods" and (len(parts) != 3 or not parts[2].lower().endswith(characters.EXT)):
+            z.close()
+            raise archive.Refused(f"Not a RefMod: {i.filename}")
         if i.filename not in sums:
             z.close()
             raise archive.Refused(f"No checksum for {i.filename}")
@@ -183,7 +205,7 @@ def _groups(infos: list[zipfile.ZipInfo]) -> dict[str, dict[str, list[zipfile.Zi
     out: dict[str, dict[str, list[zipfile.ZipInfo]]] = {}
     for i in infos:
         parts = PurePosixPath(i.filename).parts
-        key = parts[2] if parts[1] in ("generations", "trash") else ""
+        key = parts[2] if parts[1] in ("generations", "trash", "characters") else ""
         out.setdefault(parts[1], {}).setdefault(key, []).append(i)
     return out
 
@@ -215,6 +237,10 @@ def inspect(path: Path, token: str) -> dict:
             "templates": {"total": len(states), "new": sum(1 for _, s in states if s == "new"),
                           "conflicts": [n for n, s in states if s == "conflict"]},
             "covers": len(g.get("covers", {}).get("", [])),
+            "characters": {"total": len(g.get("characters", {})),
+                           "new": sum(1 for x in g.get("characters", {}) if not (characters.root() / x).exists())},
+            "refmods": {"total": len(refmods := g.get("refmods", {}).get("", [])),
+                        "new": sum(1 for i in refmods if not (paths.refmods_dir() / PurePosixPath(i.filename).name).exists())},
             "skipped": man.get("skipped") or [],
         }
 
@@ -241,7 +267,7 @@ def restore(path: Path, stage: Path, progress: Progress | None = None) -> dict:
     covers, are left as they are. Settings you've changed stay yours."""
     z, man, infos = _open(path)
     sums = man.get("files") or {}
-    res = {"generations": 0, "trash": 0, "templates": 0, "covers": 0, "settings": [], "damaged": [], "kept": []}
+    res = {"generations": 0, "trash": 0, "templates": 0, "covers": 0, "characters": 0, "refmods": 0, "settings": [], "damaged": [], "kept": []}
     total, done = sum(i.file_size for i in infos), 0
 
     def tick(i: zipfile.ZipInfo) -> None:
@@ -277,6 +303,41 @@ def restore(path: Path, stage: Path, progress: Progress | None = None) -> dict:
                     continue
                 os.replace(tmp, home / gid)
                 res[shelf] += 1
+        # Characters: each one added whole when missing; one you have stays as it is.
+        for cid, entries in g.get("characters", {}).items():
+            if (characters.root() / cid).exists():
+                for i in entries:
+                    tick(i)
+                continue
+            tmp = stage / "characters" / cid
+            ok = True
+            for i in entries:
+                ok = ok and _extract(z, i, tmp / PurePosixPath(i.filename).relative_to(f"library/characters/{cid}"), sums)
+                tick(i)
+            try:
+                if not ok:
+                    raise ValueError("a file doesn't match its checksum")
+                c = json.loads((tmp / "character.json").read_text("utf-8"))
+                if not isinstance(c, dict) or c.get("id") != cid or not isinstance(c.get("photos"), list):
+                    raise ValueError("the folder and its character.json disagree")
+            except Exception as e:
+                res["damaged"].append({"id": cid, "why": str(e)[:200]})
+                shutil.rmtree(tmp, ignore_errors=True)
+                continue
+            os.replace(tmp, characters.root() / cid)
+            res["characters"] += 1
+        # RefMods: added when missing; one with the same name stays as it is.
+        for i in g.get("refmods", {}).get("", []):
+            tick(i)
+            dst = paths.refmods_dir() / PurePosixPath(i.filename).name
+            if dst.exists():
+                continue
+            tmp = stage / "refmods" / dst.name
+            if not _extract(z, i, tmp, sums):
+                res["damaged"].append({"path": f"refmods/{dst.name}", "why": "a file doesn't match its checksum"})
+                continue
+            shutil.move(tmp, dst)  # the RefMod folder can be on another drive
+            res["refmods"] += 1
         # Templates and covers: added when missing; a file you have stays yours.
         for shelf in ("templates", "covers"):
             entries = g.get(shelf, {}).get("", [])

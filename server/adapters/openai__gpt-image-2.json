@@ -23,6 +23,50 @@
       }
     }
   ],
+  "settings": [
+    {
+      "key": "aspect",
+      "label": "Aspect",
+      "type": "aspect",
+      "at": [
+        "size"
+      ],
+      "options": [
+        "auto",
+        "1024x1024",
+        "1536x1024",
+        "1024x1536"
+      ],
+      "labels": {
+        "auto": "Auto",
+        "1024x1024": "1:1",
+        "1536x1024": "3:2",
+        "1024x1536": "2:3"
+      },
+      "default": "auto"
+    },
+    {
+      "key": "quality",
+      "label": "Quality",
+      "type": "segmented",
+      "at": [
+        "quality"
+      ],
+      "options": [
+        "auto",
+        "low",
+        "medium",
+        "high"
+      ],
+      "labels": {
+        "auto": "Auto",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "default": "auto"
+    }
+  ],
   "media_mb": 67,
   "result": [
     [

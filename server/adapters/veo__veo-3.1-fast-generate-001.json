@@ -128,6 +128,80 @@
       }
     }
   ],
+  "settings": [
+    {
+      "key": "aspect",
+      "label": "Aspect",
+      "type": "aspect",
+      "at": [
+        "parameters",
+        "aspectRatio"
+      ],
+      "options": [
+        "16:9",
+        "9:16"
+      ],
+      "default": "16:9",
+      "off_with": [
+        "Video to extend"
+      ]
+    },
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "segmented",
+      "at": [
+        "parameters",
+        "resolution"
+      ],
+      "options": [
+        "720p",
+        "1080p",
+        "4k"
+      ],
+      "labels": {
+        "4k": "4K"
+      },
+      "default": "720p",
+      "off_with": [
+        "Video to extend"
+      ]
+    },
+    {
+      "key": "duration",
+      "label": "Duration",
+      "type": "segmented",
+      "at": [
+        "parameters",
+        "durationSeconds"
+      ],
+      "options": [
+        4,
+        6,
+        8
+      ],
+      "default": 8,
+      "unit": "s",
+      "off_with": [
+        "Video to extend",
+        "Reference image"
+      ]
+    },
+    {
+      "key": "sound",
+      "label": "Sound",
+      "type": "bool",
+      "at": [
+        "parameters",
+        "generateAudio"
+      ],
+      "default": true,
+      "help": "Make sound with the clip",
+      "off_with": [
+        "Video to extend"
+      ]
+    }
+  ],
   "result": [
     [
       "response",

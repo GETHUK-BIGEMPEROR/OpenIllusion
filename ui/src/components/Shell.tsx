@@ -17,7 +17,8 @@ const NAV = [
   { name: "explore", label: "Explore", key: "1", icon: "compass" },
   { name: "edit", label: "Create", key: "2", icon: "wand" },
   { name: "library", label: "Library", key: "3", icon: "library" },
-  { name: "build", label: "Build", key: "4", icon: "graph" },
+  { name: "characters", label: "Characters", key: "4", icon: "person" },
+  { name: "build", label: "Build", key: "5", icon: "graph" },
 ] as const;
 
 const section = (r: Route) => (r.name === "generation" ? "library" : r.name === "motion" ? "edit" : r.name);

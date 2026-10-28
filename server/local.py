@@ -196,14 +196,44 @@ class ComfyUI:
             return None
         return resp.content
 
-    async def upload_input(self, path: Path, name: str) -> str:
+    async def upload_input(self, path: Path, name: str, subfolder: str = "") -> str:
         """Put a file in ComfyUI's input folder under ``name``, replacing one with that name. Returns the name ComfyUI uses."""
         async with httpx.AsyncClient(timeout=60.0, transport=self._transport) as c:
-            resp = await c.post(self.base + "/upload/image", data={"type": "input", "overwrite": "true"},
+            resp = await c.post(self.base + "/upload/image", data={"type": "input", "overwrite": "true", "subfolder": subfolder},
                                 files={"image": (name, path.read_bytes())})
         resp.raise_for_status()
         d = resp.json()
         return f"{d['subfolder']}/{d['name']}" if d.get("subfolder") else d["name"]
+
+    # A tool run (Character Lab's RefMod) goes straight to ComfyUI's own queue: it saves a
+    # file, not media, so there's nothing for the v2 proxy's outputs to carry.
+    async def queue(self, workflow: dict) -> str:
+        async with httpx.AsyncClient(timeout=30.0, transport=self._transport) as c:
+            resp = await c.post(self.base + "/prompt", json={"prompt": workflow})
+        if resp.status_code >= 400:
+            try:
+                d = resp.json()
+            except ValueError:
+                d = {}
+            msg = node_errors_message(d) or ((d.get("error") or {}).get("message") if isinstance(d.get("error"), dict) else None) or resp.text[:300]
+            raise V2Error(resp.status_code, "invalid_workflow", msg, d if isinstance(d, dict) else {})
+        return resp.json()["prompt_id"]
+
+    async def history(self, prompt_id: str) -> dict | None:
+        """The finished entry of a queued prompt, or None while it waits or runs."""
+        async with httpx.AsyncClient(timeout=30.0, transport=self._transport) as c:
+            resp = await c.get(f"{self.base}/history/{prompt_id}")
+        resp.raise_for_status()
+        h = resp.json().get(prompt_id)
+        return h if h and (h.get("status") or {}).get("completed") is not None else None
+
+    async def output_file(self, name: str, subfolder: str = "", limit: int = 200 * 1024 * 1024) -> bytes | None:
+        """A file from ComfyUI's output folder, or None when it isn't there."""
+        async with httpx.AsyncClient(timeout=60.0, transport=self._transport) as c:
+            resp = await c.get(self.base + "/view", params={"filename": name, "subfolder": subfolder, "type": "output"})
+        if resp.status_code != 200 or len(resp.content) > limit:
+            return None
+        return resp.content
 
     async def system_stats(self) -> dict:
         async with httpx.AsyncClient(timeout=4.0, transport=self._transport) as c:

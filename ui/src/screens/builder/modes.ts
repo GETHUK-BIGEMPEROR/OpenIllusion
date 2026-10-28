@@ -1,6 +1,6 @@
 // Router models: the jobs each one does, the inputs each job takes, and what a set of filled inputs makes.
-import type { Fit, Range, RouterAdapter } from "../../lib/api";
-import type { Details, MediaRow, OutputState, ParamRow, PromptState } from "./model";
+import type { AdapterSetting, Fit, Range, RouterAdapter } from "../../lib/api";
+import type { Details, MediaRow, OutputState, ParamRow, PromptState, RefModRow } from "./model";
 
 /** What a job asks of an input: always, only if you want it, or at least one of the "any" ones. */
 export type Need = "yes" | "no" | "any";
@@ -108,8 +108,17 @@ export function fromAdapter(a: RouterAdapter) {
   const prompt: PromptState = { pick: "prompt", label: "Prompt", hint: "", def: "", required: true };
   // Labels read "Name · Model": the model half is set, the name is yours to write.
   const details: Details = { label: ` · ${a.name}`, blurb: "", mode: a.mode, tags: "" };
-  return { media, prompt, params: [] as ParamRow[], details, output: { result: "", size: "" } as OutputState };
+  return { media, mods: [] as RefModRow[], prompt, params: [] as ParamRow[], details, output: { result: "", size: "" } as OutputState };
 }
+
+/** The model's settings a job with these rows filled asks for: none an input decides (off_with), none missing a role they need (only_with). */
+export function settingsFor(a: RouterAdapter, rows: Filled[]): AdapterSetting[] {
+  const roles = new Set(filledSlots(rows).map((i) => a.inputs[i].role));
+  return (a.settings ?? []).filter((s) => !s.off_with.some((r) => roles.has(r)) && (!s.only_with.length || s.only_with.some((r) => roles.has(r))));
+}
+
+/** A setting's starting value: a size is its shape and step. */
+export const settingDefault = (s: AdapterSetting): unknown => s.type === "size" ? { aspect: s.aspect, size: s.default } : s.default;
 
 type Filled = { sample: unknown; slot?: number };
 

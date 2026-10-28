@@ -264,15 +264,15 @@ def test_save_writes_user_template_with_samples(tmp_path, monkeypatch):
     e = engines.ENGINES[tid]
     assert e.origin == "user" and e.built and e.default_inputs["image:1"].is_file() and e.cover is None
     d = engines.describe(e)
-    assert d["draft"] and d["cover"] is None  # no cover until a run of it is published
+    assert "draft" not in d and d["cover"] is None  # on Explore at once; no cover until a result is made one
     assert d["defaults"]["inputs"][0]["slot"] == "image:1" and d["fields"][0]["sample"]["slot"] == "image:1"
     assert "default" not in d["fields"][0] and "bind" in d["fields"][0]
     engines.set_cover(tid, sample)
-    assert not engines.describe(e)["draft"]
+    assert engines.describe(e)["cover"]
     builder.save(builder.assemble_local(_local_spec(), {"workflow": api}, INFO), {"image:1": sample}, replace=tid)
     engines.reload_templates()
     e = engines.ENGINES[tid]
-    assert not engines.describe(e)["draft"]  # rebuilding keeps the published cover
+    assert engines.describe(e)["cover"]  # rebuilding keeps the cover
     engines.delete_template(tid)
     assert tid not in engines.ENGINES and not e.default_inputs["image:1"].exists()
 
@@ -283,3 +283,75 @@ def test_fixed_settings_change_the_workflow_only():
     assert data["workflow"]["12:5"]["inputs"]["steps"] == 20 and [f["key"] for f in data["inputs"]] == ["image:1", "prompt"]
     with pytest.raises(builder.BuildError, match="expects number"):
         builder.assemble_local(_local_spec(fixed=[{"node": "12:5", "input": "steps", "value": "lots"}]), {"workflow": api}, INFO)
+
+
+REFMOD_INFO = {
+    **INFO,
+    "MiniMaxH3RefModsLoader": {"input": {"required": {
+        "mod_1": [["(none)", "mara.safetensors"], {}], "strength_1": ["FLOAT", {"default": 1.0}],
+        "mod_2": [["(none)", "mara.safetensors"], {}], "strength_2": ["FLOAT", {"default": 1.0}]}}},
+    "H3Apply": {"input": {"required": {"image": ["IMAGE", {}], "mods": ["H3_REFMODS", {}]}}},
+}
+
+
+def refmod_graph(mod_1="(none)"):
+    return {
+        "1": {"class_type": "LoadImage", "inputs": {"image": "a.png"}},
+        "2": {"class_type": "MiniMaxH3RefModsLoader", "inputs": {"mod_1": mod_1, "strength_1": 1.0, "mod_2": "(none)", "strength_2": 1.0}},
+        "3": {"class_type": "H3Apply", "inputs": {"image": ["1", 0], "mods": ["2", 0]}},
+        "4": {"class_type": "SaveImage", "inputs": {"images": ["3", 0], "filename_prefix": "out"}},
+    }
+
+
+def test_a_refmod_loader_becomes_refmod_inputs():
+    a = builder.analyze(refmod_graph(), REFMOD_INFO)
+    assert [(r["input"], r["slot"], r["suggested"]) for r in a["refmods"]] == [("mod_1", "refmod:1", True), ("mod_2", "refmod:2", False)]
+    assert not any(p["input"].startswith("mod_") for p in a["params"]) and a["check"]["bad_values"] == []
+    # A slot the workflow already fills is the one suggested.
+    a = builder.analyze(refmod_graph(mod_1="(none)") | {"2": {**refmod_graph()["2"], "inputs": {**refmod_graph()["2"]["inputs"], "mod_2": "mara.safetensors"}}}, REFMOD_INFO)
+    assert [r["suggested"] for r in a["refmods"]] == [False, True]
+
+
+def test_kept_refmod_slots_are_picked_at_run_time():
+    spec = {"label": "Swap", "media": [{"node": "1", "input": "image", "kind": "image"}],
+            "refmods": [{"node": "2", "input": "mod_1", "photo": {"node": "1", "input": "image"}}, {"node": "2", "input": "mod_2"}],
+            "prompt": None}
+    data = builder.assemble_local(spec, {"workflow": refmod_graph(mod_1="mara.safetensors")}, REFMOD_INFO)
+    by = {f["key"]: f for f in data["inputs"]}
+    assert list(by) == ["image:1", "refmod:1", "refmod:2"]
+    assert by["refmod:1"] == {"key": "refmod:1", "type": "refmod", "required": True, "bind": [["2", "mod_1"]], "photo": "image:1"}
+    assert data["workflow"]["2"]["inputs"]["mod_1"] == "(none)"
+    data["id"] = "swap"
+    e = engines.load_template(data)
+    wf = e.build({"inputs": [{"slot": "image:1"}, {"slot": "refmod:1"}, {"slot": "refmod:2"}], "prompt": "", "params": {}})
+    assert wf["2"]["inputs"]["mod_1"] == "{{refmod:1}}" and wf["2"]["inputs"]["mod_2"] == "{{refmod:2}}"
+    # One left empty loads nothing there; the loader and what follows it still run.
+    wf = e.build({"inputs": [{"slot": "image:1"}, {"slot": "refmod:1"}], "prompt": "", "params": {}})
+    assert wf["2"]["inputs"]["mod_2"] == "(none)" and set(wf) == {"1", "2", "3", "4"}
+    # Its face goes into a photo input, nothing else.
+    with pytest.raises(builder.BuildError, match="photo inputs"):
+        builder.assemble_local({**spec, "refmods": [{"node": "2", "input": "mod_1", "photo": {"node": "9", "input": "image"}}]},
+                               {"workflow": refmod_graph()}, REFMOD_INFO)
+
+
+def test_a_refmod_template_opens_in_the_builder_as_it_is():
+    p = builder.preset(engines.get("local/minimax-h3-character-refmod"))
+    img = next(m for m in p["media"] if m["slot"] == "image:1")
+    assert p["refmods"] == [{"node": "201", "input": "mod_1", "slot": "refmod:1", "photo": {"node": img["node"], "input": img["input"]}}]
+    assert not any(x["input"].startswith("mod_") for x in p["params"])
+
+
+def test_a_template_rebuilt_in_the_builder_keeps_its_settings():
+    e = engines.get("local/minimax-h3-create")
+    p = builder.preset(e)
+    dur = next(x for x in p["params"] if x["key"] == "duration")
+    assert dur["type"] == "segmented" and dur["options"] == [3, 5, 8, 10, 15] and dur["unit"] == "s"
+    assert p["size"] == {"node": "140:131", "label": "Output size", "aspect": "16:9", "default": "0.4 MP"}
+    spec = {"label": "Clip", "mode": "motion", "media": [], "outputs": list(e.outputs), "size": p["size"],
+            "prompt": {**p["prompt"], "label": "Prompt", "hint": ""},
+            "params": [{k: dur[k] for k in ("node", "input", "key", "type", "label", "options", "unit", "default")}]}
+    data = builder.assemble_local(spec, {"workflow": e.workflow}, {"SaveVideo": {"input": {"required": {}}, "output_node": True}})
+    by = {f["key"]: f for f in data["inputs"]}
+    assert by["duration"]["options"] == [3, 5, 8, 10, 15] and by["duration"]["unit"] == "s" and by["duration"]["default"] == 5
+    assert by["duration"]["bind"] == [["140:133", "value", "float"]]  # whole seconds into a float input
+    assert by["size"]["aspect"] == "16:9" and by["size"]["default"] == "0.4 MP"

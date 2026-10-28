@@ -23,12 +23,15 @@ export type JobState =
 export interface ParamSpec {
   key: string;
   label: string;
-  type: "int" | "segmented" | "bool" | "seed" | "string" | "select" | "number" | "text";
+  type: "int" | "segmented" | "bool" | "seed" | "string" | "select" | "number" | "text" | "aspect";
   min?: number;
   max?: number;
   step?: number;
   default?: unknown;
-  options?: string[];
+  /** The values the model takes; "" means Auto (the model decides, nothing is sent). */
+  options?: (string | number)[];
+  /** What people see for a value, when it isn't the value itself ("std" → "720p"). */
+  labels?: Record<string, string>;
   unit?: string;
   help?: string;
   hint?: string;
@@ -49,7 +52,9 @@ export type Field = (
   | { type: MediaType; size?: string; window?: [number, number]; fps?: [number, number]; fit?: Fit; role?: string; sample?: (Asset & { slot: string }) | null }
   | (Omit<ParamSpec, "key" | "label"> & { examples?: PromptIdea[] })
   /** A declared output size: the width and height it writes come from the shape and step picked under Output. */
-  | { type: "size"; aspect?: string; aspects?: string[]; default?: string }
+  | { type: "size"; aspect?: string; aspects?: string[]; default?: string; steps?: number[] }
+  /** A RefMod from the RefMod folder. `photo` names the photo input a Lab character's face fills when that's empty. */
+  | { type: "refmod"; photo?: string }
 ) & { key: string; label: string; hint?: string; help?: string; required?: boolean; advanced?: boolean; bind?: unknown[][] };
 
 export const isMedia = (f: Field): f is Field & { type: MediaType } => f.type === "image" || f.type === "video" || f.type === "audio";
@@ -96,7 +101,6 @@ export interface EngineInfo {
   /** True when the user picked the cover, so it can be reset. */
   cover_custom?: boolean;
   /** Built but not published: no cover until one of its own results becomes it. Hidden from the wall. */
-  draft?: boolean;
   /** How the app crops and sizes images before the run (server/prep.py). */
   size?: SizeSpec | null;
   /** What the template opens with: a prompt, and a sample for each slot (assets like uploads). */
@@ -110,13 +114,15 @@ export interface EngineInfo {
 // ---- template builder --------------------------------------------------------
 
 export type MediaKind = "image" | "video" | "audio";
-export type BuildParamType = "int" | "number" | "bool" | "seed" | "select" | "string";
+export type BuildParamType = "int" | "number" | "bool" | "seed" | "select" | "segmented" | "string";
 
 /** Where a local template can take a photo or clip: a loader ComfyUI marks as one, or a setting that holds a file name (off until the author turns it on). */
 export interface BuildMedia {
   node: string; input: string; kind: MediaKind; title: string; class_type: string; value: string | null; slot: string; sample: Asset | null;
   found: "loader" | "setting"; suggested: boolean;
 }
+/** A RefMod loader's slot (``mod_N``): where a template can take a RefMod people pick. */
+export interface BuildRefMod { node: string; input: string; title: string; class_type: string; value: string | null; slot: string; suggested: boolean }
 /** An output node that writes an image or a video: where a run's result can come from. */
 export interface BuildResult { node: string; title: string; class_type: string; kind: "image" | "video" }
 /** A node with a width and a height: where a declared output size can go. */
@@ -131,7 +137,7 @@ export interface BuildParam {
 export interface LocalCheckResult { ok: boolean; missing_nodes: { class_type: string; node_ids: string[] }[]; missing_models: { node_id: string; input: string; value: string }[]; bad_values: { node_id: string; class_type: string; input: string; value: unknown }[] }
 export interface WorkflowAnalysis {
   token: string; source: string; format: "ui" | "api"; outputs: string[]; nodes: number; notes: string[];
-  media: BuildMedia[]; texts: BuildText[]; prompt: { node: string; input: string } | null; params: BuildParam[];
+  media: BuildMedia[]; refmods: BuildRefMod[]; texts: BuildText[]; prompt: { node: string; input: string } | null; params: BuildParam[];
   mode: Mode; check: LocalCheckResult;
   /** Every node a result can come from; `outputs` holds the suggested one. */
   results: BuildResult[];
@@ -146,8 +152,9 @@ type At = { node: string; input: string };
 export interface BuildPreset {
   base: string; label: string; blurb: string; tags: string[]; mode: Mode;
   media: (At & { slot: string; label?: string; hint?: string; required?: boolean; window?: [number, number]; fps?: [number, number] })[];
+  refmods: (At & { slot: string; photo: At | null })[];
   prompt: (At & { label?: string; hint?: string; required?: boolean; default: string; examples: string[] }) | null;
-  params: (At & { key: string; label: string; default?: unknown; help?: string | null })[];
+  params: (At & { key: string; label: string; default?: unknown; help?: string | null; type?: BuildParamType; options?: (string | number)[]; unit?: string; min?: number; max?: number; step?: number })[];
   size: { node: string; label?: string; aspect?: string; default?: string } | null;
   outputs: string[];
 }
@@ -164,7 +171,17 @@ export interface RouterAdapter {
   inputs: { role: string; type: MediaKind; max: number; max_with?: { roles: string[]; max: number }; set?: string[]; needs?: string; fit?: Fit }[];
   /** A family on several model ids: the first whose takes covers every filled role gets the run. */
   models?: { model: string; takes: string[] }[];
+  /** What people choose about the result (shape, size, resolution, length, sound). `off_with`: roles that decide it
+   *  instead, so it isn't asked; `only_with`: roles it needs. */
+  settings: AdapterSetting[];
 }
+
+export type AdapterSetting = Omit<ParamSpec, "type"> & {
+  type: "aspect" | "select" | "segmented" | "int" | "bool" | "size";
+  off_with: string[]; only_with: string[];
+  /** size: the shapes and megapixel steps, the shape it opens at, and the model's limits. */
+  aspects?: string[]; aspect?: string; steps?: number[]; sides?: [number, number]; pixels?: [number, number]; multiple?: number;
+};
 
 export interface BuildPrompt { node?: string; input?: string; label: string; hint: string; default: string; required: boolean; examples?: string[] }
 export interface BuildSpec {
@@ -178,12 +195,16 @@ export interface BuildSpec {
     /** Clips: what the template accepts, checked before a run. Unset, the workflow's loader decides. */
     window?: [number, number]; fps?: [number, number];
   }[];
+  /** Local: the RefMod loader slots people pick a RefMod for, and the photo input each one's face goes in. */
+  refmods?: { node: string; input: string; photo: { node: string; input: string } | null }[];
   prompt: BuildPrompt | null;
-  params: { node?: string; input?: string; field?: string; key?: string; type: BuildParamType; label: string; min?: number | null; max?: number | null; step?: number | null; options?: (string | number)[]; default?: unknown; help?: string | null }[];
+  params: { node?: string; input?: string; field?: string; key?: string; type: BuildParamType; label: string; min?: number | null; max?: number | null; step?: number | null; options?: (string | number)[]; unit?: string; default?: unknown; help?: string | null }[];
   fixed?: { node: string; input: string; value: unknown }[] | Record<string, unknown>;
   outputs?: string[];
   /** The node a declared output size writes width and height on, and the shape and step it opens at. */
   size?: { node: string; aspect?: string; default?: string } | null;
+  /** Cloud: the model's settings this job asks for, at these values. Locked ones stay fixed; the rest are asked in Create. */
+  settings?: { key: string; value: unknown; locked: boolean }[];
 }
 
 /** How a template's inputs can be sized. px: about px x px pixels at the input's shape (mp = px² / 1e6); 0 keeps its own size. */
@@ -191,7 +212,11 @@ export interface SizeSpec {
   options: { label: string; px: number; mp?: number }[];
   multiple: number;
   /** A declared output size: the shapes offered, and the shape and step it opens at. Absent, the workflow sizes its own output. */
-  canvas?: { aspects: string[]; aspect: string; size: string };
+  canvas?: {
+    aspects: string[]; aspect: string; size: string;
+    /** A cloud model's size: its own megapixel steps and limits (server/prep.py fit_dims). */
+    steps?: number[]; multiple?: number; sides?: [number, number]; pixels?: [number, number];
+  };
   /** Each input's default size (an option label); "Original" unless the template says otherwise. */
   inputs: Record<string, string>;
   /** The label of the option that keeps an input's own size. */
@@ -428,6 +453,8 @@ export interface Settings {
   key_source: "browser" | "env" | null;
   router_base: string;
   output_folder: string;
+  /** Where Character Lab saves RefMods and RefMod inputs pick from. Empty: <home>/refmods. */
+  refmod_folder: string;
   max_parallel: number;
   community_indexes: string[];
   strip_exif: boolean;
@@ -484,6 +511,32 @@ export interface SpecInput {
   crop?: [number, number, number, number];
   /** The size it runs at (a size option label). */
   size?: string;
+  /** A RefMod slot: the file in the RefMod folder it runs with. */
+  refmod?: string;
+}
+
+/** A RefMod in the RefMod folder (server/characters.py). `character`: the Lab character it was made from, if any. */
+export interface RefModFile {
+  name: string;
+  label: string;
+  bytes: number;
+  modified: number;
+  character: { id: string; name: string; cover: string | null; face: string | null } | null;
+}
+
+/** A Character Lab character (server/characters.py): photos, and the RefMod made from them. */
+export interface Character {
+  id: string;
+  name: string;
+  notes: string;
+  created: number;
+  photos: string[];
+  cover: string | null;
+  refmod: { file: string; sha256: string; bytes: number; made: number; photos: string[]; tokens?: number | null; mode?: string } | null;
+  photo_urls: Record<string, string>;
+  /** Photos added or removed since the RefMod was made. */
+  refmod_stale: boolean;
+  making: { state: "queued" | "running" | "failed"; detail: string } | null;
 }
 
 export class HttpError extends Error {
@@ -531,6 +584,9 @@ export interface RestoreReview {
   generations: { total: number; new: number };
   trash: { total: number; new: number };
   templates: { total: number; new: number; conflicts: string[] };
+  /** Missing from backups made before Character Lab. */
+  characters?: { total: number; new: number };
+  refmods?: { total: number; new: number };
   covers: number;
   skipped: { id: string; why: string }[];
 }
@@ -539,6 +595,8 @@ export interface RestoreResult {
   generations: number;
   trash: number;
   templates: number;
+  characters?: number;
+  refmods?: number;
   covers: number;
   settings: string[];
   damaged: { id: string; why: string }[];
@@ -657,6 +715,15 @@ export const api = {
   /** The file goes as the raw body: a backup can be bigger than a form upload should be. */
   inspectBackup: (file: File) => req<RestoreReview>("POST", "/restore", file),
   restoreBackup: (token: string) => req<RestoreResult>("POST", `/restore/${token}`),
+  characters: () => req<Character[]>("GET", "/characters"),
+  character: (id: string) => req<Character>("GET", `/characters/${id}`),
+  createCharacter: (name: string) => req<Character>("POST", "/characters", { name }),
+  patchCharacter: (id: string, p: Partial<Pick<Character, "name" | "notes" | "cover">>) => req<Character>("PATCH", `/characters/${id}`, p),
+  deleteCharacter: (id: string) => req<{ ok: boolean }>("DELETE", `/characters/${id}`),
+  addCharacterPhoto: (id: string, asset: string) => req<Character>("POST", `/characters/${id}/photos`, { asset }),
+  removeCharacterPhoto: (id: string, name: string) => req<Character>("DELETE", `/characters/${id}/photos/${name}`),
+  makeRefmod: (id: string) => req<Character>("POST", `/characters/${id}/refmod`),
+  refmods: () => req<{ folder: string; refmods: RefModFile[] }>("GET", "/refmods"),
   community: (url: string) => req<{ name: string | null; generations: { url: string; title?: string; mode?: Mode; model?: string; poster?: string; author?: string; tags?: string[] }[] }>("GET", `/community?url=${encodeURIComponent(url)}`),
 };
 

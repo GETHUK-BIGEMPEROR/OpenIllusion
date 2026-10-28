@@ -38,6 +38,60 @@
       }
     }
   ],
+  "settings": [
+    {
+      "key": "size",
+      "label": "Size",
+      "type": "size",
+      "at": {
+        "text": [
+          "size"
+        ]
+      },
+      "aspects": [
+        "1:1",
+        "4:5",
+        "3:4",
+        "2:3",
+        "9:16",
+        "16:9",
+        "3:2",
+        "4:3",
+        "21:9"
+      ],
+      "aspect": "1:1",
+      "steps": [
+        1,
+        2,
+        4
+      ],
+      "default": "2 MP",
+      "pixels": [
+        1048576,
+        4194304
+      ],
+      "multiple": 16,
+      "off_with": [
+        "Photo"
+      ]
+    },
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "segmented",
+      "at": [
+        "size"
+      ],
+      "options": [
+        "1K",
+        "2K"
+      ],
+      "default": "2K",
+      "only_with": [
+        "Photo"
+      ]
+    }
+  ],
   "result": [
     [
       "data",

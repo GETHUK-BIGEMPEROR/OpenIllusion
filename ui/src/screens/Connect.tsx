@@ -22,7 +22,7 @@ export function Connect() {
 
   const host = (u?: string) => (u ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "");
   const port = (u?: string) => { try { return new URL(u ?? "").port || "80"; } catch { return "?"; } };
-  const local = (engines.data ?? []).filter((e) => e.kind === "local" && !e.draft).length;
+  const local = (engines.data ?? []).filter((e) => e.kind === "local").length;
   const vram = l?.vram_total ? ` · ${Math.round(l.vram_total / 1024 ** 3)} GB` : "";
 
   const steps: { name: string; st: St; note: string }[] = !l

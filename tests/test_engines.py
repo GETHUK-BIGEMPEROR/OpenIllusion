@@ -33,6 +33,7 @@ TESTED = {HAT} | {f"local/qwen21-{n}" for n in (
     "glasses", "makeup", "restyle", "remove", "recolor", "product-shot", "hold-product", "weather", "restore",
     "cutout",  # 1 MP, 25 steps, ~2 min
 )} | {"local/minimax-h3-character-swap",  # same card, 0.4 MP x 124 frames, 4 steps, ~10 min
+     "local/minimax-h3-character-refmod",  # same as the swap plus a RefMod, 4 steps, ~11 min (another card's load)
      "local/minimax-h3-animate",  # 0.4 MP x 124 frames, 4 steps, ~4 min
      "local/minimax-h3-create"} | {"local/qwen21-create"}  # text only: 0.4 MP x 124 frames ~3.5 min; 1 MP, 25 steps ~1.5 min
 
@@ -47,7 +48,7 @@ def test_shipped_templates_list_every_input_and_bind_it(tid):
     raw = json.loads(e.path.read_text("utf-8"))
     assert raw["version"] == 2 and "bindings" not in raw and "instruction" not in raw and "defaults" not in raw
     d = engines.describe(e)
-    keys = [f["key"] for f in d["fields"]]
+    keys = [f["key"] for f in d["fields"] if f["type"] != "refmod"]  # a RefMod is picked, not dropped in
     assert keys[: len(e.inputs)] == ["video:1"] * e.needs_video + [f"image:{n}" for n in range(1, e.max_images + 1)]
     assert "prompt" in keys and all(f["bind"] for f in d["fields"])
     # The whole prompt is the input: the workflow has no text of its own around it.
@@ -56,8 +57,9 @@ def test_shipped_templates_list_every_input_and_bind_it(tid):
     assert e.workflow[node]["inputs"][inp] == prompt["default"] == e.default_prompt
     assert not any(n["class_type"] == "StringConcatenate" for n in e.workflow.values())
     assert all(x["label"] and x["text"].startswith(prompt["default"][:12]) for x in d["examples"]) and d["tags"]
-    # A template is its inputs and its prompt; everything else runs as the workflow says.
-    assert all(f["type"] in ("image", "video", "audio") or f["key"] == "prompt" for f in d["fields"])
+    # A template is its inputs, its prompt and the output settings any generator has (size, length);
+    # everything else runs as the workflow says.
+    assert all(f["type"] in ("image", "video", "audio", "refmod", "size") or f["key"] in ("prompt", "duration") for f in d["fields"])
 
 
 def test_hat_template_writes_every_binding():

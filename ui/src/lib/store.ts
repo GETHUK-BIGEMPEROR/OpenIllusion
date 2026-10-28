@@ -37,6 +37,8 @@ export interface RefSlot extends Media {
   size?: string;
   /** One of the template's sample inputs, not the user's own. */
   sample?: boolean;
+  /** A Character Lab character's face, put here when a RefMod made from them was picked. */
+  character?: string;
 }
 
 /** Which image:N a tray entry is sent as. */
@@ -66,6 +68,14 @@ export interface SoundSlot extends Media {
   sample?: boolean;
 }
 
+/** A RefMod input's pick: a file in the RefMod folder, or (remixed) a run's own copy of one. */
+export interface ModPick {
+  file?: string;
+  /** gen:<id>/refs/refmod-N.safetensors, when it came from a run. */
+  asset?: string;
+  name: string;
+}
+
 export interface StudioState {
   engine: string;
   title: string;
@@ -74,6 +84,8 @@ export interface StudioState {
   /** One sound per audio input, by slot. Missing in drafts saved before audio inputs. */
   sounds?: SoundSlot[];
   refs: RefSlot[];
+  /** One RefMod per RefMod input, by slot. */
+  mods?: Record<string, ModPick>;
   prompt: string;
   params: Record<string, unknown>;
   variants: number;
@@ -90,7 +102,7 @@ export interface StudioState {
 }
 
 /** What belongs to one template's draft. Engine-independent studio settings (variants, session) stay put. */
-const DRAFT_KEYS = ["title", "videos", "sounds", "refs", "prompt", "params", "forked_from", "chain", "tags", "current", "group", "selected", "returnRole", "seeded"] as const;
+const DRAFT_KEYS = ["title", "videos", "sounds", "refs", "mods", "prompt", "params", "forked_from", "chain", "tags", "current", "group", "selected", "returnRole", "seeded"] as const;
 
 /** A studio on a template, from scratch: the draft is cleared, the run history and variant count stay. */
 const fresh = (prev: StudioState, engine: string): StudioState => {
@@ -104,6 +116,7 @@ const blankStudio = (): StudioState => ({
   videos: [],
   sounds: [],
   refs: [],
+  mods: {},
   prompt: "",
   params: {},
   variants: 1,
@@ -257,6 +270,9 @@ export const useApp = create<AppState>()(
         const sounds: SoundSlot[] = m.inputs
           .filter((a) => a.slot.startsWith("audio:") && a.file)
           .map((a) => ({ slot: a.slot, asset: src(a.file), name: a.file!.split("/").pop()!, kind: "audio", url: fileUrl(m.id, a.file!), license: a.license }));
+        const mods: Record<string, ModPick> = Object.fromEntries(m.inputs
+          .filter((c) => c.slot.startsWith("refmod:") && c.file)
+          .map((c) => [c.slot, { asset: src(c.file), name: c.label || "RefMod" }]));
         const prev = get()[mode];
         const engine = opts.engine ?? m.engine.model;
         const next: StudioState = {
@@ -268,6 +284,7 @@ export const useApp = create<AppState>()(
           videos,
           sounds,
           refs,
+          mods,
           prompt: m.prompt,
           params: { ...m.params },
           forked_from: m.id,

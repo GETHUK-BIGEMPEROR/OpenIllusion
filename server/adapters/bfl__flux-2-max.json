@@ -58,6 +58,47 @@
       }
     }
   ],
+  "settings": [
+    {
+      "key": "size",
+      "label": "Size",
+      "type": "size",
+      "at": {
+        "width": [
+          "width"
+        ],
+        "height": [
+          "height"
+        ]
+      },
+      "aspects": [
+        "1:1",
+        "4:5",
+        "3:4",
+        "2:3",
+        "9:16",
+        "16:9",
+        "3:2",
+        "4:3"
+      ],
+      "aspect": "1:1",
+      "steps": [
+        0.5,
+        1,
+        2,
+        4
+      ],
+      "default": "1 MP",
+      "sides": [
+        256,
+        2048
+      ],
+      "multiple": 16,
+      "off_with": [
+        "Photo"
+      ]
+    }
+  ],
   "result": [
     [
       "result",

@@ -1,11 +1,13 @@
-"""What a template could expose from a workflow: media loaders, prompt boxes, settings,
-result nodes and an output size."""
+"""What a template could expose from a workflow: media loaders, RefMod slots, prompt boxes,
+settings, result nodes and an output size."""
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .. import local, prep
+from ..engines.build import NO_REFMOD
 from .workflow import MODEL_EXT, BuildError, DYNAMIC_COMBO, _spec_inputs, _opts, _is_widget
 
 
@@ -16,6 +18,12 @@ PARAM_GUESS = {
     "megapixels": "megapixels", "strength_model": "strength", "length": "length", "num_frames": "length",
 }
 SKIP_INPUTS = {"filename_prefix", "format", "codec", "control_after_generate"}
+# A RefMod loader (ComfyUI-MiniMaxH3Mod's "Load H3 RefMods"): each ``mod_N`` picks one RefMod file.
+REFMOD_SLOT = re.compile(r"mod_\d+")
+
+
+def _refmod_loader(class_type: str) -> bool:
+    return "RefMod" in class_type and "Load" in class_type
 
 
 def _is_link(v: Any) -> bool:
@@ -154,7 +162,7 @@ def analyze(api: dict, info: dict, notes: list[str] | None = None) -> dict:
         notes.append(f"{_title(api, nid)} (#{nid}) also saves {OUTPUT_NOUN.get(k, OUTPUT_NOUN['other'])}. It still runs; the template keeps the image or video.")
     api = reachable(api, _outputs(api, info))  # what ComfyUI would run
     cons = _consumers(api)
-    media, texts, params, sizes = [], [], [], []
+    media, refmods, texts, params, sizes = [], [], [], [], []
     for nid in sorted(api, key=_nid_key):
         n = api[nid]
         spec = info.get(n["class_type"]) or {}
@@ -169,6 +177,9 @@ def analyze(api: dict, info: dict, notes: list[str] | None = None) -> dict:
             o = _opts(s)
             up = next((k[: -len("_upload")] for k in o if k.endswith("_upload") and o[k]), None)
             base = {"node": nid, "input": name, "title": _title(api, nid), "class_type": n["class_type"]}
+            if _refmod_loader(n["class_type"]) and REFMOD_SLOT.fullmatch(name):  # a RefMod people pick
+                refmods.append({**base, "value": v if isinstance(v, str) else None, "suggested": isinstance(v, str) and v != NO_REFMOD})
+                continue
             if up in ("image", "video", "audio") and name in specs:  # ComfyUI marks it as a file input
                 media.append({**base, "kind": up, "found": "loader", "suggested": True, "value": v if isinstance(v, str) else None})
                 continue
@@ -210,6 +221,13 @@ def analyze(api: dict, info: dict, notes: list[str] | None = None) -> dict:
     for m in media:
         count[m["kind"]] = count.get(m["kind"], 0) + 1
         m["slot"] = f"{m['kind']}:{count[m['kind']]}"
+    # A loader with nothing picked yet still asks for one: its first slot.
+    for nid in dict.fromkeys(r["node"] for r in refmods):
+        rows = [r for r in refmods if r["node"] == nid]
+        if not any(r["suggested"] for r in rows):
+            rows[0]["suggested"] = True
+    for i, r in enumerate(refmods, 1):
+        r["slot"] = f"refmod:{i}"
     # The prompt: the one text that ends up as positive conditioning. With several, the author picks.
     cands = [t for t in texts if t["polarity"] == "positive"] or [t for t in texts if t["polarity"] is None]
     prompt = cands[0] if len(cands) == 1 else None
@@ -224,7 +242,7 @@ def analyze(api: dict, info: dict, notes: list[str] | None = None) -> dict:
     size = sizes[0] if len(sizes) == 1 and not loaders else None
     # A loader's saved file gets replaced by the user's upload, so a missing one isn't a problem.
     check = local.check(api, info)
-    slots = {(m["node"], m["input"]) for m in media}
+    slots = {(m["node"], m["input"]) for m in media + refmods}
     check["bad_values"] = [b for b in check["bad_values"] if (b["node_id"], b["input"]) not in slots]
     check["ok"] = not check["missing_nodes"] and not check["missing_models"] and not check["bad_values"]
     return {
@@ -232,6 +250,7 @@ def analyze(api: dict, info: dict, notes: list[str] | None = None) -> dict:
         "outputs": [results[0]["node"]],
         "results": results,
         "media": media,
+        "refmods": refmods,
         "texts": texts,
         "prompt": {"node": prompt["node"], "input": prompt["input"]} if prompt else None,
         "params": params,

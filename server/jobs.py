@@ -24,7 +24,7 @@ from typing import Any, Callable
 
 import httpx
 
-from . import engines, local, media, paths, proxy, settings, staging, store
+from . import characters, engines, local, media, paths, proxy, settings, staging, store
 from . import generation as sc
 from .router import Router, RouterError
 
@@ -384,7 +384,11 @@ class Manager:
                 if slot not in assets:
                     a = await v2.upload(folder / item.file, file_path=f"openillusion_{m.id[-8:]}_{Path(item.file).name}")
                     assets[slot] = {"__type": "core/ASSET", "info": {"id": a["id"]}}
-            workflow = engines.materialize(m.request_template, lambda k, n, f: assets[f"{k}:{n}"])
+            # A RefMod goes to ComfyUI's input/refmods, where its loader finds it.
+            refmods = {i.slot: await characters.stage(self.comfyui_factory(), folder / i.file, i.sha256 or sc.sha256_file(folder / i.file))
+                       for i in m.inputs if i.slot.startswith("refmod:") and i.file}
+            template = engines.fill_refmods(m.request_template, refmods) if refmods else m.request_template
+            workflow = engines.materialize(template, lambda k, n, f: assets[f"{k}:{n}"])
 
             extra = None
             if settings.api_key() and any((info.get(n.get("class_type")) or {}).get("api_node") for n in workflow.values()):
