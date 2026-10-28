@@ -48,7 +48,7 @@ export function looksLikeWorkflow(text: string): boolean {
 }
 
 /** Build a template: drop a ComfyUI workflow (local) or pick a Router model (cloud), choose what people fill in, name it. */
-export function Builder({ from }: { from?: string }) {
+export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
   const toast = useApp((s) => s.toast);
   const openTemplate = useApp((s) => s.openTemplate);
   const qc = useQueryClient();
@@ -65,7 +65,7 @@ export function Builder({ from }: { from?: string }) {
   const [saving, setSaving] = useState<"save" | "try" | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
-  const [track, setTrack] = useState<Track>("local");
+  const [track, setTrack] = useState<Track>(cloud ? "cloud" : "local");
 
   const load = (s: Source) => {
     const init = s.kind === "local" ? fromWorkflow(s.a) : fromAdapter(s.a);

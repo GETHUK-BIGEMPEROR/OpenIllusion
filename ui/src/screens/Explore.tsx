@@ -6,7 +6,7 @@ import { sharedTags, TemplateCard } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
 import { api, type EngineInfo } from "../lib/api";
 import { errMsg } from "../lib/format";
-import { go } from "../lib/route";
+import { go, href } from "../lib/route";
 import { useApp } from "../lib/store";
 
 type Kind = "all" | "edit" | "motion";
@@ -16,6 +16,9 @@ const last = { use: "", kind: "all" as Kind, where: "all" as Where };
 
 // Mixed shapes, so the placeholder wall looks like the one that replaces it.
 const SKELETON = [0.8, 0.75, 0.8, 1, 0.66, 0.8, 1.33, 0.75].map((aspect, i) => ({ key: String(i), aspect }));
+
+const NAMES: Record<string, string> = { lora: "LoRA", refmod: "RefMod" };
+const tagLabel = (t: string) => NAMES[t] ?? t.charAt(0).toUpperCase() + t.slice(1);
 
 /** Every template as one wall, photos and videos together. Click runs it in Create; (i) opens its details on the right. */
 export function Explore({ t }: { t?: string }) {
@@ -71,7 +74,7 @@ export function Explore({ t }: { t?: string }) {
   const tags = uses.length > 0 && (
     <div className="tagrow" role="group" aria-label="Tags">
       <button className="chip" type="button" aria-pressed={!use || !uses.includes(use)} onClick={() => setUse("")}>Everything</button>
-      {uses.map((u) => <button key={u} className="chip" type="button" aria-pressed={use === u} onClick={() => setUse(use === u ? "" : u)}>{u.charAt(0).toUpperCase() + u.slice(1)}</button>)}
+      {uses.map((u) => <button key={u} className="chip" type="button" aria-pressed={use === u} onClick={() => setUse(use === u ? "" : u)}>{tagLabel(u)}</button>)}
     </div>
   );
 
@@ -87,6 +90,8 @@ export function Explore({ t }: { t?: string }) {
           ) : tiles.length ? (
             <Masonry label="Templates" items={tiles} maxCols={4} minCol={250}
               render={({ e }) => <TemplateCard e={e} locked={locked(e)} selected={e.id === t} onUse={() => use_(e)} onInspect={() => inspect(e.id === t ? undefined : e.id)} />} />
+          ) : where === "cloud" && !every.some((e) => e.kind === "cloud") ? (
+            <EmptyBox icon="cloud" title="No cloud templates yet" action={<a className="btn primary" href={href({ name: "build", cloud: true })}><I n="plus" />Build one</a>}>Pick a Comfy Router model and the inputs people fill. It runs on Comfy's servers with your API key.</EmptyBox>
           ) : (
             <EmptyBox icon="search" title="No templates match" action={<button className="btn" type="button" onClick={() => { setUse(""); setKind("all"); setWhere("all"); }}>Show all</button>}>Clear the filter to see all of them.</EmptyBox>
           )}

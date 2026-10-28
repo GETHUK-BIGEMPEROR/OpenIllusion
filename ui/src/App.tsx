@@ -133,7 +133,7 @@ export function App() {
           {route.name === "settings" && <Settings />}
           {route.name === "trash" && <Trash />}
           {route.name === "characters" && <Characters id={route.id} />}
-          {route.name === "build" && <Builder from={route.from} />}
+          {route.name === "build" && <Builder key={route.cloud ? "cloud" : "local"} from={route.from} cloud={route.cloud} />}
         </main>
         <TabBar route={route} />
       </div>

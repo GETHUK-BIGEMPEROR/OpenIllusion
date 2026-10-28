@@ -10,7 +10,7 @@ export type Route =
   | { name: "settings" }
   | { name: "trash" }
   | { name: "characters"; id?: string }
-  | { name: "build"; from?: string }
+  | { name: "build"; from?: string; cloud?: boolean }
   | { name: "connect" };
 
 export function parse(hash: string): Route {
@@ -32,7 +32,7 @@ export function parse(hash: string): Route {
     case "characters":
       return { name: "characters", id: parts[1] };
     case "build":
-      return { name: "build", from: q.get("from") ?? undefined };
+      return { name: "build", from: q.get("from") ?? undefined, cloud: q.get("track") === "cloud" || undefined };
     case "connect":
       return { name: "connect" };
     case "library":
@@ -57,7 +57,7 @@ export function href(r: Route): string {
     case "characters":
       return r.id ? `#/characters/${r.id}` : "#/characters";
     case "build":
-      return r.from ? `#/build?from=${encodeURIComponent(r.from)}` : "#/build";
+      return r.from ? `#/build?from=${encodeURIComponent(r.from)}` : r.cloud ? "#/build?track=cloud" : "#/build";
     case "library":
       return r.shelf && r.shelf !== "mine" ? `#/library?shelf=${r.shelf}` : "#/library";
     default:
