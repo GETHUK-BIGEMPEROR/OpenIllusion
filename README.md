@@ -118,7 +118,8 @@ re-rolled each run; a fixed seed stays fixed.
 
 **2 · Inputs, a prompt and the result's settings go in.** Inputs have no names: they
 are Image 1, Image 2, Video 1, Audio 1, and the prompt says what each one is for.
-There is one prompt, sent exactly as written, with no hidden text added. Then the
+There is one prompt, with no hidden text added; a cloud model gets "Image 1" in its
+own form (see [Naming files in the prompt](#naming-files-in-the-prompt)). Then the
 settings every generator has, where no input already decides them: the result's
 shape and size, its length, resolution, sound (see [Settings](#settings-what-people-choose-about-the-result)).
 Anything else is the box's business.
@@ -169,7 +170,7 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Screen | Route | What you do there | File |
 | --- | --- | --- | --- |
 | Explore | `#/explore` | Every published template on one wall: photos and videos, your GPU and cloud together. On top, one search field (`/` jumps to it, Esc clears; it reads the name, model, tags, blurb and prompts, best matches first) with how many match. Under it the filters: Photo / Video, Model (each says Your GPU or Cloud; that is where it runs), Input (a photo, a clip, a sound, words only), Clear, and Sort on the right (Recently used, the default, then Featured, Most used, A to Z; used = your runs). Each filter's counts follow the others. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Moving the mouse over a card wipes between the cover and the input it was made from (photo or clip; a clip plays only while hovered). Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back). A template without a cover yet shows its name until a result is made its cover. The inspector shows the cover beside its input as a slider you drag across, photos or clips (two clips loop in step). | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
-| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips name each filled file the way the model reads it), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. Opening a template shows a finished run, as after Run: your latest run of it, else its Example (the cover beside the input it was made from); Inputs flips to editing. Input and result compare with a slider you drag across, for clips too (Side by side is one click away). A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
+| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips put each filled file's name, Image 1 or Video 1, at the cursor), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. Opening a template shows a finished run, as after Run: your latest run of it, else its Example (the cover beside the input it was made from); Inputs flips to editing. Input and result compare the same way for photos and clips: a framed picture at the result's shape, Input and Result on it, a slider you drag across (clips add a transport under the frame and Side by side). Under the header: Build from this (every template; a cloud one opens on its model with its inputs, prompt and settings) and, for local ones, the ComfyUI workflow. A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
 | Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, remix into Create, notes, export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
@@ -177,7 +178,8 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Queue | drawer | Every run from both studios, grouped by what it needs from you. | `screens/QueueDrawer.tsx` |
 | Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Templates (shipped ones taken off Explore, each with Put back), Storage (disk use, clean working copies, back up and restore), Cloud (API key). | `screens/Settings.tsx` |
 | Connect | `#/connect` | First run only: check the ComfyUI on this machine, then open Explore. No account. | `screens/Connect.tsx` |
-| Import | dialog | A dropped bundle, PNG or MP4 with a recipe, or a link: review, then add to the Library. A dropped ComfyUI workflow goes to Build instead. | `screens/ImportReview.tsx` |
+| Export | sheet | Export on a finished run (Create, the Generation page): a `.illusion` file (Light, Full, or Recipe only), the recipe as JSON, or a link. It says what the file is for: drop it on any OpenIllusion page or press Library → Import; it opens under Imported, and Remix loads it into Create. | `screens/ShareSheet.tsx` |
+| Import | dialog | Library → Import, a drop anywhere, or a link: a bundle, PNG or MP4 with a recipe. Review, then add to the Library. A dropped ComfyUI workflow goes to Build instead. | `screens/ImportReview.tsx` |
 | Edit a file | Create's stage; a sheet in the Builder | One workbench for every photo, clip and sound: the model's limits as pills on top (green fits, orange a run changes it, red can't run; a pill opens its tool) with **Fit to spec**, tools on the left (crop, turn, size, cut, rate, sound), the file in the middle with what the model keeps outlined, the tool's settings on the right, a clip's timeline below (past the model's length is hatched: not sent), and what changes along the bottom. Hold for original. In Create the edits wait on the input and are made when it runs (crop and cut go through the run's own crop and trim; turn, size, rate and sound make a new file just before the run, or now with Apply now). In the Builder, Save makes the new file. The original always stays. | `components/MediaEditor.tsx`, `lib/edits.ts` |
 | Restore | dialog | A dropped `.illusionbackup` (or Settings → Storage → Choose file): what it would add, then Restore, with progress. | `screens/RestoreReview.tsx` |
 
@@ -272,7 +274,7 @@ Where to look when you change something.
 | `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), deletes secrets an older version wrote to disk, resumes interrupted jobs (a cloud run waits for the key until a browser sends it), keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), cleans scratch and old trash every 6 h, refuses cross-origin writes (`_same_origin`), sets nosniff, no-referrer, no framing and a strict CSP on every response (`_headers`), and takes the key and proxy token from the `X-Comfy-Key` and `X-Comfy-Proxy-Token` headers (`_secrets`). |
 | `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, run, jobs), `library` (generations, trash, storage, re-run, export, import), `backup` (back up, restore); shared helpers in `common`. Thin: it checks input and calls the modules below. |
 | `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
-| `builder/` | The Builder, in layers: `workflow` (read a dropped file, `read_workflow`; UI graph to API graph, `ui_to_api`), `analysis` (detect inputs, prompt, settings and result nodes, `analyze`), `assemble` (`assemble_local`, `assemble_cloud`, `preset`, `save`). `__init__` re-exports them. |
+| `builder/` | The Builder, in layers: `workflow` (read a dropped file, `read_workflow`; UI graph to API graph, `ui_to_api`), `analysis` (detect inputs, prompt, settings and result nodes, `analyze`), `assemble` (`assemble_local`, `assemble_cloud`, `preset` and `cloud_preset` for Build from this, `save`). `__init__` re-exports them. |
 | `adapters/` | `__init__.py` reads and checks adapter files and puts a request together from one (`parse`, `check`, `assemble`, `pick_model`) and the result settings a job asks for (`settings_for`, `write_setting`, `setting_field`). One `*.json` per cloud model. |
 | `staging.py` | A run before it starts: `prepare_generation` (spec → generation folder: inputs cropped, sized and copied, running manifest), `input_plans` (what prep will do, for Create), `resolve_asset`, and what a finished generation carries (`recipe_manifest`, `workflow_file`). |
 | `jobs.py` | The queue: `_run_inner` (cloud: upload files by link, materialize, submit, poll, collect), `_run_local` (upload, precheck, submit, follow events), saving results. |
@@ -464,6 +466,10 @@ flowchart LR
   first, the rest under *Show all*. Off, a value you change here is fixed into the
   saved workflow. A template opened with *Build from this* keeps its controls as
   they were (Duration stays 3/5/8/10/15 s, not a bare number box).
+- **Build from this, cloud.** A Router template opens on the Comfy Router tab with its
+  model, each sample in the model input it fills (read off where the template's request
+  holds it), its prompt and its settings; one the template fixed comes back fixed at its
+  value (`builder.cloud_preset`). Saved, the copy keeps the original's prompt ideas.
 - **Settings** (Router): the model's own options the job asks for (below), each
   with a starting value and a switch: on, people pick it on Create; off, every run
   uses that value.
@@ -848,7 +854,9 @@ A setting an input decides is `off_with` that role: a first frame sets the shape
 a clip to edit sets shape and length, a clip to extend sets everything. The Builder
 lists the settings the filled roles leave, each with its start value and whether
 Create asks for it; `assemble_cloud` writes them all into the body and adds an input
-for each one asked.
+for each one asked. The fixed ones are listed in the template's `locked`, so a template
+that fixes every setting isn't taken for one saved before models had settings (those
+get the model's settings as inputs, at its defaults, when loaded).
 
 | Model | Settings |
 | --- | --- |
@@ -873,11 +881,16 @@ carries them (the template's input order):
 "mentions": { "image": "<<<image_{n}>>>", "video": "<<<video_{n}>>>" }   // Kling
 ```
 
-Under a cloud prompt, Create and the Builder show one chip per filled photo, clip or
-sound (its thumbnail and its name); a click puts the name at the cursor. The prompt
-is still sent exactly as written: the chips type the model's own token, nothing is
-rewritten at run time. Local workflows name their own inputs (H3 reads `<Picture 1>`),
-so local templates show no chips.
+You write the names Create shows on the cards: Image 1, Video 2, Audio 1. Under a
+cloud prompt, Create and the Builder show one chip per filled photo, clip or sound
+(its thumbnail and that name); a click puts the name at the cursor. At run time
+`engines.name_files` swaps each name of a file the run sends for the model's form:
+"Put Image 2 into Video 1" reaches Kling as "Put `<<<image_2>>>` into `<<<video_1>>>`".
+A name the run doesn't send, a longer word ("Images 1") and text already in the
+model's form (`@Image 1`, `<<<image_1>>>`) stay as written; the generation keeps the
+prompt as you wrote it. A model with no names (Veo) gets the prompt untouched. Local
+workflows name their own inputs (H3 reads `<Picture 1>`), so local templates show no
+chips and nothing is swapped.
 
 | Model | Names | Source |
 | --- | --- | --- |

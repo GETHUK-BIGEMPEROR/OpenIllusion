@@ -154,6 +154,7 @@
 .dlg-opt small,.dlg-orow small{display:block;font-size:11px;color:var(--text-2)}
 .dlg-opt>.mono{font-size:11px;color:#D6D0DF;white-space:nowrap}
 .dlg-sec{display:flex;flex-direction:column;gap:6px}
+.dlg-how{margin:0;font-size:12px;line-height:1.5;color:var(--text-2)}
 .dlg-sec-h{display:flex;align-items:center;justify-content:space-between}
 .dlg-sec-h>span{font-size:11px;color:var(--text-2)}
 .dlg-orow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}

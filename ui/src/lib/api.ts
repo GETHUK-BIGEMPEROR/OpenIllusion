@@ -191,6 +191,14 @@ export type AdapterSetting = Omit<ParamSpec, "type"> & {
 };
 
 export interface BuildPrompt { node?: string; input?: string; label: string; hint: string; default: string; required: boolean; examples?: string[] }
+/** A cloud template opened in the Builder: its Router model, the adapter input each file fills, its prompt and settings. */
+export interface CloudPreset {
+  kind: "cloud"; base: string; model: string; label: string; blurb: string; tags: string[]; mode: Mode;
+  media: { slot: string; kind: MediaKind; input: number; sample: Asset | null }[];
+  prompt: { default: string; examples: string[] };
+  settings: Record<string, { value: unknown; locked: boolean }>;
+}
+
 export interface BuildSpec {
   kind: "local" | "cloud"; token?: string; model?: string; replace?: string;
   /** The template this one was built from: it keeps that one's sizing, tips and model hints. */
@@ -621,7 +629,7 @@ export const api = {
     return req<WorkflowAnalysis>("POST", "/builder/workflow", fd);
   },
   buildFromText: (text: string) => req<WorkflowAnalysis>("POST", "/builder/workflow", { text }),
-  buildFromTemplate: (engine: string) => req<WorkflowAnalysis>("POST", "/builder/from-template", { engine }),
+  buildFromTemplate: (engine: string) => req<WorkflowAnalysis | CloudPreset>("POST", "/builder/from-template", { engine }),
   builderModels: () => req<RouterAdapter[]>("GET", "/builder/models"),
   saveTemplate: (spec: BuildSpec) => req<EngineInfo>("POST", "/builder/save", spec),
   duplicateTemplate: (engine: string) => req<EngineInfo>("POST", "/templates/duplicate", { engine }),

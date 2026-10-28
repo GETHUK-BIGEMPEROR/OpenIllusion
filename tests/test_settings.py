@@ -142,7 +142,7 @@ def test_auto_leaves_the_field_out_and_values_keep_their_type():
 
 def test_a_template_saved_before_settings_gets_them():
     data = builder.assemble_cloud(_spec(GPT))
-    old = {**data, "id": "cloud/old", "inputs": [f for f in data["inputs"] if f["key"] == "prompt"]}
+    old = {**{k: v for k, v in data.items() if k != "locked"}, "id": "cloud/old", "inputs": [f for f in data["inputs"] if f["key"] == "prompt"]}
     e = contract.load_template(old)
     assert {f["key"] for f in e.fields} >= {"aspect", "quality"}
 

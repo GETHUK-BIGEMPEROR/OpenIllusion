@@ -172,8 +172,8 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
   );
   const actions = community ? null : (
     <>
-      <button className="icon-btn" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))} aria-label="Import a shared result"
-        title="Import a shared result: a .illusion file, an OpenIllusion PNG or MP4, or a generation JSON"><I n="upload" /></button>
+      <button className="btn ghost" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))}
+        title="Open a shared result: a .illusion file, an OpenIllusion PNG or MP4, or a generation JSON. Dropping one anywhere does the same."><I n="upload" /><span className="lbl">Import</span></button>
       {canClear && !picking && (
         <button className="btn danger" type="button" onClick={clearView} title="Move everything shown here to the trash">
           <I n="trash" /><span className="lbl">{tab === "all" ? "Clear all" : tab === "failed" ? "Clear failed" : "Clear starred"}</span>

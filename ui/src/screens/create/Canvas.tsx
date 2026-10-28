@@ -94,7 +94,7 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
   }
 
   if ((motion || videoOut) && (eff === "compare" || eff === "result") && shown && result) {
-    const src = drove ? { kind: "video" as const, src: fileUrl(shown.id, drove.file!), poster: fileUrl(shown.id, posterOf(drove.file!)), label: "Source" } : null;
+    const src = drove ? { kind: "video" as const, src: fileUrl(shown.id, drove.file!), poster: fileUrl(shown.id, posterOf(drove.file!)), label: "Input" } : null;
     const res = { kind: (shown.result?.kind ?? "video") as "video" | "image", src: result, poster: shown.result?.poster ? fileUrl(shown.id, shown.result.poster) : null, label: "Result" };
     return <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}><ABPlayer a={eff === "compare" ? src : null} b={res} /></div>;
   }

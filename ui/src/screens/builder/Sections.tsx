@@ -326,7 +326,7 @@ const filledNames = (rows: MediaRow[]) => {
   return new Map(filled.map((r, i) => [r.key, names[i]]));
 };
 
-export function PromptSection({ src, p, setP, files = [] }: { src: Source; p: PromptState; setP: (f: (p: PromptState) => PromptState) => void; files?: Omit<Mention, "token">[] }) {
+export function PromptSection({ src, p, setP, files = [] }: { src: Source; p: PromptState; setP: (f: (p: PromptState) => PromptState) => void; files?: Omit<Mention, "token" | "name">[] }) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const set = (k: keyof PromptState) => (e: { target: { value: string } }) => setP((x) => ({ ...x, [k]: e.target.value }));
   const options = src.kind === "local"
@@ -338,7 +338,9 @@ export function PromptSection({ src, p, setP, files = [] }: { src: Source; p: Pr
   });
   const unsure = src.kind === "local" && !p.pick && !src.a.prompt && src.a.texts.filter((t) => t.polarity !== "negative").length > 1;
   return (
-    <Sec id="pr" icon="pencil" color="var(--violet)" title="Prompt" desc="What the template opens with. People can change any word on Create; it's sent exactly as written.">
+    <Sec id="pr" icon="pencil" color="var(--violet)" title="Prompt" desc={src.kind === "cloud" && Object.keys(src.a.mentions ?? {}).length
+      ? `What the template opens with. People can change any word on Create. Name files as Image 1, Video 1…; ${src.a.name} gets them in its own form.`
+      : "What the template opens with. People can change any word on Create; it's sent exactly as written."}>
       {!options.length ? (
         <p className="help">No text box in this workflow takes a prompt. The template runs on its inputs alone.</p>
       ) : (
@@ -358,7 +360,7 @@ export function PromptSection({ src, p, setP, files = [] }: { src: Source; p: Pr
             <textarea ref={ta} className="textarea bprompt" aria-label="The prompt the template opens with" rows={Math.min(10, Math.max(3, Math.ceil(p.def.length / 70)))} value={p.def} maxLength={4000} onChange={set("def")} placeholder="The prompt the template starts with" spellCheck={false} />
           )}
           {p.pick && src.kind === "cloud" && (
-            <Mentions list={mentions(src.a.mentions, files)} none={noNames(src.a.mentions, files, src.a.name)} ta={ta} value={p.def} onChange={(v) => setP((x) => ({ ...x, def: v }))} />
+            <Mentions list={mentions(src.a.mentions, files)} none={noNames(src.a.mentions, files, src.a.name)} model={src.a.name} ta={ta} value={p.def} onChange={(v) => setP((x) => ({ ...x, def: v }))} />
           )}
         </>
       )}

@@ -148,6 +148,30 @@ def _setting_value(f: dict, v: Any) -> Any:
     return v
 
 
+# "Image 1", "Video 2": the names Create gives a cloud template's files, as the prompt says them.
+# Not inside a model's own name for one ("@Image 1") or a longer word.
+NAMED = re.compile(r"(?<![@<\w])(Image|Video|Audio) (\d+)(?![>\w])")
+
+
+def name_files(e: "Engine", prompt: str, slots: set[str]) -> str:
+    """A cloud prompt with each file named the way its model reads it: "Image 2" becomes Kling's
+    ``<<<image_1>>>`` when it is the first photo sent. Names of files the run doesn't send stay as written."""
+    from .. import adapters
+
+    a = adapters.for_model(e.model or "") if e.kind == "cloud" else None
+    if not a or not a.mentions or not prompt:
+        return prompt
+    sent = [f["key"] for f in e.fields if f["type"] in MEDIA and f["key"] in slots]
+
+    def name(m: re.Match) -> str:
+        kind, key = m[1].lower(), f"{m[1].lower()}:{m[2]}"
+        if key not in sent or kind not in a.mentions:
+            return m[0]
+        n = [k for k in sent if k.startswith(kind + ":")].index(key) + 1
+        return a.mentions[kind].replace("{n}", str(n))
+    return NAMED.sub(name, prompt)
+
+
 def build_cloud(e: "Engine", spec: dict) -> dict:
     """A cloud template's body with the studio's fields written in.
 
@@ -161,7 +185,7 @@ def build_cloud(e: "Engine", spec: dict) -> dict:
     drop: list[list] = []
     for key, targets in e.bindings.items():
         if key == "prompt":
-            value: Any = spec.get("prompt", "")
+            value: Any = name_files(e, spec.get("prompt", ""), slots)
         elif key == "size":  # the model's size: the shape and step picked, as pixels
             w, h = prep.canvas_size(run_size(e), p.get("aspect"), p.get("out_size")) or (None, None)
             if w is None:

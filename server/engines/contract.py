@@ -265,7 +265,8 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
     if not isinstance(data.get("label"), str) or not data["label"].split(" · ")[0].strip():
         raise ValueError("a template needs a label (its title)")
     fields = [_field(f) for f in data.get("inputs") or []]
-    if cloud and not any(f["type"] not in MEDIA and f["key"] != "prompt" for f in fields):
+    # Saved before models had settings: no setting asked and none fixed ("locked" is newer).
+    if cloud and "locked" not in data and not any(f["type"] not in MEDIA and f["key"] != "prompt" for f in fields):
         fields += _model_settings(data, fields)
     if len({f["key"] for f in fields}) != len(fields):
         raise ValueError("two inputs share a key")

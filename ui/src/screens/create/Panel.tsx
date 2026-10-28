@@ -102,6 +102,7 @@ export function PromptSection({ s, set, engine, invalid, onRun }: {
   const pf = promptField(engine);
   if (!pf) return null;
   const files = engine?.kind === "cloud" ? filled(engine, s) : [];
+  const named = engine?.kind === "cloud" && !!Object.keys(engine.mentions ?? {}).length;
   const def = pf.default ?? engine?.defaults?.prompt ?? "";
   const ideas = pf.examples ?? [];
   return (
@@ -116,9 +117,9 @@ export function PromptSection({ s, set, engine, invalid, onRun }: {
         <textarea ref={ta} id="prompt" aria-labelledby="sec-prompt" rows={4} spellCheck value={s.prompt} placeholder="Describe what you want."
           onChange={(e) => set({ prompt: e.target.value })}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) { e.preventDefault(); onRun(); } }} />
-        <div className="pbox-foot"><span>Sent exactly as written</span><kbd>Ctrl</kbd><kbd>↵</kbd><span>runs</span></div>
+        <div className="pbox-foot">{named ? <span title={`Image 1, Video 1… go to ${tplModel(engine!)} in its own form, such as ${(engine!.mentions!.image ?? Object.values(engine!.mentions!)[0]).replace("{n}", "1")}`}>Names sent in {tplModel(engine!)}'s form</span> : <span>Sent exactly as written</span>}<kbd>Ctrl</kbd><kbd>↵</kbd><span>runs</span></div>
       </div>
-      {engine?.kind === "cloud" && <Mentions list={mentions(engine.mentions, files)} none={noNames(engine.mentions, files, tplModel(engine))} ta={ta} value={s.prompt} onChange={(v) => set({ prompt: v })} />}
+      {engine?.kind === "cloud" && <Mentions list={mentions(engine.mentions, files)} none={noNames(engine.mentions, files, tplModel(engine))} model={tplModel(engine)} ta={ta} value={s.prompt} onChange={(v) => set({ prompt: v })} />}
       {!!ideas.length && (
         <div className="ideas" role="group" aria-label="Prompt ideas">
           {ideas.map((x) => <button key={x.label} className="ex" type="button" title={x.text} aria-pressed={s.prompt === x.text} onClick={() => set({ prompt: x.text })}>{x.label}</button>)}
@@ -129,8 +130,8 @@ export function PromptSection({ s, set, engine, invalid, onRun }: {
 }
 
 /** The run's filled photos, clips and sounds, in the template's order (the order the request carries them). */
-function filled(e: EngineInfo, s: StudioState): Omit<Mention, "token">[] {
-  return mediaFields(e).flatMap((f): Omit<Mention, "token">[] => {
+function filled(e: EngineInfo, s: StudioState): Omit<Mention, "token" | "name">[] {
+  return mediaFields(e).flatMap((f): Omit<Mention, "token" | "name">[] => {
     if (f.type === "video") {
       const c = clipIn(s, f.key);
       return c && !c.missing ? [{ key: f.key, kind: "video", label: f.label, thumb: c.poster ?? null }] : [];

@@ -59,16 +59,19 @@ export const roleOf = (e: EngineInfo | undefined, slot: string): string =>
 
 export const slotNo = (slot: string) => Number(slot.split(":")[1]);
 
-/** A file a cloud prompt can name, with the name the model reads: numbered per kind in the order the run sends
- *  the files (server/adapters, mentions). */
-export interface Mention { key: string; kind: "image" | "video" | "audio"; label: string; thumb?: string | null; token: string }
+/** A file a cloud prompt can name: ``name`` is its card's ("Image 2"), what you write; ``token`` is what the model
+ *  reads for it, numbered per kind in the order the run sends the files. The server swaps one for the other
+ *  (engines/build.py, name_files). */
+export interface Mention { key: string; kind: "image" | "video" | "audio"; label: string; thumb?: string | null; name: string; token: string }
 
-export function mentions(names: Record<string, string> | undefined, files: Omit<Mention, "token">[]): Mention[] {
+export function mentions(names: Record<string, string> | undefined, files: Omit<Mention, "token" | "name">[]): Mention[] {
   const n: Record<string, number> = {};
   return files.flatMap((f) => {
     n[f.kind] = (n[f.kind] ?? 0) + 1;
     const t = names?.[f.kind];
-    return t ? [{ ...f, token: t.replace("{n}", String(n[f.kind])) }] : [];
+    // In the Builder a row isn't a slot yet: saved, the files of a kind become Image 1, Image 2… in this order.
+    const name = `${f.kind[0].toUpperCase()}${f.kind.slice(1)} ${f.key.startsWith(`${f.kind}:`) ? slotNo(f.key) : n[f.kind]}`;
+    return t ? [{ ...f, name, token: t.replace("{n}", String(n[f.kind])) }] : [];
   });
 }
 

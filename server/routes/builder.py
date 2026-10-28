@@ -68,13 +68,32 @@ def register(routes: web.RouteTableDef) -> None:
         a.pop("workflow")
         return web.json_response({"token": token, "source": name, "format": fmt, **a})
 
+    async def _sample(src):
+        """A template's sample as an upload the builder can show and save with."""
+        raw = src.read_bytes()
+        asset = hashlib.sha256(raw).hexdigest()[:24] + src.suffix.lower()
+        dst = paths.uploads_dir() / asset
+        if not dst.exists():
+            dst.write_bytes(raw)
+        return {"asset": asset, "name": src.name, **await asyncio.to_thread(asset_info, dst)}
+
     @routes.post(API + "/builder/from-template")
     async def builder_from_template(request):
-        """Open a local template in the builder: its workflow read like a dropped one, plus how the template set it up."""
+        """Open a template in the builder. Local: its workflow read like a dropped one, plus how the template set it up.
+        Cloud: its Router model with the inputs, prompt and settings the template has."""
         b = await body(request)
         e = engines.ENGINES.get(str(b.get("engine") or ""))
+        if e is not None and e.kind == "cloud":
+            try:
+                p = builder.cloud_preset(e)
+            except builder.BuildError as ex:
+                return err(422, str(ex))
+            for m in p["media"]:
+                src = e.default_inputs.get(m["slot"])
+                m["sample"] = await _sample(src) if src and src.is_file() else None
+            return web.json_response(p)
         if e is None or e.kind != "local" or not e.workflow:
-            return err(404, "Only local templates have a workflow to build from")
+            return err(404, "That template has nothing to build from")
         comfy = local.ComfyUI()
         try:
             info = await comfy.object_info(fresh=True)
@@ -93,14 +112,7 @@ def register(routes: web.RouteTableDef) -> None:
         for m in a["media"]:
             slot = where.get((m["node"], m["input"]))
             src = e.default_inputs.get(slot) if slot else None
-            m["sample"] = None
-            if src and src.is_file():
-                raw = src.read_bytes()
-                asset = hashlib.sha256(raw).hexdigest()[:24] + src.suffix.lower()
-                dst = paths.uploads_dir() / asset
-                if not dst.exists():
-                    dst.write_bytes(raw)
-                m["sample"] = {"asset": asset, "name": src.name, **await asyncio.to_thread(asset_info, dst)}
+            m["sample"] = await _sample(src) if src and src.is_file() else None
         a.pop("workflow")
         return web.json_response({"token": token, "source": f"{slug}.json", "format": "api", **a, "preset": builder.preset(e)})
 
@@ -149,9 +161,9 @@ def register(routes: web.RouteTableDef) -> None:
                 except httpx.HTTPError:
                     return err(503, "ComfyUI isn't reachable, so the workflow can't be checked. Start it and save again.")
                 data = builder.assemble_local(b, draft, info)
-                base = engines.ENGINES.get(str(b.get("base") or ""))
-                if base is not None and base.data:
-                    builder.inherit(data, base.data, base.label)
+            base = engines.ENGINES.get(str(b.get("base") or ""))
+            if base is not None and base.data:
+                builder.inherit(data, base.data, base.label)
             samples = {}
             for m in builder.media_rows(b.get("media") or []):
                 if m.get("sample"):

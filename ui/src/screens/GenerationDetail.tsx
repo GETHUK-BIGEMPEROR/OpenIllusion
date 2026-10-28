@@ -136,7 +136,7 @@ export function GenerationDetail({ id }: { id: string }) {
 
   let stage: ReactNode;
   if (after && isVideo) {
-    const src = video?.file ? { kind: "video" as const, src: fileUrl(m.id, video.file), poster: fileUrl(m.id, posterOf(video.file)), label: "Source" } : null;
+    const src = video?.file ? { kind: "video" as const, src: fileUrl(m.id, video.file), poster: fileUrl(m.id, posterOf(video.file)), label: "Input" } : null;
     stage = <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "0 16px 16px" }}><ABPlayer a={src} b={{ kind: "video", src: after, poster: r?.poster ? fileUrl(m.id, r.poster) : null, label: "Result" }} /></div>;
   } else {
     let inner: ReactNode;

@@ -274,7 +274,8 @@ def assemble_cloud(spec: dict) -> dict:
         if ks and chosen.get(s["key"], {}).get("locked") and values[s["key"]] == ks["option"]:
             data["keep_sound"] = slots[ks["role"]]
     data.update(kind="cloud", model=model, provider=model.split("/", 1)[0], body=body, result=a.result,
-                source=f"Comfy Router · {a.name}")
+                source=f"Comfy Router · {a.name}",
+                locked=[s["key"] for s in on if chosen.get(s["key"], {}).get("locked")])  # fixed in the body, not asked
     return data
 
 
@@ -299,6 +300,71 @@ def preset(e) -> dict:
     name, _, rest = e.label.partition(" · ")
     return {"base": e.id, "label": f"{name} (copy)" + (f" · {rest}" if rest else ""), "blurb": e.blurb, "tags": list(e.tags),
             "mode": e.mode, "media": media, "prompt": prompt, "params": params, "size": size, "outputs": list(e.outputs)}
+
+
+def cloud_preset(e) -> dict:
+    """How a Router template built from cloud template ``e`` starts: the model's inputs its files fill,
+    its prompt, and each setting at its value (one the template doesn't ask for is locked there).
+    Read off ``e``'s request: each file's place holds one adapter input's value, and a locked
+    setting's place holds what that setting writes."""
+    a = adapters.for_model(e.model or "")
+    if a is None:
+        raise BuildError(f"{e.model} has no adapter here, so the Builder can't open it")
+
+    def at(body, path):
+        for k in path:
+            try:
+                body = body[k]
+            except (KeyError, IndexError, TypeError):
+                return None
+        return body
+    body = e.body or {}
+    media = []
+    for f in e.fields:
+        if f["type"] in ("image", "video", "audio") and f.get("bind"):
+            held = at(body, f["bind"][0])
+            i = next((n for n, x in enumerate(a.inputs) if x["type"] == f["type"] and adapters.fill(x["value"], f["key"]) == held), None)
+            if i is None:
+                raise BuildError(f"{f.get('label') or f['key']} fills none of {a.name}'s inputs")
+            media.append({"slot": f["key"], "kind": f["type"], "input": i})
+    files = [(m["input"], m["slot"]) for m in media]
+    asked = {f["key"]: f for f in e.fields}
+    on = adapters.settings_for(a, [a.inputs[m["input"]]["role"] for m in media])
+
+    def shown(s):
+        f = asked.get("size" if s["type"] == "size" else s["key"])
+        if not f:
+            return None
+        return {"aspect": f.get("aspect"), "size": f.get("default")} if s["type"] == "size" else f.get("default")
+    values = {s["key"]: shown(s) if shown(s) is not None else adapters.setting_default(s) for s in on}
+    locked = [s for s in on if shown(s) is None]
+    for s in locked:
+        want = [at(body, p) for p in adapters.setting_paths(s)]
+        for v in _choices(s):
+            try:
+                out, _, _ = adapters.assemble(a, files, "", {**values, s["key"]: v})
+            except adapters.AdapterError:
+                continue
+            if [at(out, p) for p in adapters.setting_paths(s)] == want:
+                values[s["key"]] = v
+                break
+    text = next((f for f in e.fields if f["key"] == "prompt"), None) or {}
+    name, _, rest = e.label.partition(" · ")
+    return {"kind": "cloud", "base": e.id, "model": a.model, "label": f"{name} (copy)" + (f" · {rest}" if rest else ""),
+            "blurb": e.blurb, "tags": list(e.tags), "mode": e.mode, "media": media,
+            "prompt": {"default": e.default_prompt, "examples": [x.get("text", "") if isinstance(x, dict) else str(x) for x in text.get("examples") or []]},
+            "settings": {s["key"]: {"value": values[s["key"]], "locked": s in locked} for s in on}}
+
+
+def _choices(s: dict) -> list:
+    """Every value a setting can take, to find the one a request holds."""
+    if s["type"] == "size":
+        return [{"aspect": x, "size": f"{y:g} MP"} for x in s.get("aspects") or [] for y in s.get("steps") or []]
+    if s["type"] == "bool":
+        return [False, True]
+    if s["type"] == "int":
+        return list(range(s["min"], s["max"] + 1, s.get("step") or 1))[:2000]
+    return list(s.get("options") or [s.get("default")])
 
 
 def inherit(data: dict, base: dict, base_label: str) -> None:

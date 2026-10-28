@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { I, PageHead } from "../../components/oi";
 import { cx, Spinner } from "../../components/ui";
-import { api, type BuildSpec, type RouterAdapter } from "../../lib/api";
+import { api, type BuildSpec, type CloudPreset, type RouterAdapter } from "../../lib/api";
 import { confirm } from "../../lib/confirm";
 import { errMsg } from "../../lib/format";
 import { go } from "../../lib/route";
@@ -12,7 +12,7 @@ import { CloudInputs, InputsSection, JobSection, PromptSection, ResultSection, s
 import { CloudSettings, type CloudSettingState, ControlsSection, SizeSection } from "./Settings";
 import { Start, Tabs, type Track } from "./Start";
 import { type Details, fromWorkflow, type MediaRow, type OutputState, type ParamRow, type PromptState, type Source } from "./model";
-import { adapterProblems, fromAdapter, settingsFor, settingValue } from "./modes";
+import { adapterProblems, fromAdapter, routerJobs, settingsFor, settingValue, toJob } from "./modes";
 
 // A workflow handed over from elsewhere (Import, a drop on another page).
 let pending: File | null = null;
@@ -65,6 +65,8 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
   const [track, setTrack] = useState<Track>(cloud ? "cloud" : "local");
+  // A cloud template this one is built from: it keeps that one's prompt ideas.
+  const [base, setBase] = useState<string | undefined>(undefined);
 
   const load = (s: Source) => {
     const init = s.kind === "local" ? fromWorkflow(s.a) : fromAdapter(s.a);
@@ -75,8 +77,30 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     setDetails(init.details);
     setOutput(init.output);
     setCsets({});
+    setBase(undefined);
     setSaveErr(null);
     setTried(false);
+  };
+
+  // A cloud template's model with its files in the inputs they fill, its prompt and settings.
+  const loadCloud = (a: RouterAdapter, p: CloudPreset) => {
+    load({ kind: "cloud", a });
+    let rows = a.inputs.map((x, i) => ({ key: `${i}:0`, on: true, kind: x.type, label: x.role, hint: "", required: false, sample: null as CloudPreset["media"][number]["sample"], where: x.role, slot: i, max: x.max }));
+    p.media.forEach((m, n) => {
+      const free = rows.find((r) => r.slot === m.input && !r.sample);
+      if (free) rows = rows.map((r) => (r === free ? { ...r, sample: m.sample } : r));
+      else {
+        const at = rows.map((r) => r.slot).lastIndexOf(m.input);
+        rows = [...rows.slice(0, at + 1), { ...rows[at], key: `${m.input}:${n + 1}`, sample: m.sample }, ...rows.slice(at + 1)];
+      }
+    });
+    const used = p.media.map((m) => m.input);
+    const jobs = routerJobs(a);
+    setMedia(toJob(jobs.find((j) => used.every((i) => j.inputs.includes(i))) ?? jobs[0], rows));
+    setPrompt((x) => ({ ...x, def: p.prompt.default }));
+    setDetails({ label: p.label, blurb: p.blurb, mode: a.mode, tags: p.tags.join(", ") });
+    setCsets(p.settings);
+    setBase(p.base);
   };
 
   const readFile = async (f: File) => {
@@ -122,7 +146,14 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     setReading(from.split("/").pop() ?? from);
     setReadErr(null);
     api.buildFromTemplate(from)
-      .then((a) => { if (live) load({ kind: "local", a }); })
+      .then(async (r) => {
+        if (!("kind" in r)) return void (live && load({ kind: "local", a: r }));
+        const a = r;
+        const models = await qc.fetchQuery({ queryKey: ["builder-models"], queryFn: api.builderModels, staleTime: Infinity });
+        const m = models.find((x) => x.model === a.model);
+        if (!m) throw new Error(`${a.model} isn't one of the Router models here.`);
+        if (live) { setTrack("cloud"); loadCloud(m, a); }
+      })
       .catch((e) => { if (live) setReadErr(errMsg(e)); })
       .finally(() => { if (live) setReading(null); });
     return () => { live = false; };
@@ -163,7 +194,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     // A Router template is frozen to the inputs its first run fills: empty ones aren't in it.
     const on = media.filter((m) => m.on && (src.kind === "local" || m.sample));
     const shown = params.filter((r) => r.on && !sizeOwns(r));
-    const base = {
+    const shared = {
       label: details.label.trim(), blurb: details.blurb.trim(), mode: details.mode,  // mode: the server reads it off the result node for workflows
       tags: details.tags.split(",").map((t) => t.trim()).filter(Boolean),
       media: on.map((m) => ({
@@ -178,11 +209,11 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     if (src.kind === "local") {
       const fixed = params.filter((r) => !r.on && !sizeOwns(r) && JSON.stringify(r.value) !== JSON.stringify(r.orig)).map((r) => ({ node: r.node!, input: r.input!, value: r.value }));
       const size = output.size ? { node: output.size, ...(output.keep ?? {}) } : null;
-      return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...base, fixed, outputs: [output.result], size };
+      return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...shared, fixed, outputs: [output.result], size };
     }
     // The adapter writes the request: the files go where it says, the settings at the values picked here.
     const settings = settingsFor(src.a, on).map((x) => ({ key: x.key, value: settingValue(x, csets[x.key]?.value), locked: !!csets[x.key]?.locked }));
-    return { kind: "cloud", model: src.a.model, ...base, settings };
+    return { kind: "cloud", model: src.a.model, base, ...shared, settings };
   };
 
   // A first run needs something in every input it asks for.

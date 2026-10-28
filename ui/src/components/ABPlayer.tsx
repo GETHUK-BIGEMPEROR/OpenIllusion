@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { clock } from "../lib/format";
-import { Badge, cx } from "./ui";
+import { cx } from "./ui";
 import { I } from "./oi";
 
 export interface Side {
@@ -18,10 +18,14 @@ export const typing = (e: KeyboardEvent) => {
 
 /**
  * Synced A/B player: wipe (the default, as for photos) or side by side, one transport for both.
- * Fills its parent; media are letterboxed (object-contain) so nothing is cropped.
+ * Framed like a photo on the stage: sized to the result's shape (B, else A) within its parent; an input of
+ * another shape is letterboxed (object-contain) so nothing is cropped.
  */
 export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a: Side | null; b: Side | null; overlay?: ReactNode; height?: number | string; keys?: boolean; className?: string }) {
   const [mode, setMode] = useState<"side" | "wipe">("wipe");
+  // The frame's shape: the result's (B), else A's, once it has loaded.
+  const [ar, setAr] = useState(16 / 9);
+  const shape = (w: number, h: number) => { if (w && h) setAr(w / h); };
   const [wipe, setWipe] = useState(0.5);
   const va = useRef<HTMLVideoElement>(null);
   const vb = useRef<HTMLVideoElement>(null);
@@ -91,17 +95,22 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
 
   const render = (s: Side | null, ref: React.RefObject<HTMLVideoElement>) => {
     if (!s) return null;
+    const sizes = s === (b ?? a);
     return s.kind === "video" && s.src ? (
-      <video ref={ref} src={s.src} poster={s.poster ?? undefined} muted={ref === va} playsInline preload="auto" />
+      <video ref={ref} src={s.src} poster={s.poster ?? undefined} muted={ref === va} playsInline preload="auto"
+        onLoadedMetadata={sizes ? (e) => shape(e.currentTarget.videoWidth, e.currentTarget.videoHeight) : undefined} />
     ) : s.src || s.poster ? (
-      <img src={(s.src || s.poster)!} alt={s.label} draggable={false} />
+      <img src={(s.src || s.poster)!} alt={s.label} draggable={false}
+        onLoad={sizes ? (e) => shape(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight) : undefined} />
     ) : null;
   };
-  const label = (s: Side, pos: "left" | "right") => <Badge tone="glass" className={cx("ab-label", pos)}>{s.label}</Badge>;
+  const label = (s: Side, pos: "left" | "right") => <span className={cx("pill ab-label", pos)}>{s.label}</span>;
 
   const both = a && b;
   return (
     <div className={cx("ab", height == null && "fill", className)} style={height != null ? { height } : undefined}>
+      <div className="ab-box" style={{ "--ar": ar, "--n": mode === "side" && both ? 2 : 1, "--bar": hasVideo || both ? "44px" : "0px" } as CSSProperties}>
+      <div className="ab-stack">
       {mode === "side" || !both ? (
         <div className={cx("ab-panes", both && "two")}>
           {[a, b].map((s, i) =>
@@ -162,6 +171,8 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
           )}
         </div>
       )}
+      </div>
+      </div>
     </div>
   );
 }

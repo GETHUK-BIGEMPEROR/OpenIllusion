@@ -71,13 +71,11 @@ export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: Eng
       {/* Shown on hover, under the kind badge, so they never take room from the tags. */}
       <div className="cacts">
         {local && (
-          <>
-            <a className="icon-btn sm glass reveal" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} aria-label={`Download the ComfyUI workflow of ${tplName(e)}`} title="Download ComfyUI workflow"
-              onClick={(ev) => ev.stopPropagation()}><I n="download" /></a>
-            <button className="icon-btn sm glass reveal" type="button" aria-label={`Build a template from ${tplName(e)}`} title="Build from this"
-              onClick={(ev) => { ev.stopPropagation(); go({ name: "build", from: e.id }); }}><I n="graph" /></button>
-          </>
+          <a className="icon-btn sm glass reveal" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} aria-label={`Download the ComfyUI workflow of ${tplName(e)}`} title="Download ComfyUI workflow"
+            onClick={(ev) => ev.stopPropagation()}><I n="download" /></a>
         )}
+        <button className="icon-btn sm glass reveal" type="button" aria-label={`Build a template from ${tplName(e)}`} title="Build from this"
+          onClick={(ev) => { ev.stopPropagation(); go({ name: "build", from: e.id }); }}><I n="graph" /></button>
         <button className="icon-btn sm glass reveal" type="button" aria-label={`Details for ${tplName(e)}`} onClick={(ev) => { ev.stopPropagation(); onInspect(); }}><I n="info" /></button>
       </div>
       <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)}</p></div><span className="go"><I n="arrow" /></span></div>
@@ -102,17 +100,19 @@ function NoCover({ e }: { e: EngineInfo }) {
   );
 }
 
-/** Under a template's header in Create: take its workflow to ComfyUI, or start a new template from it. Local templates only. */
+/** Under a template's header in Create: start a new template from it, or (local) take its workflow to ComfyUI. */
 export function TemplateTools({ e }: { e: EngineInfo }) {
-  if (e.kind !== "local") return null;
   return (
     <div className="ttools">
-      <a className="ttool" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} title="The ComfyUI workflow with this template's prompt, settings and samples. Drop it into ComfyUI.">
-        <span className="ttool-ic dl"><I n="download" /></span><span className="ttool-t"><b>Workflow</b><small>For ComfyUI</small></span>
-      </a>
-      <button className="ttool" type="button" onClick={() => go({ name: "build", from: e.id })} title="Start a new template from this one's workflow, inputs and prompt">
-        <span className="ttool-ic bd"><I n="graph" /></span><span className="ttool-t"><b>Build from this</b><small>Your own version</small></span>
+      <button className="ttool" type="button" onClick={() => go({ name: "build", from: e.id })}
+        title={e.kind === "local" ? "A new template from this one's workflow, inputs and prompt" : "A new template on the same model, with this one's inputs, prompt and settings"}>
+        <I n="graph" />Build from this
       </button>
+      {e.kind === "local" && (
+        <a className="ttool" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} title="The ComfyUI workflow with this template's prompt, settings and samples. Drop it into ComfyUI.">
+          <I n="download" />ComfyUI workflow
+        </a>
+      )}
     </div>
   );
 }

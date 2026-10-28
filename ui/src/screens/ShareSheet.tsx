@@ -134,6 +134,7 @@ function Sheet({ id, onClose }: { id: string; onClose: () => void }) {
             <span className="done-ic"><I n="check" size={15} /></span>
             <div><b className="mono">{done.name}</b><span>{bytes(done.bytes)} · download started</span></div>
           </div>
+          <p className="dlg-how">{HOW}</p>
           <div className="path-row">
             <span className="mono" title={done.path}>{done.path}</span>
             <IconButton label="Copy path" size={24} onClick={() => navigator.clipboard?.writeText(done.path).then(() => toast({ text: "Path copied.", tone: "ok" }))}><I n="copy" size={12} /></IconButton>
@@ -154,6 +155,7 @@ function Sheet({ id, onClose }: { id: string; onClose: () => void }) {
     <>
       {head}
       <div className="dlg-b scroll-y">
+        <p className="dlg-how">{HOW}</p>
         <fieldset>
           <legend className="eyebrow">Package</legend>
           <div role="radiogroup" className="dlg-list">
@@ -221,6 +223,9 @@ function Sheet({ id, onClose }: { id: string; onClose: () => void }) {
     </>
   );
 }
+
+/** What the file is for, said before and after saving it. */
+const HOW = "The result with its recipe: template, inputs, prompt and settings. To use it, drop it on any OpenIllusion page or press Library → Import. It opens under Imported; Remix loads it into Create to run again.";
 
 function Footer({ children }: { children: ReactNode }) {
   return <div className="dlg-f">{children}</div>;

@@ -19,10 +19,10 @@ from __future__ import annotations
 
 from .workflow import BuildError, read_workflow, ui_to_api
 from .analysis import output_kind, result_nodes, other_outputs, reachable, analyze
-from .assemble import put_draft, get_draft, slugify, media_rows, assemble_local, assemble_cloud, preset, inherit, save
+from .assemble import put_draft, get_draft, slugify, media_rows, assemble_local, assemble_cloud, preset, cloud_preset, inherit, save
 
 __all__ = [
     "BuildError", "read_workflow", "ui_to_api", "output_kind", "result_nodes", "other_outputs",
     "reachable", "analyze", "put_draft", "get_draft", "slugify", "media_rows", "assemble_local",
-    "assemble_cloud", "preset", "inherit", "save",
+    "assemble_cloud", "preset", "cloud_preset", "inherit", "save",
 ]
