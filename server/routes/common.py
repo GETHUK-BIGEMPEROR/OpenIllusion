@@ -9,13 +9,14 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from .. import bundle, media, paths, staging, store
+from .. import bundle, edit, media, paths, staging, store
 from .. import generation as sc
 
 
 API = "/api"
 APP_DIR = paths.package_root() / "static"
-UPLOAD_EXT = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm", ".m4v", *media.AUDIO_EXT}
+# Taken as they are, plus formats turned into PNG, MP4 or MP3 on arrival (edit.normalize).
+UPLOAD_EXT = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm", ".m4v", *media.AUDIO_EXT, *edit.CONVERTED}
 MAX_UPLOAD = 500 * 1024 * 1024
 
 _sockets: set[web.WebSocketResponse] = set()

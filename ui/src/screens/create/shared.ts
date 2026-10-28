@@ -9,11 +9,12 @@ export type View = "input" | "result" | "compare" | "grid";
 
 export type SetS = ReturnType<typeof useStudio>[1];
 
-export const ACCEPT = "image/png,image/jpeg,image/webp";
+// Anything the server takes; what isn't PNG, JPEG, WebP, MP4 or MP3 is converted on upload.
+export const ACCEPT = "image/*,.tif,.tiff,.bmp,.avif,.tga";
 
-export const ACCEPT_VIDEO = "video/mp4,video/quicktime,video/webm,.m4v";
+export const ACCEPT_VIDEO = "video/*,.mkv,.avi,.wmv,.flv,.mpg,.mpeg,.3gp,.ts,.mts,.m2ts,.ogv,.m4v,.gif";
 
-export const ACCEPT_AUDIO = "audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac";
+export const ACCEPT_AUDIO = "audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.opus,.wma,.aif,.aiff,.amr";
 
 export const FAILED = new Set(["failed", "moderated", "cancelled"]);
 

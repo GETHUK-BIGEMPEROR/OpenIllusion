@@ -35,7 +35,22 @@
       },
       "set": [
         "frames"
-      ]
+      ],
+      "fit": {
+        "short": [
+          300,
+          null
+        ],
+        "long": [
+          null,
+          6000
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "mb": 30
+      }
     },
     {
       "role": "Last frame",
@@ -54,7 +69,22 @@
       "set": [
         "frames"
       ],
-      "needs": "First frame"
+      "needs": "First frame",
+      "fit": {
+        "short": [
+          300,
+          null
+        ],
+        "long": [
+          null,
+          6000
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "mb": 30
+      }
     },
     {
       "role": "Reference image",
@@ -74,7 +104,22 @@
         "references",
         "edit"
       ],
-      "max": 9
+      "max": 30,
+      "fit": {
+        "short": [
+          300,
+          null
+        ],
+        "long": [
+          null,
+          6000
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "mb": 30
+      }
     },
     {
       "role": "Reference video",
@@ -92,7 +137,36 @@
       },
       "set": [
         "references"
-      ]
+      ],
+      "max": 10,
+      "fit": {
+        "short": [
+          300,
+          null
+        ],
+        "long": [
+          null,
+          6000
+        ],
+        "pixels": [
+          407696,
+          8295044
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "seconds": [
+          2,
+          30
+        ],
+        "total": 30,
+        "fps": [
+          24,
+          60
+        ],
+        "mb": 200
+      }
     },
     {
       "role": "Reference audio",
@@ -111,7 +185,16 @@
       "set": [
         "references",
         "edit"
-      ]
+      ],
+      "max": 10,
+      "fit": {
+        "seconds": [
+          2,
+          30
+        ],
+        "total": 30,
+        "mb": 15
+      }
     },
     {
       "role": "Video to edit",
@@ -137,7 +220,35 @@
           ],
           -1
         ]
-      ]
+      ],
+      "fit": {
+        "short": [
+          300,
+          null
+        ],
+        "long": [
+          null,
+          6000
+        ],
+        "pixels": [
+          407696,
+          8295044
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "seconds": [
+          4,
+          30
+        ],
+        "total": 30,
+        "fps": [
+          24,
+          60
+        ],
+        "mb": 200
+      }
     }
   ],
   "result": [

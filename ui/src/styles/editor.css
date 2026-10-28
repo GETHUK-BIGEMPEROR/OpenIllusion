@@ -1,0 +1,262 @@
+/* ---------- media editor (components/MediaEditor.tsx): one for every photo, clip and sound ---------- */
+/* Workbench: the model's limits on top, tools on the left, the file in the middle, the tool's settings on the right,
+   the timeline under a clip, and what changes along the bottom. Inline on Create's stage; a sheet over the Builder. */
+.ed{display:grid;min-width:0;min-height:0;overflow:hidden;background:var(--panel);
+  grid-template-columns:72px minmax(0,1fr) 272px;grid-template-rows:auto auto minmax(0,1fr) auto 58px;
+  grid-template-areas:"top top top" "spec spec spec" "tools stage ctx" "tools tl ctx" "out out out"}
+.ed[data-kind="audio"]{grid-template-columns:minmax(0,1fr) 272px;grid-template-areas:"top top" "spec spec" "stage ctx" "tl ctx" "out out"}
+.ed.inline{flex:1;border-radius:16px;border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.ed.sheet{flex:1;border-radius:16px}
+
+.stage-ed{grid-column:1;grid-row:2;min-width:0;min-height:0;display:flex;padding:0 18px 18px}
+.ed-sheet{position:fixed;z-index:51;inset:28px 40px;display:flex;border-radius:16px;border:1px solid var(--line-2);box-shadow:0 30px 80px rgba(0,0,0,.65);animation:ed-pop .22s var(--ease)}
+.ed-sheet:focus{outline:none}
+@keyframes ed-pop{from{opacity:0;transform:scale(.985)}}
+
+.ed-top{grid-area:top;display:flex;align-items:center;gap:12px;height:50px;padding:0 10px 0 18px;border-bottom:1px solid var(--line)}
+.ed-top h2{margin:0;font-size:14px;font-weight:600;white-space:nowrap}
+.ed.sheet .ed-top h2{font:600 15px var(--display);letter-spacing:-.01em}
+.ed-top .grow{flex:1}
+.ed-file{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--text-3)}
+.ed-hold{flex:none;height:30px;padding:0 11px;border-radius:9px;display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2);border:1px solid var(--line-2);user-select:none;touch-action:none;transition:background .15s,color .15s}
+.ed-hold:hover{color:var(--text);background:var(--raised)}
+.ed-hold[aria-pressed="true"]{background:var(--hover);color:var(--text)}
+.ed-hold .i{width:14px;height:14px}
+
+/* the model's limits */
+.ed-spec{grid-area:spec;display:flex;align-items:center;gap:14px;padding:9px 14px 9px 18px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,rgba(154,134,240,.08),transparent 55%),var(--panel)}
+.ed-who{flex:none;font-size:11.5px;line-height:1.3;color:var(--text-3)}
+.ed-who b{display:block;font-size:12.5px;font-weight:600;color:var(--text)}
+.ed-pills{flex:1;min-width:0;display:flex;gap:6px;padding:2px;overflow-x:auto;scrollbar-width:none}
+.ed-spec>.btn{flex:none}
+.ed-ok{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mint)}
+.ed-ok .i{width:14px;height:14px}
+.lpill{flex:none;display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px 0 9px;border-radius:9px;background:var(--raised);border:1px solid var(--line);font-size:12px;color:var(--text-2);white-space:nowrap;transition:border-color .15s,color .15s}
+.lpill .dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--mint)}
+.lpill .mono{font-size:11px;color:var(--text)}
+.lpill.fix{border-color:rgba(255,162,76,.38)}.lpill.fix .dot{background:var(--orange)}
+.lpill.bad{border-color:rgba(255,107,126,.42)}.lpill.bad .dot{background:var(--rose)}
+.lpill.auto .dot{background:var(--text-3)}
+.lpill.auto .mono{color:var(--text-3)}
+button.lpill:not(:disabled):hover{border-color:var(--line-2);color:var(--text)}
+button.lpill:disabled{cursor:default}
+.lpill.flash{animation:ed-flash .6s var(--ease)}
+@keyframes ed-flash{0%{background:rgba(95,211,154,.3);border-color:var(--mint)}}
+
+/* tools */
+.ed-tools{grid-area:tools;display:flex;flex-direction:column;gap:4px;padding:10px 6px;border-right:1px solid var(--line)}
+.ed-tools button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:60px;height:54px;border-radius:11px;font-size:10.5px;color:var(--text-3);transition:background .15s,color .15s}
+.ed-tools button:hover{color:var(--text);background:var(--raised)}
+.ed-tools button[aria-pressed="true"]{color:var(--text);background:var(--hover)}
+.ed-tools .badge{position:absolute;top:7px;right:12px;width:7px;height:7px;border-radius:50%;background:var(--orange)}
+.ed-tools .badge.bad{background:var(--rose)}
+
+/* the file */
+.ed-stage{grid-area:stage;position:relative;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden;
+  background:radial-gradient(circle at 1px 1px,rgba(226,214,255,.06) 1px,transparent 0) 0 0/18px 18px,var(--bg)}
+.ed-fit{flex:1;align-self:stretch;min-width:0;min-height:0;container-type:size;display:grid;place-items:center}
+.ed-frame{position:relative;aspect-ratio:var(--ar);width:min(100cqw,calc(100cqh * var(--ar)));overflow:hidden;border-radius:4px;background:#000;box-shadow:0 20px 50px rgba(0,0,0,.5);touch-action:none}
+.ed-turn{position:absolute;left:50%;top:50%;max-width:none;max-height:none;object-fit:fill;display:block;user-select:none;pointer-events:none}
+.ed-shade{position:absolute;inset:0;background:rgba(7,5,10,.66);pointer-events:none}
+.ed-crop{position:absolute;z-index:2;border:1.5px solid rgba(255,255,255,.92);cursor:move;touch-action:none;outline:none}
+.ed-crop:focus-visible{border-color:var(--violet)}
+.ed-crop::before,.ed-crop::after{content:"";position:absolute;inset:0;pointer-events:none;border:solid rgba(255,255,255,.2);border-width:0 1px}
+.ed-crop::before{left:33.33%;right:33.33%}
+.ed-crop::after{top:33.33%;bottom:33.33%;border-width:1px 0}
+.ed-h{position:absolute;width:22px;height:22px;touch-action:none}
+.ed-h::after{content:"";position:absolute;width:14px;height:14px;border:3px solid #fff}
+.ed-h.nw{left:-3px;top:-3px;cursor:nwse-resize}.ed-h.nw::after{left:0;top:0;border-right:0;border-bottom:0}
+.ed-h.ne{right:-3px;top:-3px;cursor:nesw-resize}.ed-h.ne::after{right:0;top:0;border-left:0;border-bottom:0}
+.ed-h.sw{left:-3px;bottom:-3px;cursor:nesw-resize}.ed-h.sw::after{left:0;bottom:0;border-right:0;border-top:0}
+.ed-h.se{right:-3px;bottom:-3px;cursor:nwse-resize}.ed-h.se::after{right:0;bottom:0;border-left:0;border-top:0}
+.ed-dims{position:absolute;left:50%;bottom:8px;translate:-50% 0;white-space:nowrap;padding:3px 8px;border-radius:6px;background:rgba(7,5,10,.85);font-size:11px;pointer-events:none}
+.ed-keep{position:absolute;z-index:3;border:2px dashed var(--orange);border-radius:2px;pointer-events:none;transition:all .35s var(--ease)}
+.ed-keep span{position:absolute;left:6px;top:6px;max-width:calc(100% - 12px);overflow:hidden;text-overflow:ellipsis;padding:3px 8px;border-radius:6px;background:var(--orange);color:var(--on-yellow);font-size:11px;font-weight:600;white-space:nowrap}
+.ed-orig{position:absolute;z-index:4;right:10px;top:10px;padding:4px 9px;border-radius:7px;background:rgba(7,5,10,.8);font-size:11.5px;color:var(--text-2)}
+.ed-frame .ed-play{position:absolute;z-index:4;left:10px;bottom:10px}
+.ed-wave{width:100%;max-width:980px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.ed-wave .trim{width:100%;height:min(32vh,220px);border-radius:12px;border:1px solid var(--line)}
+.ed-wave>div:last-child{width:100%}
+.ed-stage>.ed-hint{max-width:34ch;text-align:center}
+
+/* settings for the tool */
+.ed-ctx{grid-area:ctx;min-height:0;overflow-y:auto;padding:16px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:16px}
+.ed-sec{display:flex;flex-direction:column;gap:10px}
+.ed-sec h3,.ed-runs h4{margin:0;font-size:13px;font-weight:600}
+.ed-runs{display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:1px solid var(--line)}
+.ed-hint{margin:0;font-size:12px;line-height:1.5;color:var(--text-3)}
+.ed-shapes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.ed-shapes button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:9px 4px 7px;border-radius:10px;border:1px solid var(--line);font-size:11.5px;color:var(--text-2);transition:border-color .15s,color .15s}
+.ed-shapes button:hover{border-color:var(--line-2);color:var(--text)}
+.ed-shapes button[aria-pressed="true"]{background:var(--hover);color:var(--text);border-color:var(--violet)}
+.ed-shapes .ic{height:22px;display:grid;place-items:center}
+.ed-shapes .ic i{display:block;border:1.5px solid currentColor;border-radius:3px}
+.ed-shapes .ic .i{width:18px;height:18px}
+.ed-shapes button.out,.ed-chips button.out{opacity:.4}
+.ed-big{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ed-big button{display:flex;align-items:center;gap:9px;height:42px;padding:0 11px;border-radius:10px;border:1px solid var(--line);font-size:12.5px;color:var(--text-2);transition:background .15s,color .15s}
+.ed-big button:hover{border-color:var(--line-2);color:var(--text);background:var(--raised)}
+.ed-big button[aria-pressed="true"]{background:var(--hover);color:var(--text);border-color:var(--violet)}
+.ed-wh{display:flex;align-items:center;gap:8px}
+.ed-wh label{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border-radius:10px;background:var(--field);border:1px solid var(--line)}
+.ed-wh label:focus-within{border-color:var(--violet)}
+.ed-wh label span{font-size:11.5px;color:var(--text-3)}
+.ed-wh input{width:100%;min-width:0;background:none;border:0;color:var(--text);font-size:13px;outline:none}
+.ed-wh>i{font-style:normal;color:var(--text-3)}
+.ed-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ed-chips button{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 11px;border-radius:9px;border:1px solid var(--line);font:500 12px var(--mono);color:var(--text-2);transition:border-color .15s,color .15s}
+.ed-chips button:hover{border-color:var(--line-2);color:var(--text)}
+.ed-chips button[aria-pressed="true"]{background:var(--hover);color:var(--text);border-color:var(--violet)}
+.ed-chips button .mono{font-size:10.5px;color:var(--text-3)}
+.ed-stat{display:flex;justify-content:space-between;font-size:12px;color:var(--text-3)}
+.ed-stat b{font-weight:500;color:var(--text)}
+.ed-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--line);font-size:12.5px}
+
+/* the timeline */
+.ed-tl{grid-area:tl;padding:10px 18px 10px;border-top:1px solid var(--line)}
+.ed-tl .trim{height:52px;border-radius:8px}
+.trim-wave{grid-column:1/-1;width:100%;height:100%;fill:var(--violet);opacity:.75}
+.trim-cap{position:absolute;top:0;bottom:0;z-index:2;overflow:hidden;pointer-events:none;border-left:2px dashed var(--orange);
+  background:repeating-linear-gradient(-45deg,rgba(255,162,76,.18) 0 2px,transparent 2px 9px),rgba(7,5,10,.6)}
+.trim-cap span{position:absolute;left:6px;top:5px;max-width:calc(100% - 10px);overflow:hidden;text-overflow:ellipsis;padding:2px 7px;border-radius:5px;background:var(--orange);color:var(--on-yellow);font-size:10.5px;font-weight:600;white-space:nowrap}
+
+/* what changes */
+.ed-out{grid-area:out;display:flex;align-items:center;gap:12px;padding:0 12px 0 18px;border-top:1px solid var(--line)}
+.ed-delta{flex:1;min-width:0;display:flex;align-items:center;gap:16px;overflow:hidden;white-space:nowrap}
+.ed-delta>span{display:flex;align-items:baseline;gap:7px;font-size:11.5px;color:var(--text-3)}
+.ed-delta s{text-decoration:none;font-size:12px;color:var(--text-3)}
+.ed-delta i{font-style:normal;color:var(--text-3)}
+.ed-delta b{font-size:12.5px;font-weight:500;color:var(--text)}
+.ed-delta .same b{color:var(--text-2)}
+.ed-note{font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ed-out .btn{flex:none}
+
+/* nothing in the input yet */
+.ed-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center;border-radius:16px;border:1.5px dashed var(--line-2)}
+.ed-empty h3{margin:6px 0 0;font-size:15px;font-weight:600}
+.ed-empty p{margin:0;max-width:40ch;font-size:12.5px;color:var(--text-3)}
+.ed-empty-acts{display:flex;gap:8px;margin-top:8px}
+
+/* ---------- a file, small: the same in Create's list and the Builder's cards ---------- */
+.thumb{position:relative;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:8px;background:#000;container-type:size;color:var(--text-3)}
+.thumb-in{position:relative;display:block;overflow:hidden;aspect-ratio:var(--ar);width:min(100cqw,calc(100cqh * var(--ar)))}
+.thumb-t{position:absolute;display:block}
+.thumb.audio,.thumb.vacant,.thumb:not(:has(.thumb-in)){background:var(--field)}
+.thumb.audio{color:var(--violet)}
+.thumb .i{width:20px;height:20px}
+.thumb-len{position:absolute;left:4px;bottom:4px;padding:1px 5px;border-radius:5px;background:rgba(7,5,10,.78);font-size:10px;line-height:15px;color:#fff}
+.fline{display:flex;align-items:center;gap:6px;min-width:0;font-size:11.5px;color:var(--text-3)}
+.fline .dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--mint)}
+.fline span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fline.ok span{color:var(--mint)}
+.fline.fix .dot{background:var(--orange)}.fline.fix span{color:#FFC48C}
+.fline.bad .dot{background:var(--rose)}.fline.bad span{color:#FF9DA9}
+.fline.need span{color:#FFC48C}
+.tag-ed{flex:none;font:600 9.5px/1 var(--body);font-style:normal;letter-spacing:.06em;padding:3px 5px;border-radius:5px;background:rgba(154,134,240,.2);color:#CFC4FF}
+
+/* Create: inputs as a list of files; the picked one is on the stage */
+.flist{display:flex;flex-direction:column;gap:6px}
+.fcard{position:relative;display:flex;contain:inline-size;align-items:center;border-radius:12px;border:1px solid var(--line);background:var(--raised);transition:border-color .15s,background .15s,box-shadow .15s}
+.fcard:hover{border-color:var(--line-2)}
+.fcard.on{border-color:var(--violet);background:#1C1628;box-shadow:0 0 0 3px rgba(154,134,240,.12)}
+.fcard.drag{border-color:var(--violet);border-style:dashed;background:rgba(154,134,240,.1)}
+.fcard.vacant{border-style:dashed;border-color:var(--line-2);background:none}
+.fcard.missing{border-color:rgba(255,107,126,.45)}
+.fcard-main{position:relative;flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:7px;text-align:left;border-radius:11px}
+.fcard-main .thumb{width:58px;height:58px}
+.fcard-busy{position:absolute;left:7px;top:7px;width:58px;height:58px;border-radius:8px;display:grid;place-items:center;background:rgba(7,5,10,.6)}
+.fcard-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.fcard-l1{display:flex;align-items:baseline;gap:7px;min-width:0}
+.fcard-l1 b{flex:none;font-size:13px;font-weight:600}
+.fcard-l1 small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--text-3)}
+.fcard-l1 em{align-self:center}
+.fcard-meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;color:var(--text-3)}
+.fcard-acts{flex:none;display:flex;align-items:center;gap:2px;padding-right:6px}
+.fcard-fit{height:26px;padding:0 9px;border-radius:8px;font-size:11.5px;font-weight:500;color:#FFC48C;border:1px solid rgba(255,162,76,.4);transition:background .15s}
+.fcard-fit:hover{background:rgba(255,162,76,.12);color:var(--text)}
+.fcard.vacant .fcard-fit{color:var(--text-2);border-color:var(--line-2)}
+.fcard.vacant .fcard-fit:hover{background:var(--raised)}
+.fcard-acts .icon-btn{opacity:.7}
+.fcard:hover .fcard-acts .icon-btn,.fcard-acts .icon-btn:focus-visible{opacity:1}
+
+/* the stage shows the inputs or the run */
+.vseg{display:flex;gap:2px;padding:3px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+.vseg button{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:7px;font-size:12.5px;color:var(--text-3)}
+.vseg button .i{width:14px;height:14px}
+.vseg button:hover{color:var(--text)}
+.vseg button[aria-pressed="true"]{background:var(--hover);color:var(--text)}
+
+/* Builder: each sample as a card under its role */
+.brole-h{align-items:center}
+.bpills{display:flex;flex-wrap:wrap;gap:6px}
+.bcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(208px,1fr));gap:12px}
+.bcard{min-width:0;display:flex;flex-direction:column;overflow:hidden;border-radius:14px;border:1px solid var(--line);background:var(--raised);transition:border-color .15s,box-shadow .15s;animation:rise .4s calc(var(--i,0) * 60ms) var(--ease) both}
+.bcard:hover{border-color:var(--line-2)}
+.bcard.drag{border-color:var(--violet);box-shadow:0 0 0 4px rgba(154,134,240,.16)}
+.bcard-pic{position:relative;display:block;height:150px;background:#000;cursor:zoom-in}
+.bcard-pic .thumb{width:100%;height:100%;border-radius:0}
+.bcard-pic .bd-ic{position:absolute;inset:0;display:grid;place-items:center}
+.bcard-b{flex:1;display:flex;flex-direction:column;gap:5px;padding:10px 12px 12px}
+.bcard-l1{display:flex;align-items:baseline;gap:7px;min-width:0}
+.bcard-l1 b{flex:none;font-size:13px;font-weight:600}
+.bcard-l1 small{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--text-3)}
+.bcard-l1 em{align-self:center;font-style:normal}
+.bcard-meta{font-size:10.5px;color:var(--text-3)}
+.bcard-acts{display:flex;align-items:center;gap:4px;margin-top:4px}
+.bcard.vacant,.bcard.add{border-style:dashed;border-color:var(--line-2);background:none}
+.bcard.vacant .bdrop{width:100%;height:150px;aspect-ratio:auto;border:0;border-radius:0}
+.bcard.add .bdrop{width:100%;height:100%;min-height:236px;aspect-ratio:auto;border:0;border-radius:0;background:none}
+
+/* The sheet follows the window. */
+@media (max-width:1100px){.ed.sheet{grid-template-columns:64px minmax(0,1fr) 236px}.ed.sheet[data-kind="audio"]{grid-template-columns:minmax(0,1fr) 236px}.ed.sheet .ed-tools button{width:52px}}
+@media (max-width:820px){
+  .ed.sheet{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 300px auto auto auto auto;grid-template-areas:"top" "spec" "stage" "tl" "tools" "ctx" "out";overflow-y:auto;border-radius:0}
+  .ed-sheet{inset:0;border-radius:0;border:0}
+  .ed.sheet .ed-spec{flex-wrap:wrap}.ed.sheet .ed-pills{order:3;flex-basis:100%}
+  .ed.sheet .ed-tools{flex-direction:row;justify-content:center;border-right:0;border-top:1px solid var(--line);overflow-x:auto;padding:6px}
+  .ed.sheet .ed-ctx{border-left:0;border-top:1px solid var(--line);overflow:visible}
+  .ed.sheet .ed-shapes{display:flex;overflow-x:auto}.ed.sheet .ed-shapes button{flex:none;width:62px}
+  .ed.sheet .ed-out{flex-wrap:wrap;padding:10px 12px}
+  .ed.sheet .ed-delta>span:nth-child(n+3),.ed.sheet .ed-note{display:none}
+  .bcards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bcard-pic,.bcard.vacant .bdrop{height:120px}
+}
+
+/* Create's editor follows the stage: narrower side columns, then one column of strips under the picture. */
+.stage-ed{container:edhost/inline-size}
+@container edhost (max-width:820px){
+  .ed.inline{grid-template-columns:58px minmax(0,1fr) 218px}
+  .ed.inline[data-kind="audio"]{grid-template-columns:minmax(0,1fr) 218px}
+  .ed.inline .ed-tools button{width:48px}
+  .ed.inline .ed-ctx{padding:14px 12px}
+  .ed.inline .ed-shapes{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ed.inline .ed-big{grid-template-columns:1fr}
+}
+@container edhost (max-width:600px){
+  .ed.inline,.ed.inline[data-kind="audio"]{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto auto auto auto;grid-template-areas:"top" "spec" "stage" "tl" "tools" "ctx" "out";border-radius:14px}
+  .ed.inline .ed-top{height:42px;padding:0 6px 0 12px}
+  .ed.inline .ed-file{display:none}
+  .ed.inline .ed-spec{padding:6px 10px;gap:8px}
+  .ed.inline .ed-who{display:none}
+  .ed.inline .ed-stage{padding:10px}
+  .ed.inline .ed-tl{padding:8px 10px}
+  .ed.inline .ed-tools{flex-direction:row;gap:2px;padding:4px 6px;border-right:0;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+  .ed.inline .ed-tools button{flex:none;width:auto;min-width:54px;height:44px;padding:0 6px}
+  .ed.inline .ed-ctx{flex-direction:row;align-items:center;gap:8px;padding:8px 10px;border-left:0;border-top:1px solid var(--line);overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  .ed.inline .ed-sec,.ed.inline .ed-runs{flex-direction:row;align-items:center;gap:6px;padding:0;border:0}
+  .ed.inline .ed-sec h3,.ed.inline .ed-runs h4,.ed.inline .ed-hint{display:none}
+  .ed.inline .ed-shapes,.ed.inline .ed-big,.ed.inline .ed-chips{display:flex;flex-wrap:nowrap;gap:6px}
+  .ed.inline .ed-shapes button{flex:none;width:56px;padding:5px 2px 4px}
+  .ed.inline .ed-big button,.ed.inline .ed-chips button{flex:none}
+  .ed.inline .ed-wh label{flex:none;width:96px}
+  .ed.inline .ed-stat{flex:none;gap:6px;white-space:nowrap}
+  .ed.inline .ed-toggle{flex:none}
+  .ed.inline .ed-out{min-height:48px;padding:6px 8px 6px 12px}
+  .ed.inline .ed-delta>span:nth-child(n+2),.ed.inline .ed-note{display:none}
+}
+/* A phone: the stage gets most of the height while you edit. */
+@container app (max-width:760px){
+  .studio:has(.stage-ed){grid-template-rows:auto 64cqh minmax(0,1fr)}
+  .stage-ed{order:1;padding:0 10px 10px;background:var(--bg)}
+}
+@media (prefers-reduced-motion:reduce){.lpill.flash,.ed-sheet,.bcard{animation:none}.ed-keep{transition:none}}

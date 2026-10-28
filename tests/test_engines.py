@@ -114,9 +114,11 @@ def test_video_window_is_enforced(clip_template, monkeypatch):
     e = dataclasses.replace(clip_template, fields=fields)
     monkeypatch.setitem(engines.ENGINES, e.id, e)
     s = clip_spec(e.id)
-    s["inputs"][0]["trimmed_duration"] = 20
+    s["inputs"][0]["trimmed_duration"] = 20  # too long is cut at the run, not refused
+    assert not engines.compose(s)["warnings"]
+    s["inputs"][0]["trimmed_duration"] = 1
     w = engines.compose(s)["warnings"]
-    assert any(x["field"] == "video" and "2–15" in x["text"] for x in w)
+    assert any(x["field"] == "video" and x["level"] == "error" and "at least 2 s" in x["text"] for x in w)
 
 
 def test_materialize_replaces_only_whole_tokens():

@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import random
-import shutil
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from PIL import Image
 
-from . import engines, media, paths, prep, settings, storage, store
+from . import engines, fit, media, paths, prep, settings, storage, store
 from . import generation as sc
 
 
@@ -37,27 +37,108 @@ def resolve_asset(ref: str) -> Path:
     return p
 
 
-def _clip_size(src: Path) -> tuple[int, int]:
-    info = media.probe(src)
-    return int(info["width"] or 0), int(info["height"] or 0)
+@dataclass
+class Fitted:
+    """What a run does to each input: the crop and size of every photo and clip, the seconds of
+    every clip and sound it sends, the most bytes each file may be, and what to tell the user."""
+    plans: dict[str, prep.Plan] = field(default_factory=dict)
+    spans: dict[str, tuple[float, float]] = field(default_factory=dict)
+    bytes: dict[str, int | None] = field(default_factory=dict)
+    notes: list[dict] = field(default_factory=list)  # compose warnings: info for what changes, error for what can't run
+
+    @property
+    def errors(self) -> list[dict]:
+        return [n for n in self.notes if n["level"] == "error"]
+
+
+def fitted(spec: dict, template: dict | None = None) -> Fitted:
+    """Every input of a spec fitted to its template (the size steps the studio offers) and to the
+    model (``fit``: sides, shape, length, frame rate, file size), from file headers alone.
+    The studio shows it; staging does exactly this."""
+    e = engines.get(spec["engine"])
+    out = Fitted()
+    fields = {f["key"]: f for f in e.fields if f["type"] in ("image", "video", "audio")}
+    srcs = {f: fit.source(e, x) for f, x in fields.items()}
+    shapes, probes = [], {}
+    for i in spec.get("inputs", []):
+        slot = i["slot"]
+        if not i.get("asset"):
+            continue
+        src = resolve_asset(i["asset"])
+        if slot.startswith("image:"):
+            w, h = media.image_size(src)
+        elif slot.startswith("video:"):
+            probes[slot] = media.probe(src)
+            w, h = int(probes[slot]["width"] or 0), int(probes[slot]["height"] or 0)
+        else:
+            probes[slot] = media.audio_info(src)
+            continue
+        if w and h:
+            shapes.append({"slot": slot, "width": w, "height": h, "crop": i.get("crop"), "size": i.get("size")})
+    out.plans = prep.plans(engines.run_size(e), shapes)
+    name = lambda slot: (fields.get(slot) or {}).get("label") or slot
+    a = fit.adapters.for_model(e.model) if e.kind != "local" and e.model else None
+    who = a.name if a else "the template"
+
+    def note(slot: str, what: list[str], level: str = "info") -> None:
+        if what:
+            out.notes.append({"field": "video" if slot.startswith("video:") and level == "error" else slot, "level": level,
+                              "text": f"{name(slot)} {', '.join(what)}" if level == "error" else f"{name(slot)}: {', '.join(what)} to fit {who}"})
+
+    for slot, p in list(out.plans.items()):
+        ft = (srcs.get(slot) or ({}, ""))[0]
+        out.plans[slot], changed = fit.plan(p, ft, even=slot.startswith("video:"))
+        note(slot, changed)
+
+    # Clips and sounds: where each starts and ends, cut to the most the model takes, and to what a total leaves.
+    used: dict[str, float] = {}
+    for i in spec.get("inputs", []):
+        slot = i["slot"]
+        if not slot.startswith(("video:", "audio:")) or not (i.get("asset") or i.get("duration")):
+            continue
+        ft, group = srcs.get(slot) or ({}, slot)
+        dur = float((probes.get(slot) or {}).get("duration") or i.get("duration") or 0)
+        if not dur and slot.startswith("audio:") and i.get("asset"):
+            note(slot, ["can't be read as sound. Try an MP3 or WAV"], "error")
+            continue
+        window = engines.clip_limits(e, slot)[0] if slot.startswith("video:") else (fit.lo(ft, "seconds"), fit.hi(ft, "seconds"))
+        left = ft["total"] - used.get(group, 0.0) if ft.get("total") else None
+        if left is not None and left <= 0.05:
+            note(slot, [f"has no time left: the ones before it use all {ft['total']:g} s"], "error")
+            continue
+        a, b, cut, bad = fit.span(dur, i.get("trim"), window, left)
+        out.spans[slot] = (a, b)
+        used[group] = used.get(group, 0.0) + (b - a)
+        if bad:
+            note(slot, [bad], "error")
+        elif cut:
+            note(slot, [cut])
+        if slot.startswith("video:"):
+            rate, (f_lo, f_hi) = float((probes.get(slot) or {}).get("fps") or 0), engines.clip_limits(e, slot)[1]
+            if rate and not f_lo - 0.01 <= rate <= f_hi + 0.01 and ft.get("fps"):
+                note(slot, [f"plays at {min(max(rate, f_lo), f_hi):g} fps"])
+
+    # File sizes: each one's own limit, and an even share of what one request may carry inline.
+    tpl = template if template is not None else (spec.get("raw") or engines.compose(spec)["template"])
+    forms: dict[str, set] = {}
+    for kind, n, form in engines.tokens_in(tpl):
+        forms.setdefault(f"{kind}:{n}", set()).add(form)
+    filled = [i["slot"] for i in spec.get("inputs", []) if i.get("asset")]
+    inline = [s for s in filled if forms.get(s, set()) - {"url"}] if e.kind != "local" else []
+    share = fit.media_budget(e) // max(1, len(inline))
+    clips = sum(1 for s in filled if s.startswith("video:"))
+    for slot in filled:
+        mb = (srcs.get(slot) or ({}, ""))[0].get("mb")
+        own = int(mb * fit.MB * 0.97) if mb else None
+        if slot.startswith("video:") and own is None:
+            own = int(media.REQUEST_MEDIA_BUDGET * 0.8 / max(clips, 1))  # no published limit: what Router's cap leaves each clip
+        out.bytes[slot] = min([v for v in (own, share if slot in inline else None) if v], default=None)
+    return out
 
 
 def input_plans(spec: dict) -> dict[str, prep.Plan]:
     """How each photo and clip of a spec will be cropped and sized, from file headers alone."""
-    e = engines.get(spec["engine"])
-    shapes = []
-    for i in spec.get("inputs", []):
-        if not i.get("asset"):
-            continue
-        if i["slot"].startswith("image:"):
-            w, h = media.image_size(resolve_asset(i["asset"]))
-        elif i["slot"].startswith("video:"):
-            w, h = _clip_size(resolve_asset(i["asset"]))
-        else:
-            continue
-        if w and h:
-            shapes.append({"slot": i["slot"], "width": w, "height": h, "crop": i.get("crop"), "size": i.get("size")})
-    return prep.plans(engines.run_size(e), shapes)
+    return fitted(spec).plans
 
 
 def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | None = None) -> sc.Manifest:
@@ -80,15 +161,12 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
         if raw["slot"].startswith("image:") and raw.get("asset"):
             img = media.open_image(resolve_asset(raw["asset"]))
             pictures[raw["slot"]] = media.strip_exif(img) if strip else img
-    shapes = [{"slot": r["slot"], "width": pictures[r["slot"]].width, "height": pictures[r["slot"]].height, "crop": r.get("crop"), "size": r.get("size")}
-              for r in spec["inputs"] if r["slot"] in pictures]
-    for r in spec["inputs"]:
-        if r["slot"].startswith("video:") and r.get("asset"):
-            w, h = _clip_size(resolve_asset(r["asset"]))
-            if w and h:
-                shapes.append({"slot": r["slot"], "width": w, "height": h, "crop": r.get("crop"), "size": r.get("size")})
+    template = spec.get("raw") or engines.compose(spec)["template"]
+    fx = fitted(spec, template)
+    if fx.errors:
+        raise ValueError(fx.errors[0]["text"])
+    plans = fx.plans
     size = engines.run_size(e)
-    plans = prep.plans(size, shapes)
     chosen = lambda r: prep.choice_of(size, r["slot"], r.get("size"))
 
     items: list[sc.InputItem] = []
@@ -107,39 +185,34 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
             if slot in plans:
                 img = prep.apply(img, plans[slot])
                 item.prep = {**plans[slot].to_dict(), "size": chosen(raw)}
-            ext = ".png" if img.mode == "RGBA" else ".jpg"
-            rel = f"refs/ref-{img_n:02d}{ext}"
-            if ext == ".png":
-                img.save(folder / rel, "PNG")
-            else:
-                img.convert("RGB").save(folder / rel, "JPEG", quality=95)
-            item.file, item.width, item.height = rel, img.width, img.height
+            # Under the model's file size, and its share of what the request carries inline.
+            dst = media.save_image(img, folder / f"refs/ref-{img_n:02d}", fx.bytes.get(slot))
+            item.file, (item.width, item.height) = f"refs/{dst.name}", media.image_size(dst)
             item.thumb = media.thumbnail_data_uri(img)
         elif slot.startswith("video:") and src:
             (folder / "driving").mkdir(exist_ok=True)
-            trim = raw.get("trim") or [0, 0]
-            clips = sum(1 for r in spec["inputs"] if r["slot"].startswith("video:") and r.get("asset"))
-            budget = int(media.REQUEST_MEDIA_BUDGET * 0.8 / max(clips, 1))
+            start, end = fx.spans.get(slot) or (0.0, 0.0)
             _, (lo, hi) = engines.clip_limits(e, slot)
             rel = engines.clip_file(slot)
-            info = media.transcode(src, folder / rel, start=float(trim[0] or 0), end=float(trim[1] or 0) or None,
-                                   max_bytes=budget, min_fps=lo, max_fps=hi, plan=plans.get(slot))
+            info = media.transcode(src, folder / rel, start=start, end=end or None,
+                                   max_bytes=fx.bytes.get(slot), min_fps=lo, max_fps=hi, plan=plans.get(slot))
             if slot in plans:
                 item.prep = {**plans[slot].to_dict(), "size": chosen(raw)}
             media.poster(folder / rel, folder / engines.poster_file(rel))
             item.file, item.width, item.height, item.duration = rel, info["width"], info["height"], info["duration"]
-            item.trim = [float(trim[0] or 0), float(trim[1] or 0)]
+            item.trim = [start, end]
             item.role = "motion"
         elif slot.startswith("audio:") and src:
+            # Cut to what the model takes and written as an MP3, whatever it came in as.
             (folder / "refs").mkdir(exist_ok=True)
-            rel = f"refs/{slot.replace(':', '-')}{src.suffix.lower() or '.mp3'}"
-            shutil.copyfile(src, folder / rel)
-            item.file = rel
+            start, end = fx.spans.get(slot) or (0.0, 0.0)
+            rel = f"refs/{slot.replace(':', '-')}.mp3"
+            info = media.transcode_audio(src, folder / rel, start=start, end=end or None, max_bytes=fx.bytes.get(slot))
+            item.file, item.duration, item.trim = rel, info["duration"], [start, end]
         if item.file:
             item.sha256 = sc.sha256_file(folder / item.file)
         items.append(item)
 
-    template = spec.get("raw") or engines.compose(spec)["template"]
     title = (spec.get("title") or "").strip() or _auto_title(spec)
     if variant_no:
         title = f"{title} · v{variant_no}"

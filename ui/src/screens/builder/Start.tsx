@@ -8,7 +8,7 @@ import { api, type RouterAdapter } from "../../lib/api";
 import { errMsg } from "../../lib/format";
 import { go } from "../../lib/route";
 import { KIND_ICON } from "./model";
-import { routerModes } from "./modes";
+import { routerJobs } from "./modes";
 
 export type Track = "local" | "cloud";
 
@@ -94,12 +94,8 @@ function RouterStart({ onModel }: { onModel: (a: RouterAdapter) => void }) {
 
 const MAKER: Record<string, string> = { kling: "Kuaishou", byteplus: "ByteDance", veo: "Google", vertexai: "Google", wan: "Alibaba", openai: "OpenAI", bfl: "Black Forest Labs", xai: "xAI" };
 
-/** What a Router model can do, in the Builder's mode names: its tabs, or for a one-mode photo model, text and edit. */
-const modeNames = (a: RouterAdapter) => {
-  const tabs = routerModes(a).map((m) => m.label);
-  if (tabs.length) return tabs;
-  return a.mode === "edit" ? (a.inputs.length ? ["Text to image", "Photo edit"] : ["Text to image"]) : ["Text to video"];
-};
+/** What a Router model can do: its jobs, in the words the Builder's job cards use. */
+const modeNames = (a: RouterAdapter) => routerJobs(a).map((j) => j.label);
 
 /** One Router model on the start screen: who makes it, what it does, what it takes. */
 function ModelCard({ m, onPick }: { m: RouterAdapter; onPick: () => void }) {
@@ -118,7 +114,7 @@ function ModelCard({ m, onPick }: { m: RouterAdapter; onPick: () => void }) {
       <span className="bc-row takes"><span className="bc-lab">Takes</span>
         <span className="bc-chips">
           {m.inputs.length ? m.inputs.map((x) => (
-            <span key={x.role} className="bc-role" title={x.needs ? `Needs a ${x.needs}` : undefined}>
+            <span key={x.role} className="bc-role" title={[x.needs && `Needs a ${x.needs}`, x.max_with && `${x.max_with.max} with a ${x.max_with.roles.join(" or ").toLowerCase()}`].filter(Boolean).join(". ") || undefined}>
               <I n={KIND_ICON[x.type]} />{x.role}{x.max > 1 && <span className="mono">×{x.max}</span>}
             </span>
           )) : <span className="bc-role none">Prompt only</span>}

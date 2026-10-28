@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .. import media, paths
+from .. import fit, media, paths
 from .build import TOKEN, MEDIA, _images, _videos, SEED_TOKEN, build_local, reroll, defaults_workflow, fill_media, build_cloud, prune, materialize, tokens_in, file_resolver, run_size
 from .contract import Engine, FIELD_TYPES, upgrade, lift_computed, load_template, media_path, shipped_ref, template_dirs, load_templates
 from .covers import COVER_SIDE, COVER_LOOP_SECONDS, CACHE_ERA, user_cover, cover_files, cover_file, defaults_info, _cover_info, set_cover, clear_cover, clip_limits, clip_file, poster_file
@@ -219,8 +219,15 @@ def get(engine_id: str) -> Engine:
 def describe(e: Engine) -> dict:
     defaults = defaults_info(e)
     samples = {i["slot"]: i for i in defaults["inputs"]}
-    # Every input in order, as the studio draws it. A photo or clip carries its sample as an asset, not a path.
-    fields = [{k: v for k, v in f.items() if not (f["type"] in MEDIA and k == "default")} | ({"sample": samples.get(f["key"])} if f["type"] in MEDIA else {})
+    # Every input in order, as the studio draws it. A photo or clip carries its sample as an asset, not a path,
+    # and what the model takes in it: its fit, and a clip's length and frame rates.
+    def limits(f: dict) -> dict:
+        ft = fit.of(e, f["key"])
+        if f["type"] != "video":
+            return {"fit": ft} if ft else {}
+        window, rate = clip_limits(e, f["key"])
+        return {**({"fit": ft} if ft else {}), **({"window": list(window)} if window else {}), "fps": list(rate)}
+    fields = [{k: v for k, v in f.items() if not (f["type"] in MEDIA and k == "default")} | ({"sample": samples.get(f["key"]), **limits(f)} if f["type"] in MEDIA else {})
               for f in e.fields]
     return {
         "id": e.id, "mode": e.mode, "label": e.label, "provider": e.provider, "blurb": e.blurb,
@@ -298,13 +305,13 @@ def compose(spec: dict) -> dict:
     elif len(imgs) < e.min_images:
         n = e.min_images
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} needs at least {n} image{'' if n == 1 else 's'}"})
-    for v in vids:
+    for v in vids:  # longer than the model takes is cut at the run (staging.fitted); shorter can't run
         window, _ = clip_limits(e, v["slot"])
         d = v.get("trimmed_duration") or v.get("duration")
-        if window and d and not (window[0] - 0.05 <= d <= window[1] + 0.05):
+        if window and d and d < window[0] - 0.05:
             f = next((f for f in e.fields if f["key"] == v["slot"]), None)
-            what = f["label"] if f and len(vids) > 1 else "the clip"
-            warnings.append({"field": "video", "level": "error", "text": f"Trim {what} to {window[0]:g}–{window[1]:g} s (now {d:.1f} s)"})
+            what = f["label"] if f else "The clip"
+            warnings.append({"field": "video", "level": "error", "text": f"{what} is {d:.1f} s; it needs at least {window[0]:g} s"})
     if e.url_only:
         for i in spec["inputs"]:
             if not i.get("url"):

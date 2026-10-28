@@ -254,7 +254,7 @@ function KeyPop({ k, has }: { k: KeyState; has: boolean }) {
     <div className="gpop" role="dialog" aria-label="Comfy API key">
       <div className="gp-h">
         <span className="ic key"><I n="key" /></span>
-        <div><b>Comfy API key</b><span>{has && s?.key_hint ? `${s.key_hint} · ${s.key_source === "env" ? "from COMFY_API_KEY" : "saved in Settings"}` : "Not set"}</span></div>
+        <div><b>Comfy API key</b><span>{has && s?.key_hint ? `${s.key_hint} · ${s.key_source === "env" ? "from COMFY_API_KEY" : "kept in this browser"}` : "Not set"}</span></div>
         <span className={cx("pill", k.pillTone)}>{k.pill}</span>
       </div>
       <p className="gp-say">{k.say}</p>

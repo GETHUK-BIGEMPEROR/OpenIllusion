@@ -5,18 +5,35 @@
   "body": {
     "prompt": ""
   },
-  "prompt": ["prompt"],
+  "prompt": [
+    "prompt"
+  ],
   "inputs": [
     {
       "role": "Photo",
       "type": "image",
-      "at": ["image", "+"],
+      "at": [
+        "image",
+        "+"
+      ],
       "value": "{{$|uri}}",
-      "max": 4
+      "max": 16,
+      "fit": {
+        "mb": 25
+      }
     }
   ],
+  "media_mb": 67,
   "result": [
-    ["data", "*", "b64_json"],
-    ["data", "*", "url"]
+    [
+      "data",
+      "*",
+      "b64_json"
+    ],
+    [
+      "data",
+      "*",
+      "url"
+    ]
   ]
 }

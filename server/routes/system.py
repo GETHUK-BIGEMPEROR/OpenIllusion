@@ -55,11 +55,11 @@ def register(routes: web.RouteTableDef) -> None:
         fresh = bool(request.query.get("fresh"))
         if s["has_key"]:
             now = time.time()
-            if _status_cache["data"] and now - _status_cache["at"] < 60 and not fresh:
+            if _status_cache["data"] and now - _status_cache["at"] < 60 and not fresh and _status_cache.get("key") == settings.api_key():
                 router_state = _status_cache["data"]
             else:
                 router_state = await _probe_router(Router())
-                _status_cache.update(at=now, data=router_state)
+                _status_cache.update(at=now, data=router_state, key=settings.api_key())
         return web.json_response({
             "version": __version__, "has_key": s["has_key"], "router": router_state,
             "local": await _probe_local(),
@@ -96,7 +96,7 @@ def register(routes: web.RouteTableDef) -> None:
         state = await _probe_router(Router(key=key))
         if state["ok"] and b.get("save") and b.get("key"):
             settings.save({"api_key": key})
-            _status_cache.update(at=time.time(), data=state)
+            _status_cache.update(at=time.time(), data=state, key=key)
         return web.json_response(state)
 
     @routes.get(API + "/settings")

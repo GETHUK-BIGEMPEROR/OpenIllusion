@@ -12,6 +12,7 @@ import json
 import math
 from fractions import Fraction
 from pathlib import Path
+from typing import Callable
 
 import av
 from PIL import Image, ImageOps, PngImagePlugin
@@ -36,6 +37,47 @@ def audio_info(path: str | Path) -> dict:
             return {"duration": round(float(c.duration / av.time_base), 3) if c.duration else 0.0}
     except (av.FFmpegError, OSError):
         return {"duration": 0.0}
+
+
+def transcode_audio(src: str | Path, dst: str | Path, start: float = 0.0, end: float | None = None, max_bytes: int | None = None) -> dict:
+    """Cut a sound to [start, end) and write it as an MP3 (what every model that takes sound reads).
+    The bitrate is the most that keeps the file under ``max_bytes``, from 64 to 192 kb/s."""
+    length = audio_info(src)["duration"]
+    end = length if end is None or end <= 0 else min(end, length or end)
+    seconds = max(0.1, end - start)
+    bps = 192_000 if not max_bytes else max(64_000, min(192_000, int(max_bytes * 8 * 0.95 / seconds)))
+    with av.open(str(src)) as inp, av.open(str(dst), "w", format="mp3") as out:
+        ain = next(s for s in inp.streams if s.type == "audio")
+        aout = out.add_stream("libmp3lame", rate=44100)
+        aout.bit_rate = bps
+        aout.layout = "stereo"
+        resampler = av.AudioResampler(format="s16p", layout="stereo", rate=44100)
+        if start > 0:
+            inp.seek(int(start / av.time_base), any_frame=False, backward=True)
+        pts = 0
+        for frame in inp.decode(ain):
+            t = float(frame.pts * frame.time_base) if frame.pts is not None else None
+            if t is None or t + frame.samples / frame.sample_rate <= start:
+                continue
+            if t >= end:
+                break
+            for rf in resampler.resample(frame):
+                # Drop samples before start and after end, so the cut lands on the sample.
+                a = max(0, round((start - t) * rf.sample_rate)) if t < start else 0
+                b = min(rf.samples, max(0, round((end - t) * rf.sample_rate)))
+                if b <= a:
+                    continue
+                if a or b < rf.samples:
+                    arr = rf.to_ndarray()[:, a:b]
+                    rf = av.AudioFrame.from_ndarray(arr.copy(order="C"), format="s16p", layout="stereo")
+                    rf.sample_rate = 44100
+                rf.pts = pts
+                pts += rf.samples
+                for pkt in aout.encode(rf):
+                    out.mux(pkt)
+        for pkt in aout.encode():
+            out.mux(pkt)
+    return audio_info(dst) | {"bytes": Path(dst).stat().st_size}
 
 
 # ---- video ---------------------------------------------------------------
@@ -70,13 +112,16 @@ def transcode(
     keep_audio: bool = True,
     metadata: dict | None = None,
     plan: "prep.Plan | None" = None,
+    pre: "Callable[[Image.Image], Image.Image] | None" = None,
+    video_bps: int | None = None,
 ) -> dict:
     """Trim to [start, end) and re-encode as H.264/AAC MP4.
 
     The bitrate is chosen so the file lands under ``max_bytes`` when given.
     Frame rate is clamped into the engine's accepted window. With a ``plan`` every
     frame gets its crop and size, exactly like a photo; else the clip keeps its shape
-    and is scaled down to ``max_height``.
+    and is scaled down to ``max_height``. ``pre`` turns each frame first (rotate, flip);
+    the plan is then in the turned frame's pixels. ``video_bps`` sets the bitrate outright.
     """
     info = probe(src)
     end = info["duration"] if end is None or end <= 0 else min(end, info["duration"] or end)
@@ -99,7 +144,7 @@ def transcode(
         video_bps = int(max_bytes * 8 * 0.92 / length) - audio_bps
         video_bps = max(250_000, min(video_bps, 12_000_000))
     else:
-        video_bps = 8_000_000
+        video_bps = video_bps or 8_000_000
 
     with av.open(str(src)) as inp, av.open(str(dst), "w", format="mp4") as out:
         if metadata:
@@ -139,7 +184,11 @@ def transcode(
                     continue
                 if next_t > t + 1e-6 or next_t >= end:
                     continue
-                if plan is not None and plan.trim_only:  # whole pixels, no resample: slice the frame
+                if pre is not None:
+                    img = pre(frame.to_image())
+                    img = prep.apply(img, plan) if plan is not None else img.resize((w, h), Image.LANCZOS)
+                    sized = av.VideoFrame.from_image(img).reformat(format="yuv420p")
+                elif plan is not None and plan.trim_only:  # whole pixels, no resample: slice the frame
                     l, t, r, b = (int(v) for v in plan.box)
                     sized = av.VideoFrame.from_ndarray(frame.to_ndarray(format="rgb24")[t:b, l:r], format="rgb24").reformat(format="yuv420p")
                 elif plan is not None and not plan.identity:
@@ -305,8 +354,19 @@ def read_png_recipe(data: bytes | str | Path) -> dict | None:
         return None
 
 
-def image_payload(path: str | Path, max_pixels: int = 16_000_000, min_side: int = 256, max_b64: int = 20 * 1024 * 1024) -> tuple[str, str]:
-    """(data URI, bare base64) for an image, sized into FLUX 3's bounds."""
+def image_payload(path: str | Path, max_pixels: int = 16_000_000, min_side: int = 256, max_b64: int = 20 * 1024 * 1024,
+                  as_is: bool = False) -> tuple[str, str]:
+    """(data URI, bare base64) for an image, sized into the bounds and re-encoded without metadata.
+    ``as_is``: a JPEG or PNG already within them goes byte for byte (staging's files: already
+    sized for the model and written without metadata)."""
+    p = Path(path)
+    mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}.get(p.suffix.lower())
+    if as_is and mime:
+        w, h = image_size(p)
+        raw = p.read_bytes()
+        if w * h <= max_pixels and min(w, h) >= min_side and len(raw) * 4 / 3 <= max_b64:
+            b = base64.b64encode(raw).decode()
+            return f"data:{mime};base64,{b}", b
     img = fit(open_image(path), max_pixels=max_pixels, min_side=min_side)
     img = strip_exif(img)
     quality = 92
@@ -323,6 +383,36 @@ def image_payload(path: str | Path, max_pixels: int = 16_000_000, min_side: int 
             return f"data:{mime};base64,{b}", b
         img = img.convert("RGB")
         quality -= 12
+
+
+def save_image(img: Image.Image, stem: str | Path, max_bytes: int | None = None) -> Path:
+    """Write a prepared photo as ``stem``.png (with transparency) or .jpg, under ``max_bytes``:
+    lower JPEG quality first (95 down to 75), then smaller steps of 85% a side. Returns the file."""
+    stem = Path(stem)
+    alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+    if alpha:
+        buf = io.BytesIO()
+        img.convert("RGBA").save(buf, "PNG")
+        if not max_bytes or buf.tell() <= max_bytes:
+            dst = stem.with_suffix(".png")
+            dst.write_bytes(buf.getvalue())
+            return dst
+        bg = Image.new("RGB", img.size, (255, 255, 255))  # too big as a PNG: flatten onto white
+        bg.paste(img.convert("RGBA"), mask=img.convert("RGBA").split()[-1])
+        img = bg
+    img = img.convert("RGB")
+    dst = stem.with_suffix(".jpg")
+    while True:
+        for q in (95, 88, 82, 75):
+            buf = io.BytesIO()
+            img.save(buf, "JPEG", quality=q)
+            if not max_bytes or buf.tell() <= max_bytes:
+                dst.write_bytes(buf.getvalue())
+                return dst
+        if min(img.size) <= 64:
+            dst.write_bytes(buf.getvalue())
+            return dst
+        img = img.resize((max(1, round(img.width * 0.85)), max(1, round(img.height * 0.85))), Image.LANCZOS)
 
 
 def file_data_uri(path: str | Path, mime: str) -> str:

@@ -27,6 +27,17 @@
       "value": {
         "type": "first_frame",
         "url": "{{$|uri}}"
+      },
+      "fit": {
+        "short": [
+          300,
+          null
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "mb": 20
       }
     },
     {
@@ -41,7 +52,20 @@
         "type": "reference_image",
         "url": "{{$|uri}}"
       },
-      "max": 9
+      "max": 9,
+      "max_with": {
+        "roles": [
+          "Video to edit"
+        ],
+        "max": 5
+      },
+      "fit": {
+        "short": [
+          400,
+          null
+        ],
+        "mb": 20
+      }
     },
     {
       "role": "Video to edit",
@@ -60,7 +84,26 @@
           "parameters",
           "duration"
         ]
-      ]
+      ],
+      "fit": {
+        "short": [
+          360,
+          null
+        ],
+        "long": [
+          null,
+          4096
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "seconds": [
+          3,
+          60
+        ],
+        "mb": 100
+      }
     }
   ],
   "models": [

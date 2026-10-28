@@ -1,4 +1,4 @@
-import { isMedia, type EngineInfo, type Field, type MediaType, type ParamSpec, type PromptIdea } from "./api";
+import { isMedia, type EngineInfo, type Field, type Fit, type MediaType, type ParamSpec, type PromptIdea } from "./api";
 
 /**
  * A template's inputs, read the same way everywhere. The studio draws whatever a template lists here;
@@ -8,6 +8,11 @@ import { isMedia, type EngineInfo, type Field, type MediaType, type ParamSpec, t
 export const fieldsOf = (e?: EngineInfo): Field[] => e?.fields ?? [];
 
 export type MediaField = Field & { type: MediaType };
+
+/** What the model takes in this input (server/fit.py), or undefined when nothing is known. */
+export function fitOf(e: EngineInfo | undefined, slot: string): Fit | undefined {
+  return (mediaFields(e).find((x) => x.key === slot) as { fit?: Fit } | undefined)?.fit;
+}
 
 /** Photos and clips, in the template's order. */
 export const mediaFields = (e?: EngineInfo): MediaField[] => fieldsOf(e).filter(isMedia);

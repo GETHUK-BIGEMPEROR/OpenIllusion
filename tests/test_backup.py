@@ -36,6 +36,7 @@ def a_library():
 def fresh_home(tmp_path, name):
     paths.configure(tmp_path / name, tmp_path / f"{name}-out")
     store._conn = None
+    settings.remember(key="")  # a new install starts with no key in memory
     engines.reload_templates()
 
 

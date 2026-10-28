@@ -8,7 +8,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from server import engines, paths, store  # noqa: E402
+from server import engines, paths, settings, store  # noqa: E402
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -18,6 +18,7 @@ def isolated(tmp_path, monkeypatch):
     paths.configure(tmp_path / "user", tmp_path / "output")
     store._conn = None
     monkeypatch.delenv("COMFY_API_KEY", raising=False)
+    monkeypatch.setattr(settings, "_session", {k: "" for k in settings.SECRETS})
     yield tmp_path
     if store._conn is not None:
         store._conn.close()

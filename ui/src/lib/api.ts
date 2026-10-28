@@ -3,6 +3,17 @@
 
 export const API = "/api";
 
+// The key and the proxy token live in this browser's localStorage, never on the server's
+// disk: each request carries them, so a restarted server has them back at the first call.
+type Held = { key?: string; token?: string };
+const HELD = "oi.secrets";
+const held = (): Held => {
+  try { return JSON.parse(localStorage.getItem(HELD) || "{}") as Held; } catch { return {}; }
+};
+const hold = (patch: Held) => {
+  try { localStorage.setItem(HELD, JSON.stringify({ ...held(), ...patch })); } catch { /* storage blocked: the server's memory still has it */ }
+};
+
 export type Mode = "motion" | "edit";
 export type Outcome = "worked" | "partly" | "didnt";
 export type JobState =
@@ -35,7 +46,7 @@ export interface PromptIdea { label: string; text: string }
  * the prompt `prompt`, settings by name. `bind` says where the value goes in the workflow (or cloud body).
  */
 export type Field = (
-  | { type: MediaType; size?: string; window?: [number, number]; fps?: [number, number]; role?: string; sample?: (Asset & { slot: string }) | null }
+  | { type: MediaType; size?: string; window?: [number, number]; fps?: [number, number]; fit?: Fit; role?: string; sample?: (Asset & { slot: string }) | null }
   | (Omit<ParamSpec, "key" | "label"> & { examples?: PromptIdea[] })
   /** A declared output size: the width and height it writes come from the shape and step picked under Output. */
   | { type: "size"; aspect?: string; aspects?: string[]; default?: string }
@@ -142,10 +153,15 @@ export interface BuildPreset {
 }
 /** A Router model the builder can make a template from: its adapter's inputs, by role.
  *  `set`: inputs of different sets can't go together. `needs`: the role that has to be filled too. */
+/** What a model takes in one file (server/fit.py): [least, most] ranges, null for open. Runs make files fit. */
+export type Range = [number | null, number | null];
+export interface Fit { short?: Range; long?: Range; pixels?: Range; aspect?: Range; seconds?: Range; fps?: Range; mb?: number; total?: number }
+
 export interface RouterAdapter {
   model: string; name: string; mode: Mode;
-  /** set: groups of inputs that go together (two filled inputs must share one). needs: another input this one needs. */
-  inputs: { role: string; type: MediaKind; max: number; set?: string[]; needs?: string }[];
+  /** set: groups of inputs that go together (two filled inputs must share one). needs: another input this one needs.
+   *  max_with: a lower max while any of its roles is filled. */
+  inputs: { role: string; type: MediaKind; max: number; max_with?: { roles: string[]; max: number }; set?: string[]; needs?: string; fit?: Fit }[];
   /** A family on several model ids: the first whose takes covers every filled role gets the run. */
   models?: { model: string; takes: string[] }[];
 }
@@ -219,6 +235,19 @@ export interface LocalCheck {
   missing_nodes: { class_type: string; node_ids: string[]; package?: string | null }[];
   missing_models: MissingModel[];
   bad_values: { node_id: string; class_type: string; input: string; value: unknown; options?: unknown[] }[];
+}
+
+/** Edits for /media/edit, all optional: turned first, then cropped (fractions of the turned picture), then sized. */
+export interface MediaOps {
+  rotate?: 0 | 90 | 180 | 270;
+  flip?: "h" | "v" | null;
+  crop?: [number, number, number, number] | null;
+  width?: number | null;
+  height?: number | null;
+  start?: number | null;
+  end?: number | null;
+  fps?: number | null;
+  mute?: boolean;
 }
 
 export interface Asset {
@@ -396,7 +425,7 @@ export interface Status {
 export interface Settings {
   has_key: boolean;
   key_hint: string;
-  key_source: "settings" | "env" | null;
+  key_source: "browser" | "env" | null;
   router_base: string;
   output_folder: string;
   max_parallel: number;
@@ -518,6 +547,9 @@ export interface RestoreResult {
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const init: RequestInit = { method, headers: {} };
+  const h = held();
+  if (h.key) (init.headers as Record<string, string>)["X-Comfy-Key"] = h.key;
+  if (h.token) (init.headers as Record<string, string>)["X-Comfy-Proxy-Token"] = h.token;
   if (body instanceof FormData || body instanceof Blob) init.body = body;
   else if (body !== undefined) {
     init.body = JSON.stringify(body);
@@ -543,11 +575,22 @@ const qs = (o: Record<string, unknown>) =>
 
 export const api = {
   status: (fresh = false) => req<Status>("GET", `/status${fresh ? "?fresh=1" : ""}`),
-  testKey: (key: string, save = false) => req<Status["router"]>("POST", "/key/test", { key, save }),
-  forgetKey: () => req<Settings>("POST", "/key/forget"),
+  testKey: async (key: string, save = false) => {
+    const r = await req<Status["router"]>("POST", "/key/test", { key, save });
+    if (r.ok && save && key) hold({ key });
+    return r;
+  },
+  forgetKey: () => {
+    hold({ key: "" });
+    return req<Settings>("POST", "/key/forget");
+  },
   onboarded: () => req("POST", "/onboarded"),
   settings: () => req<Settings>("GET", "/settings"),
-  saveSettings: (s: Partial<Settings> & { api_key?: string; local_token?: string }) => req<Settings>("POST", "/settings", s),
+  saveSettings: (s: Partial<Settings> & { local_token?: string; clear_local_token?: boolean }) => {
+    if (s.local_token) hold({ token: s.local_token });
+    if (s.clear_local_token) hold({ token: "" });
+    return req<Settings>("POST", "/settings", s);
+  },
   engines: (mode?: Mode, reload = false) => req<EngineInfo[]>("GET", `/engines?${qs({ mode, reload: reload ? 1 : undefined })}`),
   /** A finished run of the template becomes its cover; a draft's first one publishes it. */
   setCover: (engine: string, generation: string) => req<EngineInfo>("PUT", "/cover", { engine, generation }),
@@ -571,6 +614,8 @@ export const api = {
     return req<Asset>("POST", "/upload", fd);
   },
   frame: (asset: string, t: number) => req<Asset>("POST", "/frame", { asset, t }),
+  /** Crop, turn, resize, cut, resample or mute a file: a new upload, the original kept (server/edit.py). */
+  mediaEdit: (asset: string, ops: MediaOps, name?: string) => req<Asset>("POST", "/media/edit", { asset, ops, name }),
   compose: (spec: Spec) => req<{ template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[]; prep?: Record<string, PrepPlan> }>("POST", "/compose", spec),
   estimate: (spec: Spec) => req<Estimate>("POST", "/estimate", spec),
   localCheck: (spec: Spec, fresh = false) => req<LocalCheck>("POST", "/local/check", { ...spec, fresh }),

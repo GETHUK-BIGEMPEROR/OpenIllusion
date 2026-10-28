@@ -4,24 +4,70 @@
   "makes": "photo",
   "body": {
     "contents": [
-      { "role": "user", "parts": [{ "text": "" }] }
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": ""
+          }
+        ]
+      }
     ],
     "generationConfig": {
-      "responseModalities": ["TEXT", "IMAGE"]
+      "responseModalities": [
+        "TEXT",
+        "IMAGE"
+      ]
     }
   },
-  "prompt": ["contents", 0, "parts", 0, "text"],
+  "prompt": [
+    "contents",
+    0,
+    "parts",
+    0,
+    "text"
+  ],
   "inputs": [
     {
       "role": "Photo",
       "type": "image",
-      "at": ["contents", 0, "parts", "+"],
-      "value": { "inlineData": { "mimeType": "{{$|mime}}", "data": "{{$|b64}}" } },
-      "max": 4
+      "at": [
+        "contents",
+        0,
+        "parts",
+        "+"
+      ],
+      "value": {
+        "inlineData": {
+          "mimeType": "{{$|mime}}",
+          "data": "{{$|b64}}"
+        }
+      },
+      "max": 14,
+      "fit": {
+        "mb": 7
+      }
     }
   ],
+  "media_mb": 14,
   "result": [
-    ["candidates", "*", "content", "parts", "*", "inlineData", "data"],
-    ["candidates", "*", "content", "parts", "*", "fileData", "fileUri"]
+    [
+      "candidates",
+      "*",
+      "content",
+      "parts",
+      "*",
+      "inlineData",
+      "data"
+    ],
+    [
+      "candidates",
+      "*",
+      "content",
+      "parts",
+      "*",
+      "fileData",
+      "fileUri"
+    ]
   ]
 }

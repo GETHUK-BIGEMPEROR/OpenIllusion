@@ -8,7 +8,7 @@ import { confirm } from "../../lib/confirm";
 import { errMsg } from "../../lib/format";
 import { go } from "../../lib/route";
 import { autorun, useApp } from "../../lib/store";
-import { InputsSection, PromptSection, ResultSection, slotNames, SourceBar, TitleField } from "./Sections";
+import { CloudInputs, InputsSection, JobSection, PromptSection, ResultSection, slotNames, SourceBar, TitleField } from "./Sections";
 import { Start, Tabs, type Track } from "./Start";
 import { type Details, fromWorkflow, type MediaRow, type OutputState, type ParamRow, type PromptState, type Source } from "./model";
 import { adapterProblems, fromAdapter } from "./modes";
@@ -244,11 +244,19 @@ export function Builder({ from }: { from?: string }) {
               <button className="btn sm ghost bld-back" type="button" onClick={() => void reset()}><I n="left" />{src.kind === "cloud" ? "Back to models" : "Back to workflows"}</button>
               <TitleField d={details} setD={setDetails} invalid={tried && !details.label.split(" · ")[0].trim()} />
               <SourceBar src={src} />
-              <div className="bform">
-                <InputsSection src={src} rows={media} setRows={setMedia} />
-                <PromptSection src={src} p={prompt} setP={setPrompt} />
-                {src.kind === "local" && src.a.results.length !== 1 && <ResultSection a={src.a} o={output} setO={setOutput} />}
-              </div>
+              {src.kind === "cloud" ? (
+                <div className="bform">
+                  <JobSection a={src.a} rows={media} setRows={setMedia} />
+                  <CloudInputs a={src.a} rows={media} setRows={setMedia} />
+                  <PromptSection src={src} p={prompt} setP={setPrompt} />
+                </div>
+              ) : (
+                <div className="bform">
+                  <InputsSection rows={media} setRows={setMedia} />
+                  <PromptSection src={src} p={prompt} setP={setPrompt} />
+                  {src.a.results.length !== 1 && <ResultSection a={src.a} o={output} setO={setOutput} />}
+                </div>
+              )}
               <div className="build-foot">
                 {saveErr && <div className="errbox" role="alert"><b>Couldn't save</b><p>{saveErr}</p></div>}
                 <div className="bf-row">

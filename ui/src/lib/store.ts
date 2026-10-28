@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { ImportReview, Manifest, Mode, RestoreReview } from "./api";
 import { fileUrl } from "./api";
+import type { Edits } from "./edits";
 
 export interface Media {
   asset: string; // upload id or gen:<id>/<rel>
@@ -17,6 +18,8 @@ export interface Media {
   has_audio?: boolean;
   thumb?: string | null; // Recipe-only generations: a placeholder thumbnail
   missing?: boolean; // in the recipe but not on disk; "use your own"
+  /** Create: edits made in the editor and not yet in a file. Crop and cut also sit in crop/trim; the rest is made at Run. */
+  edits?: Edits;
 }
 
 export interface RefSlot extends Media {

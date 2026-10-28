@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from PIL import Image
 
-from .. import media, paths
+from .. import fit, media, paths
 from .contract import Engine
 
 
@@ -121,10 +121,14 @@ def clear_cover(engine_id: str) -> None:
 
 
 def clip_limits(e: Engine, slot: str) -> tuple[tuple[float, float] | None, tuple[float, float]]:
-    """A video input's clip length (None: any) and frame rates: the input's own, else the template's."""
+    """A video input's clip length (None: any) and frame rates: the input's own, else what the
+    model takes (its ``fit``), else the template's."""
     f = next((f for f in e.fields if f["key"] == slot), None)
     if f is not None:
-        return (tuple(f["window"]) if f.get("window") else None), tuple(f.get("fps") or (1.0, 60.0))
+        ft = fit.of(e, slot)
+        secs = (fit.lo(ft, "seconds") or 0.0, fit.hi(ft, "seconds") or 600.0) if ft.get("seconds") else None
+        rate = (fit.lo(ft, "fps") or 1.0, fit.hi(ft, "fps") or 240.0) if ft.get("fps") else None
+        return (tuple(f["window"]) if f.get("window") else secs), tuple(f.get("fps") or rate or (1.0, 60.0))
     return e.video_window, e.fps_window
 
 

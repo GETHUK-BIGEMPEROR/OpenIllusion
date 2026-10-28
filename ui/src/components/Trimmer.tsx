@@ -48,9 +48,44 @@ function useFilmstrip(src: string | undefined, duration: number | undefined) {
   return frames;
 }
 
+const BARS = 120;
+
+/** A sound's loudness in BARS columns, decoded in the browser. */
+function usePeaks(src: string | undefined) {
+  const [peaks, setPeaks] = useState<number[]>([]);
+  useEffect(() => {
+    if (!src) return;
+    let cancelled = false;
+    const ctx = new AudioContext();
+    fetch(src)
+      .then((r) => r.arrayBuffer())
+      .then((b) => ctx.decodeAudioData(b))
+      .then((buf) => {
+        const d = buf.getChannelData(0);
+        const step = Math.max(1, Math.floor(d.length / BARS));
+        const out: number[] = [];
+        for (let i = 0; i < BARS; i++) {
+          let m = 0;
+          for (let j = i * step; j < Math.min(d.length, (i + 1) * step); j += 4) m = Math.max(m, Math.abs(d[j]));
+          out.push(m);
+        }
+        const top = Math.max(0.01, ...out);
+        if (!cancelled) setPeaks(out.map((v) => v / top));
+      })
+      .catch(() => {})
+      .finally(() => void ctx.close());
+    return () => { cancelled = true; };
+  }, [src]);
+  return peaks;
+}
+
 export function Trimmer({
-  src, duration, trim, onChange, window, fps, height,
+  src, duration, trim, onChange, window, fps, height, audio, model,
 }: {
+  /** Who the window is for: "Not sent: Kling takes 10 s". */
+  model?: string;
+  /** A sound: its wave shows instead of frames. */
+  audio?: boolean;
   src?: string;
   duration: number;
   trim: [number, number];
@@ -59,7 +94,8 @@ export function Trimmer({
   fps?: number;
   height?: number;
 }) {
-  const frames = useFilmstrip(src, duration);
+  const frames = useFilmstrip(audio ? undefined : src, duration);
+  const peaks = usePeaks(audio ? src : undefined);
   const bar = useRef<HTMLDivElement>(null);
   const [a, b] = [trim[0], trim[1] || duration];
   const len = b - a;
@@ -95,16 +131,28 @@ export function Trimmer({
     else onChange([a, Math.min(duration, Math.max(b + d, a + 0.5))]);
   };
 
-  const fits = !window || (len >= window[0] - 0.05 && len <= window[1] + 0.05);
+  // Longer than the model takes is fine: the run sends its first part. Shorter can't run.
+  const short = !!window && len < window[0] - 0.05;
+  const long = !!window && len > window[1] + 0.05;
+  const fits = !short;
   return (
     <div>
       <div ref={bar} className="trim" style={{ gridTemplateColumns: `repeat(${FRAMES}, minmax(0, 1fr))` }}>
-        {Array.from({ length: FRAMES }, (_, i) =>
+        {audio ? (
+          <svg className="trim-wave" viewBox={`0 0 ${BARS} 100`} preserveAspectRatio="none" aria-hidden>
+            {peaks.map((v, i) => <rect key={i} x={i + 0.15} width={0.7} y={50 - Math.max(2, v * 46)} height={Math.max(4, v * 92)} rx={0.3} />)}
+          </svg>
+        ) : Array.from({ length: FRAMES }, (_, i) =>
           frames[i] ? <img key={i} src={frames[i]} alt="" draggable={false} /> : <span key={i} />,
         )}
         <div aria-hidden className="trim-out" style={{ left: 0, width: `${pct(a)}%` }} />
         <div aria-hidden className="trim-out" style={{ right: 0, width: `${100 - pct(b)}%` }} />
         <div aria-hidden className="trim-win" style={{ left: `${pct(a)}%`, right: `${100 - pct(b)}%`, boxShadow: `inset 0 0 0 2px ${fits ? "#F2FF59" : "#FF6B7E"}` }} />
+        {long && window && (
+          <div aria-hidden className="trim-cap" style={{ left: `${pct(a + window[1])}%`, width: `${pct(b - a - window[1])}%` }}>
+            <span>{model ? `Not sent: ${model} takes ${window[1]} s` : `Not sent: past ${window[1]} s`}</span>
+          </div>
+        )}
         <div
           role="slider" tabIndex={0} aria-label="In point" aria-valuemin={0} aria-valuemax={duration} aria-valuenow={a} aria-valuetext={clock(a)}
           onPointerDown={drag("in")} onKeyDown={key("in")}
@@ -122,12 +170,11 @@ export function Trimmer({
         <span>{clock(b)}</span>
       </div>
       <p className={cx("trim-fit", !fits && "bad")}>
-        <I n={fits ? "check" : "info"} size={12} />
-        {window
-          ? fits
-            ? `Fits the ${window[0]}–${window[1]} s window`
-            : `Trim to ${window[0]}–${window[1]} s`
-          : "Any length"}
+        <I n={short ? "info" : long ? "clock" : "check"} size={12} />
+        {!window ? "Any length"
+          : short ? `Needs at least ${window[0]} s`
+          : long ? `Runs ${window[1]} s from ${clock(a)}`
+          : window[0] ? `Fits the ${window[0]}–${window[1]} s window` : `Fits: up to ${window[1]} s`}
         {fps ? ` · ${Math.round(fps)} fps` : ""}
         {height ? ` · ${height}p` : ""}
       </p>

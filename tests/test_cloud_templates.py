@@ -79,6 +79,9 @@ def _inp(**kw):
     (_inp(**{"with": [[["image2"], "{{$|uri}}"]]}), "not file tokens"),
     (_inp(drop=["duration"]), "drop lists paths"),
     (_inp(at=[["a"], ["b"]], max=3), "number of paths"),
+    (_inp(at=["a", "+"], max=4, max_with={"roles": ["Photo"], "max": 2}), "max_with"),
+    (_inp(at=["a", "+"], max=4, max_with={"roles": ["Nope"], "max": 2}), "max_with"),
+    (_inp(at=["a", "+"], max=4, max_with={"roles": [], "max": 2}), "max_with"),
     ({"models": [{"model": "acme/m-i2v", "takes": ["Nope"]}]}, "models lists"),
     ({"inputs": [GOOD["inputs"][0], GOOD["inputs"][0]]}, "its own role"),
     ({"result": []}, "result"),
@@ -150,7 +153,10 @@ def test_a_family_picks_its_model_from_the_inputs(roles, model):
     (SEEDANCE, ("First frame", "Reference image"), "First frame or Reference image, not both"),
     (SEEDANCE, ("Last frame",), "needs a First frame"),
     (SEEDANCE, ("Video to edit", "Reference video"), "not both"),
-    (SEEDANCE, ("Reference image",) * 10, "up to 9"),
+    (SEEDANCE, ("Reference image",) * 31, "up to 30"),
+    (KLING, ("Reference image",) * 5 + ("Reference video",), "up to 4 × Reference image with a Reference video"),
+    (KLING, ("Reference image",) * 8, "up to 7"),
+    (HORSE, ("Video to edit",) + ("Reference image",) * 6, "up to 5 × Reference image with a Video to edit"),
     (KLING, ("Video to edit", "Reference video"), "not both"),
     (KLING, ("First frame", "Video to edit"), "not both"),
     (VEO, ("Style image", "Reference image"), "not both"),
@@ -168,6 +174,11 @@ def test_inputs_that_share_a_set_go_together():
     _run(KLING, "Reference image", "Video to edit")
     _run(SEEDANCE, "Reference image", "Reference video", "Reference audio")
     _run("wan/wan3.0-video", "Reference image", "Reference video", "Reference audio")
+    # Each model's own limit, not a lower one: Kling takes 7 images alone, 4 beside a video.
+    _run(KLING, *("Reference image",) * 7)
+    _run(KLING, *("Reference image",) * 4, "Reference video")
+    _run(HORSE, *("Reference image",) * 9)
+    _run(SEEDANCE, *("Reference image",) * 30, *("Reference video",) * 10, *("Reference audio",) * 10)
     with pytest.raises(adapters.AdapterError, match="no such input"):
         adapters.assemble(adapters.get(SEEDANCE), [(7, "image:1")], "x")
 
@@ -233,7 +244,8 @@ def test_builder_lists_only_adapter_models():
     seed = next(m for m in got if m["model"] == SEEDANCE)
     assert seed["mode"] == "motion" and [i["role"] for i in seed["inputs"]] == [
         "First frame", "Last frame", "Reference image", "Reference video", "Reference audio", "Video to edit"]
-    assert seed["inputs"][1] == {"role": "Last frame", "type": "image", "max": 1, "set": ["frames"], "needs": "First frame"}
+    assert seed["inputs"][1] == {"role": "Last frame", "type": "image", "max": 1, "set": ["frames"], "needs": "First frame",
+                                 "fit": {"short": [300.0, None], "long": [None, 6000.0], "aspect": [0.4, 2.5], "mb": 30.0}}
     assert seed["inputs"][2]["set"] == ["references", "edit"] and seed["inputs"][4]["type"] == "audio"
     horse = next(m for m in got if m["model"] == HORSE)
     assert horse["models"][0] == {"model": "wan/happyhorse-1.1-t2v", "takes": []} and "set" not in horse["inputs"][0]
@@ -368,7 +380,7 @@ def _cloud(seen, status=201):
 
 
 def _kling_edit(tmp_path, monkeypatch, cloud_status=201):
-    make_video(tmp_path / "clip.mp4", seconds=1)
+    make_video(tmp_path / "clip.mp4", seconds=4)  # Kling takes 3 to 10 s
     out = make_video(tmp_path / "out.mp4", seconds=1).read_bytes()
     tid = builder.save(builder.assemble_cloud(_spec(model=KLING, media=[(4, "video")], prompt="make it snow")), {})
     engines.reload_templates()
@@ -415,8 +427,10 @@ def test_an_audio_input_goes_in_with_the_run(tmp_path, monkeypatch):
     from PIL import Image
 
     Image.new("RGB", (640, 360), (20, 120, 200)).save(jobs.paths.uploads_dir() / "face.png")
-    (jobs.paths.uploads_dir() / "voice.mp3").write_bytes(b"ID3\x04\x00\x00\x00\x00\x00\x00" + b"\x00" * 200)
-    job = _start(mgr, tid, [{"slot": "image:1", "asset": "face.png"}, {"slot": "audio:1", "asset": "voice.mp3"}], "she sings")
+    import wave
+    with wave.open(str(jobs.paths.uploads_dir() / "voice.wav"), "wb") as w:  # 3 s: Seedance takes 2 to 30
+        w.setnchannels(1), w.setsampwidth(2), w.setframerate(8000), w.writeframes(b"\x00\x10" * 24000)
+    job = _start(mgr, tid, [{"slot": "image:1", "asset": "face.png"}, {"slot": "audio:1", "asset": "voice.wav"}], "she sings")
     assert job.state == "done", job.detail
     content = sent["body"]["content"]
     assert content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")

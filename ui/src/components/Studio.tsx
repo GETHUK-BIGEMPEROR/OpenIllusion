@@ -118,7 +118,8 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
   const toast = useApp((st) => st.toast);
   if (!spec.engine.startsWith("local/")) return null;
   const local = status.data?.local;
-  const c = check.data;
+  // An unreachable ComfyUI answers without the lists; the status notice above covers it.
+  const c = check.data?.reachable === false ? undefined : check.data;
   const again = async () => {
     setChecking(true);
     try {
@@ -344,8 +345,10 @@ export function useCompose(mode: Mode, s: StudioState, engine?: EngineInfo) {
 type Composed = { template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[] };
 
 /** Everything that decides whether Run works, and Run itself. R runs from anywhere outside a text field. */
-export function useRunner({ set, spec, compose, estimate, onRan }: {
+export function useRunner({ set, spec, compose, estimate, onRan, prepare }: {
   set: SetStudio; spec: Spec; compose?: Composed; estimate?: Estimate | null; onRan?: (ids: string[]) => void;
+  /** Just before the run: work that changes the inputs (new files for edits). Returns the spec to run, or null for `spec`. */
+  prepare?: () => Promise<Spec | null>;
 }) {
   const qc = useQueryClient();
   const toast = useApp((st) => st.toast);
@@ -376,7 +379,7 @@ export function useRunner({ set, spec, compose, estimate, onRan }: {
     setConfirm(false);
     setBusy(true);
     try {
-      const { ids } = await api.run(spec);
+      const { ids } = await api.run((prepare ? await prepare() : null) ?? spec);
       set((st) => ({ current: ids[0], session: [...ids, ...st.session.filter((x) => !ids.includes(x))].slice(0, 24), selected: [] }));
       qc.invalidateQueries({ queryKey: ["jobs"] });
       qc.invalidateQueries({ queryKey: ["generations"] });

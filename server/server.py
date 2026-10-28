@@ -86,8 +86,35 @@ async def _same_origin(request: web.Request, handler):
     return await handler(request)
 
 
+# The page runs only its own bundle: an injected script couldn't load or send anything
+# elsewhere, and no other site can frame the app.
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; font-src 'self' data:; "
+       "connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+
+
+@web.middleware
+async def _headers(request: web.Request, handler):
+    resp = await handler(request)
+    if isinstance(resp, web.StreamResponse) and not isinstance(resp, web.WebSocketResponse) and not resp.prepared:
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("Referrer-Policy", "no-referrer")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Content-Security-Policy", CSP)
+    return resp
+
+
+@web.middleware
+async def _secrets(request: web.Request, handler):
+    """Take the key and proxy token the browser holds; the server keeps them in memory only."""
+    key, token = request.headers.get("X-Comfy-Key"), request.headers.get("X-Comfy-Proxy-Token")
+    if key or token:
+        settings.remember(key=key or None, token=token or None)
+    return await handler(request)
+
+
 def make_app() -> web.Application:
-    app = web.Application(client_max_size=600 * 1024 * 1024, middlewares=[_same_origin])
+    app = web.Application(client_max_size=600 * 1024 * 1024, middlewares=[_headers, _same_origin, _secrets])
     table = web.RouteTableDef()
     routes.register(table)
     app.add_routes(table)

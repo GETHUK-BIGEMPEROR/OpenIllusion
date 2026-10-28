@@ -30,7 +30,22 @@
       },
       "set": [
         "frames"
-      ]
+      ],
+      "fit": {
+        "short": [
+          240,
+          null
+        ],
+        "long": [
+          null,
+          8000
+        ],
+        "aspect": [
+          0.125,
+          8
+        ],
+        "mb": 20
+      }
     },
     {
       "role": "Last frame",
@@ -47,7 +62,22 @@
       "set": [
         "frames"
       ],
-      "needs": "First frame"
+      "needs": "First frame",
+      "fit": {
+        "short": [
+          240,
+          null
+        ],
+        "long": [
+          null,
+          8000
+        ],
+        "aspect": [
+          0.125,
+          8
+        ],
+        "mb": 20
+      }
     },
     {
       "role": "Reference image",
@@ -64,7 +94,22 @@
       "set": [
         "references"
       ],
-      "max": 9
+      "max": 10,
+      "fit": {
+        "short": [
+          240,
+          null
+        ],
+        "long": [
+          null,
+          8000
+        ],
+        "aspect": [
+          0.125,
+          8
+        ],
+        "mb": 20
+      }
     },
     {
       "role": "Reference video",
@@ -81,7 +126,10 @@
       "set": [
         "references"
       ],
-      "max": 5
+      "max": 5,
+      "fit": {
+        "total": 15
+      }
     },
     {
       "role": "Reference audio",
@@ -98,7 +146,10 @@
       "set": [
         "references"
       ],
-      "max": 5
+      "max": 5,
+      "fit": {
+        "total": 15
+      }
     }
   ],
   "result": [

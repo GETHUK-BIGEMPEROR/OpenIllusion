@@ -31,7 +31,18 @@
         [
           "aspect_ratio"
         ]
-      ]
+      ],
+      "fit": {
+        "short": [
+          300,
+          null
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "mb": 10
+      }
     },
     {
       "role": "Last frame",
@@ -47,7 +58,18 @@
       "set": [
         "frames"
       ],
-      "needs": "First frame"
+      "needs": "First frame",
+      "fit": {
+        "short": [
+          300,
+          null
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "mb": 10
+      }
     },
     {
       "role": "Reference image",
@@ -63,7 +85,25 @@
         "references",
         "edit"
       ],
-      "max": 4
+      "max": 7,
+      "max_with": {
+        "roles": [
+          "Reference video",
+          "Video to edit"
+        ],
+        "max": 4
+      },
+      "fit": {
+        "short": [
+          300,
+          null
+        ],
+        "aspect": [
+          0.4,
+          2.5
+        ],
+        "mb": 10
+      }
     },
     {
       "role": "Reference video",
@@ -79,7 +119,26 @@
       },
       "set": [
         "references"
-      ]
+      ],
+      "fit": {
+        "short": [
+          720,
+          null
+        ],
+        "long": [
+          null,
+          2160
+        ],
+        "seconds": [
+          3,
+          10
+        ],
+        "fps": [
+          24,
+          60
+        ],
+        "mb": 200
+      }
     },
     {
       "role": "Video to edit",
@@ -103,7 +162,26 @@
         [
           "aspect_ratio"
         ]
-      ]
+      ],
+      "fit": {
+        "short": [
+          720,
+          null
+        ],
+        "long": [
+          null,
+          2160
+        ],
+        "seconds": [
+          3,
+          10
+        ],
+        "fps": [
+          24,
+          60
+        ],
+        "mb": 200
+      }
     }
   ],
   "result": [

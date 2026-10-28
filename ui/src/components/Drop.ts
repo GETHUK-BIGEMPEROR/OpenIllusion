@@ -8,8 +8,13 @@ import { clipIn, useApp, withClip, type VideoSlot } from "../lib/store";
 import { addToTray } from "./Refs";
 import { seedFrom } from "./Studio";
 
-export const isImage = (f: File) => f.type.startsWith("image/");
-export const isVideo = (f: File) => f.type.startsWith("video/");
+// Formats the server turns into PNG, MP4 or MP3 on upload; browsers often give these no type.
+const IMAGE_EXT = /\.(gif|bmp|tiff?|avif|tga|ico)$/i;
+const VIDEO_EXT = /\.(mkv|avi|wmv|flv|mpe?g|3gp|ts|mts|m2ts|ogv|m4v)$/i;
+const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|flac|opus|wma|aiff?|amr)$/i;
+export const isImage = (f: File) => f.type.startsWith("image/") || IMAGE_EXT.test(f.name);
+export const isVideo = (f: File) => f.type.startsWith("video/") || VIDEO_EXT.test(f.name);
+export const isAudio = (f: File) => f.type.startsWith("audio/") || AUDIO_EXT.test(f.name);
 export const isMediaFile = (f: File) => isImage(f) || isVideo(f);
 
 /**

@@ -20,7 +20,22 @@
         "+"
       ],
       "value": "{{$|uri}}",
-      "max": 9
+      "max": 10,
+      "fit": {
+        "short": [
+          15,
+          null
+        ],
+        "pixels": [
+          null,
+          36000000
+        ],
+        "aspect": [
+          0.0625,
+          16
+        ],
+        "mb": 30
+      }
     }
   ],
   "result": [

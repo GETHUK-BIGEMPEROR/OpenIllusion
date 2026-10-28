@@ -1,88 +1,199 @@
-// Router models: their input sets as modes, and which mode a set of filled inputs runs.
-import type { RouterAdapter } from "../../lib/api";
+// Router models: the jobs each one does, the inputs each job takes, and what a set of filled inputs makes.
+import type { Fit, Range, RouterAdapter } from "../../lib/api";
 import type { Details, MediaRow, OutputState, ParamRow, PromptState } from "./model";
 
-/** A way a Router model runs, and the adapter inputs it shows. */
-type RouterMode = { id: string; label: string; inputs: number[] };
+/** What a job asks of an input: always, only if you want it, or at least one of the "any" ones. */
+export type Need = "yes" | "no" | "any";
 
-const SET_LABEL: Record<string, string> = { frames: "Image to video", references: "From references", edit: "Video edit", extend: "Extend a video", style: "Style reference" };
+export type JobKind = "text" | "photos" | "frames" | "refs" | "vedit" | "extend" | "style";
 
-/** The modes a Router model has, read off its adapter: its `models` routes, else its input sets. One mode or none: no picker. */
-export function routerModes(a: RouterAdapter): RouterMode[] {
-  const idx = (roles: string[]) => a.inputs.flatMap((x, i) => (roles.includes(x.role) ? [i] : []));
-  const text = { id: "text", label: a.mode === "motion" ? "Text to video" : "Text to image", inputs: [] };
+/** One thing a Router model does, and the adapter inputs (by index) it takes. */
+export type RouterJob = { id: string; kind: JobKind; label: string; desc: string; inputs: number[]; need: Record<number, Need> };
+
+/** The same words for the same job on every model. */
+const JOB: Record<JobKind, { label: string; desc: string }> = {
+  text: { label: "Text to video", desc: "Only a prompt" },
+  photos: { label: "Edit or combine photos", desc: "Photos and a prompt" },
+  frames: { label: "Animate a photo", desc: "A start frame" },
+  refs: { label: "From references", desc: "Keep characters, objects, sounds" },
+  vedit: { label: "Edit a video", desc: "A clip and what to change" },
+  extend: { label: "Extend a video", desc: "A clip that keeps going" },
+  style: { label: "Match a style", desc: "The look of one image" },
+};
+
+/** One line under each input: what the model does with it. */
+export const ROLE_HINT: Record<string, string> = {
+  Photo: "Edit one photo, or combine several into one",
+  "First frame": "The video starts on this image",
+  "Last frame": "The video ends on this image",
+  "Reference image": "A character, product or place to keep",
+  "Reference video": "Motion or camera to follow",
+  "Reference audio": "A voice, sound or music to use",
+  "Video to edit": "The clip that gets changed",
+  "Video to extend": "The clip that gets carried on",
+  "Style image": "Its look is copied, not what's in it",
+};
+
+const SET_KIND: Record<string, JobKind> = { frames: "frames", references: "refs", edit: "vedit", extend: "extend", style: "style" };
+
+/** A job named by what its inputs are, for adapters that split modes over model ids. */
+function kindOf(roles: string[]): JobKind {
+  if (!roles.length) return "text";
+  if (roles.includes("Video to edit")) return "vedit";
+  if (roles.includes("Video to extend")) return "extend";
+  if (roles.includes("First frame")) return "frames";
+  if (roles.includes("Style image")) return "style";
+  return "refs";
+}
+
+function job(a: RouterAdapter, id: string, kind: JobKind, inputs: number[]): RouterJob {
+  const roles = inputs.map((i) => a.inputs[i]);
+  // The clip a job works on and a first frame are always asked for; a job's only input is too. With none of those, one of them will do.
+  const must = (r: (typeof roles)[number]) => r.role.startsWith("Video to") || r.role === "First frame" || roles.length === 1;
+  const anyMust = roles.some(must);
+  const need = Object.fromEntries(inputs.map((i) => [i, must(a.inputs[i]) ? "yes" : anyMust ? "no" : "any"])) as Record<number, Need>;
+  const base = JOB[kind];
+  const photo = a.mode === "edit";
+  const label = kind === "text" ? (photo ? "Text to image" : "Text to video") : base.label;
+  let desc = base.desc;
+  if (kind === "frames" && roles.some((r) => r.role === "Last frame")) desc = "A start frame, and an end frame if you like";
+  if (kind === "refs" && roles.every((r) => r.type === "image")) desc = "Keep characters, objects, places";
+  return { id, kind, label, desc, inputs, need };
+}
+
+/** The jobs a Router model does, read off its adapter: its `models` routes, else its input sets, else text and photos. */
+export function routerJobs(a: RouterAdapter): RouterJob[] {
+  const text = job(a, "text", "text", []);
   if (a.models?.length) {
     return a.models.map((m) => {
-      const inputs = idx(m.takes);
-      return inputs.length ? { id: m.model, label: runMode(a, inputs.map((i) => ({ sample: true, slot: i }))), inputs } : { ...text, id: m.model };
+      const inputs = a.inputs.flatMap((x, i) => (m.takes.includes(x.role) ? [i] : []));
+      return job(a, m.model, kindOf(inputs.map((i) => a.inputs[i].role)), inputs);
     });
   }
   const sets = [...new Set(a.inputs.flatMap((x) => x.set ?? []))];
-  if (!sets.length) return [];
+  const all = a.inputs.map((_, i) => i);
+  if (!sets.length) return all.length ? [text, job(a, "inputs", a.mode === "edit" ? "photos" : kindOf(a.inputs.map((x) => x.role)), all)] : [text];
   const loose = a.inputs.flatMap((x, i) => (x.set?.length ? [] : [i]));
-  return [text, ...sets.map((s) => ({
-    id: s, label: SET_LABEL[s] ?? s, inputs: a.inputs.flatMap((x, i) => (x.set?.includes(s) ? [i] : [])).concat(loose).sort((x, y) => x - y),
-  }))];
+  return [text, ...sets.map((s) => {
+    const inputs = a.inputs.flatMap((x, i) => (x.set?.includes(s) ? [i] : [])).concat(loose).sort((x, y) => x - y);
+    return job(a, s, SET_KIND[s] ?? kindOf(inputs.map((i) => a.inputs[i].role)), inputs);
+  })];
 }
 
-/** The mode the shown rows are in. */
-export const modeOf = (modes: RouterMode[], rows: MediaRow[]) => {
+/** The job the shown rows are in. */
+export const jobOf = (jobs: RouterJob[], rows: MediaRow[]) => {
   const on = [...new Set(rows.filter((r) => r.on).map((r) => r.slot!))].sort((x, y) => x - y).join();
-  return modes.find((m) => m.inputs.join() === on);
+  return jobs.find((j) => j.inputs.join() === on);
 };
 
-/** Show only the inputs a mode takes. Files in inputs it doesn't take are dropped: they'd be sent otherwise. */
-export const toMode = (m: RouterMode, rows: MediaRow[]): MediaRow[] =>
-  rows.map((r) => (m.inputs.includes(r.slot!) ? { ...r, on: true } : { ...r, on: false, sample: null, own: false }));
+/** Show only the inputs a job takes. Files in inputs it doesn't take are dropped: they'd be sent otherwise. */
+export const toJob = (j: RouterJob, rows: MediaRow[]): MediaRow[] => {
+  const seen = new Set<number>();
+  // An input it doesn't take goes back to one empty row, so coming back to the job starts clean.
+  return rows.flatMap((r): MediaRow[] => {
+    if (j.inputs.includes(r.slot!)) return [{ ...r, on: true }];
+    if (seen.has(r.slot!)) return [];
+    seen.add(r.slot!);
+    return [{ ...r, key: `${r.slot}:0`, on: false, sample: null, own: false }];
+  });
+};
 
 /** A Router model: one row per input its adapter takes, all empty. The ones you fill are the template's inputs.
- *  A model with modes starts on its first: only that mode's inputs show. */
+ *  It starts on its first job: only that job's inputs show. */
 export function fromAdapter(a: RouterAdapter) {
   const rows: MediaRow[] = a.inputs.map((x, i) => ({
     key: `${i}:0`, on: true, kind: x.type, label: x.role, hint: "", required: false, sample: null, where: x.role, slot: i, max: x.max,
   }));
-  const first = routerModes(a)[0];
-  const media = first ? toMode(first, rows) : rows;
+  const media = toJob(routerJobs(a)[0], rows);
   const prompt: PromptState = { pick: "prompt", label: "Prompt", hint: "", def: "", required: true };
   // Labels read "Name · Model": the model half is set, the name is yours to write.
   const details: Details = { label: ` · ${a.name}`, blurb: "", mode: a.mode, tags: "" };
   return { media, prompt, params: [] as ParamRow[], details, output: { result: "", size: "" } as OutputState };
 }
 
-/** What a Router model can't take together, among the inputs you filled: the same rules the server checks. */
+type Filled = { sample: unknown; slot?: number };
+
+/** The adapter inputs that have a file, by index, in the adapter's order. */
+const filledSlots = (rows: Filled[]) => [...new Set(rows.filter((r) => r.sample).map((r) => r.slot!))].sort((x, y) => x - y);
+
+/** How many files input `i` takes as things stand: its max_with limit while one of those roles is filled, or the job requires one. */
+export function maxOf(a: RouterAdapter, i: number, rows: Filled[]): number {
+  const { max, max_with: mw } = a.inputs[i];
+  if (!mw) return max;
+  const j = jobOf(routerJobs(a), rows as MediaRow[]);
+  const on = [...filledSlots(rows), ...(j ? j.inputs.filter((k) => j.need[k] === "yes") : [])].map((k) => a.inputs[k].role);
+  return mw.roles.some((r) => on.includes(r)) ? mw.max : max;
+}
+
+/** 2.5 → "5:2". */
+const ratio = (r: number) => {
+  for (let d = 1; d <= 16; d++) if (Math.abs(r * d - Math.round(r * d)) < 1e-3) return `${Math.round(r * d)}:${d}`;
+  return `${r.toFixed(2)}:1`;
+};
+const span = ([lo, hi]: Range, unit: string) => (lo && hi ? (lo === hi ? `${lo}${unit}` : `${lo}–${hi}${unit}`) : lo ? `≥ ${lo}${unit}` : `≤ ${hi}${unit}`);
+
+/** A model's limits on one input, short: "3–10 s · 24–60 fps · ≥ 720 px · ≤ 200 MB". Runs crop, scale and cut files to them. */
+export function fitText(f?: Fit): string {
+  if (!f) return "";
+  const px = f.short?.[0] && !f.short[1] ? `≥ ${f.short[0]} px` : f.long?.[1] && !f.long[0] ? `≤ ${f.long[1]} px` : "";
+  return [
+    f.seconds && span(f.seconds, " s") + (f.total ? ` (${f.total} s in all)` : ""),
+    !f.seconds && f.total && `${f.total} s in all`,
+    f.fps && span(f.fps, " fps"),
+    f.short?.[0] && f.long?.[1] ? `${f.short[0]}–${f.long[1]} px` : px,
+    f.aspect && `${ratio(f.aspect[0] ?? 0.0001)} to ${ratio(f.aspect[1] ?? 10000)}`,
+    f.mb && `≤ ${f.mb} MB`,
+  ].filter(Boolean).join(" · ");
+}
+
+const lower = (role: string) => role.charAt(0).toLowerCase() + role.slice(1);
+const orList = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}`);
+const andList = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
+/** What a Router model can't run from the inputs you filled: the same rules the server checks, plus what the job asks for. */
 export function adapterProblems(a: RouterAdapter, rows: MediaRow[]): string[] {
-  const roles = filledInputs(a, rows);
+  const slots = filledSlots(rows);
+  const roles = slots.map((i) => a.inputs[i]);
   const p: string[] = [];
   const clash = roles.flatMap((x, i) => roles.slice(i + 1).map((y) => [x, y] as const))
     .find(([x, y]) => x.set?.length && y.set?.length && !x.set.some((s) => y.set!.includes(s)));
-  if (clash) p.push(`${a.name} takes ${clash[0].role} or ${clash[1].role}, not both`);
-  for (const r of roles) if (r.needs && !roles.some((x) => x.role === r.needs)) p.push(`${r.role} needs a ${r.needs} as well`);
+  if (clash) p.push(`${a.name} takes ${lower(clash[0].role)} or ${lower(clash[1].role)}, not both`);
+  for (const r of roles) if (r.needs && !roles.some((x) => x.role === r.needs)) p.push(`The ${lower(r.role)} needs a ${lower(r.needs)} as well`);
+  for (const i of slots) {
+    const n = rows.filter((r) => r.slot === i && r.sample).length;
+    const cap = maxOf(a, i, rows);
+    if (n > cap) p.push(`${a.name} takes up to ${cap} ${lower(a.inputs[i].role)}s${cap < a.inputs[i].max ? ` with a ${orList(a.inputs[i].max_with!.roles.map(lower))}` : ""}. Remove ${n - cap}`);
+  }
   const names = roles.map((r) => r.role);
   if (!clash && a.models?.length && !a.models.some((m) => names.every((n) => m.takes.includes(n))))
-    p.push(`${a.name} can't take ${names.join(" and ")} together`);
-  // A mode other than text needs a file in it, and an edit or extend needs its clip.
-  const m = modeOf(routerModes(a), rows);
-  if (m?.inputs.length) {
-    const clip = m.inputs.find((i) => a.inputs[i].role.startsWith("Video to"));
-    if (clip !== undefined && !roles.includes(a.inputs[clip])) p.push(`${m.label} needs a ${a.inputs[clip].role}`);
-    else if (!roles.length) p.push(`${m.label} needs a file. Fill one of its inputs, or pick ${routerModes(a)[0].label}`);
+    p.push(`${a.name} can't take ${andList(names.map(lower))} together`);
+  const j = jobOf(routerJobs(a), rows);
+  if (j) {
+    const miss = j.inputs.find((i) => j.need[i] === "yes" && !slots.includes(i));
+    const anys = j.inputs.filter((i) => j.need[i] === "any");
+    if (miss !== undefined) p.push(`${j.label} needs a ${lower(a.inputs[miss].role)}`);
+    else if (anys.length && !anys.some((i) => slots.includes(i))) p.push(`${j.label} needs a ${orList(anys.map((i) => lower(a.inputs[i].role)))}`);
   }
-  return p;
+  return [...new Set(p)];
 }
 
-type Filled = { sample: unknown; slot?: number };
-
-/** The adapter inputs that have a file, in the adapter's order. */
-const filledInputs = (a: RouterAdapter, rows: Filled[]) =>
-  [...new Set(rows.filter((r) => r.sample).map((r) => r.slot!))].sort((x, y) => x - y).map((i) => a.inputs[i]);
-
-/** What a Router run does, read off the inputs it fills: the same model makes different things from different inputs. */
-export function runMode(a: RouterAdapter, rows: Filled[]): string {
-  const has = (role: string) => filledInputs(a, rows).some((r) => r.role === role);
-  const any = rows.some((r) => r.sample);
-  if (a.mode === "edit") return any ? "Photo edit" : "Text to image";
-  if (has("Video to edit")) return "Video edit";
-  if (has("Video to extend")) return "Extend a video";
-  if (has("First frame")) return has("Last frame") ? "First and last frame" : "Image to video";
-  return any ? "From references" : "Text to video";
+/** What a run makes, in a sentence, from the job and the files in it. Only meaningful once adapterProblems is empty. */
+export function runSays(a: RouterAdapter, rows: MediaRow[]): string {
+  const j = jobOf(routerJobs(a), rows);
+  const slots = filledSlots(rows);
+  const count = (i: number) => rows.filter((r) => r.slot === i && r.sample).length;
+  const used = slots.map((i) => (count(i) > 1 ? `${count(i)} ${lower(a.inputs[i].role)}s` : `a ${lower(a.inputs[i].role)}`));
+  const has = (role: string) => slots.some((i) => a.inputs[i].role === role);
+  // What else rides along with the clip an edit works on.
+  const extra = used.filter((_, k) => !a.inputs[slots[k]].role.startsWith("Video to"));
+  const what: Record<JobKind, string> = {
+    text: a.mode === "edit" ? "a photo from the prompt alone" : "a video from the prompt alone",
+    photos: count(slots[0]) > 1 ? `one new photo out of ${count(slots[0])} photos` : "a new version of the photo",
+    frames: has("Last frame") ? "a video that runs from the first frame to the last" : "a video that starts on the first frame",
+    refs: `a video that keeps what's in ${andList(used)}`,
+    vedit: `the clip, changed the way the prompt says${extra.length ? `, with ${andList(extra)}` : ""}`,
+    extend: "more of the clip, carried on from where it ends",
+    style: "a video in the style image's look",
+  };
+  return `${a.name} makes ${what[j?.kind ?? "text"]}.`;
 }

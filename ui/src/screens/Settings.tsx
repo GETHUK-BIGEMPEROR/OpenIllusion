@@ -19,7 +19,7 @@ const NAV = [
 
 const isUrl = (v: string) => /^https?:\/\/[^\s/]+/i.test(v.trim());
 
-type Save = (p: Partial<S> & { api_key?: string; local_token?: string; clear_local_token?: boolean }) => Promise<boolean>;
+type Save = (p: Partial<S> & { local_token?: string; clear_local_token?: boolean }) => Promise<boolean>;
 
 export function Settings() {
   const qc = useQueryClient();
@@ -307,7 +307,7 @@ function LocalCard({ s, save, status }: { s: S; save: Save; status?: Status }) {
         <summary><I n="sliders" />Advanced<span className="mono">{host(s.local_v2_url)}</span><I n="down" className="chev" /></summary>
         <div className="adv-body">
           <TextSetting id="v2-url" label="Comfy API v2 address" help="Where comfy-api-proxy listens." value={s.local_v2_url} placeholder="http://127.0.0.1:8189" mono validate={(v) => (isUrl(v) ? null : "Use a full address, like http://127.0.0.1:8189")} onSave={(v) => save({ local_v2_url: v })} />
-          <SecretSetting id="v2-token" label="Proxy token" help="Only if the proxy was started with --token." saved={s.has_local_token} placeholder={s.has_local_token ? "Saved · paste to replace" : "None"}
+          <SecretSetting id="v2-token" label="Proxy token" help="Only if the proxy was started with --token. Kept in this browser, never on the server's disk." saved={s.has_local_token} placeholder={s.has_local_token ? "Set · paste to replace" : "None"}
             onSave={(v) => save({ local_token: v })} onClear={() => save({ local_token: "", clear_local_token: true })} />
           <Toggle title="Start comfy-api-proxy for me" desc="When the v2 address is on this machine and nothing answers there." checked={s.local_autostart_proxy} onChange={(v) => save({ local_autostart_proxy: v })} />
         </div>
@@ -356,11 +356,12 @@ function CloudCard({ s, save }: { s: S; save: Save }) {
         <label htmlFor="api-key">Comfy API key</label>
         <div className="irow">
           <input id="api-key" className="input mono" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => { setKey(e.target.value); setResult(null); }}
-            placeholder={s.has_key ? `Saved ${s.key_hint}` : "comfyui-…"} aria-invalid={result?.ok === false || undefined} aria-describedby="api-key-result" style={{ fontSize: 12 }} />
-          <button className="btn" type="submit" disabled={testing || (!key.trim() && !s.has_key)}>{testing ? "Testing…" : key.trim() ? "Save and test" : "Test"}</button>
+            placeholder={s.has_key ? `Set ${s.key_hint} · paste to replace` : "comfyui-…"} aria-invalid={result?.ok === false || undefined} aria-describedby="api-key-result" style={{ fontSize: 12 }} />
+          <button className="btn" type="submit" disabled={testing || (!key.trim() && !s.has_key)}>{testing ? "Testing…" : key.trim() ? "Use and test" : "Test"}</button>
+          {s.key_source === "browser" && <button className="btn ghost" type="button" onClick={forget}>Forget</button>}
         </div>
         <p id="api-key-result" role="status" className="help" style={result ? { color: result.ok ? "var(--mint)" : "#FFB3BD", display: "flex", gap: 6, alignItems: "center" } : undefined}>
-          {result ? <><I n={result.ok ? "check" : "info"} />{result.text}</> : "The key stays on this machine and never reaches the browser."}
+          {result ? <><I n={result.ok ? "check" : "info"} />{result.text}</> : s.key_source === "env" ? "From COMFY_API_KEY in the server's environment." : "Kept in this browser, never on the server's disk. The server holds it in memory while it runs."}
         </p>
       </form>
       {s.has_key && (
@@ -371,7 +372,6 @@ function CloudCard({ s, save }: { s: S; save: Save }) {
               <Stepper value={s.max_parallel} min={1} max={8} onChange={(v) => save({ max_parallel: v })} label="Max parallel runs" />
             </Toggle>
             <Toggle title="Ask before unpriced runs" desc="When Router returns no estimate for a run." checked={s.confirm_unknown_cost} onChange={(v) => save({ confirm_unknown_cost: v })} />
-            {s.key_source === "settings" && <button className="btn ghost sm" type="button" onClick={forget} style={{ justifySelf: "start" }}><I n="trash" />Forget key</button>}
           </div>
         </details>
       )}

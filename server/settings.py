@@ -1,9 +1,11 @@
 """User settings, including the Comfy API key.
 
-The key and the optional bearer token of a local comfy-api-proxy live in
-``secrets.json``, apart from the other settings: owner-only on Linux and macOS,
-and never in a backup. They are never sent back to the browser (``public`` masks
-them) and never written into a generation.
+The key and the optional bearer token of a local comfy-api-proxy are never
+written to disk by the server. The browser keeps them (localStorage) and sends them
+with each request (``X-Comfy-Key``, ``X-Comfy-Proxy-Token``); the server holds them in
+memory until it stops, so a restart forgets them until the browser sends them again.
+They are never sent back to the browser (``public`` masks them), never in a
+backup and never written into a generation.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ DEFAULTS: dict = {
 SECRETS = ("api_key", "local_token")
 
 _lock = threading.Lock()
+_session: dict[str, str] = {k: "" for k in SECRETS}  # in memory only
 
 
 def _read(f) -> dict:
@@ -49,28 +52,42 @@ def _read(f) -> dict:
 
 def load() -> dict:
     data = dict(DEFAULTS)
-    data.update(_read(paths.settings_file()))  # a settings.json from before secrets.json may still hold them
-    data.update({k: v for k, v in _read(paths.secrets_file()).items() if k in SECRETS})
+    data.update({k: v for k, v in _read(paths.settings_file()).items() if k not in SECRETS})
+    data.update(_session)
     return data
 
 
 def _write(data: dict) -> None:
     paths.write_atomic(paths.settings_file(), json.dumps({k: v for k, v in data.items() if k not in SECRETS}, indent=2))
-    paths.write_atomic(paths.secrets_file(), json.dumps({k: data.get(k) or "" for k in SECRETS}, indent=2), private=True)
 
 
 def migrate() -> None:
-    """Move the secrets out of a settings.json written before secrets.json existed."""
+    """Delete secrets an older version wrote to disk (``secrets.json``, or ``settings.json`` before it)."""
     with _lock:
         if any(k in _read(paths.settings_file()) for k in SECRETS):
             _write(load())
+        paths.secrets_file().unlink(missing_ok=True)
+
+
+def remember(key: str | None = None, token: str | None = None) -> bool:
+    """Take the secrets the browser sent; True when one changed. Empty clears it."""
+    changed = False
+    with _lock:
+        for k, v in (("api_key", key), ("local_token", token)):
+            if v is not None and _session[k] != v.strip():
+                _session[k] = v.strip()
+                changed = True
+    return changed
 
 
 def save(changes: dict) -> dict:
     with _lock:
         data = load()
         for k, v in changes.items():
-            if k in DEFAULTS:
+            if k in SECRETS:
+                _session[k] = (v or "").strip()
+                data[k] = _session[k]
+            elif k in DEFAULTS:
                 data[k] = v
         data["max_parallel"] = max(1, min(8, int(data.get("max_parallel") or 1)))
         for k in ("local_v2_url", "local_comfyui_url", "router_base", "cloud_base"):
@@ -94,7 +111,7 @@ def public() -> dict:
     env_key = os.environ.get("COMFY_API_KEY", "")
     shown = key or env_key
     data["has_key"] = bool(shown)
-    data["key_source"] = "settings" if key else ("env" if env_key else None)
+    data["key_source"] = "browser" if key else ("env" if env_key else None)
     data["key_hint"] = f"…{shown[-4:]}" if len(shown) >= 8 else ("set" if shown else "")
     data["has_local_token"] = bool(token or os.environ.get("COMFY_PROXY_TOKEN"))
     return data

@@ -77,7 +77,7 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Screen | Route | What you do there | File |
 | --- | --- | --- | --- |
 | Explore | `#/explore` | Every published template on one wall, photos and videos together. Filter All / Local / Cloud and by tag. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Drafts never show here. | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
-| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (photo, clip and sound tiles; crop, size, trim), edit the prompt, Run. Cloud templates show a price quote above Run. Drafts live here: tagged Draft in the template menu, with Publish on their results. | `screens/create/`, `components/Studio.tsx`, `Refs.tsx`, `Trimmer.tsx` |
+| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt, Run. Cloud templates show a price quote above Run. Drafts live here: tagged Draft in the template menu, with Publish on their results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
 | Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, remix into Create, notes, export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
@@ -86,6 +86,7 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Storage (disk use, clean working copies, back up and restore), Cloud (API key). | `screens/Settings.tsx` |
 | Connect | `#/connect` | First run only: check the ComfyUI on this machine, then open Explore. No account. | `screens/Connect.tsx` |
 | Import | dialog | A dropped bundle, PNG or MP4 with a recipe, or a link: review, then add to the Library. A dropped ComfyUI workflow goes to Build instead. | `screens/ImportReview.tsx` |
+| Edit a file | Create's stage; a sheet in the Builder | One workbench for every photo, clip and sound: the model's limits as pills on top (green fits, orange a run changes it, red can't run; a pill opens its tool) with **Fit to spec**, tools on the left (crop, turn, size, cut, rate, sound), the file in the middle with what the model keeps outlined, the tool's settings on the right, a clip's timeline below (past the model's length is hatched: not sent), and what changes along the bottom. Hold for original. In Create the edits wait on the input and are made when it runs (crop and cut go through the run's own crop and trim; turn, size, rate and sound make a new file just before the run, or now with Apply now). In the Builder, Save makes the new file. The original always stays. | `components/MediaEditor.tsx`, `lib/edits.ts` |
 | Restore | dialog | A dropped `.illusionbackup` (or Settings → Storage → Choose file): what it would add, then Restore, with progress. | `screens/RestoreReview.tsx` |
 
 ## Design rules
@@ -108,6 +109,10 @@ here in the same commit.
 - **Steps you can walk back.** The Builder's steps show where you are; Back sits at
   the top and in the footer, and a finished step is clickable. Leaving asks first
   only when something of yours would be lost (a name, a dropped file).
+- **One editor per file, everywhere.** A photo, clip or sound is the same card
+  and opens the same editor wherever it sits (Create's input list, the Builder's
+  samples); each card says in one line whether the model takes it, and the editor
+  shows the model's limits as pills, never a separate tool.
 - **Undo over confirm.** Deleting moves to Trash and the toast offers Undo; a
   confirm dialog is for losing work that can't come back.
 - **Live, never polled by you.** Job progress arrives over the WebSocket into the
@@ -124,8 +129,9 @@ here in the same commit.
 ## System map
 
 One Python process serves both the web app and its API on `:7870`. The browser
-only ever talks to that port. The API key and the proxy token never leave the
-server.
+only ever talks to that port. The API key and the proxy token are never written
+to disk by the server: the browser holds them (`localStorage`) and sends them with
+each request; the server keeps them in memory until it stops and never sends them back.
 
 ```mermaid
 flowchart LR
@@ -171,7 +177,7 @@ Where to look when you change something.
 
 | File | What it does |
 | --- | --- |
-| `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), moves secrets out of an old `settings.json`, resumes interrupted jobs, keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), cleans scratch and old trash every 6 h, and refuses cross-origin requests (`_same_origin`). |
+| `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), deletes secrets an older version wrote to disk, resumes interrupted jobs (a cloud run waits for the key until a browser sends it), keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), cleans scratch and old trash every 6 h, refuses cross-origin writes (`_same_origin`), sets nosniff, no-referrer, no framing and a strict CSP on every response (`_headers`), and takes the key and proxy token from the `X-Comfy-Key` and `X-Comfy-Proxy-Token` headers (`_secrets`). |
 | `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, estimate, run, jobs), `library` (generations, trash, storage, re-run, export, import), `backup` (back up, restore); shared helpers in `common`. Thin: it checks input and calls the modules below. |
 | `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
 | `builder/` | The Builder, in layers: `workflow` (read a dropped file, `read_workflow`; UI graph to API graph, `ui_to_api`), `analysis` (detect inputs, prompt, settings and result nodes, `analyze`), `assemble` (drafts, `assemble_local`, `assemble_cloud`, `preset`, `save`). `__init__` re-exports them. |
@@ -181,11 +187,13 @@ Where to look when you change something.
 | `router.py` | Comfy Router client: estimate, submit, status, collect, sync run, cancel, download. |
 | `local.py` | `ComfyV2` (Comfy API v2: upload assets, jobs, events; used for comfy-api-proxy and for Comfy Cloud assets) and `ComfyUI` (`/object_info`, precheck of nodes and models). |
 | `proxy.py` | Starts and stops comfy-api-proxy. |
-| `prep.py` · `media.py` | Crop and size inputs; image/video/audio helpers (probe, transcode, poster, data URIs, recipes in PNG/MP4). Photos, clips and sounds (MP3, WAV, M4A, AAC, OGG, FLAC) upload alike; a sound goes in as it is. |
+| `prep.py` · `media.py` | Crop and size inputs; image/video/audio helpers (probe, transcode, poster, data URIs, recipes in PNG/MP4). Photos, clips and sounds (MP3, WAV, M4A, AAC, OGG, FLAC) upload alike; a run cuts a sound and writes it as MP3. |
+| `edit.py` | The media editor's work: `edit` (turn, flip, crop, size, cut, frame rate, mute → a new upload) and `normalize` (TIFF, BMP, AVIF, GIF, MKV, AVI, WMV, MPEG, WMA, AIFF, OPUS… become PNG, MP4 or MP3 on upload; an animated GIF becomes a clip). |
+| `fit.py` | What a model takes in each file (`fit`: sides, shape, MB, seconds, total, fps) and how a photo or clip's plan and a clip's span change to meet it. `staging.fitted` applies it to a run. |
 | `store.py` · `generation.py` | The library: one folder per generation with `generation.json` (pydantic `Manifest`), indexed in SQLite with full-text search; trash. |
 | `bundle.py` · `archive.py` | Export a generation as a zip, import one back; the checks every zip from outside passes first (`archive.files`: paths stay inside, allowed types, count and size caps). |
 | `backup.py` | Whole-library backups (`.illusionbackup`): `create`, `inspect` (what a restore would add), `restore` (merge). See [Backups](#backups). |
-| `settings.py` · `storage.py` · `paths.py` | Settings and `secrets.json`; disk usage and cleanup; home folder paths, what each entry is (`TIERS`), and `write_atomic`. See [Storage](#storage). |
+| `settings.py` · `storage.py` · `paths.py` | Settings (on disk) and the secrets (in memory, `remember`); disk usage and cleanup; home folder paths, what each entry is (`TIERS`), and `write_atomic`. See [Storage](#storage). |
 
 **UI** (`ui/src/`, React + Vite):
 
@@ -197,9 +205,11 @@ Where to look when you change something.
 | `lib/route.ts` · `live.ts` · `query.ts` | Hash routes; the WebSocket feed of job updates; React Query setup. |
 | `App.tsx` · `components/Shell.tsx` · `Palette.tsx` | Layout, rail and tab bar, drops anywhere on the page, Ctrl K palette. |
 | `screens/*` | One file per screen; see [The app](#the-app-screen-by-screen). |
-| `screens/builder/` | Builder: Local workflow and Comfy Router tabs, three steps with Back, draft run, publish (`Builder.tsx`); the start step (`Start.tsx`), the template's sections (`Sections.tsx`), row state from a workflow or preset (`model.ts`). On Router: a mode picker built from the adapter's sets or `models` (`modes.ts`), and the same `set`/`needs`/`models` checks as the server. |
-| `screens/create/` | Create: the page (`CreateStudio.tsx`), input tiles (`Inputs.tsx`), the canvas (`Canvas.tsx`), prompt and Run (`Panel.tsx`), this template's runs (`History.tsx`). |
-| `components/Studio.tsx` · `Refs.tsx` · `Trimmer.tsx` · `ABPlayer.tsx` | Create's parts: template seeding, input tiles and uploads, clip trimming, before/after player. |
+| `screens/builder/` | Builder: Local workflow and Comfy Router tabs, three steps with Back, draft run, publish (`Builder.tsx`); the start step (`Start.tsx`), the template's sections (`Sections.tsx`), row state from a workflow or preset (`model.ts`). On Router: job cards built from the adapter's sets or `models` (`modes.ts`), inputs grouped by role (each role's limits as pills counted across its files, **Fit all to spec**, a card per sample with Edit, Replace, Remove), a sentence on what the run makes, and the same `set`/`needs`/`models` checks as the server. |
+| `screens/create/` | Create: the page (`CreateStudio.tsx`; the stage shows the picked input in the editor, or the run), input cards, the inline editor and the edits made just before Run (`Inputs.tsx`), the canvas (`Canvas.tsx`), prompt and Run (`Panel.tsx`), this template's runs (`History.tsx`). |
+| `components/Studio.tsx` · `Refs.tsx` · `Trimmer.tsx` · `ABPlayer.tsx` | Create's parts: template seeding, `useRunner` (with a `prepare` step before the run), uploads, clip and sound trimming (filmstrip or wave; past the model's length hatched), before/after player. |
+| `components/MediaEditor.tsx` | The one editor for photos, clips and sounds: `Editor` (inline on Create's stage), `MediaSheet` (the Builder's sheet, saves a new file), `MediaThumb` (a file as its edits leave it), `FitLine` ("Fits Kling", "Run crops it to 5:2"). |
+| `lib/edits.ts` | The editor's logic, no UI: the `Edits` a file carries, what they make (`outOf`), the model's limits as checks and a file's one-line status, Fit to spec (a port of `fit.plan`), and the ops sent to `/api/media/edit`. |
 | `components/ui.tsx` · `oi.tsx` · `bits.tsx` · `sprite.ts` | Shared pieces: buttons, segmented tabs, fields, spinners; page head, header chips (`KeyStat`, `GpuStat`), sideways-scrolling rows, media; cost pill; the icon sprite (`<I n>`). |
 | `styles/` | The only styling: `base.css` tokens and reset, `common.css`/`fields.css` shared pieces, one stylesheet per area, `responsive.css` for phones. |
 
@@ -227,17 +237,20 @@ each entry is; a test fails when the app writes something it doesn't list.
 | Tier | Entries | Backed up | Cleaned |
 | --- | --- | --- | --- |
 | library | `generations/`, `templates/`, `covers/`, `trash/`, `settings.json` | yes (trash optional) | trash after 7 days |
-| machine | `secrets.json`, `index.sqlite`, `jobs.json`, `proxy-state/`, `proxy.log`, `server.lock` | no | never |
+| machine | `index.sqlite`, `jobs.json`, `proxy-state/`, `proxy.log`, `server.lock` | no | never |
 | scratch | `uploads/`, `cache/` | no | on their own after 30 days unused (Builder drafts: 1 day), or from Settings → Storage |
 
 `outputs/` is the default export folder: the user's files, not the app's.
 
 - **Whole or nothing.** Every JSON file the app keeps (`generation.json`, settings,
-  secrets, templates, `.shelf`, the queue) goes through `paths.write_atomic`: temp file,
+  templates, `.shelf`, the queue) goes through `paths.write_atomic`: temp file,
   fsync, rename. A crash leaves the old file, never half of one.
-- **Secrets apart.** The key and the proxy token live in `secrets.json`, owner-only on
-  Linux and macOS, never sent to the browser, never in a generation or a backup.
-  `settings.migrate` moves them out of a `settings.json` written before the split.
+- **Secrets off the server's disk.** The server never writes the key or the proxy
+  token. The browser keeps them in `localStorage` and sends them as headers; the server
+  holds them in memory, so after a restart the first request from the app brings them
+  back, and a resumed cloud run waits until then. Forget clears both.
+  `COMFY_API_KEY` in the server's environment still works. `settings.migrate` deletes the `secrets.json` (and
+  any key in `settings.json`) an older version wrote.
 - **The queue file** (`jobs.json`) is written when a run changes state, not on progress:
   progress and previews only go to open pages over the WebSocket.
 - **The index** carries `PRAGMA user_version` (`store.INDEX_VERSION`); a different
@@ -255,7 +268,7 @@ Settings → Storage → **Back up** writes `OpenIllusion-<date>.illusionbackup`
 `<output folder>/backups/` (the Backups row in Storage; Download from there too): a zip of the library tier, laid out as `library/<entry>/…`,
 with a `backup.json` (format, version, app, counts, and every file's size and sha256).
 
-- **What's left out.** `secrets.json` and every machine and scratch entry; the key never
+- **What's left out.** Every machine and scratch entry; the key never
   travels, so a restored install asks for it again. Trash only when asked. A generation a
   run is still writing is skipped and listed (`skipped`).
 - **Written safely.** To `<name>.partial`, renamed when complete. Photos and clips are
@@ -285,7 +298,7 @@ typed call for each.
 | Settings and key | `GET/POST settings` · `POST key/test` · `POST key/forget` |
 | Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `GET templates/input` · `GET templates/workflow` · `GET/PUT/DELETE cover` |
 | Builder | `POST builder/workflow` · `POST builder/from-template` · `GET builder/models` (every adapter) · `POST builder/save` · `DELETE builder/template` |
-| Files | `POST upload` (photo, clip or sound) · `GET uploads/{asset}` · `POST frame` (a still from a clip) |
+| Files | `POST upload` (photo, clip or sound; other formats converted) · `GET uploads/{asset}` · `POST frame` (a still from a clip) · `POST media/edit` (`{asset, ops: {rotate, flip, crop, width, height, start, end, fps, mute}}` → a new upload) |
 | Runs | `POST compose` (the request, without running) · `POST estimate` (price) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
 | Library | `GET generations` · `GET facets` · `GET/PATCH/DELETE generations/{id}` · `POST generations/trash` · `GET generations/{id}/file/…`, `/output`, `/workflow`, `/recipe` · `POST generations/{id}/rerun` |
 | Trash and storage | `GET trash` · `POST trash/{id}/restore` · `POST trash/restore` · `DELETE trash/{id}` · `POST trash/purge` (picked, for good) · `DELETE trash` · `GET storage` · `POST storage/clean` |
@@ -337,11 +350,16 @@ flowchart LR
   **Takes** (its roles, with the most files each takes, e.g. Reference image ×9),
   both read off the adapter, so a new adapter gets its card for free.
 - **An adapter** lists every input its model takes, by role (First frame, Video to
-  edit…). The Builder turns its input `set`s (or its `models` routes) into a mode
-  picker: Text to video, Image to video, From references, Video edit, Extend a
-  video. A mode shows only its inputs; switching drops files from inputs the new
-  mode doesn't take. A model with one mode (most image models) shows its inputs
-  with no picker. Rules the model breaks are flagged before you run. Step *Run* is
+  edit…). The Builder turns its input `set`s (or its `models` routes) into **job
+  cards** (`routerJobs`): Text to video, Animate a photo, From references, Edit a
+  video, Extend a video, Match a style. A photo model with inputs gets two: Text to
+  image and Edit or combine photos, so its mode is picked, never implied by an
+  empty slot. A model with one job shows no cards. A job shows only its inputs,
+  one group per role, each marked Required, Optional or One of these (a clip to
+  work on and a first frame are required; a job's only input is too; otherwise at
+  least one). Switching jobs drops files from inputs the new job doesn't take.
+  Under the inputs, one line says what the run makes, or what's missing. Each
+  filled tile shows the name Create gives it (Image 1, Image 2). Step *Run* is
   `builder.assemble_cloud`. Back (top, footer, or step 1) returns to the model or
   workflow list, asking first only if you named the template or dropped a file.
 - **Publish** needs a result. Samples you dropped become the template's defaults.
@@ -357,7 +375,7 @@ submitted twice.
 ```mermaid
 flowchart LR
   A["Create<br/>inputs + prompt"] -- "/run" --> Q["queue<br/>jobs.json"]
-  Q --> PR["prep<br/>crop · size · cap"]
+  Q --> PR["prep · fit<br/>crop · size · cut"]
   PR --> BI["bind<br/>into the box"]
   BI --> LC{"precheck<br/>nodes · models"}
   LC -- missing --> X["stop, list all of them"]
@@ -375,6 +393,16 @@ flowchart LR
 - **prep** crops and sizes each input once, in Python, for both kinds. Size is
   chosen per input on Create and defaults to the input's own size. Caps are 3 MP
   for photos and 1.5 MP for video; Settings can lift them.
+- **fit** then makes every file one the model takes (`staging.fitted`, from the
+  adapter's `fit`): the middle cropped to the shapes allowed, scaled up or down
+  into the side and pixel limits, clips and sounds cut to the longest allowed
+  (from where their trim starts, and to what a `total` leaves), frame rate
+  resampled, photos re-encoded and clips given the bitrate that keeps each file
+  under its MB limit and the request under its inline limit. Sounds always go as
+  MP3. Too short is the one thing it can't fix: nothing is made up, the run is
+  refused with the reason. Create lists every change before the run ("Image 2:
+  cropped to 5:2, scaled up to 750×300 to fit Kling 3 Omni") and shows the sizes
+  the model gets; the Builder shows each role's limits.
 - **bind** writes files and the prompt where the template's inputs point: node
   inputs for local, media tokens in the request for cloud (`engines.materialize`).
   Seeds the box marks as random are re-rolled.
@@ -466,6 +494,9 @@ What makes Router hard to do generically:
 - **Files:** some fields take a URL, some base64, some an item in a tagged list.
   Most video and audio fields take a link only. Requests are capped at 100 MiB,
   about 75 MB of media once base64-encoded.
+- **Limits per file:** every model has its own sides, shapes, sizes, lengths and
+  frame rates, and refuses a file outside them. Adapters carry them (`fit`); runs
+  make files fit instead of failing.
 - **Answers:** a rehosted URL (valid 12–24 h), a provider URL, inline base64
   (Veo), or raw bytes. There is no common envelope.
 
@@ -475,22 +506,23 @@ Every adapter names its inputs from the same short list of roles, so the Builder
 the mode names and future models all speak one language. The Comfy hub does the
 same internally (`source_videos`, `reference_images`, `first_frame`…).
 
-| Role | Type | Means | Mode it makes | Its `set` |
+| Role | Type | Means | Job | Its `set` |
 | --- | --- | --- | --- | --- |
 | *(nothing filled)* | | prompt only | Text to video · Text to image | |
-| First frame | image | the clip starts on this picture | Image to video | `frames` |
-| Last frame | image | the clip ends on it; needs a first frame | First and last frame | `frames` |
+| First frame | image | the clip starts on this picture | Animate a photo | `frames` |
+| Last frame | image | the clip ends on it; needs a first frame | Animate a photo | `frames` |
 | Reference image | image | a character, object or scene to keep | From references | `references` (+ `edit` where the model allows) |
-| Style image | image | a look to copy | Style reference | `style` |
+| Style image | image | a look to copy | Match a style | `style` |
 | Reference video | video | motion, camera or cuts to follow | From references | `references` |
 | Reference audio | audio | a voice, sound or music to use | From references | `references` (+ `edit` on Seedance) |
-| Video to edit | video | the clip to change, as the prompt says | Video edit | `edit` |
+| Video to edit | video | the clip to change, as the prompt says | Edit a video | `edit` |
 | Video to extend | video | the clip to carry on from | Extend a video | `extend` |
-| Photo | image | an image model's input | Photo edit | none |
+| Photo | image | an image model's input | Edit or combine photos | none |
 
-The names in the "Mode it makes" column are the ones the app shows: the Builder's
-mode tabs (`SET_LABEL` in `builder/modes.ts`, one per set name) and the mode label of a
-run. A new set name needs a label there.
+The names in the "Job" column are the Builder's job cards, the same on every
+model: `SET_KIND` in `builder/modes.ts` maps each set name to a job, and a `models`
+route is matched by the roles it takes. Each role's one-line hint is `ROLE_HINT`
+there too. A set name not in `SET_KIND` is named by its roles.
 
 A template is frozen to the roles its run used, so "Kling · edit video" and
 "Kling · first–last frame" are two templates from one adapter.
@@ -502,16 +534,41 @@ models Router serves. Nobody publishes usage counts.
 
 | Adapter | Makes | Roles (max) | Files go in as |
 | --- | --- | --- | --- |
-| `kling/kling-v3-omni` · Kling 3 Omni | Video | First frame, Last frame, Reference image (4), Reference video, Video to edit | images base64 in `image_list[]`; videos by link in `video_list[]` with `refer_type` `feature` or `base` |
-| `byteplus/dreamina-seedance-2-5-260628` · Seedance 2.5 | Video + audio | First frame, Last frame, Reference image (9), Reference video, Reference audio, Video to edit | `content[]` items with a `role`; images and audio as data URIs, video by link |
+| `kling/kling-v3-omni` · Kling 3 Omni | Video | First frame, Last frame, Reference image (7; 4 with a video), Reference video, Video to edit | images base64 in `image_list[]`; videos by link in `video_list[]` with `refer_type` `feature` or `base` |
+| `byteplus/dreamina-seedance-2-5-260628` · Seedance 2.5 | Video + audio | First frame, Last frame, Reference image (30), Reference video (10), Reference audio (10), Video to edit | `content[]` items with a `role`; images and audio as data URIs, video by link |
 | `veo/veo-3.1-fast-generate-001` · Veo 3.1 Fast | Video + audio | First frame, Last frame, Reference image (3), Style image, Video to extend | `instances[0]`, `{bytesBase64Encoded, mimeType}` |
-| `wan/wan3.0-video` · Wan 3.0 | Video + audio | First frame, Last frame, Reference image (9), Reference video (5), Reference audio (5) | `input.media[]` items `{type, url}`; images as data URIs, video and audio by link |
-| `wan/happyhorse-1.1` · HappyHorse | Video | First frame, Reference image (9), Video to edit | `input.media[]`; the inputs pick the model id (`-t2v`, `-i2v`, `-r2v`, or `happyhorse-1.0-video-edit`) |
-| `openai/gpt-image-2` · GPT Image 2 | Photo | Photo (4) | `image[]`, data URIs |
-| `vertexai/gemini-nano-banana-2.1` · Nano Banana 2.1 | Photo | Photo (4) | `contents[0].parts[]`, `inlineData` |
-| `byteplus/seedream-5-0-pro-260628` · Seedream 5.0 Pro | Photo | Photo (9) | `image[]`, data URIs |
+| `wan/wan3.0-video` · Wan 3.0 | Video + audio | First frame, Last frame, Reference image (10), Reference video (5), Reference audio (5) | `input.media[]` items `{type, url}`; images as data URIs, video and audio by link |
+| `wan/happyhorse-1.1` · HappyHorse | Video | First frame, Reference image (9; 5 when editing a video), Video to edit | `input.media[]`; the inputs pick the model id (`-t2v`, `-i2v`, `-r2v`, or `happyhorse-1.0-video-edit`) |
+| `openai/gpt-image-2` · GPT Image 2 | Photo | Photo (16) | `image[]`, data URIs |
+| `vertexai/gemini-nano-banana-2.1` · Nano Banana 2.1 | Photo | Photo (14) | `contents[0].parts[]`, `inlineData` |
+| `byteplus/seedream-5-0-pro-260628` · Seedream 5.0 Pro | Photo | Photo (10) | `image[]`, data URIs |
 | `bfl/flux-2-max` · FLUX 2 Max | Photo | Photo (9) | `input_image`, `input_image_2` … `input_image_9`, base64 |
 | `xai/grok-imagine-image-2.0` · Grok Imagine Image 2.0 | Photo | none: text to image only | — |
+
+Each max is the model's own published limit: Router's schema where it states one
+(GPT Image 2's 16, Seedream's 10, Wan's per-type caps, Veo's 3, FLUX's nine
+fields), else the provider's or Comfy's docs where the schema defers (Seedance 2.5:
+30 images, 10 videos, 10 audio; Nano Banana 2.1: 14; Kling 3 Omni: 7, or 4 beside a
+video). We never cap below it.
+
+What each model takes in one file (`fit`); runs make every file fit:
+
+| Model | Photos | Clips | Sounds | Per request |
+| --- | --- | --- | --- | --- |
+| Kling 3 Omni | ≥ 300 px, 2:5 to 5:2, ≤ 10 MB | 3–10 s, 24–60 fps, 720–2160 px, ≤ 200 MB | — | Router's |
+| Seedance 2.5 | 300–6000 px, 2:5 to 5:2, ≤ 30 MB | 2–30 s (4–30 to edit), 30 s in all, 24–60 fps, 300–6000 px, 0.41–8.3 MP, ≤ 200 MB | 2–30 s, 30 s in all, ≤ 15 MB | Router's |
+| Veo 3.1 Fast | — | to extend: 1–30 s at 24 fps | — | Router's |
+| Wan 3.0 | 240–8000 px, 1:8 to 8:1, ≤ 20 MB | 15 s in all | 15 s in all | Router's |
+| HappyHorse | first frame ≥ 300 px, 2:5 to 5:2; references ≥ 400 px; ≤ 20 MB | to edit: 3–60 s, 360–4096 px, 2:5 to 5:2, ≤ 100 MB | — | Router's |
+| GPT Image 2 | ≤ 25 MB | — | — | 67 MB |
+| Nano Banana 2.1 | ≤ 7 MB | — | — | 14 MB |
+| Seedream 5.0 Pro | ≥ 15 px, ≤ 36 MP, 1:16 to 16:1, ≤ 30 MB | — | — | Router's |
+| FLUX 2 Max | ≥ 256 px, ≤ 16 MP, ≤ 15 MB | — | — | Router's |
+
+From Router's schemas, except Seedance's per-file limits (BytePlus's docs as
+quoted in griptape-nodes issue 818; Router's schema defers to BytePlus) and
+Nano Banana's 7 MB a photo (Vertex AI's inline limit). "Router's" is its 100 MiB
+body, about 77 MB of files before base64.
 
 Not yet: masks (GPT Image inpainting, Veo insert/remove), Kling `element_list`,
 Seedance drafts, Wan effect templates.
@@ -549,14 +606,19 @@ Each input:
   "type": "video",                       // image | video | audio
   "at": ["video_list", "+"],             // path into body; "+" appends to a list
   "value": { "video_url": "{{$|url}}", "refer_type": "base", "keep_original_sound": "yes" },
-  "max": 1,                              // files this role takes (1–9; above 1, "at" ends in "+"
-                                         //   or lists one path per file)
+  "max": 1,                              // files this role takes: the model's published limit
+                                         //   (above 1, "at" ends in "+" or lists one path per file)
+  "max_with": { "roles": ["Reference video"], "max": 4 },  // a lower max while one of these is filled
   "set": ["edit"],                       // which modes it belongs to (below)
   "needs": "First frame",                // a role that must be filled too
   "with": [[["sound"], "off"]],          // when filled: set these paths in the body
-  "drop": [["duration"], ["aspect_ratio"]]   // when filled: remove these paths
+  "drop": [["duration"], ["aspect_ratio"]],  // when filled: remove these paths
+  "fit": { "short": [720, null], "long": [null, 2160], "seconds": [3, 10], "fps": [24, 60], "mb": 200 }
 }
 ```
+
+and at the top level, `"media_mb": 14` when the model caps how much a request
+may carry inline (Nano Banana: Google's 20 MB, base64 included).
 
 - **Paths** are lists of keys and list indexes. `"+"` as the last step appends to
   a list, made if missing. For a model that takes numbered fields instead of a
@@ -570,13 +632,21 @@ Each input:
   one set with every other; inputs without `set` go with anything. Kling: First
   and Last frame are `["frames"]`, Reference image is `["references", "edit"]`,
   Reference video `["references"]`, Video to edit `["edit"]`. So a reference image
-  can join an edit, but a first frame can't. Each set name is also a mode tab in
-  the Builder, labelled from `SET_LABEL` (`frames` → Image to video).
+  can join an edit, but a first frame can't. Each set name is also a job card in
+  the Builder, named from `SET_KIND` (`frames` → Animate a photo).
 - **`needs`**: Last frame needs First frame.
 - **`with` / `drop`** are the request's side effects of a role. Seedance's Video
   to edit sets `duration` to `-1` (edits keep the clip's length); Kling's drops
   `duration` and `aspect_ratio`; Veo's Video to extend sets
   `parameters.task` to `extend`.
+- **`fit`** (optional): what the model takes in one file. Ranges are
+  `[least, most]`, `null` for an open end: `short` and `long` (sides in px),
+  `pixels`, `aspect` (width / height), `seconds`, `fps`; numbers `mb` (one file)
+  and `total` (seconds across all files of the role). Photos take no seconds,
+  total or fps; sounds only seconds, total and mb. A run makes every file fit
+  (see [One run](#one-run-end-to-end)); a template finds its inputs' fits from
+  the adapter at run time, so a limit added later reaches templates built before.
+  A local template can put the same `fit` on any photo, clip or sound input.
 - **`models`** (optional): when a family splits its modes over several model ids,
   list them with the roles each takes. A run goes to the first one that takes
   every filled role; the template keeps that id.
@@ -619,8 +689,10 @@ only fills tokens and reads `result` paths.
 2. **Write `server/adapters/{provider}__{model}.json`.** Start `body` from the
    docs' example request. One input per role from the roles table; if a field
    doesn't fit a role, add a role to the table in this README first. Group the
-   inputs into `set`s by mode; a set name the app hasn't seen needs a label in
-   `SET_LABEL` (`ui/src/screens/builder/modes.ts`), or its tab shows the raw name.
+   inputs into `set`s by mode; a set name the app hasn't seen goes in `SET_KIND`
+   (`ui/src/screens/builder/modes.ts`), or its job is guessed from its roles. A new
+   role gets a hint in `ROLE_HINT` there. Copy every per-file limit the docs state
+   into the input's `fit`, and a per-request one into `media_mb`; don't invent any.
 3. **Set `result`** from the docs' example answer. Several paths are fine; the
    first that holds media wins.
 4. **Test.** `pytest -q` checks every adapter parses and that each role assembles
@@ -675,7 +747,9 @@ second base URL plus the key; not planned yet.
 | 5 | Every mode of every model: roles, adapter format v2 (`set` lists, `with`/`drop`, `models`, path lists, audio), files by link | built, tested against fakes |
 | 5b | Settled design: mode tabs per Router model, Back through the Builder's steps, design rules written down | done |
 | 6 | First real run of each model and mode with a key; fix what Router refuses; switch on checked variants | yours to run |
-| 7 | Storage: safe writes, secrets apart, one server per home, scratch that cleans itself, `.illusionbackup` back up and merge-restore | built, tested on throwaway homes |
+| 7 | Storage: safe writes, secrets off disk, one server per home, scratch that cleans itself, `.illusionbackup` back up and merge-restore | built, tested on throwaway homes |
+| 8 | Inputs fitted to each model: published per-file limits in adapters (`fit`, `media_mb`); runs crop, scale, cut, resample and re-encode to them; Create lists the changes | built, tested against fakes |
+| 9 | Dataset prep, per file: one workbench editor for every photo, clip and sound (inline on Create's stage, a sheet in the Builder), file cards that say whether the model takes each file, the model's limits as pills with Fit to spec and the Builder's Fit all; any common format converted on upload | built, tested; batch editing next |
 
 ## Known weak spots
 
@@ -685,7 +759,7 @@ second base URL plus the key; not planned yet.
 | med | Files by link | Unknown until a real key tries it: whether uploading needs a Comfy Cloud subscription, and how long the signed link lives. | Phase 6 |
 | med | Backups | Only run on small throwaway libraries. Time, disk room and progress on a library of many GB, and a restore across machines, are untested. | Back up and restore a real library into a fresh `OPENILLUSION_HOME` |
 | low | Proxy | The proxy token is passed to comfy-api-proxy on the command line (`--token`), so it shows in the process list to anyone on the machine. | Pass it by environment or a private file |
-| med | Limits | Per-model file limits (clip length, size, resolution) are in the docs, not enforced here; Router's refusal says what's wrong. | Read limits into adapters if refusals are common |
+| med | Limits | Fits are read from docs, never from a refusal. Seedance's per-file numbers come second-hand; Kling's "720–2160 px" for clips is read as both sides; HappyHorse's 2:5–5:2 for references when editing isn't applied (it would crop reference-only runs too). | Phase 6: correct any fit a real refusal disagrees with |
 
 ## Run
 
@@ -701,7 +775,8 @@ npm --prefix ui run build
 
 The app serves on http://127.0.0.1:7870. Local runs need ComfyUI on `:8188`; the
 app starts comfy-api-proxy on `:8189` itself. Cloud runs need a Comfy API key,
-added in Settings.
+pasted in Settings once per browser (the server never saves it). A headless server
+that must keep cloud runs going across restarts can take it from `COMFY_API_KEY`.
 
 ## Develop
 
@@ -719,8 +794,12 @@ Conventions:
   roles, an adapter's model or a phase, update this README in the same commit.
 - **No guessing from schemas at run time.** A model's behaviour lives in its
   adapter file, written from its docs.
-- **Secrets stay on the server.** The API key and proxy token are never sent to
-  the browser or written into a generation.
+- **Secrets stay off the server's disk.** The API key and proxy token live in the
+  browser's storage and the server's memory; the server never sends them back, and
+  never writes them into a settings file, a generation or a backup. A CSP runs only
+  the app's own bundle, so a script that got in couldn't send the key anywhere.
+- **Networking is the deployer's.** https, reverse proxies, logins and who can reach
+  the port are left to whoever runs it; the app only refuses cross-origin writes.
 - **Nothing installs itself.** Missing ComfyUI nodes and models are listed, never
   installed.
 - **Tests fake the network.** Router, Comfy Cloud and ComfyUI are `httpx`

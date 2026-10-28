@@ -2,13 +2,17 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { I } from "../../components/oi";
 import type { IconName } from "../../components/sprite";
-import { isImage, isVideo, useFileDrop } from "../../components/Drop";
+import { isAudio, isImage, isVideo, useFileDrop } from "../../components/Drop";
+import { FitLine, MediaSheet, MediaThumb, metaOf } from "../../components/MediaEditor";
+import { ACCEPT, ACCEPT_AUDIO, ACCEPT_VIDEO } from "../create/shared";
 import { useUploader } from "../../components/Refs";
 import { cx, Spinner } from "../../components/ui";
-import type { MediaKind, WorkflowAnalysis } from "../../lib/api";
+import { api, type Asset, type Fit, type MediaKind, type RouterAdapter, type WorkflowAnalysis } from "../../lib/api";
+import { checks, fitEdits, NO_EDITS, outOf, statusOf, toOps, type State } from "../../lib/edits";
+import { errMsg } from "../../lib/format";
 import { useApp } from "../../lib/store";
 import { type Details, human, KIND_ICON, KIND_NOUN, type MediaRow, type OutputState, type PromptState, type Source } from "./model";
-import { modeOf, routerModes, runMode, toMode } from "./modes";
+import { adapterProblems, fitText, jobOf, type JobKind, maxOf, type Need, ROLE_HINT, routerJobs, runSays, toJob } from "./modes";
 
 function Sec({ id, icon, color, title, desc, aside, children }: { id: string; icon: IconName; color?: string; title: string; desc: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
@@ -72,7 +76,7 @@ export const slotNames = (rows: { kind: MediaKind }[]) => {
   return rows.map((r) => `${KIND_NOUN[r.kind]} ${(n[r.kind] = (n[r.kind] ?? 0) + 1)}`);
 };
 
-export function InputsSection({ src, rows, setRows }: { src: Source; rows: MediaRow[]; setRows: (f: (r: MediaRow[]) => MediaRow[]) => void }) {
+export function InputsSection({ rows, setRows }: { rows: MediaRow[]; setRows: (f: (r: MediaRow[]) => MediaRow[]) => void }) {
   const { upload, busy } = useUploader();
   const up = (key: string, p: Partial<MediaRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
   const pickSample = async (r: MediaRow, f?: File) => {
@@ -80,66 +84,220 @@ export function InputsSection({ src, rows, setRows }: { src: Source; rows: Media
     const [a] = await upload([f], r.kind);
     if (a) up(r.key, { sample: a, own: true });
   };
-  // A Router input that takes several files gets one row each.
-  const group = (r: MediaRow) => (r.slot !== undefined ? `in${r.slot}` : r.key);
-  const addSlot = (r0: MediaRow) => setRows((rs) => {
-    const same = rs.filter((r) => group(r) === group(r0));
-    const last = same[same.length - 1];
-    const row: MediaRow = { ...last, key: `${last.slot}:${same.length}`, sample: null, own: false };
-    const at = rs.indexOf(last) + 1;
-    return [...rs.slice(0, at), row, ...rs.slice(at)];
-  });
-  const cloud = src.kind === "cloud";
   const shown = rows.filter((r) => r.on);
-  // "Image 1", "Image 2": a Router template's inputs are the filled rows, in order.
-  const filled = slotNames(shown.filter((r) => !cloud || r.sample));
-  let k = 0;
-  const names = shown.map((r) => (!cloud || r.sample ? filled[k++] : r.label));
-  const modes = cloud ? routerModes(src.a) : [];
-  const mode = modeOf(modes, rows);
+  const names = slotNames(shown);
   return (
     <Sec id="in" icon="upload" color="var(--mint)" title="Inputs"
-      desc={cloud
-        ? `${modes.length ? `Pick what this template does, then fill` : "Fill"} the inputs it uses: it asks for exactly those, and empty ones aren't in it.`
-        : "Found in the workflow. Drop a sample into each: the first run uses it, and it ships as the template's default."}
-      aside={cloud ? (modes.length ? undefined : <span className="mono">{runMode(src.a, shown)}</span>) : shown.length ? <span className="mono">{shown.length}</span> : undefined}>
-      {modes.length > 0 && (
-        <div className="seg bld-modes" role="radiogroup" aria-label="What this template does">
-          {modes.map((m) => (
-            <button key={m.id} type="button" role="radio" aria-checked={mode?.id === m.id} aria-pressed={mode?.id === m.id}
-              onClick={() => setRows((rs) => toMode(m, rs))}>{m.label}</button>
-          ))}
-        </div>
-      )}
+      desc="Found in the workflow. Drop a sample into each: the first run uses it, and it ships as the template's default. Edit a sample to crop, turn, size or cut it."
+      aside={shown.length ? <span className="mono">{shown.length}</span> : undefined}>
       {!shown.length ? (
-        <p className="help">{src.kind === "local" ? "No photo or video loaders in this workflow. People only write the prompt."
-          : modes.length ? "No files: people only write the prompt." : "This model takes no media. People only write the prompt."}</p>
+        <p className="help">No photo or video loaders in this workflow. People only write the prompt.</p>
       ) : (
-        <div className="bslots">
-          {shown.map((r, i) => {
-            const lastOfField = (r.max ?? 1) > 1 && shown.filter((x) => group(x) === group(r)).slice(-1)[0]?.key === r.key;
-            const count = shown.filter((x) => group(x) === group(r)).length;
-            const noun = r.kind === "video" ? "clip" : r.kind === "audio" ? "sound" : "photo";
-            return (
-              <div key={r.key} className={cx("bslot", r.sample && "has")} style={{ "--i": i } as CSSProperties}>
-                <SlotDrop r={r} name={names[i]} busy={busy > 0} onFile={(f) => void pickSample(r, f)} />
-                <div className="bmeta">
-                  <div className="bmeta-top"><b>{names[i]}</b>{(!cloud || r.sample) && <span className="nd" title={r.where}>{r.where}</span>}</div>
-                  <div className="bsub">
-                    {r.sample ? <><span className={r.own ? "tag-own" : "tag-sample"}>{r.own ? "YOURS" : "SAMPLE"}</span><span className="mono" title={r.sample.name}>{r.sample.width && r.sample.height ? `${r.sample.width}×${r.sample.height}` : r.sample.name}</span>
-                      <button className="bld-x" type="button" onClick={() => up(r.key, { sample: null, own: false })}>Remove</button></>
-                      : <span className={r.required ? "need" : undefined}>{r.required ? `Needs a sample ${noun}` : cloud ? "Empty: not in the template" : "Optional"}</span>}
-                  </div>
-                  {lastOfField && count < (r.max ?? 1) && <div className="bmeta-foot"><button className="btn sm ghost" type="button" onClick={() => addSlot(r)}><I n="plus" />Another {noun}</button></div>}
-                </div>
-              </div>
-            );
-          })}
+        <div className="bcards">
+          {shown.map((r, i) => (
+            <SampleCard key={r.key} r={r} name={names[i]} sub={r.where} busy={busy > 0} onFile={(f) => void pickSample(r, f)}
+              onApply={(a) => up(r.key, { sample: a, own: true })} onRemove={() => up(r.key, { sample: null, own: false })} style={{ "--i": i } as CSSProperties} />
+          ))}
         </div>
       )}
     </Sec>
   );
 }
+
+const KIND_TILE: Record<JobKind, MediaKind[]> = { text: [], photos: ["image"], frames: ["image"], refs: [], vedit: ["video"], extend: ["video"], style: ["image"] };
+
+/** Cloud, step one: what the template does. Each job is a card; one job, no cards. */
+export function JobSection({ a, rows, setRows }: { a: RouterAdapter; rows: MediaRow[]; setRows: (f: (r: MediaRow[]) => MediaRow[]) => void }) {
+  const jobs = routerJobs(a);
+  const cur = jobOf(jobs, rows);
+  if (jobs.length < 2) return null;
+  const out: MediaKind = a.mode === "motion" ? "video" : "image";
+  return (
+    <Sec id="job" icon="wand" color="var(--yellow)" title="What it does" desc={`${a.name} does ${jobs.length} things. Pick one: it decides what people are asked for.`}>
+      <div className="bjobs" role="radiogroup" aria-label="What this template does">
+        {jobs.map((j) => {
+          // What goes in: the kinds of file the job takes, then the prompt.
+          const ins = [...new Set(KIND_TILE[j.kind].length ? KIND_TILE[j.kind] : j.inputs.map((i) => a.inputs[i].type))];
+          return (
+            <button key={j.id} type="button" role="radio" aria-checked={cur?.id === j.id} className="bjob" onClick={() => setRows((rs) => toJob(j, rs))}>
+              <span className="bjob-flow" aria-hidden>
+                {ins.map((k) => <span key={k} className={cx("t", k)}><I n={KIND_ICON[k]} /></span>)}
+                <span className="t txt"><I n="pencil" /></span>
+                <I n="right" className="arr" />
+                <span className={cx("t out", out)}><I n={KIND_ICON[out]} /></span>
+              </span>
+              <b>{j.label}</b>
+              <span className="d">{j.desc}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Sec>
+  );
+}
+
+const NEED: Record<Need, [string, string]> = { yes: ["req", "Required"], no: ["opt", "Optional"], any: ["any", "One of these"] };
+
+/** Cloud, step two: the job's inputs, one group per role. What you fill is what people are asked for. */
+export function CloudInputs({ a, rows, setRows }: { a: RouterAdapter; rows: MediaRow[]; setRows: (f: (r: MediaRow[]) => MediaRow[]) => void }) {
+  const { upload, busy } = useUploader();
+  const toast = useApp((s) => s.toast);
+  const [loading, setLoading] = useState<string | null>(null);
+  const j = jobOf(routerJobs(a), rows);
+  const names = filledNames(rows);
+  const take = async (r: MediaRow, f: File, add: boolean) => {
+    setLoading(r.key);
+    const [x] = await upload([f], r.kind).finally(() => setLoading(null));
+    if (!x) return;
+    setRows((rs) => {
+      if (!add) return rs.map((y) => (y.key === r.key ? { ...y, sample: x, own: true } : y));
+      const at = rs.map((y) => y.slot).lastIndexOf(r.slot) + 1;
+      return [...rs.slice(0, at), { ...r, key: `${r.slot}:${Date.now()}`, sample: x, own: true }, ...rs.slice(at)];
+    });
+  };
+  // Emptying one of several files takes its tile away; the last one stays, empty.
+  const remove = (r: MediaRow) => setRows((rs) => (rs.filter((y) => y.slot === r.slot).length > 1
+    ? rs.filter((y) => y.key !== r.key) : rs.map((y) => (y.key === r.key ? { ...y, sample: null, own: false } : y))));
+  const problems = adapterProblems(a, rows);
+  const [fitting, setFitting] = useState<number | null>(null);
+  // Every sample in a role that a run would change, made to fit now. One new file each; the originals stay.
+  const fitAll = async (i: number, fit: Fit) => {
+    const todo = rows.filter((r) => r.on && r.slot === i && r.sample && statusOf(r.sample, fit, NO_EDITS, a.name)?.state === "fix");
+    setFitting(i);
+    try {
+      for (const r of todo) {
+        const m = r.sample!;
+        const made = await api.mediaEdit(m.asset, toOps(fitEdits(m, fit, NO_EDITS).edits, m), m.name);
+        setRows((rs) => rs.map((y) => (y.key === r.key ? { ...y, sample: made, own: true } : y)));
+      }
+      toast({ text: `${todo.length === 1 ? "1 file" : `${todo.length} files`} made to fit ${a.name}. The originals are kept.`, tone: "ok" });
+    } catch (e) {
+      toast({ text: errMsg(e), tone: "error" });
+    } finally {
+      setFitting(null);
+    }
+  };
+  return (
+    <Sec id="in" icon="upload" color="var(--mint)" title="Inputs"
+      desc={j?.inputs.length ? "Drop a sample in each one you want. People are asked for every input you fill, and your samples are the defaults. Edit a sample to fit the model, or leave it: a run fits it anyway." : "None: people only write the prompt."}>
+      {/* What the job must have comes first. */}
+      {j && [...j.inputs].sort((x, y) => +(j.need[y] === "yes") - +(j.need[x] === "yes")).map((i) => {
+        const x = a.inputs[i];
+        const group = rows.filter((r) => r.on && r.slot === i);
+        const n = group.filter((r) => r.sample).length;
+        const [cls, word] = NEED[j.need[i]];
+        const last = group[group.length - 1];
+        const cap = maxOf(a, i, rows);
+        const files = group.filter((r) => r.sample).map((r) => r.sample!);
+        const fixable = x.fit ? files.filter((m) => statusOf(m, x.fit, NO_EDITS, a.name)?.state === "fix").length : 0;
+        return (
+          <div key={i} className="brole">
+            <div className="brole-h">
+              <b>{x.role}</b><span className={cx("bneed", cls)}>{word}</span>
+              {x.max > 1 && <span className={cx("bcount mono", n > cap && "over")} title={cap < x.max ? `${x.max} on its own, ${cap} with a ${x.max_with!.roles.map((r) => r.toLowerCase()).join(" or ")}` : undefined}>{n}/{cap}</span>}
+              {ROLE_HINT[x.role] && <span className="bhint">{ROLE_HINT[x.role]}</span>}
+              <span style={{ flex: 1 }} />
+              {x.fit && fixable > 0 && (
+                <button className="btn sm" type="button" disabled={fitting != null} onClick={() => void fitAll(i, x.fit!)} title={`Make ${fixable === 1 ? "this file" : "these files"} meet ${a.name}'s limits now, as new files`}>
+                  {fitting === i ? <Spinner size={12} /> : <I n="wand" />}{fixable === 1 ? "Fit it to spec" : `Fit all ${fixable} to spec`}
+                </button>
+              )}
+            </div>
+            {x.fit && (files.length ? <RolePills fit={x.fit} files={files} /> : <span className="bfit mono" title={`What ${a.name} takes. Runs crop, scale and cut each file to fit.`}>{fitText(x.fit)}</span>)}
+            <div className="bcards">
+              {group.map((r) => (
+                <SampleCard key={r.key} r={r} name={names.get(r.key) ?? x.role} fit={x.fit} model={a.name} role={x.role} busy={busy > 0} loading={loading === r.key}
+                  onFile={(f) => void take(r, f, false)} onApply={(s) => setRows((rs) => rs.map((y) => (y.key === r.key ? { ...y, sample: s, own: true } : y)))} onRemove={() => remove(r)} />
+              ))}
+              {last?.sample && group.length < cap && (
+                <div className="bcard add">
+                  <SlotDrop r={{ ...last, key: `${i}:add`, sample: null }} name={x.role} busy={busy > 0} loading={loading === `${i}:add`} more onFile={(f) => void take({ ...last, key: `${i}:add` }, f, true)} />
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      <p className={cx("bsays", problems.length > 0 && "bad")} role="status"><i aria-hidden />{problems[0] ?? runSays(a, rows)}</p>
+    </Sec>
+  );
+}
+
+/** A role's limits, each counted across its files: "Shape 2:5 to 5:2 · 1 of 2 off". */
+function RolePills({ fit, files }: { fit: Fit; files: Asset[] }) {
+  const each = files.map((m) => checks(m.kind as "image", fit, outOf(m, NO_EDITS)));
+  return (
+    <div className="bpills">
+      {each[0].map((c) => {
+        const states = each.map((l) => l.find((y) => y.key === c.key)?.state).filter(Boolean) as State[];
+        const off = states.filter((v) => v === "fix" || v === "bad").length;
+        const st: State = c.state === "auto" ? "auto" : states.includes("bad") ? "bad" : off ? "fix" : "ok";
+        return (
+          <span key={c.key} className={cx("lpill", st)} title={st === "fix" ? `A run ${c.run}` : st === "auto" ? "Made so when it runs" : undefined}>
+            <i className="dot" />{c.label}{st === "auto" ? <span className="mono">at run</span> : off ? <span className="mono">{files.length === 1 ? "off" : `${off} of ${files.length} off`}</span> : null}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** One input's sample as a card: the file, whether the model takes it, and Edit, Replace, Remove. Empty, it's a drop zone. */
+function SampleCard({ r, name, sub, fit, model, role, busy, loading, onFile, onApply, onRemove, style }: {
+  r: MediaRow; name: string; sub?: string; fit?: Fit; model?: string; role?: string; busy: boolean; loading?: boolean;
+  onFile: (f: File) => void; onApply: (a: Asset) => void; onRemove: () => void; style?: CSSProperties;
+}) {
+  const [open, setOpen] = useState(false);
+  const toast = useApp((s) => s.toast);
+  const m = r.sample;
+  const noun = r.kind === "video" ? "clip" : r.kind === "audio" ? "sound" : "photo";
+  const fits = (f: File) => (r.kind === "audio" ? isAudio(f) : r.kind === "video" ? isVideo(f) : isImage(f));
+  const drop = useFileDrop((files) => onFile(files[0]), {
+    accept: fits, disabled: busy || !r.on,
+    onReject: (files) => toast({ text: `${name} takes a ${noun}. ${files[0].name} isn't one.`, tone: "warn" }),
+  });
+  if (!m) {
+    return (
+      <div className="bcard vacant" style={style}>
+        <SlotDrop r={r} name={name} busy={busy} loading={loading} onFile={onFile} />
+        <div className="bcard-b">
+          <div className="bcard-l1"><b>{name}</b>{sub && <small title={sub}>{sub}</small>}</div>
+          <span className={cx("fline", r.required && "need")}><span>{r.required ? `Needs a sample ${noun}` : "Optional"}</span></span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <article className={cx("bcard", drop.over && "drag")} style={style} {...drop.props}>
+      <button type="button" className="bcard-pic" onClick={() => setOpen(true)} title={`Edit ${name}`} aria-label={`Edit ${name}`}>
+        {loading ? <span className="bd-ic"><Spinner size={16} /></span> : <MediaThumb m={m} />}
+      </button>
+      <div className="bcard-b">
+        <div className="bcard-l1"><b>{name}</b><small title={m.name}>{sub ?? m.name}</small><em className={r.own ? "tag-own" : "tag-sample"}>{r.own ? "YOURS" : "SAMPLE"}</em></div>
+        <span className="bcard-meta mono">{metaOf(m)}</span>
+        {fit && model && <FitLine m={m} fit={fit} model={model} />}
+        <div className="bcard-acts">
+          <button className="btn sm" type="button" onClick={() => setOpen(true)}><I n="pencil" />Edit</button>
+          <span style={{ flex: 1 }} />
+          <label className="icon-btn sm" title={`Replace with another ${noun}`} aria-label={`Replace ${name}`}>
+            <I n="upload" />
+            <input type="file" hidden accept={r.kind === "video" ? ACCEPT_VIDEO : r.kind === "image" ? ACCEPT : ACCEPT_AUDIO} disabled={busy}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+          </label>
+          <button className="icon-btn sm" type="button" onClick={onRemove} aria-label={`Remove ${name}`} title="Remove"><I n="x" /></button>
+        </div>
+      </div>
+      {open && <MediaSheet m={m} fit={fit} model={model} role={role} title={`Edit ${name}`} onClose={() => setOpen(false)} onApply={onApply} />}
+    </article>
+  );
+}
+
+/** "Image 1" for each filled row, by row key: what Create calls it. */
+const filledNames = (rows: MediaRow[]) => {
+  const filled = rows.filter((r) => r.on && r.sample);
+  const names = slotNames(filled);
+  return new Map(filled.map((r, i) => [r.key, names[i]]));
+};
 
 export function PromptSection({ src, p, setP }: { src: Source; p: PromptState; setP: (f: (p: PromptState) => PromptState) => void }) {
   const set = (k: keyof PromptState) => (e: { target: { value: string } }) => setP((x) => ({ ...x, [k]: e.target.value }));
@@ -223,9 +381,9 @@ export function TitleField({ d, setD, invalid }: { d: Details; setD: (f: (d: Det
 }
 
 /** A media input's sample: a drop zone in the input's shape. Click to pick a file, or drop one on it. */
-function SlotDrop({ r, name, busy, onFile }: { r: MediaRow; name: string; busy: boolean; onFile: (f: File) => void }) {
+function SlotDrop({ r, name, busy, loading, more, onFile }: { r: MediaRow; name: string; busy: boolean; loading?: boolean; more?: boolean; onFile: (f: File) => void }) {
   const toast = useApp((s) => s.toast);
-  const fits = (f: File) => (r.kind === "audio" ? f.type.startsWith("audio/") : r.kind === "video" ? isVideo(f) : isImage(f));
+  const fits = (f: File) => (r.kind === "audio" ? isAudio(f) : r.kind === "video" ? isVideo(f) : isImage(f));
   const noun = r.kind === "video" ? "clip" : r.kind === "audio" ? "sound" : "photo";
   const drop = useFileDrop((files) => onFile(files[0]), {
     accept: fits, disabled: busy || !r.on,
@@ -233,17 +391,17 @@ function SlotDrop({ r, name, busy, onFile }: { r: MediaRow; name: string; busy: 
   });
   return (
     <label className={cx("bdrop", r.kind === "video" && "v", drop.over && "drag")} title={r.sample ? "Replace the sample: click or drop a file" : `Choose a ${noun}`} {...drop.props}>
-      {busy ? <span className="bd-ic"><Spinner size={16} /></span>
+      {(loading ?? busy) ? <span className="bd-ic"><Spinner size={16} /></span>
         : r.sample ? <>
-          <img src={r.sample.poster ?? r.sample.url} alt={`${name} sample`} />
+          {r.sample.poster || r.kind === "image" ? <img src={r.sample.poster ?? r.sample.url} alt={`${name} sample`} /> : <span className="bd-ic"><I n={KIND_ICON[r.kind]} /></span>}
           {r.kind === "video" && <span className="play"><I n="play" /></span>}
           <span className="swap"><I n="upload" />Replace</span>
         </> : <>
           <span className="bd-ic"><I n={KIND_ICON[r.kind]} /></span>
-          <b>{drop.over ? "Drop it" : `Drop a ${noun}`}</b>
-          <span>or click to choose</span>
+          <b>{drop.over ? "Drop it" : more ? `Another ${noun}` : `Drop a ${noun}`}</b>
+          {!more && <span>or click to choose</span>}
         </>}
-      <input type="file" hidden accept={r.kind === "video" ? "video/*" : r.kind === "image" ? "image/*" : "audio/*"} disabled={busy || !r.on} onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+      <input type="file" hidden accept={r.kind === "video" ? ACCEPT_VIDEO : r.kind === "image" ? ACCEPT : ACCEPT_AUDIO} disabled={busy || !r.on} onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
     </label>
   );
 }

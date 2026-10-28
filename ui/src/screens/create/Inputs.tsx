@@ -1,201 +1,231 @@
-// Create's input tiles: photos, clips and sound, with their shape and size.
-import { useRef, useState, type CSSProperties } from "react";
-import { clipSlot as asClip } from "../../components/Drop";
+// Create's inputs: one card per photo, clip or sound input, and the editor the picked one opens on the stage.
+// Edits wait on the input (store `edits`); crop and cut ride along as the run's crop and trim, the rest is made into a
+// new file when it runs (bakePending), or now with "Apply now".
+import { useRef, useState } from "react";
+import { clipSlot as asClip, isAudio, isImage, isVideo } from "../../components/Drop";
+import { Editor, FitLine, MediaThumb, metaOf, type Media } from "../../components/MediaEditor";
 import { cx, I } from "../../components/oi";
 import { bySlot, useUploader, withRefs } from "../../components/Refs";
-import { Trimmer } from "../../components/Trimmer";
+import { tplModel } from "../../components/TemplateCard";
 import { Spinner } from "../../components/ui";
-import type { EngineInfo, SizeSpec } from "../../lib/api";
-import { clipFps, clipWindow, roleOf, slotNo, type MediaField } from "../../lib/fields";
-import { EDIT_ROLES } from "../../lib/format";
-import { clipIn, slotOf, soundIn, withClip, withSound, type RefSlot, type SoundSlot, type StudioState, type VideoSlot } from "../../lib/store";
-import { choiceOf, dimsText, megapixels, plan, plans, SHAPES, shapeCrop, shapeOf, sizeNotes, type Crop, type PrepInput } from "../../lib/size";
-import { CropBox, ShapeIcon } from "./Canvas";
-import { ACCEPT, ACCEPT_AUDIO, ACCEPT_VIDEO, sampleRef, sampleVideo, type SetS, withInput } from "./shared";
+import { api, type Asset, type EngineInfo, type SizeSpec } from "../../lib/api";
+import { fitEdits, isEdited, needsFile, NO_EDITS, statusOf, toOps, type Edits } from "../../lib/edits";
+import { fitOf, roleOf, slotNo, type MediaField } from "../../lib/fields";
+import { EDIT_ROLES, errMsg } from "../../lib/format";
+import { choiceOf, dimsText, plans, type PrepInput } from "../../lib/size";
+import { clipIn, slotOf, soundIn, useApp, withClip, withSound, type RefSlot, type SoundSlot, type StudioState, type VideoSlot } from "../../lib/store";
+import { ACCEPT, ACCEPT_AUDIO, ACCEPT_VIDEO, sampleRef, sampleVideo, type SetS } from "./shared";
 
-/** One photo or clip input as a tile, named by its place: what each one is, the prompt says. Click or drop to fill or replace. */
-export function Tile({ e, f, s, set }: { e: EngineInfo; f: MediaField; s: StudioState; set: SetS }) {
-  const video = f.type === "video";
+type Kind = "image" | "video" | "audio";
+type Held = RefSlot | VideoSlot | SoundSlot;
+const kindOf = (f: MediaField): Kind => (f.type === "video" ? "video" : f.type === "audio" ? "audio" : "image");
+const NOUN: Record<Kind, string> = { image: "photo", video: "clip", audio: "sound" };
+
+/** The file in an input, if there is one. Photos get their pixel size from `photos` when the slot doesn't carry it. */
+export function heldOf(st: StudioState, f: MediaField, photos: PrepInput[] = []): Held | null {
+  const k = kindOf(f);
+  if (k === "video") return clipIn(st, f.key);
+  if (k === "audio") return soundIn(st, f.key);
   const n = slotNo(f.key);
+  const r = st.refs.find((x, i) => slotOf(x, i) === n);
+  if (!r) return null;
+  const p = photos.find((x) => x.slot === f.key);
+  return r.width && r.height ? r : p ? { ...r, width: p.width, height: p.height } : r;
+}
+
+/** The studio with one input's file put in, or (null) taken out. */
+function withHeld(st: StudioState, f: MediaField, x: Held | null): Partial<StudioState> {
+  const k = kindOf(f);
+  if (k === "video") return { videos: withClip(st, f.key, x as VideoSlot | null), current: null };
+  if (k === "audio") return { sounds: withSound(st, f.key, x as SoundSlot | null), current: null };
+  const n = slotNo(f.key);
+  return { refs: bySlot([...bySlot(st.refs).filter((y) => y.slot !== n), ...(x ? [{ ...(x as RefSlot), slot: n }] : [])]), current: null };
+}
+
+/** An upload as an input's file. */
+function asHeld(e: EngineInfo, f: MediaField, a: Asset, old: Held | null): Held {
+  const k = kindOf(f);
+  if (k === "video") return asClip(a, e, f.key, (old as VideoSlot | null)?.size);
+  if (k === "audio") return { ...a, slot: f.key, license: "own" } as SoundSlot;
+  const [added] = withRefs([], [a], EDIT_ROLES, "base");
+  return { ...added, slot: slotNo(f.key), size: (old as RefSlot | null)?.size, role: roleOf(e, f.key) };
+}
+
+/** The edits an input shows: its own, or the crop and cut it came with. */
+export function editsOf(h: Held, k: Kind): Edits {
+  if (h.edits) return h.edits;
+  const v = k === "video" ? (h as VideoSlot) : null;
+  const end = v ? v.trim[1] || v.duration || 0 : 0;
+  return { ...NO_EDITS, crop: (h as RefSlot).crop ?? null, trim: v ? [v.trim[0], end] : null };
+}
+
+/** An input's file with new edits. Crop goes to the run's crop when the picture isn't turned; a clip's cut to its trim. */
+function withEdits(h: Held, k: Kind, e: Edits): Held {
+  const plain = !e.rotate && !e.fh && !e.fv;
+  const out: Held = { ...h, edits: isEdited(e, h) ? e : undefined };
+  if (k !== "audio") (out as RefSlot).crop = plain && e.crop ? e.crop : undefined;
+  if (k === "video") (out as VideoSlot).trim = e.trim ?? [0, h.duration ?? 0];
+  return out;
+}
+
+/** Makes an input's waiting edits into a new file; the input then holds it. */
+async function bake(e: EngineInfo, f: MediaField, h: Held): Promise<Held> {
+  const k = kindOf(f);
+  const a = await api.mediaEdit(h.asset, toOps(editsOf(h, k), h), h.name);
+  const next = asHeld(e, f, a, h);
+  if (k === "image") return { ...next, license: h.sample ? "own" : (h as RefSlot).license };
+  return next;
+}
+
+/** Before a run: every input whose edits need a new file gets one. Null when none do. */
+export async function bakePending(st: StudioState, e: EngineInfo, media: MediaField[], photos: PrepInput[]): Promise<StudioState | null> {
+  const todo = media.filter((f) => { const h = heldOf(st, f, photos); return !!h && !h.missing && needsFile(h.edits, h); });
+  if (!todo.length) return null;
+  let next = st;
+  for (const f of todo) next = { ...next, ...withHeld(next, f, await bake(e, f, heldOf(next, f, photos)!)) };
+  return next;
+}
+
+/** One input: what's in it, and the ways to change that. */
+function useSlot(e: EngineInfo, f: MediaField, s: StudioState, set: SetS, photos: PrepInput[]) {
+  const toast = useApp((st) => st.toast);
   const { upload, busy } = useUploader();
+  const k = kindOf(f);
+  const held = heldOf(s, f, photos);
+  const put = (x: Held | null) => set((st) => withHeld(st, f, x));
+  const sample: Held | null = k === "video" ? sampleVideo(e, f.key) : k === "image" ? sampleRef(e, f.key)
+    : (() => { const d = e.defaults?.inputs.find((x) => x.slot === f.key); return d ? ({ ...d, slot: f.key, sample: true, license: "generated" } as SoundSlot) : null; })();
+  const fits = (x: File) => (k === "video" ? isVideo(x) : k === "audio" ? isAudio(x) : isImage(x));
+  const fill = async (files: File[]) => {
+    const file = files.find(fits);
+    if (!file) return void toast({ text: `${f.label} takes a ${NOUN[k]}.`, tone: "warn" });
+    const [a] = await upload([file], k);
+    if (a) put(asHeld(e, f, a, held));
+  };
+  const edits = held ? editsOf(held, k) : NO_EDITS;
+  const setEdits = (ed: Edits) => set((st) => { const h = heldOf(st, f, photos); return h ? withHeld(st, f, withEdits(h, k, ed)) : {}; });
+  return { k, held, put, sample, fill, busy: busy > 0, edits, setEdits };
+}
+
+const accept = (k: Kind) => (k === "video" ? ACCEPT_VIDEO : k === "audio" ? ACCEPT_AUDIO : ACCEPT);
+
+/** What a run does to the file, or (no model limits) the size it runs at. */
+function Line({ e, f, h, edits, plan }: { e: EngineInfo; f: MediaField; h: Held; edits: Edits; plan?: { width: number; height: number } | null }) {
+  if (h.missing) return <span className="fline bad"><i className="dot" /><span>File missing: add your own</span></span>;
+  return <FitLine m={h} fit={fitOf(e, f.key)} e={edits} model={tplModel(e)} fallback={plan && kindOf(f) !== "audio" ? <>Runs at <b className="mono">{dimsText(plan)}</b></> : undefined} />;
+}
+
+/** One input as a card: the file as edited, what it is, and whether the model takes it. Pick it to edit it on the stage. */
+export function FileCard({ e, f, s, set, photos, on, plan, onPick }: {
+  e: EngineInfo; f: MediaField; s: StudioState; set: SetS; photos: PrepInput[]; on: boolean; plan?: { width: number; height: number } | null; onPick: () => void;
+}) {
+  const slot = useSlot(e, f, s, set, photos);
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const r = video ? undefined : s.refs.find((x, i) => slotOf(x, i) === n);
-  const v = video ? clipIn(s, f.key) : null;
-  const held = video ? v : r;
-  const thumb = video ? v?.poster : r?.url;
-  const putRef = (x: RefSlot | null) => set((st) => ({ refs: bySlot([...bySlot(st.refs).filter((y) => y.slot !== n), ...(x ? [x] : [])]), current: null }));
-  const putClip = (x: Omit<VideoSlot, "slot"> | null) => set((st) => ({ videos: withClip(st, f.key, x), current: null }));
-  const clear = () => (video ? putClip(null) : putRef(null));
-  const sample = video ? sampleVideo(e, f.key) : sampleRef(e, f.key);
-  const useSample = () => (video ? putClip(sample as VideoSlot) : putRef(sample as RefSlot));
-  const pick = () => input.current?.click();
-  const fill = async (files: File[]) => {
-    const file = files.find((x) => (video ? /^video\// : /^image\//).test(x.type)) ?? files[0];
-    if (!file) return;
-    const [a] = await upload([file], video ? "video" : "image");
-    if (!a) return;
-    if (video) putClip(asClip(a, e, f.key, v?.size));
-    else {
-      const [added] = withRefs([], [a], EDIT_ROLES, "base");
-      putRef({ ...added, slot: n, size: r?.size, role: roleOf(e, f.key) });
-    }
-  };
+  const { held: h, k, edits } = slot;
+  const fit = fitOf(e, f.key);
+  const fixable = !!h && !h.missing && statusOf(h, fit, edits, "")?.state === "fix";
   const drop = {
     onDragOver: (ev: React.DragEvent) => { if (ev.dataTransfer.types.includes("Files")) { ev.preventDefault(); ev.stopPropagation(); setOver(true); } },
     onDragLeave: (ev: React.DragEvent) => { if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) setOver(false); },
-    onDrop: (ev: React.DragEvent) => { if (!ev.dataTransfer.files.length) return; ev.preventDefault(); ev.stopPropagation(); setOver(false); void fill([...ev.dataTransfer.files]); },
+    onDrop: (ev: React.DragEvent) => { if (!ev.dataTransfer.files.length) return; ev.preventDefault(); ev.stopPropagation(); setOver(false); onPick(); void slot.fill([...ev.dataTransfer.files]); },
   };
-  const len = v ? (v.trim[1] || v.duration || 0) - v.trim[0] : 0;
+  const edited = !!h && isEdited(edits, h) && !!h.edits;
   return (
-    <div data-own-drop {...drop} className={cx("tile", !held?.url && "empty", over && "drag", held?.missing && "missing", !held?.url && sample && "has-sample")}>
-      <input ref={input} type="file" accept={video ? ACCEPT_VIDEO : ACCEPT} hidden onChange={(ev) => { void fill([...(ev.target.files ?? [])]); ev.target.value = ""; }} />
-      <button className="tile-main" type="button" onClick={pick} aria-label={held?.url ? `Replace ${f.label}` : `Add ${f.label}`}
-        title={held?.url ? "Click or drop to replace" : `Drop ${video ? "a clip" : "a photo"} or click to browse`}>
-        {thumb ? <img src={thumb} alt="" /> : <I n={video ? "film" : "image"} />}
-        {busy > 0 && <span className="tile-busy"><Spinner size={16} /></span>}
+    <div data-own-drop {...drop} className={cx("fcard", on && "on", over && "drag", !h && "vacant", h?.missing && "missing")}>
+      <input ref={input} type="file" accept={accept(k)} hidden onChange={(ev) => { void slot.fill([...(ev.target.files ?? [])]); ev.target.value = ""; }} />
+      <button className="fcard-main" type="button" aria-current={on || undefined} onClick={() => { onPick(); if (!h) input.current?.click(); }}
+        title={h ? `Edit ${f.label}` : `Add ${f.label}: drop a ${NOUN[k]} or click to choose`}>
+        {h && !h.missing ? <MediaThumb m={h as Media} e={edits} /> : <span className="thumb vacant"><I n={k === "video" ? "film" : k === "audio" ? "sound" : "image"} /></span>}
+        {slot.busy && <span className="fcard-busy"><Spinner size={16} /></span>}
+        <span className="fcard-b">
+          <span className="fcard-l1">
+            <b>{f.label}</b>
+            <small title={h?.name}>{h ? h.name : f.required === false ? "Optional" : "Needed to run"}</small>
+            {edited && <em className="tag-ed" title="Changed in the editor. Made when it runs; the original stays.">Edited</em>}
+            {h?.sample && !h.missing && !edited && <em className="tag-sample">SAMPLE</em>}
+          </span>
+          {h ? <>
+            {!h.missing && <span className="fcard-meta mono">{metaOf(h, edits)}</span>}
+            <Line e={e} f={f} h={h} edits={edits} plan={plan} />
+          </> : <span className="fline"><span>Drop a {NOUN[k]} or click to choose</span></span>}
+        </span>
       </button>
-      <span className="tile-n">{f.label}{!held?.url && f.required === false ? " · optional" : ""}</span>
-      {held?.url && held.sample && !held.missing && <span className="tag-sample tile-tag">SAMPLE</span>}
-      {held?.missing && <span className="tile-miss">File missing</span>}
-      {v?.url && !v.missing && <span className="tile-dur">{len.toFixed(1)}s</span>}
-      {held?.url
-        ? <button className="icon-btn sm glass tile-x" type="button" onClick={clear} aria-label={`Remove ${f.label}`} title="Remove"><I n="x" /></button>
-        : sample && <button className="tile-sample" type="button" onClick={useSample}>Use sample</button>}
+      <span className="fcard-acts">
+        {fixable && fit && <button className="fcard-fit" type="button" onClick={() => { slot.setEdits(fitEdits(h!, fit, edits).edits); onPick(); }} title="Change it so the model takes it as it is">Fit</button>}
+        {h ? <>
+          <button className="icon-btn sm" type="button" onClick={() => input.current?.click()} aria-label={`Replace ${f.label}`} title="Replace"><I n="upload" /></button>
+          <button className="icon-btn sm" type="button" onClick={() => slot.put(null)} aria-label={`Remove ${f.label}`} title="Remove"><I n="x" /></button>
+        </> : slot.sample && <button className="fcard-fit" type="button" onClick={() => { slot.put(slot.sample); onPick(); }}>Use sample</button>}
+      </span>
     </div>
   );
 }
 
-/** A sound input as a tile: click or drop to fill or replace. Sent as it is: no trim, no size. */
-export function SoundTile({ e, f, s, set }: { e: EngineInfo; f: MediaField; s: StudioState; set: SetS }) {
-  const { upload, busy } = useUploader();
-  const input = useRef<HTMLInputElement>(null);
-  const [over, setOver] = useState(false);
-  const a = soundIn(s, f.key);
-  const put = (x: Omit<SoundSlot, "slot"> | null) => set((st) => ({ sounds: withSound(st, f.key, x), current: null }));
-  const d = e.defaults?.inputs.find((x) => x.slot === f.key);
-  const sample = d ? { ...d, sample: true, license: "generated" } : null;
-  const fill = async (files: File[]) => {
-    const file = files.find((x) => x.type.startsWith("audio/")) ?? files[0];
-    if (!file) return;
-    const [got] = await upload([file], "audio");
-    if (got) put({ ...got, license: "own" });
-  };
-  const drop = {
-    onDragOver: (ev: React.DragEvent) => { if (ev.dataTransfer.types.includes("Files")) { ev.preventDefault(); ev.stopPropagation(); setOver(true); } },
-    onDragLeave: (ev: React.DragEvent) => { if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) setOver(false); },
-    onDrop: (ev: React.DragEvent) => { if (!ev.dataTransfer.files.length) return; ev.preventDefault(); ev.stopPropagation(); setOver(false); void fill([...ev.dataTransfer.files]); },
-  };
+/** Local templates: the pixel budget a photo or clip runs at, its own or one of the template's steps. */
+function RunsAt({ size, input, onPick }: { size: SizeSpec; input: PrepInput; onPick: (label: string) => void }) {
+  const choice = choiceOf(size, input.slot, input.size);
   return (
-    <div data-own-drop {...drop} className={cx("tile", !a?.url && "empty", over && "drag", a?.missing && "missing", !a?.url && sample && "has-sample")}>
-      <input ref={input} type="file" accept={ACCEPT_AUDIO} hidden onChange={(ev) => { void fill([...(ev.target.files ?? [])]); ev.target.value = ""; }} />
-      <button className="tile-main" type="button" onClick={() => input.current?.click()} aria-label={a?.url ? `Replace ${f.label}` : `Add ${f.label}`}
-        title={a?.url ? `${a.name}: click or drop to replace` : "Drop a sound or click to browse"}>
-        <I n="zap" />
-        {busy > 0 && <span className="tile-busy"><Spinner size={16} /></span>}
-      </button>
-      <span className="tile-n">{f.label}{!a?.url && f.required === false ? " · optional" : ""}</span>
-      {a?.url && a.sample && !a.missing && <span className="tag-sample tile-tag">SAMPLE</span>}
-      {a?.missing && <span className="tile-miss">File missing</span>}
-      {a?.url && !a.missing && !!a.duration && <span className="tile-dur">{a.duration.toFixed(1)}s</span>}
-      {a?.url
-        ? <button className="icon-btn sm glass tile-x" type="button" onClick={() => put(null)} aria-label={`Remove ${f.label}`} title="Remove"><I n="x" /></button>
-        : sample && <button className="tile-sample" type="button" onClick={() => put(sample)}>Use sample</button>}
+    <div className="ed-runs">
+      <h4>When it runs</h4>
+      <div className="ed-chips">
+        {size.options.map((o) => (
+          <button key={o.label} type="button" aria-pressed={choice === o.label} onClick={() => onPick(o.label)} title={o.px ? `About ${o.label} at its shape` : "Its own pixels"}>
+            {o.px ? o.label : "Own"}<span className="mono">{dimsText(plans(size, [{ ...input, size: o.label }])[input.slot])}</span>
+          </button>
+        ))}
+      </div>
+      <p className="ed-hint">What the workflow gets, at the file's shape. Never stretched.</p>
     </div>
   );
 }
 
-/** Under the tiles: each filled input's shape and size, and a clip's trim. */
-export function InputExtras({ e, f, s, set, staged, named }: { e: EngineInfo; f: MediaField; s: StudioState; set: SetS; staged: boolean; named: boolean }) {
-  if (!e.size) return null;
-  const name = named ? f.label : undefined;
-  if (f.type === "video") {
-    const v = clipIn(s, f.key);
-    if (!v?.url || v.missing) return null;
-    const prepIn: PrepInput | null = v.width && v.height ? { slot: f.key, width: v.width, height: v.height, crop: v.crop, size: v.size } : null;
-    const p = prepIn ? plans(e.size, [prepIn])[prepIn.slot] : null;
-    const rate = clipFps(e, f.key);
+/** The stage while you set up a run: the picked input in the editor, or a place to drop one. */
+export function InputStage({ e, f, s, set, photos }: { e: EngineInfo; f: MediaField; s: StudioState; set: SetS; photos: PrepInput[] }) {
+  const toast = useApp((st) => st.toast);
+  const slot = useSlot(e, f, s, set, photos);
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const { held: h, k, edits } = slot;
+  if (!h || h.missing) {
     return (
-      <div className="inx">
-        {prepIn && <InputAttrs name={name} size={e.size} input={prepIn} preview={v.poster ?? undefined} staged={staged} onChange={(patch) => set(withInput(f.key, patch))} />}
-        {!!v.duration && (
-          <Trimmer src={v.url} duration={v.duration} trim={v.trim} window={clipWindow(e, f.key)} fps={rate[0] === rate[1] ? rate[0] : v.fps} height={p?.height ?? v.height}
-            onChange={(trim) => set((st) => ({ videos: st.videos.map((x) => (x.slot === f.key ? { ...x, trim } : x)), current: null }))} />
-        )}
+      <div className="ed-empty">
+        <input ref={input} type="file" accept={accept(k)} hidden onChange={(ev) => { void slot.fill([...(ev.target.files ?? [])]); ev.target.value = ""; }} />
+        <div className="empty-ic">{slot.busy ? <Spinner size={18} /> : <I n={k === "video" ? "film" : k === "audio" ? "sound" : "image"} />}</div>
+        <h3>{h?.missing ? `${f.label}'s file is missing` : `Add ${f.label}`}</h3>
+        <p>Drop a {NOUN[k]} here, or choose one. Any common format; others are converted.</p>
+        <div className="ed-empty-acts">
+          <button className="btn" type="button" onClick={() => input.current?.click()}><I n="upload" />Choose a {NOUN[k]}</button>
+          {slot.sample && <button className="btn ghost" type="button" onClick={() => slot.put(slot.sample)}>Use sample</button>}
+        </div>
       </div>
     );
   }
-  const n = slotNo(f.key);
-  const r = s.refs.find((x, i) => slotOf(x, i) === n);
-  if (!r?.url || r.missing || !r.width || !r.height) return null;
+  const changed = isEdited(edits, h) && !!h.edits;
+  const pending = needsFile(h.edits, h);
+  const applyNow = async () => {
+    setBusy(true);
+    try {
+      const next = await bake(e, f, h);
+      set((st) => withHeld(st, f, next));
+      toast({ text: `Saved as ${next.name}. The original is kept.`, tone: "ok" });
+    } catch (err) {
+      toast({ text: errMsg(err), tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const runSize = e.size && k !== "audio" && h.width && h.height
+    ? <RunsAt size={e.size} input={{ slot: f.key, width: h.width, height: h.height, crop: (h as RefSlot).crop, size: (h as RefSlot).size }}
+      onPick={(label) => set((st) => { const x = heldOf(st, f, photos); return x ? withHeld(st, f, { ...x, size: label } as Held) : {}; })} />
+    : undefined;
   return (
-    <div className="inx">
-      <InputAttrs name={name} size={e.size} input={{ slot: f.key, width: r.width, height: r.height, crop: r.crop, size: r.size }} preview={r.url} staged={staged}
-        onChange={(patch) => set(withInput(f.key, patch))} />
-    </div>
+    <Editor key={h.asset} m={h as Media} fit={fitOf(e, f.key)} model={tplModel(e)} role={(f as { role?: string }).role} edits={edits} onEdits={slot.setEdits}
+      title={f.label} sizeExtra={runSize}
+      note={changed ? (pending ? "Made into a new file when it runs · the original stays" : "Applied when it runs · the original stays") : undefined}
+      actions={<>
+        <button type="button" className="btn ghost" disabled={!changed || busy} onClick={() => slot.setEdits(NO_EDITS)}>Undo edits</button>
+        {pending && <button type="button" className="btn" disabled={busy} onClick={() => void applyNow()} title="Make the new file now, so the cost and checks use it">{busy ? <Spinner size={12} /> : <I n="check" />}Apply now</button>}
+      </>} />
   );
 }
-
-/**
- * What every photo and clip has: a shape (its own, or a crop to a common one) and a size (its own pixels, or a
- * megapixel budget at its shape). One line under the input; open it to change either. The input on the stage is
- * cropped there, the others in a small preview here.
- */
-function InputAttrs({ name, size, input, preview, staged, onChange }: {
-  name?: string; size: SizeSpec; input: PrepInput; preview?: string; staged: boolean; onChange: (patch: { crop?: Crop; size?: string }) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const choice = choiceOf(size, input.slot, input.size);
-  const p = plans(size, [input])[input.slot];
-  const shape = shapeOf(input.width, input.height, input.crop);
-  const own = input.width / input.height;
-  const notes = sizeNotes(p);
-  const capMp = +((size.cap ?? 0) ** 2 / 1e6).toFixed(1);
-  const capped = !!size.cap && plan(input.width, input.height, 0, size.multiple, input.crop).width > p.width;
-  return (
-    <div className={cx("attrs", open && "open")}>
-      <button className="attrs-h" type="button" aria-expanded={open} onClick={() => setOpen(!open)} title="The shape and size this input runs at">
-        <ShapeIcon r={p.width / p.height} />
-        {name && <><b>{name}</b><i>·</i></>}
-        <span>{shape === "Own" ? "Own shape" : shape}</span><i>·</i><span>{choice === size.original ? "Own size" : choice}</span>
-        {notes.length > 0 && <I n="alert" className="warn" />}
-        <span className="mono">{dimsText(p)}</span>
-        <I n="down" className="chev" />
-      </button>
-      {open && (
-        <div className="attrs-b">
-          <div className="sizes shapes" role="group" aria-label="Shape" style={{ gridTemplateColumns: `repeat(${SHAPES.length},minmax(0,1fr))` }}>
-            {SHAPES.map(([label, r]) => (
-              <button key={label} type="button" aria-pressed={shape === label} title={r ? `Crop to ${label}` : "Keep its own shape"}
-                onClick={() => onChange({ crop: r ? shapeCrop(input.width, input.height, r) : undefined })}>
-                <ShapeIcon r={r || own} /><b>{label}</b>
-              </button>
-            ))}
-          </div>
-          {input.crop && !staged && preview && (
-            <div className="attrs-crop" style={{ "--ar": own } as CSSProperties}>
-              <img src={preview} alt="" draggable={false} />
-              <CropBox crop={input.crop} onChange={(crop) => onChange({ crop })} />
-            </div>
-          )}
-          <div className="sizes" role="group" aria-label="Size" style={{ gridTemplateColumns: `repeat(${Math.min(size.options.length, 5)},minmax(0,1fr))` }}>
-            {size.options.map((o) => (
-              <button key={o.label} type="button" aria-pressed={choice === o.label} title={o.px ? `About ${o.label} at its shape` : "Its own pixels"} onClick={() => onChange({ size: o.label })}>
-                <b>{o.px ? o.label : "Own"}</b><span>{dimsText(plans(size, [{ ...input, size: o.label }])[input.slot])}</span>
-              </button>
-            ))}
-          </div>
-          <p className="help">
-            {choice !== size.original ? `About ${megapixels(p).toFixed(2)} MP at its shape. Never stretched.`
-              : capped ? `Over the ${capMp} MP cap, so it runs at about ${megapixels(p).toFixed(2)} MP. Lift the cap in Settings.`
-              : `Kept at its own pixels, trimmed to a multiple of ${size.multiple}.`}
-            {input.crop && staged ? " Drag the frame on the preview to choose what stays." : ""}
-          </p>
-          {notes.map((t) => <p key={t} className="help warn"><I n="alert" />{t}</p>)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------- stage */

@@ -187,7 +187,7 @@ def test_a_template_can_take_more_than_one_clip():
     engines.ENGINES["local/two"] = e
     try:
         w = engines.compose({"engine": "local/two", "mode": "motion", "prompt": "x", "params": {},
-                             "inputs": [{"slot": "video:1", "duration": 12}, {"slot": "video:2", "duration": 30}]})["warnings"]
-        assert [x["text"] for x in w if "Trim" in x["text"]] == ["Trim Video 1 to 2–8 s (now 12.0 s)"]
+                             "inputs": [{"slot": "video:1", "duration": 1}, {"slot": "video:2", "duration": 0.5}]})["warnings"]
+        assert [x["text"] for x in w if "needs at least" in x["text"]] == ["Video 1 is 1.0 s; it needs at least 2 s"]
     finally:
         engines.ENGINES.pop("local/two", None)

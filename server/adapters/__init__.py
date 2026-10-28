@@ -18,15 +18,21 @@ Adapter file::
         { "role": "First frame", "type": "image" | "video" | "audio",
           "at": ["path", "into", "body"]  or  [["path", 1], ["path", 2], ...],
           "value": "{{$|uri}}" | { ...object holding tokens... },
-          "max": 1, "set": ["frames"], "needs": "Another role",
-          "with": [[["path"], value], ...], "drop": [["path"], ...] }
+          "max": 1, "max_with": {"roles": ["Role"], "max": 1},
+          "set": ["frames"], "needs": "Another role",
+          "with": [[["path"], value], ...], "drop": [["path"], ...],
+          "fit": {"short": [300, null], "aspect": [0.4, 2.5], "mb": 10, "seconds": [3, 10], ...} }
       ],
+      "media_mb": 20,
       "result": [["path", "*", "into", "the", "answer"]],
       "models": [{ "model": "provider/model-t2v", "takes": ["Role", ...] }, ...]
     }
 
 - ``at`` ending in ``"+"`` appends the value to a list (made if missing), so an
   input can take up to ``max`` files; a list of paths puts the nth file at the nth.
+  ``max`` is the model's own published limit, never a lower one of ours.
+- ``max_with``: a lower limit while any of ``roles`` is filled (Kling takes 7
+  reference images, 4 alongside a video).
 - Tokens: ``{{$|uri}}`` data URI, ``{{$|b64}}`` bare base64, ``{{$|mime}}`` its MIME
   type, ``{{$|url}}`` a link (uploaded to Comfy Cloud at run time). ``$`` becomes the
   input's slot (``image:1``) when a template is put together.
@@ -35,6 +41,9 @@ Adapter file::
 - ``with`` / ``drop``: paths set or removed in the request when the input is filled.
 - ``models``: a family that splits its modes over several model ids; a run goes to
   the first one that takes every filled role.
+- ``fit``: what the model takes in each file (sides, shape, size, length, frame rate);
+  runs make every file fit. ``media_mb``: the most a request may carry inline.
+  Both are the model's published limits; ``server/fit.py`` has the details.
 """
 
 from __future__ import annotations
@@ -45,6 +54,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from .. import fit
 
 HERE = Path(__file__).parent
 MODEL_ID = re.compile(r"[\w.-]+/[\w.:-]+")
@@ -66,6 +77,7 @@ class Adapter:
     inputs: list[dict] = field(default_factory=list)
     result: list[list] = field(default_factory=list)
     models: list[dict] = field(default_factory=list)  # [{model, takes: [role]}] when a family spans ids
+    media_mb: float | None = None  # MB of files one request may carry inline, when the model says
 
 
 def _is_path(p: Any, plus: bool = False) -> bool:
@@ -100,14 +112,14 @@ def _input(model: str, i: dict, roles: list) -> dict:
     if many:
         for x in at:
             _path(x, what)
-        if len(at) > 9 or ("max" in i and i["max"] != len(at)):
-            raise AdapterError(f"{what}: with one path per file, max is the number of paths (up to 9)")
+        if "max" in i and i["max"] != len(at):
+            raise AdapterError(f"{what}: with one path per file, max is the number of paths")
         mx = len(at)
     else:
         _path(at, what, plus=True)
         mx = i.get("max", 1)
-        if not isinstance(mx, int) or isinstance(mx, bool) or not 1 <= mx <= 9 or (mx > 1 and at[-1] != "+"):
-            raise AdapterError(f"{what}: max is 1 to 9, and above 1 the path ends in +")
+        if not isinstance(mx, int) or isinstance(mx, bool) or mx < 1 or (mx > 1 and at[-1] != "+"):
+            raise AdapterError(f"{what}: max is 1 or more, and above 1 the path ends in +")
     if not _tokens(i.get("value")):
         raise AdapterError(f"{what}: value holds the file as a token")
     s = i.get("set")
@@ -116,6 +128,12 @@ def _input(model: str, i: dict, roles: list) -> dict:
         raise AdapterError(f"{what}: set is a name or a list of names")
     if i.get("needs") is not None and i["needs"] not in roles:
         raise AdapterError(f"{what}: needs names another input's role")
+    mw = i.get("max_with")
+    if mw is not None:
+        n, rs = (mw.get("max"), mw.get("roles")) if isinstance(mw, dict) else (None, None)
+        if not (isinstance(n, int) and not isinstance(n, bool) and 1 <= n < mx and isinstance(rs, list) and rs
+                and all(r in roles and r != i["role"] for r in rs)):
+            raise AdapterError(f"{what}: max_with is {{roles: [other roles], max: fewer than max}}")
     w = i.get("with") or []
     if not isinstance(w, list) or not all(isinstance(x, list) and len(x) == 2 and _is_path(x[0]) for x in w):
         raise AdapterError(f"{what}: with lists [path, value] pairs")
@@ -124,7 +142,15 @@ def _input(model: str, i: dict, roles: list) -> dict:
     d = i.get("drop") or []
     if not isinstance(d, list) or not all(_is_path(x) for x in d):
         raise AdapterError(f"{what}: drop lists paths")
-    return {**i, "max": mx, "set": list(sets or []), "with": w, "drop": d}
+    try:
+        ft = fit.check(i["fit"], what) if i.get("fit") is not None else None
+    except ValueError as e:
+        raise AdapterError(str(e)) from None
+    if ft and i["type"] == "image" and {"seconds", "total", "fps"} & set(ft):
+        raise AdapterError(f"{what}: a photo's fit has no seconds, total or fps")
+    if ft and i["type"] == "audio" and set(ft) - {"seconds", "total", "mb"}:
+        raise AdapterError(f"{what}: a sound's fit is seconds, total and mb")
+    return {**i, "max": mx, "set": list(sets or []), "with": w, "drop": d, "fit": ft}
 
 
 def parse(d: dict) -> Adapter:
@@ -152,9 +178,13 @@ def parse(d: dict) -> Adapter:
             and isinstance(m.get("takes"), list) and all(r in roles for r in m["takes"]) for m in models):
         raise AdapterError(f"{model}: models lists {{model, takes: [roles]}}")
     name = d.get("name") if isinstance(d.get("name"), str) and d["name"].strip() else model.split("/", 1)[1]
+    mmb = d.get("media_mb")
+    if mmb is not None and not (isinstance(mmb, (int, float)) and not isinstance(mmb, bool) and mmb > 0):
+        raise AdapterError(f"{model}: media_mb is a number above 0")
     return Adapter(model=model, name=name.strip(), mode="motion" if d["makes"] == "video" else "edit",
                    body=body, prompt=prompt, inputs=inputs, result=[list(p) for p in result],
-                   models=[{"model": m["model"], "takes": list(m["takes"])} for m in models])
+                   models=[{"model": m["model"], "takes": list(m["takes"])} for m in models],
+                   media_mb=float(mmb) if mmb is not None else None)
 
 
 _cache: dict[str, Adapter] | None = None
@@ -182,11 +212,21 @@ def get(model: str) -> Adapter:
     return a
 
 
+def for_model(model: str) -> Adapter | None:
+    """The adapter a Router model id belongs to: its own, or the family's that routes to it."""
+    for a in all_adapters().values():
+        if a.model == model or any(m["model"] == model for m in a.models):
+            return a
+    return None
+
+
 def describe(a: Adapter) -> dict:
     """What the Builder shows: the model, what it makes, and every input it takes."""
     return {
         "model": a.model, "name": a.name, "mode": a.mode,
         "inputs": [{"role": i["role"], "type": i["type"], "max": i["max"],
+                    **({"max_with": i["max_with"]} if i.get("max_with") else {}),
+                    **({"fit": i["fit"]} if i.get("fit") else {}),
                     **({"set": i["set"]} if i["set"] else {}), **({"needs": i["needs"]} if i.get("needs") else {})} for i in a.inputs],
         **({"models": a.models} if a.models else {}),
     }
@@ -202,6 +242,9 @@ def _fill(v: Any, slot: str) -> Any:
     if isinstance(v, list):
         return [_fill(x, slot) for x in v]
     return v
+
+
+fill = _fill  # an input's value as a request holds it for ``slot``
 
 
 def _container(body: Any, path: list, leaf: Any) -> Any:
@@ -250,6 +293,9 @@ def check(a: Adapter, used: list[int]) -> None:
     roles = [a.inputs[i]["role"] for i in used]
     for i, inp in enumerate(a.inputs):
         n = used.count(i)
+        mw = inp.get("max_with")
+        if mw and n > mw["max"] and (also := [r for r in mw["roles"] if r in roles]):
+            raise AdapterError(f"{a.name} takes up to {mw['max']} × {inp['role']} with a {also[0]}")
         if n > inp["max"]:
             raise AdapterError(f"{a.name} takes up to {inp['max']} × {inp['role']}")
         if n and inp.get("needs") and inp["needs"] not in roles:

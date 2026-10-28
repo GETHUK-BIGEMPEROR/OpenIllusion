@@ -44,7 +44,18 @@
           "input_image_9"
         ]
       ],
-      "value": "{{$|b64}}"
+      "value": "{{$|b64}}",
+      "fit": {
+        "short": [
+          256,
+          null
+        ],
+        "pixels": [
+          null,
+          16000000
+        ],
+        "mb": 15
+      }
     }
   ],
   "result": [

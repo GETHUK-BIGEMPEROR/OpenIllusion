@@ -1,4 +1,4 @@
-"""The home folder: safe writes, secrets kept apart, the queue file, the index version, what's where."""
+"""The home folder: safe writes, secrets kept off disk, the queue file, the index version, what's where."""
 
 import json
 import os
@@ -24,26 +24,35 @@ def test_write_atomic_keeps_the_old_file_when_the_write_fails(monkeypatch):
     assert [p.name for p in f.parent.iterdir() if p.name.endswith(".tmp")] == []
 
 
-def test_secrets_live_apart_from_settings():
-    settings.save({"api_key": "comfyui-test-key-1234", "max_parallel": 3})
-    plain = json.loads(paths.settings_file().read_text("utf-8"))
-    secret = json.loads(paths.secrets_file().read_text("utf-8"))
-    assert "api_key" not in plain and plain["max_parallel"] == 3
-    assert secret["api_key"] == "comfyui-test-key-1234"
-    assert settings.api_key() == "comfyui-test-key-1234"
+def test_secrets_never_touch_the_disk():
+    settings.save({"api_key": "comfyui-test-key-1234", "local_token": "tok-5678", "max_parallel": 3})
+    assert "comfyui-test-key-1234" not in "".join(f.read_text("utf-8") for f in paths.user_root().rglob("*") if f.is_file())
+    assert json.loads(paths.settings_file().read_text("utf-8"))["max_parallel"] == 3
+    assert not paths.secrets_file().exists()
+    assert settings.api_key() == "comfyui-test-key-1234" and settings.local_token() == "tok-5678"
     assert "api_key" not in settings.public() and settings.public()["key_hint"] == "…1234"
-    if os.name != "nt":
-        assert paths.secrets_file().stat().st_mode & 0o077 == 0
+    assert settings.public()["key_source"] == "browser"
 
 
-def test_migrate_moves_an_old_key_out_of_settings():
+def test_the_browser_sends_the_secrets_back_after_a_restart():
+    settings._session.update(api_key="", local_token="")  # what a restart leaves
+    assert settings.api_key() == "" and not settings.public()["has_key"]
+    assert settings.remember(key="comfyui-sent-key-1111") is True
+    assert settings.remember(key="comfyui-sent-key-1111") is False  # same key, nothing changes
+    assert settings.api_key() == "comfyui-sent-key-1111" and settings.local_token() == ""
+    settings.save({"api_key": ""})  # Forget
+    assert settings.api_key() == ""
+
+
+def test_migrate_deletes_secrets_an_older_version_wrote():
     paths.settings_file().write_text(json.dumps({"api_key": "comfyui-old-key-9876", "strip_exif": False}), "utf-8")
-    assert settings.api_key() == "comfyui-old-key-9876"  # still read before the move
+    paths.secrets_file().write_text(json.dumps({"api_key": "comfyui-old-key-5432", "local_token": "t"}), "utf-8")
+    assert settings.api_key() == ""  # never read from disk
     settings.migrate()
     assert "api_key" not in json.loads(paths.settings_file().read_text("utf-8"))
-    assert settings.api_key() == "comfyui-old-key-9876" and settings.load()["strip_exif"] is False
-    settings.migrate()  # nothing left to move
-    assert json.loads(paths.secrets_file().read_text("utf-8"))["api_key"] == "comfyui-old-key-9876"
+    assert not paths.secrets_file().exists()
+    assert settings.load()["strip_exif"] is False
+    settings.migrate()  # nothing left
 
 
 def test_the_queue_file_keeps_states_not_progress():
@@ -117,3 +126,4 @@ def test_scratch_cleans_itself_after_going_unused():
     assert fresh.exists() and shown.exists() and used.exists() and schema.exists() and staged.exists()
     with pytest.raises(FileNotFoundError, match="Drop it again"):
         staging.resolve_asset("old.png")
+

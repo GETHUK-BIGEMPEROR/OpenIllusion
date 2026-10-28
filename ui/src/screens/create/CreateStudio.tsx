@@ -2,22 +2,22 @@
 import { useQueries } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { typing } from "../../components/ABPlayer";
-import { clipSlot as asClip, dropIntoStudio, isImage, isMediaFile, isVideo, useFileDrop } from "../../components/Drop";
+import { dropIntoStudio, isMediaFile, useFileDrop } from "../../components/Drop";
 import { useEngine, ParamFields } from "../../components/Engine";
 import { cx, GpuStat, I, KeyStat } from "../../components/oi";
-import { bySlot, withRefs } from "../../components/Refs";
 import { invalidFields, LocalNeeds, NoTemplates, useCompose, useCurrent, useRunner, useStudio, type Fix } from "../../components/Studio";
 import { tplName } from "../../components/TemplateCard";
 import { api, type Manifest, type Mode } from "../../lib/api";
-import { clipSlots, clipWindow, leadSlot, mediaFields, roleOf, settingsOf, slotNo, videoField } from "../../lib/fields";
-import { EDIT_ROLES, errMsg } from "../../lib/format";
+import { clipSlots, clipWindow, leadSlot, mediaFields, settingsOf, videoField } from "../../lib/fields";
+import { errMsg } from "../../lib/format";
 import { isActive, useJobs } from "../../lib/live";
 import { go } from "../../lib/route";
-import { autorun, clipIn, slotOf, withClip, useApp, type VideoSlot } from "../../lib/store";
+import { autorun, clipIn, slotOf, useApp, type VideoSlot } from "../../lib/store";
 import { canvasSize, dimsText, plans, usePrepImages, type PrepInput } from "../../lib/size";
 import { Canvas } from "./Canvas";
 import { HistList, HistStrip } from "./History";
-import { InputExtras, SoundTile, Tile } from "./Inputs";
+import { bakePending, FileCard, InputStage } from "./Inputs";
+import { toSpec } from "../../lib/spec";
 import { advSummary, Hero, PromptSection, Publish, RunBar } from "./Panel";
 import { FAILED, type View, withInput } from "./shared";
 
@@ -58,6 +58,10 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const sized = engine?.size;
   const local = sized ? plans(sized, images) : {};
   const planOf = (slot: string) => compose?.prep?.[slot] ?? local[slot] ?? null;
+  // The input the stage edits: the one you picked, else the lead.
+  const [picked, setPicked] = useState<string | null>(null);
+  useEffect(() => setPicked(null), [s.engine]);
+  const selField = media.find((f) => f.key === picked) ?? media.find((f) => f.key === lead) ?? media[0];
   // A declared output size: the shape and step picked under Output. Without one, the workflow sizes its own output.
   const canvas = sized?.canvas ? canvasSize(sized, s.params.aspect, s.params.out_size) : null;
   const noInput = !!engine?.fields?.length && !media.length;
@@ -93,8 +97,16 @@ function CreateStudio({ mode }: { mode: Mode }) {
     prevLead.current = leadAsset;
   }, [leadAsset]);
 
+  // Edits that need a new file (turn, size, rate, sound) are made just before the run.
+  const prepare = async () => {
+    if (!engine) return null;
+    const next = await bakePending(s, engine, media, photos);
+    if (!next) return null;
+    set({ refs: next.refs, videos: next.videos, sounds: next.sounds });
+    return toSpec(mode, next, engine);
+  };
   const runner = useRunner({
-    set, spec, compose, estimate,
+    set, spec, compose, estimate, prepare,
     onRan: (ids) => { set({ group: ids }); setView(ids.length > 1 ? "grid" : "compare"); },
   });
 
@@ -114,30 +126,8 @@ function CreateStudio({ mode }: { mode: Mode }) {
       toast({ text: errMsg(e), tone: "error" });
     }
   };
-  // Dropping on the stage replaces the input it shows; several files fill the inputs in order.
-  const replaceLead = async (files: File[]) => {
-    if (files.length > 1) return void dropIntoStudio(mode, files);
-    const f = files.find(leadVideo ? isVideo : isImage);
-    if (!f) return toast({ text: leadVideo ? "This input takes a video." : "This input takes a photo.", tone: "warn" });
-    let a;
-    try {
-      a = await api.upload(f);
-    } catch (e) {
-      return toast({ text: `${f.name}: ${errMsg(e)}`, tone: "error" });
-    }
-    if (leadVideo) set((st) => ({ videos: withClip(st, lead, asClip(a, engine, lead, clipIn(st, lead)?.size)), current: null }));
-    else {
-      const n = slotNo(lead);
-      set((st) => {
-        const [added] = withRefs([], [a], EDIT_ROLES, "base");
-        const old = bySlot(st.refs).find((r) => r.slot === n);
-        return { refs: bySlot([...bySlot(st.refs).filter((r) => r.slot !== n), { ...added, slot: n, size: old?.size, role: engine ? roleOf(engine, lead) : added.role }]), current: null };
-      });
-    }
-    setView("input");
-  };
-  const stageDrop = useFileDrop((files) => void replaceLead(files), { accept: isMediaFile, disabled: !media.length });
-  const leadName = media.find((f) => f.key === lead)?.label;
+  // Files dropped on a result fill the inputs in order. Each card takes its own drop.
+  const stageDrop = useFileDrop((files) => void dropIntoStudio(mode, files), { accept: isMediaFile, disabled: !media.length });
   // Variants and Re-run only make sense when the workflow re-rolls its seed; a fixed one gives the same result again.
   const varies = engine?.varies !== false;
   useEffect(() => { if (!varies && s.variants !== 1) set({ variants: 1 }); }, [varies, s.variants, set]);
@@ -193,6 +183,8 @@ function CreateStudio({ mode }: { mode: Mode }) {
 
   if (!s.engine && !engine) return <NoTemplates mode={mode} />;
 
+  const inputView = eff === "input" || eff === "empty";
+  const editing = inputView && !!engine && !!selField;
   const pickRun = (id: string) => { set({ current: id, group: [id] }); setView("compare"); };
   const setParam = (k: string, v: unknown) => set((st) => ({ params: { ...st.params, [k]: v } }));
   const required = media.filter((f) => f.required !== false).length;
@@ -207,11 +199,13 @@ function CreateStudio({ mode }: { mode: Mode }) {
 
           {engine && !!media.length && (
           <section className="sec" aria-labelledby="sec-inputs">
-            <div className="sec-h"><h4 id="sec-inputs">Inputs</h4>{media.length > required && <span className="mono">{media.length - required} optional</span>}</div>
-            <div className="tiles">
-              {media.map((f) => (f.type === "audio" ? <SoundTile key={f.key} e={engine} f={f} s={s} set={set} /> : <Tile key={f.key} e={engine} f={f} s={s} set={set} />))}
+            <div className="sec-h"><h4 id="sec-inputs">Inputs</h4><span className="mono">{media.length > required ? `${media.length - required} optional` : `${media.length} ${media.length === 1 ? "file" : "files"}`}</span></div>
+            <div className="flist">
+              {media.map((f) => (
+                <FileCard key={f.key} e={engine} f={f} s={s} set={set} photos={photos} plan={planOf(f.key)}
+                  on={inputView && f.key === selField?.key} onPick={() => { setPicked(f.key); setView("input"); }} />
+              ))}
             </div>
-            {media.map((f) => <InputExtras key={f.key} e={engine} f={f} s={s} set={set} staged={f.key === lead} named={media.length > 1} />)}
           </section>
           )}
 
@@ -240,6 +234,12 @@ function CreateStudio({ mode }: { mode: Mode }) {
         <div className="stage-top" data-acts={done && shown ? "" : undefined}>
           <div className="crumb">Create<span>/</span><b>{engine ? tplName(engine) : "…"}</b></div>
           <span style={{ flex: 1 }} />
+          {!!shown && !!media.length && (
+            <div className="vseg" role="group" aria-label="Show">
+              <button type="button" aria-pressed={inputView} onClick={() => setView("input")} title="Edit the inputs"><I n="pencil" /><span className="lbl">Inputs</span></button>
+              <button type="button" aria-pressed={!inputView} onClick={() => setView(group.length > 1 ? "grid" : "compare")} title="See the run"><I n="image" /><span className="lbl">{live ? "Running" : "Result"}</span></button>
+            </div>
+          )}
           {group.length > 1 && (
             <button className={cx("btn sm", eff === "grid" ? "primary" : "ghost")} type="button" aria-pressed={eff === "grid"}
               onClick={() => setView(eff === "grid" ? "compare" : "grid")} title="See every variant of this run"><I n="grid" /><span className="lbl">All {group.length}</span></button>
@@ -258,10 +258,16 @@ function CreateStudio({ mode }: { mode: Mode }) {
           <GpuStat />
         </div>
 
-        <div className={cx("canvas", stageDrop.over && "drop")} {...stageDrop.props} data-drop={`Drop to replace ${leadName ?? "the input"}`}>
+        {editing ? (
+          <div className="stage-ed">
+            <InputStage key={selField.key} e={engine} f={selField} s={s} set={set} photos={photos} />
+          </div>
+        ) : (
+        <div className={cx("canvas", stageDrop.over && "drop")} {...stageDrop.props} data-drop="Drop to fill the inputs in order">
           <Canvas mode={mode} lead={lead} eff={eff} s={s} set={set} engine={engine} base={base} out={noInput ? canvas : planOf(lead)} shown={shown} job={shownJob} group={group} vlist={vlist} jobs={jobs}
             fixes={fixes} onFocus={(id) => { set({ current: id }); setView("compare"); }} />
         </div>
+        )}
 
         <aside className="hist" aria-label="Runs of this template">
           <HistList engine={s.engine} current={s.current} jobs={jobs} onPick={pickRun} />

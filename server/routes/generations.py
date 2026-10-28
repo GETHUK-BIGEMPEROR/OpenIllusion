@@ -7,10 +7,11 @@ import hashlib
 import time
 from pathlib import Path
 
+import av
 import httpx
 from aiohttp import web
 
-from .. import engines, jobs, media, paths, settings, staging, storage
+from .. import edit, engines, jobs, media, paths, settings, staging, storage
 from ..router import Router, RouterError
 from .common import API, UPLOAD_EXT, MAX_UPLOAD, err, body, _safe_file, asset_info, _norm_spec, _spec_resolver
 
@@ -26,7 +27,8 @@ def register(routes: web.RouteTableDef) -> None:
         name = part.filename or "upload"
         ext = Path(name).suffix.lower()
         if ext not in UPLOAD_EXT:
-            return err(415, f"{ext or 'This file type'} isn't supported. Use PNG, JPEG, WebP, MP4, MOV, WebM, or MP3, WAV, M4A for sound.")
+            return err(415, f"{ext or 'This file type'} isn't supported. Photos: PNG, JPEG, WebP, GIF, TIFF, BMP, AVIF. "
+                            "Clips: MP4, MOV, WebM, MKV, AVI, WMV, MPEG. Sound: MP3, WAV, M4A, AAC, OGG, FLAC, OPUS, WMA, AIFF.")
         h = hashlib.sha256()
         tmp = paths.uploads_dir() / f"_incoming-{time.time_ns()}{ext}"
         size = 0
@@ -46,10 +48,32 @@ def register(routes: web.RouteTableDef) -> None:
         else:
             tmp.replace(dst)
         try:
+            if ext in edit.CONVERTED:  # TIFF, MKV, WMA...: turned into PNG, MP4, MP3 so browsers and models take it
+                dst = await asyncio.to_thread(edit.normalize, dst)
+                asset, name = dst.name, Path(name).stem + dst.suffix
             info = await asyncio.to_thread(asset_info, dst)
         except Exception as e:
             return err(422, f"Couldn't read {name}: {e}")
         return web.json_response({"asset": asset, "name": name, **info})
+
+    @routes.post(API + "/media/edit")
+    async def media_edit(request):
+        """Crop, turn, resize, cut, resample or mute one photo, clip or sound: a new upload; the original stays."""
+        b = await body(request)
+        try:
+            src = staging.resolve_asset(str(b["asset"]))
+        except (KeyError, ValueError, FileNotFoundError):
+            return err(404, "File not found")
+        try:
+            dst = await asyncio.to_thread(edit.edit, src, b.get("ops") or {})
+            info = await asyncio.to_thread(asset_info, dst)
+        except ValueError as e:
+            return err(400, str(e))
+        except (OSError, av.FFmpegError) as e:
+            return err(422, f"Couldn't edit it: {e}")
+        stem = Path(str(b.get("name") or src.name)).stem
+        stem = stem[: -len("-edited")] if stem.endswith("-edited") else stem
+        return web.json_response({"asset": dst.name, "name": f"{stem}-edited{dst.suffix}", **info})
 
     @routes.get(API + "/uploads/{asset}")
     async def get_upload(request):
@@ -89,9 +113,11 @@ def register(routes: web.RouteTableDef) -> None:
             out = engines.compose(spec)
         except (KeyError, ValueError) as e:
             return err(400, str(e))
-        try:  # what prep will do to each image; the studio shows it
-            out["prep"] = {slot: pl.to_dict() for slot, pl in (await asyncio.to_thread(staging.input_plans, spec)).items()}
-        except (FileNotFoundError, ValueError, OSError):
+        try:  # what the run will do to each input, fitted to the model; the studio shows it
+            fx = await asyncio.to_thread(staging.fitted, spec, out["template"])
+            out["prep"] = {slot: pl.to_dict() for slot, pl in fx.plans.items()}
+            out["warnings"] += [n for n in fx.notes if (n["level"], n["text"]) not in {(w["level"], w["text"]) for w in out["warnings"]}]
+        except (FileNotFoundError, ValueError, OSError, av.FFmpegError):
             out["prep"] = {}
         return web.json_response(out)
 
@@ -128,6 +154,11 @@ def register(routes: web.RouteTableDef) -> None:
             return err(401, "Add your Comfy API key in Settings to run cloud models")
         comp = engines.compose(spec)
         errors = [w for w in comp["warnings"] if w["level"] == "error"]
+        if not errors:
+            try:  # what can't be fitted to the model (a clip too short for it)
+                errors = (await asyncio.to_thread(staging.fitted, spec, comp["template"])).errors
+            except (FileNotFoundError, ValueError, OSError, av.FFmpegError) as ex:
+                return err(400, str(ex))
         if errors and not spec.get("raw"):
             return err(422, errors[0]["text"], warnings=errors)
         try:

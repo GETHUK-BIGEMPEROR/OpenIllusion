@@ -278,7 +278,7 @@ def file_resolver(inputs: list[dict], base: Path) -> Callable[[str, int, str], s
         if slot not in encoded:
             path = base / item["file"]
             if kind == "image":
-                encoded[slot] = media.image_payload(path)[0]
+                encoded[slot] = media.image_payload(path, as_is=True)[0]
             else:
                 mime = mimetypes.guess_type(path.name)[0] or ""
                 encoded[slot] = media.file_data_uri(path, mime if mime.startswith(kind + "/") else {"video": "video/mp4", "audio": "audio/mpeg"}[kind])

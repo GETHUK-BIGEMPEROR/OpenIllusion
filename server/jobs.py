@@ -232,6 +232,11 @@ class Manager:
         if engines.get(m.engine.model).kind == "local":
             await self._run_local(job, m, folder)
             return
+        # After a restart the key is gone until the app is opened again and sends it.
+        while not settings.api_key():
+            if job.state != "waiting":
+                self.set(job, "waiting", "Waiting for your API key · open OpenIllusion to send it")
+            await asyncio.sleep(2)
         router = self.router_factory()
         inputs = [i.model_dump() for i in m.inputs]
 
