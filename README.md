@@ -160,7 +160,7 @@ The two kinds differ only in where the box comes from and who knows its inputs:
 | What it can do | Whatever the workflow does | Every mode the model has: text-only, first frame, first + last frame, references, edit… The inputs you fill pick the mode. |
 | Freeze | Built in: the workflow's loaders are fixed and each needs a file | At save: the template keeps the mode its run used |
 | Runs through | `local.py` → comfy-api-proxy `:8189` → your ComfyUI | `router.py` → `api.comfy.org/v2/models/{provider}/{model}`; files by link via `cloud.comfy.org/api/v2/assets` |
-| Cost | Free, on your GPU | Paid; a price quote shows above Run |
+| Cost | Free, on your GPU | Paid per run; usage is in your Comfy dashboard (OpenIllusion shows no prices) |
 | Progress | Live percentage | Queue position only |
 | When it fails | Missing nodes and models are listed, never installed; ComfyUI's errors pass through | Router's errors pass through |
 
@@ -182,13 +182,13 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 
 | Chip | Says | Card |
 | --- | --- | --- |
-| **Comfy API** | Connected · No key · Key refused · Can't reach · Checking | The key's last four characters and where it's from, what it's for (Comfy Router, per-run cost, files by link), Check again, Settings. |
+| **Comfy API** | Connected · No key · Key refused · Can't reach · Checking | The key's last four characters and where it's from, what it's for (Comfy Router, usage in the Comfy dashboard, files by link), Check again, Settings. |
 | **GPU** (e.g. RTX 4060 Ti · ComfyUI 0.42) | Ready, or a progress ring while a local run goes; hidden when no ComfyUI answers | GPU memory, the run in flight, the queue, ComfyUI and Comfy API v2 addresses. |
 
 | Screen | Route | What you do there | File |
 | --- | --- | --- | --- |
 | Explore | `#/explore` | Every published template on one wall, photos and videos together. Filter All / Local / Cloud and by tag. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back). A template without a cover yet shows its name until a result is made its cover. | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
-| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips name each filled file the way the model reads it), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. Cloud templates show a price quote above Run. A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
+| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips name each filled file the way the model reads it), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
 | Characters | `#/characters`, `#/characters/{id}` | Character Lab: people you keep for runs. Each has a name, notes, up to 16 photos (the starred one is the face) and a RefMod made from them on your ComfyUI into the RefMod folder, with its state (ready, photos changed since, failed and why). **Use in** opens a template with a RefMod input, this one's RefMod picked. See [Character Lab](#character-lab). | `screens/Characters.tsx`, `screens/create/RefModInput.tsx` |
 | Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
@@ -290,13 +290,13 @@ Where to look when you change something.
 | File | What it does |
 | --- | --- |
 | `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), deletes secrets an older version wrote to disk, resumes interrupted jobs (a cloud run waits for the key until a browser sends it), keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), cleans scratch and old trash every 6 h, refuses cross-origin writes (`_same_origin`), sets nosniff, no-referrer, no framing and a strict CSP on every response (`_headers`), and takes the key and proxy token from the `X-Comfy-Key` and `X-Comfy-Proxy-Token` headers (`_secrets`). |
-| `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, estimate, run, jobs), `library` (generations, trash, storage, re-run, export, import), `backup` (back up, restore), `characters` (Character Lab); shared helpers in `common`. Thin: it checks input and calls the modules below. |
+| `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, run, jobs), `library` (generations, trash, storage, re-run, export, import), `backup` (back up, restore), `characters` (Character Lab); shared helpers in `common`. Thin: it checks input and calls the modules below. |
 | `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
 | `builder/` | The Builder, in layers: `workflow` (read a dropped file, `read_workflow`; UI graph to API graph, `ui_to_api`), `analysis` (detect inputs, prompt, settings and result nodes, `analyze`), `assemble` (`assemble_local`, `assemble_cloud`, `preset`, `save`). `__init__` re-exports them. |
 | `adapters/` | `__init__.py` reads and checks adapter files and puts a request together from one (`parse`, `check`, `assemble`, `pick_model`) and the result settings a job asks for (`settings_for`, `write_setting`, `setting_field`). One `*.json` per cloud model. |
 | `staging.py` | A run before it starts: `prepare_generation` (spec → generation folder: inputs cropped, sized and copied, running manifest), `input_plans` (what prep will do, for Create), `resolve_asset`, and what a finished generation carries (`recipe_manifest`, `workflow_file`). |
-| `jobs.py` | The queue: `_run_inner` (cloud: upload files by link, materialize, estimate, submit, poll, collect), `_run_local` (upload, precheck, submit, follow events), saving results. |
-| `router.py` | Comfy Router client: estimate, submit, status, collect, sync run, cancel, download. |
+| `jobs.py` | The queue: `_run_inner` (cloud: upload files by link, materialize, submit, poll, collect), `_run_local` (upload, precheck, submit, follow events), saving results. |
+| `router.py` | Comfy Router client: submit, status, collect, sync run, cancel, download. |
 | `local.py` | `ComfyV2` (Comfy API v2: upload assets, jobs, events; used for comfy-api-proxy and for Comfy Cloud assets) and `ComfyUI` (`/object_info`, precheck of nodes and models). |
 | `proxy.py` | Starts and stops comfy-api-proxy. |
 | `prep.py` · `media.py` | Crop and size inputs; turn a shape and a step into an output size (`canvas_size`, `fit_dims`); image/video/audio helpers (probe, transcode, poster, data URIs, recipes in PNG/MP4). Photos, clips and sounds (MP3, WAV, M4A, AAC, OGG, FLAC) upload alike; a run cuts a sound and writes it as MP3. |
@@ -317,14 +317,14 @@ Where to look when you change something.
 | `lib/characters.ts` | A character's RefMod state in words; `withRefmod` (pick a RefMod into a RefMod input and, when a Lab character made it, their face into the paired photo input). |
 | `lib/spec.ts` · `fields.ts` | Studio state → the run spec the server composes (`toSpec`); which inputs a template shows. |
 | `lib/route.ts` · `live.ts` · `query.ts` | Hash routes; the WebSocket feed of job updates; React Query setup. |
-| `App.tsx` · `components/Shell.tsx` · `Palette.tsx` | Layout, rail and tab bar, drops anywhere on the page, Ctrl K palette. |
+| `App.tsx` · `components/Shell.tsx` · `Palette.tsx` | Layout, rail and tab bar, drops anywhere on the page (files from outside only: a drag that starts on the page, like selected text, is ignored; a page with inputs of its own takes media through `usePageDrop`), Ctrl K palette. |
 | `screens/*` | One file per screen; see [The app](#the-app-screen-by-screen). |
 | `screens/builder/` | Builder: Local workflow and Comfy Router tabs, three steps with Back, save and first run (`Builder.tsx`); the start step (`Start.tsx`), the template's sections (`Sections.tsx`), output size and settings (`Settings.tsx`), row state from a workflow or preset (`model.ts`). On Router: job cards built from the adapter's sets or `models` (`modes.ts`), inputs grouped by role (each role's limits as pills counted across its files, **Fit all to spec**, a card per sample with Edit, Replace, Remove), a sentence on what the run makes, and the same `set`/`needs`/`models` checks as the server. |
 | `screens/create/` | Create: the page (`CreateStudio.tsx`; the stage shows the picked input in the editor, or the run), input cards, the inline editor and the edits made just before Run (`Inputs.tsx`), RefMod cards and the RefMod folder picker (`RefModInput.tsx`), the canvas (`Canvas.tsx`), prompt and Run (`Panel.tsx`), this template's runs (`History.tsx`). |
 | `components/Studio.tsx` · `Refs.tsx` · `Trimmer.tsx` · `ABPlayer.tsx` | Create's parts: template seeding, `useRunner` (with a `prepare` step before the run), uploads, clip and sound trimming (filmstrip or wave; past the model's length hatched), before/after player. |
 | `components/MediaEditor.tsx` | The one editor for photos, clips and sounds: `Editor` (inline on Create's stage), `MediaSheet` (the Builder's sheet, saves a new file), `MediaThumb` (a file as its edits leave it), `FitLine` ("Fits Kling", "Run crops it to 5:2"). |
 | `lib/edits.ts` | The editor's logic, no UI: the `Edits` a file carries, what they make (`outOf`), the model's limits as checks and a file's one-line status, Fit to spec (a port of `fit.plan`), and the ops sent to `/api/media/edit`. |
-| `components/ui.tsx` · `oi.tsx` · `bits.tsx` · `sprite.ts` | Shared pieces: buttons, segmented tabs, fields, spinners; page head, header chips (`KeyStat`, `GpuStat`), sideways-scrolling rows, media; cost pill; the icon sprite (`<I n>`). |
+| `components/ui.tsx` · `oi.tsx` · `bits.tsx` · `sprite.ts` | Shared pieces: buttons, segmented tabs, fields, spinners; page head, header chips (`KeyStat`, `GpuStat`), sideways-scrolling rows, media; the icon sprite (`<I n>`). |
 | `styles/` | The only styling: `base.css` tokens and reset, `common.css`/`fields.css` shared pieces, one stylesheet per area, `responsive.css` for phones. |
 
 **Folders:**
@@ -419,7 +419,7 @@ typed call for each.
 | Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `POST templates/hide` (`{engine, hidden}`: a shipped template off Explore or back) · `GET templates/input` · `GET templates/workflow` · `GET/PUT/DELETE cover` |
 | Builder | `POST builder/workflow` · `POST builder/from-template` · `GET builder/models` (every adapter) · `POST builder/save` · `DELETE builder/template` |
 | Files | `POST upload` (photo, clip or sound; other formats converted) · `GET uploads/{asset}` · `POST frame` (a still from a clip) · `POST media/edit` (`{asset, ops: {rotate, flip, crop, width, height, start, end, fps, mute}}` → a new upload) |
-| Runs | `POST compose` (the request, without running) · `POST estimate` (price) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
+| Runs | `POST compose` (the request, without running) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
 | Library | `GET generations` · `GET facets` · `GET/PATCH/DELETE generations/{id}` · `POST generations/trash` · `GET generations/{id}/file/…`, `/output`, `/workflow`, `/recipe` · `POST generations/{id}/rerun` |
 | Trash and storage | `GET trash` · `POST trash/{id}/restore` · `POST trash/restore` · `DELETE trash/{id}` · `POST trash/purge` (picked, for good) · `DELETE trash` · `GET storage` · `POST storage/clean` |
 | Characters | `GET/POST characters` · `GET/PATCH/DELETE characters/{id}` · `POST characters/{id}/photos` (`{asset}`) · `GET/DELETE characters/{id}/photos/{name}` · `POST characters/{id}/refmod` (make it; poll the character for `making`) · `GET refmods` (the RefMod folder: path and files, each with the Lab character that made it, if any) |
@@ -499,6 +499,10 @@ flowchart LR
 - **Settings** (Router): the model's own options the job asks for (below), each
   with a starting value and a switch: on, people pick it on Create; off, every run
   uses that value.
+- **Dropping samples:** a file dropped on an input becomes its sample; drop several
+  and the rest fill the empty inputs of their kind (that role first, then what the
+  job must have), and a Router role takes more up to its cap. Files dropped anywhere
+  else on the page do the same (`placeFiles`); a dropped ComfyUI workflow starts over.
 - **Run** saves the template (on Explore at once) and runs it once in Create.
   Samples you dropped become its defaults; make the result you like its cover.
   With a fixed seed, Create hides variants and Re-run, because every run would

@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { api, type Asset, type EngineInfo, type Mode } from "../lib/api";
 import { errMsg } from "../lib/format";
 import { cachedEngine } from "../lib/query";
@@ -50,6 +50,23 @@ export function useFileDrop(onFiles: (files: File[]) => void, opts: { accept?: (
   };
   return { over, props };
 }
+
+// The page that takes files dropped anywhere on it (the Builder's inputs), if one is open.
+let page: { take: (files: File[]) => boolean; hint: () => string } | null = null;
+
+/** While mounted, files dropped off any input go to ``take`` (true: it took them). ``hint`` is the drop cue's line. */
+export function usePageDrop(take: (files: File[]) => boolean, hint: string) {
+  const live = useRef({ take, hint });
+  live.current = { take, hint };
+  useEffect(() => {
+    const me = { take: (f: File[]) => live.current.take(f), hint: () => live.current.hint };
+    page = me;
+    return () => { if (page === me) page = null; };
+  }, []);
+}
+
+export const pageDrop = (files: File[]) => page?.take(files) ?? false;
+export const pageDropHint = () => page?.hint() ?? null;
 
 /** An uploaded clip in a video input: trimmed to the length that input takes. */
 export function clipSlot(a: Asset, e: EngineInfo | undefined, slot: string, size?: string): VideoSlot {

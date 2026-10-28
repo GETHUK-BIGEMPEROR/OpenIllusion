@@ -252,7 +252,6 @@ export function GenerationDetail({ id }: { id: string }) {
             <dl className="dl">
               {params.map(([k, v]) => <div key={k}><dt style={{ textTransform: "capitalize" }}>{k.replace(/_/g, " ")}</dt><dd style={{ overflowWrap: "anywhere" }}>{String(v)}</dd></div>)}
               <div><dt>Seed</dt><dd>{seed ?? "Random"}</dd></div>
-              <div><dt>Cost</dt><dd>{local ? "No credits" : r?.cost_reported ? `${r.cost_reported} credits` : "Not reported"}</dd></div>
             </dl>
           </div>
 

@@ -235,7 +235,7 @@ def inspect(data: bytes, filename: str = "") -> dict:
         except ValueError:
             raise ImportRefused("Not valid JSON.") from None
         return _review(recipe, source={"kind": "json", "name": filename}, files={})
-    raise ImportRefused("Drop a .illusion, a OpenIllusion PNG or MP4, a generation link or generation JSON.")
+    raise ImportRefused("Drop a .illusion, an OpenIllusion PNG or MP4, a generation link or generation JSON.")
 
 
 def _inspect_zip(data: bytes, filename: str) -> dict:

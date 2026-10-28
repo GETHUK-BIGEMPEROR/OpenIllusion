@@ -1,9 +1,8 @@
 // Create's left panel: the template header, the prompt, settings summary, and the Run bar.
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CostPill } from "../../components/bits";
 import { cx, I, useStatus, gpuName } from "../../components/oi";
-import { useCompose, useRunner } from "../../components/Studio";
+import { useRunner } from "../../components/Studio";
 import { TemplateTools, tplModel, tplName, useCoverActions } from "../../components/TemplateCard";
 import { Spinner } from "../../components/ui";
 import { api, type EngineInfo, type ParamSpec } from "../../lib/api";
@@ -146,8 +145,8 @@ function filled(e: EngineInfo, s: StudioState): Omit<Mention, "token">[] {
 }
 
 /** Pinned under the recipe: how many, what's in the way, Run. */
-export function RunBar({ s, set, engine, runner, estimate, queued, varies }: {
-  s: StudioState; set: SetS; engine?: EngineInfo; runner: ReturnType<typeof useRunner>; estimate?: ReturnType<typeof useCompose>["estimate"]; queued: number; varies: boolean;
+export function RunBar({ s, set, engine, runner, queued, varies }: {
+  s: StudioState; set: SetS; engine?: EngineInfo; runner: ReturnType<typeof useRunner>; queued: number; varies: boolean;
 }) {
   const status = useStatus();
   const media = mediaFields(engine);
@@ -160,20 +159,14 @@ export function RunBar({ s, set, engine, runner, estimate, queued, varies }: {
   return (
     <div className="runbar">
       <div className="rb-status" aria-live="polite">
-        {runner.confirm ? (
-          <span className="warn" role="alertdialog" aria-label="Unknown cost">
-            <I n="alert" />Router can't price this run.
-            <button className="btn sm" type="button" onClick={() => void runner.run(true)} autoFocus>Run anyway</button>
-            <button className="btn sm ghost" type="button" onClick={() => runner.setConfirm(false)}>Cancel</button>
-          </span>
-        ) : missing ? (
+        {missing ? (
           <span className="warn"><I n="alert" />Add {missing.label} to run</span>
         ) : reasons.length ? (
           <span className="warn" title={reasons.join("\n")}><I n="alert" />{reasons[0]}{reasons.length > 1 ? ` · +${reasons.length - 1} more` : ""}</span>
         ) : runner.isLocal ? (
           <span className="rdy"><i className="dot" />{gpu ?? "Your ComfyUI"}<em>{queued ? `${queued} in queue` : "free"}</em></span>
         ) : (
-          <span className="rdy"><i className="dot violet" />Comfy Router<CostPill estimate={estimate} times={s.variants} /></span>
+          <span className="rdy"><i className="dot violet" />Comfy Router{queued ? <em>{queued} in queue</em> : null}</span>
         )}
       </div>
       <div className="rb-row">

@@ -153,12 +153,3 @@ kbd{font:500 10.5px/1 var(--mono);padding:4px 6px;border-radius:6px;border:1px s
 .vrow>span{flex:1;min-width:0}
 .vrow b{display:block;font-weight:400}
 .vrow small{display:block;font-size:11px;color:var(--text-2)}
-/* cost line in the run footer */
-.cost{display:flex;flex-direction:column;gap:2px}
-.cost-r{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
-.cost-r>span:first-child{color:var(--text-2)}
-.cost-r .mono.warn{color:#FFC48F}
-.cost-r .mono.bad{color:#FFB3BC}
-.cost-r em{font-style:normal;color:var(--text-2)}
-.cost-why{font-size:11px;color:var(--text-2)}
-.cost-why.bad{color:#FFB3BC}

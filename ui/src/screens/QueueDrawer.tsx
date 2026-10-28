@@ -5,7 +5,7 @@ import { appRoot, cx, EmptyBox, I, jobProgress, QUEUED } from "../components/oi"
 import { api, type Job } from "../lib/api";
 import { confirm } from "../lib/confirm";
 import { describeFailure } from "../lib/errors";
-import { clock, elapsed, errMsg, money, shortModel } from "../lib/format";
+import { clock, elapsed, errMsg, shortModel } from "../lib/format";
 import { isActive, useElapsed, useJobs } from "../lib/live";
 import { clipWindow, leadSlot } from "../lib/fields";
 import { cachedEngine } from "../lib/query";
@@ -101,7 +101,7 @@ function JobRow({ j, onOpen }: { j: Job; onOpen: () => void }) {
   const sub =
     active && !waiting ? `${clock(t, false)} · ${pct != null ? `${pct}%${j.progress?.nodes_total ? ` · node ${j.progress.nodes_done}/${j.progress.nodes_total}` : ""}` : j.kind === "local" ? j.detail || "starting" : "no progress reported"}`
     : waiting ? (j.queue_position ? `#${j.queue_position} in line · ${shortModel(j.model)}` : j.detail || shortModel(j.model))
-    : j.state === "done" ? `${elapsed(t)} · ${j.kind === "local" ? "your GPU" : j.estimate && j.estimate.source !== "unknown" ? `est. ${money(j.estimate).label}` : "cost not reported"}`
+    : j.state === "done" ? `${elapsed(t)} · ${j.kind === "local" ? "your GPU" : "Comfy Router"}`
     : failed || j.state === "cancelled" ? describeFailure(j.state, j.error, j.detail).title
     : j.detail;
 

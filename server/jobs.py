@@ -2,7 +2,7 @@
 
 Each run is one generation and one job, on one of two backends:
 
-- cloud: Comfy Router. Estimate, queued submit, poll, collect.
+- cloud: Comfy Router. Queued submit, poll, collect.
 - local: Comfy API v2 in front of the user's ComfyUI. Check the workflow
   against ComfyUI's nodes and models, upload inputs as assets, submit,
   follow live progress, download outputs.
@@ -48,7 +48,6 @@ class Job:
     finished: float | None = None
     request_id: str | None = None
     queue_position: int | None = None
-    estimate: dict | None = None
     error: dict | None = None
     fixes: list[str] = field(default_factory=list)
     poster: str | None = None
@@ -255,15 +254,6 @@ class Manager:
             )
             return
 
-        if not job.estimate:
-            self.set(job, "estimating", "Asking Router for a price…")
-            try:
-                job.estimate = await router.estimate(engines.router_model(m.engine.model), body)
-            except RouterError as e:
-                if e.status == 422:
-                    raise
-                job.estimate = {"source": "unknown", "reason": e.error_type}
-
         job.started = job.started or time.time()
         if job.sync:
             await self._run_sync(job, router, body)
@@ -285,8 +275,6 @@ class Manager:
                     continue
                 raise
             job.request_id = sub.get("request_id")
-            if sub.get("estimate") and not job.estimate:
-                job.estimate = sub["estimate"]
             self.set(job, "queued", "Queued at Router", queue_position=sub.get("queue_position"))
 
         # Poll. Router has no progress events; show elapsed time instead.
@@ -528,7 +516,6 @@ class Manager:
         res = sc.Result(
             kind="video" if is_video else "image",
             seed=seed,
-            cost_reported=meta.get("credits_used"),
             elapsed=round(elapsed, 1),
             provider=meta.get("provider") or "comfy",
         )

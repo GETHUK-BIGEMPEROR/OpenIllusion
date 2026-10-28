@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from .. import bundle, edit, media, paths, staging, store
+from .. import bundle, edit, media, paths, store
 from .. import generation as sc
 
 
@@ -118,26 +118,6 @@ def _norm_spec(spec: dict) -> dict:
     return spec
 
 
-def _spec_resolver(spec: dict):
-    """Resolve tokens straight from uploads (for estimates, before a generation exists)."""
-    by_slot = {i["slot"]: i for i in spec["inputs"]}
-
-    def resolve(kind, n, form):
-        item = by_slot.get(f"{kind}:{n}")
-        if not item:
-            raise KeyError(f"{kind}:{n}")
-        if form == "url":
-            return item.get("url") or ""
-        if not item.get("asset"):
-            raise KeyError(f"{kind}:{n} has no media yet")
-        p = staging.resolve_asset(item["asset"])
-        if kind == "image":
-            uri, b64 = media.image_payload(p)
-            return b64 if form == "b64" else uri
-        # A placeholder of roughly the right size is enough for pricing.
-        return "data:video/mp4;base64," + "A" * 64
-
-    return resolve
 
 
 def spec_from_generation(m: sc.Manifest) -> dict:

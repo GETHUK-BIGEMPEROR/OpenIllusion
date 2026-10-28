@@ -225,7 +225,7 @@ export function InputStage({ e, f, s, set, photos }: { e: EngineInfo; f: MediaFi
       note={changed ? (pending ? "Made into a new file when it runs · the original stays" : "Applied when it runs · the original stays") : undefined}
       actions={<>
         <button type="button" className="btn ghost" disabled={!changed || busy} onClick={() => slot.setEdits(NO_EDITS)}>Undo edits</button>
-        {pending && <button type="button" className="btn" disabled={busy} onClick={() => void applyNow()} title="Make the new file now, so the cost and checks use it">{busy ? <Spinner size={12} /> : <I n="check" />}Apply now</button>}
+        {pending && <button type="button" className="btn" disabled={busy} onClick={() => void applyNow()} title="Make the new file now, so the checks use it">{busy ? <Spinner size={12} /> : <I n="check" />}Apply now</button>}
       </>} />
   );
 }

@@ -319,7 +319,6 @@ export interface Result {
   poster?: string | null;
   kind?: "image" | "video" | null;
   seed?: number | null;
-  cost_reported?: string | null;
   elapsed?: number | null;
   provider?: string | null;
   output_file?: string | null;
@@ -380,15 +379,6 @@ export interface GenerationRow {
   error: string | null;
 }
 
-export interface Estimate {
-  source: "exact" | "estimated" | "unknown" | "invalid" | "local";
-  amount?: string;
-  min_amount?: string;
-  max_amount?: string;
-  reason?: string;
-  router?: RouterError;
-}
-
 export interface RouterError {
   status: number;
   error_type: string;
@@ -413,7 +403,6 @@ export interface Job {
   finished: number | null;
   request_id: string | null;
   queue_position: number | null;
-  estimate: Estimate | null;
   error: (RouterError & Record<string, unknown>) | null;
   fixes: string[];
   poster: string | null;
@@ -465,7 +454,6 @@ export interface Settings {
   community_indexes: string[];
   strip_exif: boolean;
   uncap_size: boolean;
-  confirm_unknown_cost: boolean;
   local_v2_url: string;
   local_comfyui_url: string;
   local_autostart_proxy: boolean;
@@ -682,7 +670,6 @@ export const api = {
   /** Crop, turn, resize, cut, resample or mute a file: a new upload, the original kept (server/edit.py). */
   mediaEdit: (asset: string, ops: MediaOps, name?: string) => req<Asset>("POST", "/media/edit", { asset, ops, name }),
   compose: (spec: Spec) => req<{ template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[]; prep?: Record<string, PrepPlan> }>("POST", "/compose", spec),
-  estimate: (spec: Spec) => req<Estimate>("POST", "/estimate", spec),
   localCheck: (spec: Spec, fresh = false) => req<LocalCheck>("POST", "/local/check", { ...spec, fresh }),
   startProxy: () => req<{ ok: boolean; reason?: string | null; local: LocalStatus }>("POST", "/local/proxy/start"),
   run: (spec: Spec) => req<{ ids: string[] }>("POST", "/run", spec),

@@ -407,7 +407,6 @@ function CloudCard({ s, save }: { s: S; save: Save }) {
             <Toggle title="Max parallel runs" desc="Keeps you under Router's per-caller limit.">
               <Stepper value={s.max_parallel} min={1} max={8} onChange={(v) => save({ max_parallel: v })} label="Max parallel runs" />
             </Toggle>
-            <Toggle title="Ask before unpriced runs" desc="When Router returns no estimate for a run." checked={s.confirm_unknown_cost} onChange={(v) => save({ confirm_unknown_cost: v })} />
           </div>
         </details>
       )}

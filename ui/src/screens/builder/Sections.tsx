@@ -4,7 +4,7 @@ import { Mentions } from "../../components/Mentions";
 import { mentions, noNames, type Mention } from "../../lib/fields";
 import { I } from "../../components/oi";
 import type { IconName } from "../../components/sprite";
-import { isAudio, isImage, isVideo, useFileDrop } from "../../components/Drop";
+import { isAudio, isImage, isVideo, useFileDrop, usePageDrop } from "../../components/Drop";
 import { FitLine, MediaSheet, MediaThumb, metaOf } from "../../components/MediaEditor";
 import { ACCEPT, ACCEPT_AUDIO, ACCEPT_VIDEO } from "../create/shared";
 import { useUploader } from "../../components/Refs";
@@ -14,7 +14,7 @@ import { checks, fitEdits, NO_EDITS, outOf, statusOf, toOps, type State } from "
 import { errMsg } from "../../lib/format";
 import { useApp } from "../../lib/store";
 import { type Details, human, KIND_ICON, KIND_NOUN, type MediaRow, type OutputState, type PromptState, type RefModRow, type Source } from "./model";
-import { adapterProblems, fitText, jobOf, type JobKind, maxOf, type Need, ROLE_HINT, routerJobs, runSays, toJob } from "./modes";
+import { adapterProblems, fitText, jobOf, type JobKind, maxOf, type Need, placeFiles, placeMiss, ROLE_HINT, routerJobs, runSays, toJob } from "./modes";
 
 export function Sec({ id, icon, color, title, desc, aside, children }: { id: string; icon: IconName; color?: string; title: string; desc: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
@@ -82,14 +82,26 @@ export function InputsSection({ rows, setRows, mods, setMods }: {
   rows: MediaRow[]; setRows: (f: (r: MediaRow[]) => MediaRow[]) => void; mods: RefModRow[]; setMods: (f: (r: RefModRow[]) => RefModRow[]) => void;
 }) {
   const { upload, busy } = useUploader();
+  const toast = useApp((s) => s.toast);
+  const live = useRef(rows);
+  live.current = rows;
   const up = (key: string, p: Partial<MediaRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
   const upMod = (key: string, p: Partial<RefModRow>) => setMods((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
-  const pickSample = async (r: MediaRow, f?: File) => {
-    if (!f) return;
-    const [a] = await upload([f], r.kind);
-    if (a) up(r.key, { sample: a, own: true });
+  // Dropped on an input, the first file is its sample; the rest, and files dropped off any input, fill the empty ones.
+  const take = async (files: File[], at?: MediaRow) => {
+    const got = await upload(files.filter(isFile));
+    if (!got.length) return;
+    const p = placeFiles(live.current, got, undefined, at && { key: at.key });
+    setRows(() => p.rows);
+    const miss = placeMiss(p.rows, p.left);
+    if (miss) toast({ text: miss, tone: "warn" });
   };
   const shown = rows.filter((r) => r.on);
+  usePageDrop((files) => {
+    if (!shown.length) return false;
+    void take(files);
+    return true;
+  }, "Drop photos, clips or sounds to fill the empty inputs");
   const names = slotNames(shown);
   const photos = shown.map((r, i) => ({ r, name: names[i] })).filter((x) => x.r.kind === "image");
   const kept = mods.filter((r) => r.on);
@@ -102,7 +114,7 @@ export function InputsSection({ rows, setRows, mods, setMods }: {
       ) : (
         <div className="bcards">
           {shown.map((r, i) => (
-            <SampleCard key={r.key} r={r} name={names[i]} sub={r.where} busy={busy > 0} onFile={(f) => void pickSample(r, f)}
+            <SampleCard key={r.key} r={r} name={names[i]} sub={r.where} busy={busy > 0} onFiles={(f) => void take(f, r)}
               onApply={(a) => up(r.key, { sample: a, own: true })} onRemove={() => up(r.key, { sample: null, own: false })} style={{ "--i": i } as CSSProperties} />
           ))}
         </div>
@@ -178,16 +190,27 @@ export function CloudInputs({ a, rows, setRows }: { a: RouterAdapter; rows: Medi
   const [loading, setLoading] = useState<string | null>(null);
   const j = jobOf(routerJobs(a), rows);
   const names = filledNames(rows);
-  const take = async (r: MediaRow, f: File, add: boolean) => {
-    setLoading(r.key);
-    const [x] = await upload([f], r.kind).finally(() => setLoading(null));
-    if (!x) return;
-    setRows((rs) => {
-      if (!add) return rs.map((y) => (y.key === r.key ? { ...y, sample: x, own: true } : y));
-      const at = rs.map((y) => y.slot).lastIndexOf(r.slot) + 1;
-      return [...rs.slice(0, at), { ...r, key: `${r.slot}:${Date.now()}`, sample: x, own: true }, ...rs.slice(at)];
-    });
+  const live = useRef(rows);
+  live.current = rows;
+  // Dropped on an input, the first file goes there (``add``: as one more of its role); the rest, and files
+  // dropped off any input, fill the job's empty inputs, then roles with room.
+  const take = async (files: File[], r?: MediaRow, add = false) => {
+    setLoading(r ? (add ? `${r.slot}:add` : r.key) : null);
+    const got = await upload(files.filter(isFile)).finally(() => setLoading(null));
+    if (!got.length) return;
+    const p = placeFiles(live.current, got, a, r && { key: r.key, add });
+    setRows(() => p.rows);
+    const miss = placeMiss(p.rows, p.left);
+    if (miss) toast({ text: miss, tone: "warn" });
   };
+  usePageDrop((files) => {
+    if (!j?.inputs.length) {
+      toast({ text: `${j?.label ?? "This"} takes no files. Pick what the template does first.`, tone: "warn" });
+      return true;
+    }
+    void take(files);
+    return true;
+  }, "Drop photos, clips or sounds to fill the empty inputs");
   // Emptying one of several files takes its tile away; the last one stays, empty.
   const remove = (r: MediaRow) => setRows((rs) => (rs.filter((y) => y.slot === r.slot).length > 1
     ? rs.filter((y) => y.key !== r.key) : rs.map((y) => (y.key === r.key ? { ...y, sample: null, own: false } : y))));
@@ -240,11 +263,11 @@ export function CloudInputs({ a, rows, setRows }: { a: RouterAdapter; rows: Medi
             <div className="bcards">
               {group.map((r) => (
                 <SampleCard key={r.key} r={r} name={names.get(r.key) ?? x.role} fit={x.fit} model={a.name} role={x.role} busy={busy > 0} loading={loading === r.key}
-                  onFile={(f) => void take(r, f, false)} onApply={(s) => setRows((rs) => rs.map((y) => (y.key === r.key ? { ...y, sample: s, own: true } : y)))} onRemove={() => remove(r)} />
+                  onFiles={(f) => void take(f, r)} onApply={(s) => setRows((rs) => rs.map((y) => (y.key === r.key ? { ...y, sample: s, own: true } : y)))} onRemove={() => remove(r)} />
               ))}
               {last?.sample && group.length < cap && (
                 <div className="bcard add">
-                  <SlotDrop r={{ ...last, key: `${i}:add`, sample: null }} name={x.role} busy={busy > 0} loading={loading === `${i}:add`} more onFile={(f) => void take({ ...last, key: `${i}:add` }, f, true)} />
+                  <SlotDrop r={{ ...last, key: `${i}:add`, sample: null }} name={x.role} busy={busy > 0} loading={loading === `${i}:add`} more onFiles={(f) => void take(f, last, true)} />
                 </div>
               )}
             </div>
@@ -276,23 +299,23 @@ function RolePills({ fit, files }: { fit: Fit; files: Asset[] }) {
 }
 
 /** One input's sample as a card: the file, whether the model takes it, and Edit, Replace, Remove. Empty, it's a drop zone. */
-function SampleCard({ r, name, sub, fit, model, role, busy, loading, onFile, onApply, onRemove, style }: {
+function SampleCard({ r, name, sub, fit, model, role, busy, loading, onFiles, onApply, onRemove, style }: {
   r: MediaRow; name: string; sub?: string; fit?: Fit; model?: string; role?: string; busy: boolean; loading?: boolean;
-  onFile: (f: File) => void; onApply: (a: Asset) => void; onRemove: () => void; style?: CSSProperties;
+  onFiles: (f: File[]) => void; onApply: (a: Asset) => void; onRemove: () => void; style?: CSSProperties;
 }) {
   const [open, setOpen] = useState(false);
   const toast = useApp((s) => s.toast);
   const m = r.sample;
   const noun = r.kind === "video" ? "clip" : r.kind === "audio" ? "sound" : "photo";
   const fits = (f: File) => (r.kind === "audio" ? isAudio(f) : r.kind === "video" ? isVideo(f) : isImage(f));
-  const drop = useFileDrop((files) => onFile(files[0]), {
+  const drop = useFileDrop(onFiles, {
     accept: fits, disabled: busy || !r.on,
     onReject: (files) => toast({ text: `${name} takes a ${noun}. ${files[0].name} isn't one.`, tone: "warn" }),
   });
   if (!m) {
     return (
       <div className="bcard vacant" style={style}>
-        <SlotDrop r={r} name={name} busy={busy} loading={loading} onFile={onFile} />
+        <SlotDrop r={r} name={name} busy={busy} loading={loading} onFiles={onFiles} />
         <div className="bcard-b">
           <div className="bcard-l1"><b>{name}</b>{sub && <small title={sub}>{sub}</small>}</div>
           <span className={cx("fline", r.required && "need")}><span>{r.required ? `Needs a sample ${noun}` : "Optional"}</span></span>
@@ -315,7 +338,7 @@ function SampleCard({ r, name, sub, fit, model, role, busy, loading, onFile, onA
           <label className="icon-btn sm" title={`Replace with another ${noun}`} aria-label={`Replace ${name}`}>
             <I n="upload" />
             <input type="file" hidden accept={r.kind === "video" ? ACCEPT_VIDEO : r.kind === "image" ? ACCEPT : ACCEPT_AUDIO} disabled={busy}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onFiles([f]); e.target.value = ""; }} />
           </label>
           <button className="icon-btn sm" type="button" onClick={onRemove} aria-label={`Remove ${name}`} title="Remove"><I n="x" /></button>
         </div>
@@ -326,6 +349,8 @@ function SampleCard({ r, name, sub, fit, model, role, busy, loading, onFile, onA
 }
 
 /** "Image 1" for each filled row, by row key: what Create calls it. */
+const isFile = (f: File) => isImage(f) || isVideo(f) || isAudio(f);
+
 const filledNames = (rows: MediaRow[]) => {
   const filled = rows.filter((r) => r.on && r.sample);
   const names = slotNames(filled);
@@ -418,11 +443,11 @@ export function TitleField({ d, setD, invalid }: { d: Details; setD: (f: (d: Det
 }
 
 /** A media input's sample: a drop zone in the input's shape. Click to pick a file, or drop one on it. */
-function SlotDrop({ r, name, busy, loading, more, onFile }: { r: MediaRow; name: string; busy: boolean; loading?: boolean; more?: boolean; onFile: (f: File) => void }) {
+function SlotDrop({ r, name, busy, loading, more, onFiles }: { r: MediaRow; name: string; busy: boolean; loading?: boolean; more?: boolean; onFiles: (f: File[]) => void }) {
   const toast = useApp((s) => s.toast);
   const fits = (f: File) => (r.kind === "audio" ? isAudio(f) : r.kind === "video" ? isVideo(f) : isImage(f));
   const noun = r.kind === "video" ? "clip" : r.kind === "audio" ? "sound" : "photo";
-  const drop = useFileDrop((files) => onFile(files[0]), {
+  const drop = useFileDrop(onFiles, {
     accept: fits, disabled: busy || !r.on,
     onReject: (files) => toast({ text: `${name} takes a ${r.kind === "video" ? "video clip" : noun}. ${files[0].name} isn't one.`, tone: "warn" }),
   });
@@ -438,7 +463,7 @@ function SlotDrop({ r, name, busy, loading, more, onFile }: { r: MediaRow; name:
           <b>{drop.over ? "Drop it" : more ? `Another ${noun}` : `Drop a ${noun}`}</b>
           {!more && <span>or click to choose</span>}
         </>}
-      <input type="file" hidden accept={r.kind === "video" ? ACCEPT_VIDEO : r.kind === "image" ? ACCEPT : ACCEPT_AUDIO} disabled={busy || !r.on} onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+      <input type="file" hidden accept={r.kind === "video" ? ACCEPT_VIDEO : r.kind === "image" ? ACCEPT : ACCEPT_AUDIO} disabled={busy || !r.on} multiple onChange={(e) => { onFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
     </label>
   );
 }

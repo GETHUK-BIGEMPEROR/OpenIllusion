@@ -75,7 +75,7 @@ class Result(_Open):
     poster: str | None = None
     kind: Literal["image", "video"] | None = None
     seed: int | None = None
-    cost_reported: str | None = None
+    cost_reported: str | None = None  # older runs only; usage lives in the Comfy dashboard
     elapsed: float | None = None
     provider: str | None = None
     output_file: str | None = None  # path under ComfyUI output, machine-local

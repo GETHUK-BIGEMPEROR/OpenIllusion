@@ -25,8 +25,6 @@ class FakeRouter:
     def __call__(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         self.calls.append((request.method, path))
-        if path.endswith("/estimate"):
-            return httpx.Response(200, json={"source": "estimated", "min_amount": "0.40", "max_amount": "0.90"})
         if request.method == "POST" and path.endswith("/requests"):
             self.keys.append(request.headers.get("Idempotency-Key"))
             if self.mode == "rate_limited" and len(self.keys) == 1:
@@ -46,8 +44,7 @@ class FakeRouter:
                 return httpx.Response(200, json={"status": "COMPLETED", "error_type": "content_policy_violation"})
             return httpx.Response(200, json={"status": "COMPLETED"})
         if request.method == "GET" and path.endswith("/requests/r1"):
-            return httpx.Response(200, json={"task": {"status": "succeeded", "content": {"url": "https://cdn.test/out.mp4"}}},
-                                  headers={"X-Comfy-Credits-Used": "0.62"})
+            return httpx.Response(200, json={"task": {"status": "succeeded", "content": {"url": "https://cdn.test/out.mp4"}}})
         if request.url.host == "cdn.test":
             return httpx.Response(200, content=self.video, headers={"content-type": "video/mp4"})
         return httpx.Response(404)
@@ -103,10 +100,10 @@ def test_full_run_writes_generation_and_output(tmp_path, uploads, monkeypatch):
     mgr, ids = run_with(fake, monkeypatch)
     job = mgr.jobs[ids[0]]
     assert job.state == "done", job.detail
-    assert job.estimate["source"] == "estimated"
     assert fake.keys == [ids[0]]  # generation id is the Idempotency-Key
     m = store.get(ids[0])
-    assert m.status == "done" and m.result.cost_reported == "0.62"
+    assert m.status == "done" and m.result.cost_reported is None  # usage is the Comfy dashboard's
+    assert not any(p.endswith("/estimate") for _, p in fake.calls)  # no price asked before the run
     assert m.result.kind == "video" and m.result.seed == 7
     trimmed = media.probe(store.folder(m.id) / "driving" / "driving.mp4")
     assert 2.7 <= trimmed["duration"] <= 3.3
@@ -150,12 +147,6 @@ def test_read_error_survives_html():
 
     e = read_error(resp)
     assert e.status == 502 and e.request_id == "abc" and e.error_type == "internal_error"
-
-
-def test_estimate_not_enabled_is_unknown():
-    t = httpx.MockTransport(lambda r: httpx.Response(403, headers={"X-Comfy-Error-Type": "not_enabled"}))
-    est = asyncio.run(Router(key="k", transport=t).estimate("bfl/flux-3-image", {"prompt": "x"}))
-    assert est == {"source": "unknown", "reason": "not_enabled"}
 
 
 def test_key_never_leaves_in_public_settings():

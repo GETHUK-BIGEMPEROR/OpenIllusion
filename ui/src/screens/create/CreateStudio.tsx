@@ -42,7 +42,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const lead = leadSlot(engine);
   const leadVideo = lead.startsWith("video:");
   const settings = settingsOf(engine);
-  const { spec, compose, estimate } = useCompose(mode, s, engine);
+  const { spec, compose } = useCompose(mode, s, engine);
   const { generation: m, job } = useCurrent(s.current);
   const invalid = invalidFields(compose, job?.error);
   const share = useApp((st) => st.share);
@@ -111,7 +111,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
     return toSpec(mode, next, engine);
   };
   const runner = useRunner({
-    set, spec, compose, estimate, prepare,
+    set, spec, compose, prepare,
     onRan: (ids) => { set({ group: ids }); setView(ids.length > 1 ? "grid" : "compare"); },
   });
 
@@ -236,7 +236,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
             </div>
           </details>}
         </div>
-        <RunBar s={s} set={set} engine={engine} runner={runner} estimate={estimate} queued={jobs.filter(isActive).length} varies={varies} />
+        <RunBar s={s} set={set} engine={engine} runner={runner} queued={jobs.filter(isActive).length} varies={varies} />
       </aside>
 
       <section className="stage" aria-label="Preview">

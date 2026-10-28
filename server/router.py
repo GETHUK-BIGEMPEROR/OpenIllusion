@@ -1,6 +1,6 @@
 """A small async client for Comfy Router.
 
-Covers what OpenIllusion needs: pre-flight estimates and queued delivery
+Covers what OpenIllusion needs: queued delivery
 (submit, status, collect, cancel). What each model takes is in its adapter
 (``server/adapters``), not read from Router. Plain HTTP over httpx so the pack has no SDK pin to fight with.
 """
@@ -98,16 +98,6 @@ class Router:
         except ValueError:
             return None, resp
 
-    async def estimate(self, model_id: str, body: dict) -> dict:
-        p, m = split_id(model_id)
-        try:
-            data, _ = await self._json("POST", f"/v2/models/{p}/{m}/estimate", json=body)
-            return data or {"source": "unknown", "reason": "empty_response"}
-        except RouterError as e:
-            if e.status == 403 and e.error_type == "not_enabled":
-                return {"source": "unknown", "reason": "not_enabled"}
-            raise
-
     # ---- queued delivery ----------------------------------------------
 
     async def submit(self, model_id: str, body: dict, idempotency_key: str) -> dict:
@@ -134,7 +124,6 @@ class Router:
         meta = {
             "status_code": resp.status_code,
             "content_type": resp.headers.get("content-type", ""),
-            "credits_used": resp.headers.get("X-Comfy-Credits-Used"),
             "provider": resp.headers.get("X-Comfy-Provider") or resp.headers.get("X-Comfy-Served-By"),
             "request_id": resp.headers.get("X-Comfy-Request-Id"),
         }
@@ -153,7 +142,6 @@ class Router:
         meta = {
             "status_code": resp.status_code,
             "content_type": resp.headers.get("content-type", ""),
-            "credits_used": resp.headers.get("X-Comfy-Credits-Used"),
             "provider": resp.headers.get("X-Comfy-Provider") or resp.headers.get("X-Comfy-Served-By"),
             "request_id": resp.headers.get("X-Comfy-Request-Id"),
         }

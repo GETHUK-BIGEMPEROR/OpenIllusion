@@ -321,8 +321,6 @@ def _router(sent, answer, files=None):
         path = request.url.path
         if str(request.url) in (files or {}):
             return httpx.Response(200, content=files[str(request.url)], headers={"content-type": "video/mp4"})
-        if path.endswith("/estimate"):
-            return httpx.Response(200, json={"source": "unknown"})
         if request.method == "POST" and path.endswith("/requests"):
             sent["path"], sent["body"] = path, json.loads(request.content)
             return httpx.Response(201, json={"request_id": "r1", "status": "IN_QUEUE"})

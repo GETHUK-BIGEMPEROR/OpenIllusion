@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api, HttpError, type EngineInfo, type Estimate, type LocalStatus, type Mode, type Spec } from "../lib/api";
+import { api, HttpError, type EngineInfo, type LocalStatus, type Mode, type Spec } from "../lib/api";
 import { describeFailure } from "../lib/errors";
 import { errMsg } from "../lib/format";
 import { useElapsed, useJobs } from "../lib/live";
@@ -322,22 +322,12 @@ export function NoTemplates({ mode }: { mode: Mode }) {
 
 /* ----------------------------------------------------------------- compose */
 
-/** Compose (template + warnings) and the Router estimate, both debounced. */
+/** Compose (template + warnings), debounced. */
 export function useCompose(mode: Mode, s: StudioState, engine?: EngineInfo) {
   const spec = useMemo(() => toSpec(mode, s, engine), [mode, s, engine]);
   const key = useDebounced(JSON.stringify(spec), 350);
   const compose = useQuery({ queryKey: ["compose", key], queryFn: () => api.compose(JSON.parse(key) as Spec), placeholderData: (p, q) => (q && sameEngine(q.queryKey[1], spec.engine) ? p : undefined), enabled: !!engine });
-  const complete = !!compose.data && !compose.data.warnings.some((w) => w.level === "error");
-  const estKey = useDebounced(key, 900);
-  const estimate = useQuery({
-    queryKey: ["estimate", estKey],
-    queryFn: () => api.estimate(JSON.parse(estKey) as Spec),
-    enabled: complete && estKey === key,
-    staleTime: 300_000,
-    retry: false,
-  });
-  const est: Estimate | null | undefined = !complete ? { source: "unknown", reason: "incomplete" } : estimate.data;
-  return { spec, compose: compose.data, estimate: est, estimating: estimate.isFetching };
+  return { spec, compose: compose.data };
 }
 
 /* ------------------------------------------------------------------ panels */
@@ -345,23 +335,20 @@ export function useCompose(mode: Mode, s: StudioState, engine?: EngineInfo) {
 type Composed = { template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[] };
 
 /** Everything that decides whether Run works, and Run itself. R runs from anywhere outside a text field. */
-export function useRunner({ set, spec, compose, estimate, onRan, prepare }: {
-  set: SetStudio; spec: Spec; compose?: Composed; estimate?: Estimate | null; onRan?: (ids: string[]) => void;
+export function useRunner({ set, spec, compose, onRan, prepare }: {
+  set: SetStudio; spec: Spec; compose?: Composed; onRan?: (ids: string[]) => void;
   /** Just before the run: work that changes the inputs (new files for edits). Returns the spec to run, or null for `spec`. */
   prepare?: () => Promise<Spec | null>;
 }) {
   const qc = useQueryClient();
   const toast = useApp((st) => st.toast);
-  const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings });
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState(false);
   const errors = compose?.warnings.filter((w) => w.level === "error") ?? [];
   const isLocal = spec.engine.startsWith("local/");
   const check = useLocalCheck(spec);
   const status = useQuery({ queryKey: ["status"], queryFn: () => api.status() });
   const split = isLocal && status.data?.local.upstream_match === false && !status.data.local.managed;
   const missing = split || (isLocal && !!check.data && !check.data.ok && check.data.reachable !== false);
-  const unknown = !isLocal && (!estimate || estimate.source === "unknown");
   const noKey = !isLocal && status.data && !status.data.has_key;
   const blocked = errors.length > 0 || busy || missing || !!noKey;
   const reasons = [
@@ -370,13 +357,8 @@ export function useRunner({ set, spec, compose, estimate, onRan, prepare }: {
     ...(missing && !split ? ["Install what your ComfyUI is missing"] : []),
   ];
 
-  const run = async (force = false) => {
+  const run = async () => {
     if (blocked) return;
-    if (unknown && settings.data?.confirm_unknown_cost && !force) {
-      setConfirm(true);
-      return;
-    }
-    setConfirm(false);
     setBusy(true);
     try {
       const { ids } = await api.run((prepare ? await prepare() : null) ?? spec);
@@ -405,7 +387,7 @@ export function useRunner({ set, spec, compose, estimate, onRan, prepare }: {
     return () => window.removeEventListener("keydown", on);
   }, []);
 
-  return { run, busy, blocked, reasons, confirm, setConfirm, isLocal };
+  return { run, busy, blocked, reasons, isLocal };
 }
 
 /** Current run's generation + job, with a live elapsed timer. */

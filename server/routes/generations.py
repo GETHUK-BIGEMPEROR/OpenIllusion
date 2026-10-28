@@ -1,4 +1,4 @@
-"""Uploads, compose, estimate, run, and the job queue."""
+"""Uploads, compose, run, and the job queue."""
 
 from __future__ import annotations
 
@@ -8,12 +8,10 @@ import time
 from pathlib import Path
 
 import av
-import httpx
 from aiohttp import web
 
 from .. import edit, engines, jobs, media, paths, settings, staging, storage
-from ..router import Router, RouterError
-from .common import API, UPLOAD_EXT, MAX_UPLOAD, err, body, _safe_file, asset_info, _norm_spec, _spec_resolver
+from .common import API, UPLOAD_EXT, MAX_UPLOAD, err, body, _safe_file, asset_info, _norm_spec
 
 
 def register(routes: web.RouteTableDef) -> None:
@@ -104,7 +102,7 @@ def register(routes: web.RouteTableDef) -> None:
         asset, info = await asyncio.to_thread(grab)
         return web.json_response({"asset": asset, "name": f"frame-{t:.2f}s.png", **info})
 
-    # ---- compose, estimate, run --------------------------------------------------
+    # ---- compose, run --------------------------------------------------
     @routes.post(API + "/compose")
     async def compose(request):
         spec = await body(request)
@@ -120,28 +118,6 @@ def register(routes: web.RouteTableDef) -> None:
         except (FileNotFoundError, ValueError, OSError, av.FFmpegError):
             out["prep"] = {}
         return web.json_response(out)
-
-    @routes.post(API + "/estimate")
-    async def estimate(request):
-        spec = _norm_spec(await body(request))
-        if spec["engine"].startswith("local/"):
-            return web.json_response({"source": "local"})
-        try:
-            comp = engines.compose(spec)
-            if any(w["level"] == "error" for w in comp["warnings"]):
-                return web.json_response({"source": "unknown", "reason": "incomplete"})
-            resolver = _spec_resolver(spec)
-            payload = await asyncio.to_thread(engines.materialize, comp["template"], resolver)
-            est = await Router().estimate(engines.router_model(spec["engine"]), payload)
-        except RouterError as e:
-            if e.status == 422:
-                return web.json_response({"source": "invalid", "router": e.to_dict()})
-            return web.json_response({"source": "unknown", "reason": e.error_type})
-        except (KeyError, FileNotFoundError, ValueError) as e:
-            return web.json_response({"source": "unknown", "reason": str(e)})
-        except httpx.HTTPError:
-            return web.json_response({"source": "unknown", "reason": "router_unreachable"})
-        return web.json_response(est)
 
     @routes.post(API + "/run")
     async def run(request):

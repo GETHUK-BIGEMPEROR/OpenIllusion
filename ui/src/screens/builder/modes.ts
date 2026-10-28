@@ -1,5 +1,5 @@
 // Router models: the jobs each one does, the inputs each job takes, and what a set of filled inputs makes.
-import type { AdapterSetting, Fit, Range, RouterAdapter } from "../../lib/api";
+import type { AdapterSetting, Asset, Fit, Range, RouterAdapter } from "../../lib/api";
 import type { Details, MediaRow, OutputState, ParamRow, PromptState, RefModRow } from "./model";
 
 /** What a job asks of an input: always, only if you want it, or at least one of the "any" ones. */
@@ -85,6 +85,54 @@ export const jobOf = (jobs: RouterJob[], rows: MediaRow[]) => {
   const on = [...new Set(rows.filter((r) => r.on).map((r) => r.slot!))].sort((x, y) => x - y).join();
   return jobs.find((j) => j.inputs.join() === on);
 };
+
+let made = 0;
+
+/**
+ * Files into the inputs that are on: ``at`` (the input they were dropped on) takes the first, then each
+ * goes to the first empty input of its kind, ``at``'s own role first. A Router role with room left (``a``)
+ * takes another file. What fits nowhere comes back in ``left``.
+ */
+export function placeFiles(rows: MediaRow[], files: Asset[], a?: RouterAdapter, at?: { key: string; add?: boolean }): { rows: MediaRow[]; left: Asset[] } {
+  let rs = rows;
+  const left: Asset[] = [];
+  const put = (key: string, x: Asset) => { rs = rs.map((y) => (y.key === key ? { ...y, sample: x, own: true } : y)); };
+  const add = (slot: number, x: Asset) => {
+    const i = rs.map((y) => y.slot).lastIndexOf(slot);
+    rs = [...rs.slice(0, i + 1), { ...rs[i], key: `${slot}:${Date.now()}:${made++}`, sample: x, own: true }, ...rs.slice(i + 1)];
+  };
+  const home = at ? rows.find((r) => r.key === at.key) : undefined;
+  const queue = [...files];
+  if (home && queue[0]?.kind === home.kind) {
+    const x = queue.shift()!;
+    if (at!.add && a) add(home.slot!, x);
+    else put(home.key, x);
+  }
+  // Display order: the role dropped on, then what the job must have, then the rest.
+  const j = a ? jobOf(routerJobs(a), rows) : undefined;
+  const roles = j ? [...j.inputs].sort((x, y) => +(y === home?.slot) - +(x === home?.slot) || +(j.need[y] === "yes") - +(j.need[x] === "yes")) : [];
+  const rank = (r: MediaRow) => (a ? roles.indexOf(r.slot!) : 0);
+  for (const x of queue) {
+    const empty = rs.filter((r) => r.on && r.kind === x.kind && !r.sample).sort((p, q) => rank(p) - rank(q))[0];
+    if (empty) { put(empty.key, x); continue; }
+    const room = a ? roles.find((i) => a.inputs[i].type === x.kind && rs.some((r) => r.on && r.slot === i)
+      && rs.filter((r) => r.on && r.slot === i && r.sample).length < maxOf(a, i, rs)) : undefined;
+    if (room != null) add(room, x);
+    else left.push(x);
+  }
+  return { rows: rs, left };
+}
+
+/** Why ``left`` found no input: "Every photo input is full" or "Nothing here takes a sound". */
+export function placeMiss(rows: MediaRow[], left: Asset[]): string | null {
+  const x = left[0];
+  if (!x) return null;
+  const noun = x.kind === "video" ? "clip" : x.kind === "audio" ? "sound" : "photo";
+  const more = left.length > 1 ? ` ${left.length} files weren't used.` : "";
+  return rows.some((r) => r.on && r.kind === x.kind)
+    ? `Every ${noun} input is full. Drop on one to replace its sample.${more}`
+    : `Nothing here takes a ${noun}.${more}`;
+}
 
 /** Show only the inputs a job takes. Files in inputs it doesn't take are dropped: they'd be sent otherwise. */
 export const toJob = (j: RouterJob, rows: MediaRow[]): MediaRow[] => {

@@ -260,7 +260,7 @@ function KeyPop({ k, has }: { k: KeyState; has: boolean }) {
       <p className="gp-say">{k.say}</p>
       <div className="gp-rows">
         <div><span>Runs on</span><b>Comfy Router</b></div>
-        <div><span>Cost</span><b>Per run, quoted above Run</b></div>
+        <div><span>Usage</span><b>Comfy dashboard</b></div>
         <div><span>Files by link</span><b>Comfy Cloud, same key</b></div>
       </div>
       <div className="gp-f">

@@ -6,7 +6,7 @@ import { go, href, parse, type Route } from "../lib/route";
 import { cachedEngine } from "../lib/query";
 import { useApp } from "../lib/store";
 import { I } from "./oi";
-import { dropIntoStudio, isMediaFile, openWithFiles } from "./Drop";
+import { dropIntoStudio, isAudio, isMediaFile, openWithFiles, pageDrop, pageDropHint } from "./Drop";
 import { buildAction, workflowToBuilder } from "../screens/builder/Builder";
 import { isBackup, openBackup } from "../screens/RestoreReview";
 import { cx } from "./ui";
@@ -142,30 +142,41 @@ export function DropOverlay() {
   const setReview = useApp((s) => s.setReview);
   const toast = useApp((s) => s.toast);
   const depth = useRef(0);
+  // A drag that began on this page (selected text, a picture, a link) isn't an import.
+  const inside = useRef(false);
   useEffect(() => {
     const isOurs = (e: DragEvent) => {
       // Inputs (reference trays, the driving video card) handle their own drops.
       const t = e.target as HTMLElement | null;
       return !t?.closest?.("[data-own-drop]");
     };
+    const fromOutside = (e: DragEvent) =>
+      !inside.current && !!e.dataTransfer && (e.dataTransfer.types.includes("Files") || e.dataTransfer.types.includes("text/uri-list"));
+    const start = () => { inside.current = true; };
     const enter = (e: DragEvent) => {
-      if (!e.dataTransfer?.types.includes("Files") && !e.dataTransfer?.types.includes("text/uri-list")) return;
+      if (!fromOutside(e)) return;
       depth.current++;
       if (isOurs(e)) setOver(true);
     };
-    const leave = () => {
+    const leave = (e: DragEvent) => {
+      if (!fromOutside(e)) return;
       depth.current = Math.max(0, depth.current - 1);
       if (!depth.current) setOver(false);
     };
     const overFn = (e: DragEvent) => {
-      if (isOurs(e)) e.preventDefault();
+      if (!fromOutside(e)) return;
+      // Always: a file nothing takes would otherwise open in the tab, and the page would be gone.
+      e.preventDefault();
+      // Inputs that handle their own drops decide for themselves; a busy one just ignores the file.
+      if (isOurs(e)) e.dataTransfer!.dropEffect = "copy";
       setOver(isOurs(e));
     };
     const drop = async (e: DragEvent) => {
       depth.current = 0;
       setOver(false);
-      if (!isOurs(e) || e.defaultPrevented) return;
+      if (!fromOutside(e)) return void (inside.current = false);
       e.preventDefault();
+      if (!isOurs(e)) return;
       const files = [...(e.dataTransfer?.files ?? [])];
       const route = parse(window.location.hash).name;
       const studio = route === "edit" || route === "motion" ? route : null;
@@ -178,6 +189,8 @@ export function DropOverlay() {
         }
         if (isBackup(f)) return void openBackup(f);
         if (await workflowToBuilder(f)) return;
+        // A page with inputs of its own (the Builder) fills them with photos, clips and sounds.
+        if (files.some((x) => isMediaFile(x) || isAudio(x)) && pageDrop(files)) return;
         // Only a .illusion, a PNG or an MP4 can carry a recipe. In Create, any other photo or clip is an input.
         const carries = /\.(illusion|png|mp4)$/i.test(f.name);
         if (studio && isMediaFile(f) && !carries) return void dropIntoStudio(studio, files);
@@ -198,10 +211,12 @@ export function DropOverlay() {
     };
     const reset = () => {
       depth.current = 0;
+      inside.current = false;
       setOver(false);
     };
     // Capture phase: inputs that handle their own drops stop propagation, and the overlay must still close.
     const on = { capture: true };
+    window.addEventListener("dragstart", start, on);
     window.addEventListener("dragenter", enter, on);
     window.addEventListener("dragleave", leave, on);
     window.addEventListener("dragover", overFn, on);
@@ -209,6 +224,7 @@ export function DropOverlay() {
     window.addEventListener("dragend", reset, on);
     window.addEventListener("blur", reset);
     return () => {
+      window.removeEventListener("dragstart", start, on);
       window.removeEventListener("dragenter", enter, on);
       window.removeEventListener("dragleave", leave, on);
       window.removeEventListener("dragover", overFn, on);
@@ -220,7 +236,9 @@ export function DropOverlay() {
   if (!over) return null;
   // A hint, not a cover: the inputs under the cursor stay visible and light up themselves.
   const route = parse(window.location.hash).name;
-  const [title, rest] = route === "edit" || route === "motion"
+  const own = pageDropHint();
+  const [title, rest] = own ? [own, " · or a ComfyUI workflow to start over"]
+    : route === "edit" || route === "motion"
     ? ["Drop to fill the next empty input", " · or on an input or the preview to choose"]
     : route === "explore"
       ? ["Drop on a template to run it on your file", " · or anywhere to import"]

@@ -1,4 +1,4 @@
-import type { Estimate, Outcome } from "./api";
+import type { Outcome } from "./api";
 
 export const shortModel = (id: string) => id.split("/").pop() ?? id;
 
@@ -34,15 +34,6 @@ export function stamp(ts: number): string {
   return new Date(ts * 1000).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function money(e?: Estimate | null, times = 1): { label: string; tone: "exact" | "estimated" | "unknown" | "invalid" | "local" } {
-  if (!e) return { label: "Estimating…", tone: "unknown" };
-  if (e.source === "local") return { label: "Your GPU", tone: "local" };
-  const f = (v?: string) => (v ? `$${(parseFloat(v) * times).toFixed(parseFloat(v) * times < 1 ? 3 : 2)}` : "");
-  if (e.source === "exact" && e.amount) return { label: f(e.amount), tone: "exact" };
-  if (e.source === "estimated") return { label: `${f(e.min_amount)}–${f(e.max_amount)}`, tone: "estimated" };
-  if (e.source === "invalid") return { label: "Request invalid", tone: "invalid" };
-  return { label: "Cost unknown", tone: "unknown" };
-}
 
 export const OUTCOME: Record<Outcome, { word: string; glyph: string; color: string; soft: string; text: string }> = {
   worked: { word: "Worked", glyph: "✓", color: "#5FD39A", soft: "rgba(95,211,154,0.2)", text: "#DDF7E9" },
