@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { cx, EmptyBox, gpuName, I, PageHead } from "../components/oi";
 import { UpstreamWarning } from "../components/Studio";
 import { Button, IconButton, Spinner, Toggle as Switch } from "../components/ui";
-import { api, type BackupResult, type Settings as S, type Status, type StorageBucket } from "../lib/api";
+import { api, type BackupResult, type EngineInfo, type Settings as S, type Status, type StorageBucket } from "../lib/api";
+import { tplModel, tplName } from "../components/TemplateCard";
 import { confirm } from "../lib/confirm";
 import { bytes, errMsg } from "../lib/format";
 import { useProgress } from "../lib/live";
@@ -13,6 +14,7 @@ import { openBackup } from "./RestoreReview";
 const NAV = [
   { id: "gpu", label: "Your GPU" },
   { id: "limits", label: "Output limits" },
+  { id: "templates", label: "Templates" },
   { id: "storage", label: "Storage" },
   { id: "cloud", label: "Cloud" },
 ] as const;
@@ -92,6 +94,8 @@ export function Settings() {
                 </div>
               </Sec>
 
+              <TemplatesSection />
+
               <StorageSection s={s} save={save} />
 
               <Sec id="cloud" title="Cloud" desc="Optional. Cloud templates run on Comfy Router and bill your Comfy account. Local templates never need this." later={!s.has_key}>
@@ -106,6 +110,36 @@ export function Settings() {
 }
 
 /* ---------------------------------------------------------------- sections */
+
+/** Shipped templates taken off Explore, each with a way back. */
+function TemplatesSection() {
+  const qc = useQueryClient();
+  const toast = useApp((s) => s.toast);
+  const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
+  const hidden = (engines.data ?? []).filter((e) => e.hidden);
+  const back = async (e: EngineInfo) => {
+    try {
+      await api.hideTemplate(e.id, false);
+      qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.map((x) => (x.id === e.id ? { ...x, hidden: false } : x)));
+      toast({ text: `${tplName(e)} is back on Explore.`, tone: "ok" });
+    } catch (x) {
+      toast({ text: `Couldn't put it back: ${errMsg(x)}`, tone: "error" });
+    }
+  };
+  return (
+    <Sec id="templates" title="Templates" desc="Shipped templates you removed from Explore. Their files stay, so each one can come back.">
+      <div className="set-card">
+        {hidden.length ? hidden.map((e) => (
+          <div key={e.id} className="hid-row">
+            {e.cover ? <img src={e.cover} alt="" /> : <span className="hid-ph"><I n={e.mode === "motion" ? "film" : "image"} /></span>}
+            <span className="hid-t"><b>{tplName(e)}</b><small>{tplModel(e)}</small></span>
+            <button className="btn sm" type="button" onClick={() => void back(e)}><I n="undo" />Put back</button>
+          </div>
+        )) : <p className="help hid-empty">None removed. The trash button in a template's panel takes it off Explore.</p>}
+      </div>
+    </Sec>
+  );
+}
 
 const BUCKETS: { id: StorageBucket; label: string; desc: string; color: string }[] = [
   { id: "generations", label: "Generations", desc: "Your library: inputs, previews and recipes.", color: "var(--violet)" },

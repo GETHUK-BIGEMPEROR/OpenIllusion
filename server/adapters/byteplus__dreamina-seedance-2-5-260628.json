@@ -328,5 +328,10 @@
       "content",
       "video_url"
     ]
-  ]
+  ],
+  "mentions": {
+    "image": "@Image {n}",
+    "video": "@Video {n}",
+    "audio": "@Audio {n}"
+  }
 }

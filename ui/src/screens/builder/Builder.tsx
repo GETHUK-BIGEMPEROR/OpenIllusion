@@ -257,7 +257,8 @@ export function Builder({ from }: { from?: string }) {
                 <div className="bform">
                   <JobSection a={src.a} rows={media} setRows={setMedia} />
                   <CloudInputs a={src.a} rows={media} setRows={setMedia} />
-                  <PromptSection src={src} p={prompt} setP={setPrompt} />
+                  <PromptSection src={src} p={prompt} setP={setPrompt}
+                    files={media.filter((m) => m.on && m.sample).map((m) => ({ key: m.key, kind: m.kind, label: m.label, thumb: m.kind === "audio" ? null : m.sample!.poster ?? m.sample!.url }))} />
                   <CloudSettings list={settingsFor(src.a, media.filter((m) => m.on))} st={csets} setSt={setCsets} />
                 </div>
               ) : (

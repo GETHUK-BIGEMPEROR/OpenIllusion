@@ -187,15 +187,15 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 
 | Screen | Route | What you do there | File |
 | --- | --- | --- | --- |
-| Explore | `#/explore` | Every published template on one wall, photos and videos together. Filter All / Local / Cloud and by tag. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. A template without a cover yet shows its name until a result is made its cover. | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
-| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt, pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. Cloud templates show a price quote above Run. A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
+| Explore | `#/explore` | Every published template on one wall, photos and videos together. Filter All / Local / Cloud and by tag. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back). A template without a cover yet shows its name until a result is made its cover. | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
+| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips name each filled file the way the model reads it), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. Cloud templates show a price quote above Run. A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
 | Characters | `#/characters`, `#/characters/{id}` | Character Lab: people you keep for runs. Each has a name, notes, up to 16 photos (the starred one is the face) and a RefMod made from them on your ComfyUI into the RefMod folder, with its state (ready, photos changed since, failed and why). **Use in** opens a template with a RefMod input, this one's RefMod picked. See [Character Lab](#character-lab). | `screens/Characters.tsx`, `screens/create/RefModInput.tsx` |
 | Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, remix into Create, notes, export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
 | Build | `#/build`, `#/build?from={template}` | Make a template in three steps; see [Builder](#making-a-template-builder). | `screens/builder/` |
 | Queue | drawer | Every run from both studios, grouped by what it needs from you. | `screens/QueueDrawer.tsx` |
-| Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs, RefMod folder), Output limits, Storage (disk use, clean working copies, back up and restore), Cloud (API key). | `screens/Settings.tsx` |
+| Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs, RefMod folder), Output limits, Templates (shipped ones taken off Explore, each with Put back), Storage (disk use, clean working copies, back up and restore), Cloud (API key). | `screens/Settings.tsx` |
 | Connect | `#/connect` | First run only: check the ComfyUI on this machine, then open Explore. No account. | `screens/Connect.tsx` |
 | Import | dialog | A dropped bundle, PNG or MP4 with a recipe, or a link: review, then add to the Library. A dropped ComfyUI workflow goes to Build instead. | `screens/ImportReview.tsx` |
 | Edit a file | Create's stage; a sheet in the Builder | One workbench for every photo, clip and sound: the model's limits as pills on top (green fits, orange a run changes it, red can't run; a pill opens its tool) with **Fit to spec**, tools on the left (crop, turn, size, cut, rate, sound), the file in the middle with what the model keeps outlined, the tool's settings on the right, a clip's timeline below (past the model's length is hatched: not sent), and what changes along the bottom. Hold for original. In Create the edits wait on the input and are made when it runs (crop and cut go through the run's own crop and trim; turn, size, rate and sound make a new file just before the run, or now with Apply now). In the Builder, Save makes the new file. The original always stays. | `components/MediaEditor.tsx`, `lib/edits.ts` |
@@ -416,7 +416,7 @@ typed call for each.
 | --- | --- |
 | Status and setup | `GET status` · `POST local/check` · `POST local/proxy/start` · `POST onboarded` · `GET ws` (job updates) |
 | Settings and key | `GET/POST settings` · `POST key/test` · `POST key/forget` |
-| Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `GET templates/input` · `GET templates/workflow` · `GET/PUT/DELETE cover` |
+| Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `POST templates/hide` (`{engine, hidden}`: a shipped template off Explore or back) · `GET templates/input` · `GET templates/workflow` · `GET/PUT/DELETE cover` |
 | Builder | `POST builder/workflow` · `POST builder/from-template` · `GET builder/models` (every adapter) · `POST builder/save` · `DELETE builder/template` |
 | Files | `POST upload` (photo, clip or sound; other formats converted) · `GET uploads/{asset}` · `POST frame` (a still from a clip) · `POST media/edit` (`{asset, ops: {rotate, flip, crop, width, height, start, end, fps, mute}}` → a new upload) |
 | Runs | `POST compose` (the request, without running) · `POST estimate` (price) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
@@ -923,6 +923,31 @@ for each one asked.
 | GPT Image 2 | Aspect Auto / 1:1 / 3:2 / 2:3 · Quality |
 | Nano Banana 2.1 | Aspect (10, Auto) · Resolution 1K / 2K / 4K |
 | Grok Imagine 2 | Aspect (13, Auto) · Resolution 1K / 2K · Quality |
+
+### Naming files in the prompt
+
+Some models want the prompt to say which file is which: "the jacket from Image 2".
+`mentions` in the adapter says how the model writes that name, by kind, with `{n}`
+for the file's place among the run's files of that kind, in the order the request
+carries them (the template's input order):
+
+```jsonc
+"mentions": { "image": "<<<image_{n}>>>", "video": "<<<video_{n}>>>" }   // Kling
+```
+
+Under a cloud prompt, Create and the Builder show one chip per filled photo, clip or
+sound (its thumbnail and its name); a click puts the name at the cursor. The prompt
+is still sent exactly as written: the chips type the model's own token, nothing is
+rewritten at run time. Local workflows name their own inputs (H3 reads `<Picture 1>`),
+so local templates show no chips.
+
+| Model | Names | Source |
+| --- | --- | --- |
+| Kling 3 Omni | `<<<image_1>>>`, `<<<video_1>>>`: the nth entry of `image_list` / `video_list` (frames count) | ComfyUI's Kling nodes turn `@image1` into these before sending |
+| Seedance 2.5 | `@Image 1`, `@Video 1`, `@Audio 1`, per kind in upload order | ByteDance's Seedance prompt skill (`@图片N` in Chinese) |
+| Wan 3.0, HappyHorse 1.1 | `Image 1`, `Video 1`, `Audio 1`, per kind in `media` order | Alibaba's Wan 3.0 API reference (HappyHorse assumed the same) |
+| FLUX 2 Max, Seedream 5 Pro, GPT Image 2, Nano Banana 2.1, Grok Imagine 2 | `Image 1`: plain words the model reads, by input order | the default; none publishes a token |
+| Veo 3.1 Fast | none (`{}`): describe each reference in words | Veo has no names for its files |
 
 ### What happens to it
 

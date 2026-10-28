@@ -62,3 +62,20 @@ export const roleOf = (e: EngineInfo | undefined, slot: string): string =>
 
 export const slotNo = (slot: string) => Number(slot.split(":")[1]);
 
+/** A file a cloud prompt can name, with the name the model reads: numbered per kind in the order the run sends
+ *  the files (server/adapters, mentions). */
+export interface Mention { key: string; kind: "image" | "video" | "audio"; label: string; thumb?: string | null; token: string }
+
+export function mentions(names: Record<string, string> | undefined, files: Omit<Mention, "token">[]): Mention[] {
+  const n: Record<string, number> = {};
+  return files.flatMap((f) => {
+    n[f.kind] = (n[f.kind] ?? 0) + 1;
+    const t = names?.[f.kind];
+    return t ? [{ ...f, token: t.replace("{n}", String(n[f.kind])) }] : [];
+  });
+}
+
+/** Said when a model has no names for its files (Veo): the prompt describes them instead. */
+export const noNames = (names: Record<string, string> | undefined, files: unknown[], model: string) =>
+  names && files.length && !Object.keys(names).length ? `${model} has no names for its files. Describe each one in words.` : null;
+

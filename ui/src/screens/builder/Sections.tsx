@@ -1,5 +1,7 @@
 // Step 2: the template's sections (source, inputs, prompt, result, title).
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Mentions } from "../../components/Mentions";
+import { mentions, noNames, type Mention } from "../../lib/fields";
 import { I } from "../../components/oi";
 import type { IconName } from "../../components/sprite";
 import { isAudio, isImage, isVideo, useFileDrop } from "../../components/Drop";
@@ -330,7 +332,8 @@ const filledNames = (rows: MediaRow[]) => {
   return new Map(filled.map((r, i) => [r.key, names[i]]));
 };
 
-export function PromptSection({ src, p, setP }: { src: Source; p: PromptState; setP: (f: (p: PromptState) => PromptState) => void }) {
+export function PromptSection({ src, p, setP, files = [] }: { src: Source; p: PromptState; setP: (f: (p: PromptState) => PromptState) => void; files?: Omit<Mention, "token">[] }) {
+  const ta = useRef<HTMLTextAreaElement>(null);
   const set = (k: keyof PromptState) => (e: { target: { value: string } }) => setP((x) => ({ ...x, [k]: e.target.value }));
   const options = src.kind === "local"
     ? src.a.texts.map((t) => ({ id: `${t.node}|${t.input}`, node: t.node, label: `${t.title} · ${human(t.input)}`, tag: t.polarity === "negative" ? "Negative" : t.polarity === "positive" ? "Positive" : null, value: t.value }))
@@ -358,7 +361,10 @@ export function PromptSection({ src, p, setP }: { src: Source; p: PromptState; s
             <button type="button" role="radio" aria-checked={!p.pick} onClick={() => setP((x) => ({ ...x, pick: "" }))}><span className="tx">No prompt. The text stays as saved.</span></button>
           </div>}
           {p.pick && (
-            <textarea className="textarea bprompt" aria-label="The prompt the template opens with" rows={Math.min(10, Math.max(3, Math.ceil(p.def.length / 70)))} value={p.def} maxLength={4000} onChange={set("def")} placeholder="The prompt the template starts with" spellCheck={false} />
+            <textarea ref={ta} className="textarea bprompt" aria-label="The prompt the template opens with" rows={Math.min(10, Math.max(3, Math.ceil(p.def.length / 70)))} value={p.def} maxLength={4000} onChange={set("def")} placeholder="The prompt the template starts with" spellCheck={false} />
+          )}
+          {p.pick && src.kind === "cloud" && (
+            <Mentions list={mentions(src.a.mentions, files)} none={noNames(src.a.mentions, files, src.a.name)} ta={ta} value={p.def} onChange={(v) => setP((x) => ({ ...x, def: v }))} />
           )}
         </>
       )}

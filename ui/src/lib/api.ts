@@ -107,6 +107,10 @@ export interface EngineInfo {
   defaults?: { prompt: string; inputs: (Asset & { slot: string })[] };
   /** Made in the template builder (can be deleted). */
   built?: boolean;
+  /** Cloud: how the prompt names each file, by kind ("<<<image_{n}>>>"); {} when the model has no names. */
+  mentions?: Record<string, string>;
+  /** A shipped template taken off Explore (Settings puts it back). */
+  hidden?: boolean;
   /** Cloud templates: the Router model they send to. */
   model?: string | null;
 }
@@ -174,6 +178,8 @@ export interface RouterAdapter {
   /** What people choose about the result (shape, size, resolution, length, sound). `off_with`: roles that decide it
    *  instead, so it isn't asked; `only_with`: roles it needs. */
   settings: AdapterSetting[];
+  /** How the prompt names each file, by kind; {} when the model has no names for them. */
+  mentions: Record<string, string>;
 }
 
 export type AdapterSetting = Omit<ParamSpec, "type"> & {
@@ -665,6 +671,7 @@ export const api = {
   builderModels: () => req<RouterAdapter[]>("GET", "/builder/models"),
   saveTemplate: (spec: BuildSpec) => req<EngineInfo>("POST", "/builder/save", spec),
   duplicateTemplate: (engine: string) => req<EngineInfo>("POST", "/templates/duplicate", { engine }),
+  hideTemplate: (engine: string, hidden: boolean) => req<{ ok: boolean }>("POST", "/templates/hide", { engine, hidden }),
   deleteTemplate: (engine: string) => req<{ ok: boolean }>("DELETE", `/builder/template?${qs({ engine })}`),
   upload: (file: File) => {
     const fd = new FormData();

@@ -94,6 +94,15 @@ def register(routes: web.RouteTableDef) -> None:
             return err(404, "No such template")
         return web.json_response(engines.describe(e))
 
+    @routes.post(API + "/templates/hide")
+    async def hide_template(request):
+        b = await body(request)
+        try:
+            engines.hide_template(str(b.get("engine", "")), bool(b.get("hidden", True)))
+        except KeyError:
+            return err(404, "No such template")
+        return web.json_response({"ok": True})
+
     @routes.delete(API + "/templates")
     async def reset_template(request):
         try:

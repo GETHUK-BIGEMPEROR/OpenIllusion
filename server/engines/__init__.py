@@ -236,9 +236,37 @@ def describe(e: Engine) -> dict:
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
         "examples": e.examples, "tags": e.tags, "varies": varies(e), "inputs": e.inputs, "fields": fields, "requires": requirements(e),
         "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "model": e.model,
-        "defaults": defaults,
+        "defaults": defaults, "mentions": mentions_of(e), "hidden": e.id in hidden_templates(),
         **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),
     }
+
+
+def mentions_of(e: Engine) -> dict:
+    """How a cloud template's prompt names its files (its model's adapter); local workflows name their own."""
+    if e.kind != "cloud":
+        return {}
+    from .. import adapters
+
+    a = adapters.for_model(e.model or "")
+    return a.mentions if a else dict(adapters.MENTIONS)
+
+
+def hidden_templates() -> set[str]:
+    from .. import settings
+
+    v = settings.load().get("hidden_templates")
+    return {x for x in v if isinstance(x, str)} if isinstance(v, list) else set()
+
+
+def hide_template(engine_id: str, hidden: bool) -> None:
+    """Take a shipped template off Explore, or put it back. Its file stays: an update would bring it back."""
+    if engine_id not in ENGINES:
+        raise KeyError(engine_id)
+    from .. import settings
+
+    now = hidden_templates()
+    now = now | {engine_id} if hidden else now - {engine_id}
+    settings.save({"hidden_templates": sorted(now)})
 
 
 def varies(e: Engine) -> bool:

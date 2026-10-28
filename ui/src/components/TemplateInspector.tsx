@@ -151,6 +151,28 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
       setSaving(false);
     }
   };
+  // Shipped templates can't be deleted (an update brings the file back): they come off Explore, and Settings puts them back.
+  const hide = async () => {
+    const res = await confirm({
+      tone: "neutral", icon: "trash",
+      view: () => ({
+        title: `Remove ${tplName(e)} from Explore?`, previews: e.cover ? [e.cover] : [],
+        body: "It ships with OpenIllusion, so its file stays. Settings → Templates puts it back.", facts: ["Generations made with it stay"], action: "Remove",
+      }),
+    });
+    if (!res.ok) return;
+    setSaving(true);
+    try {
+      await api.hideTemplate(e.id, true);
+      qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.map((x) => (x.id === e.id ? { ...x, hidden: true } : x)));
+      onClose();
+      toast({ text: `${tplName(e)} is off Explore. Settings → Templates puts it back.`, tone: "ok" });
+    } catch (x) {
+      toast({ text: `Couldn't remove: ${errMsg(x)}`, tone: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
   const duplicate = async () => {
     setSaving(true);
     try {
@@ -201,6 +223,9 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
             <I n={editing ? "check" : "pencil"} />{editing ? "Done editing" : "Edit details"}
           </button>
         )}
+        {e.built
+          ? <button className="icon-btn sm" type="button" onClick={remove} disabled={saving} aria-label="Delete template" title="Delete this template"><I n="trash" /></button>
+          : e.origin && <button className="icon-btn sm" type="button" onClick={hide} disabled={saving} aria-label="Remove from Explore" title="Remove from Explore"><I n="trash" /></button>}
         <button className="icon-btn sm" type="button" aria-label="Close details" onClick={onClose}><I n="x" /></button>
       </div>
 

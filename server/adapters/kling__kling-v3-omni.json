@@ -274,5 +274,9 @@
       "*",
       "url"
     ]
-  ]
+  ],
+  "mentions": {
+    "image": "<<<image_{n}>>>",
+    "video": "<<<video_{n}>>>"
+  }
 }

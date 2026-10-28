@@ -7,7 +7,8 @@ import { useCompose, useRunner } from "../../components/Studio";
 import { TemplateTools, tplModel, tplName, useCoverActions } from "../../components/TemplateCard";
 import { Spinner } from "../../components/ui";
 import { api, type EngineInfo, type ParamSpec } from "../../lib/api";
-import { mediaFields, promptField, type MediaField } from "../../lib/fields";
+import { mediaFields, mentions, noNames, promptField, type MediaField, type Mention } from "../../lib/fields";
+import { Mentions } from "../../components/Mentions";
 import { go } from "../../lib/route";
 import { clipIn, slotOf, soundIn, useApp, type StudioState } from "../../lib/store";
 import type { SetS } from "./shared";
@@ -101,6 +102,7 @@ export function PromptSection({ s, set, engine, invalid, onRun }: {
   }, []);
   const pf = promptField(engine);
   if (!pf) return null;
+  const files = engine?.kind === "cloud" ? filled(engine, s) : [];
   const def = pf.default ?? engine?.defaults?.prompt ?? "";
   const ideas = pf.examples ?? [];
   return (
@@ -117,6 +119,7 @@ export function PromptSection({ s, set, engine, invalid, onRun }: {
           onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) { e.preventDefault(); onRun(); } }} />
         <div className="pbox-foot"><span>Sent exactly as written</span><kbd>Ctrl</kbd><kbd>↵</kbd><span>runs</span></div>
       </div>
+      {engine?.kind === "cloud" && <Mentions list={mentions(engine.mentions, files)} none={noNames(engine.mentions, files, tplModel(engine))} ta={ta} value={s.prompt} onChange={(v) => set({ prompt: v })} />}
       {!!ideas.length && (
         <div className="ideas" role="group" aria-label="Prompt ideas">
           {ideas.map((x) => <button key={x.label} className="ex" type="button" title={x.text} aria-pressed={s.prompt === x.text} onClick={() => set({ prompt: x.text })}>{x.label}</button>)}
@@ -124,6 +127,22 @@ export function PromptSection({ s, set, engine, invalid, onRun }: {
       )}
     </section>
   );
+}
+
+/** The run's filled photos, clips and sounds, in the template's order (the order the request carries them). */
+function filled(e: EngineInfo, s: StudioState): Omit<Mention, "token">[] {
+  return mediaFields(e).flatMap((f): Omit<Mention, "token">[] => {
+    if (f.type === "video") {
+      const c = clipIn(s, f.key);
+      return c && !c.missing ? [{ key: f.key, kind: "video", label: f.label, thumb: c.poster ?? null }] : [];
+    }
+    if (f.type === "audio") {
+      const x = soundIn(s, f.key);
+      return x?.url && !x.missing ? [{ key: f.key, kind: "audio", label: f.label }] : [];
+    }
+    const r = s.refs.find((r, k) => `image:${slotOf(r, k)}` === f.key && r.url && !r.missing);
+    return r ? [{ key: f.key, kind: "image", label: f.label, thumb: r.url }] : [];
+  });
 }
 
 /** Pinned under the recipe: how many, what's in the way, Run. */

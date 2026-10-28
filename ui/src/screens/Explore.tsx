@@ -27,7 +27,7 @@ export function Explore({ t }: { t?: string }) {
   const [where, setWhere] = useState(last.where);
   useEffect(() => { Object.assign(last, { use, kind, where }); }, [use, kind, where]);
 
-  const every = useMemo(() => engines.data ?? [], [engines.data]);
+  const every = useMemo(() => (engines.data ?? []).filter((e) => !e.hidden), [engines.data]);
   const all = every;
   const uses = sharedTags(all);
   const tagged = all.filter((e) => !use || !uses.includes(use) || e.tags?.includes(use));

@@ -23,8 +23,8 @@ export function EngineDropdown({ mode, value, onChange }: { mode: Mode; value: s
   const [open, setOpen] = useState(false);
   const { data: curated = [] } = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const engine = useEngine(mode, value);
-  const cloud = curated.filter((e) => e.mode === mode && e.kind !== "local");
-  const local = curated.filter((e) => e.mode === mode && e.kind === "local");
+  const cloud = curated.filter((e) => e.mode === mode && e.kind !== "local" && (!e.hidden || e.id === value));
+  const local = curated.filter((e) => e.mode === mode && e.kind === "local" && (!e.hidden || e.id === value));
 
   const pick = (id: string) => {
     onChange(id);

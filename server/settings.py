@@ -35,6 +35,8 @@ DEFAULTS: dict = {
     # Photos run at up to 3 MP and videos at up to 1.5 MP unless this lifts the cap (see prep.py).
     "uncap_size": False,
     "confirm_unknown_cost": True,
+    # Shipped templates taken off Explore (their files stay; Settings puts them back).
+    "hidden_templates": [],
     "onboarded": False,
 }
 

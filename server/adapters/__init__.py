@@ -25,7 +25,8 @@ Adapter file::
       ],
       "media_mb": 20,
       "result": [["path", "*", "into", "the", "answer"]],
-      "models": [{ "model": "provider/model-t2v", "takes": ["Role", ...] }, ...]
+      "models": [{ "model": "provider/model-t2v", "takes": ["Role", ...] }, ...],
+      "mentions": { "image": "<<<image_{n}>>>", "video": "<<<video_{n}>>>" }
     }
 
 - ``at`` ending in ``"+"`` appends the value to a list (made if missing), so an
@@ -44,6 +45,11 @@ Adapter file::
 - ``fit``: what the model takes in each file (sides, shape, size, length, frame rate);
   runs make every file fit. ``media_mb``: the most a request may carry inline.
   Both are the model's published limits; ``server/fit.py`` has the details.
+- ``mentions``: how the prompt names a file, by kind; ``{n}`` is its place among the
+  run's files of that kind, in the order the request carries them (Kling
+  ``<<<image_1>>>``, Seedance ``@Image 1``). Left out: ``Image 1``, ``Video 1``,
+  ``Audio 1``, the words the model reads. ``{}``: the model has no names for its
+  files (Veo); the prompt describes them.
 """
 
 from __future__ import annotations
@@ -79,6 +85,10 @@ class Adapter:
     models: list[dict] = field(default_factory=list)  # [{model, takes: [role]}] when a family spans ids
     media_mb: float | None = None  # MB of files one request may carry inline, when the model says
     settings: list[dict] = field(default_factory=list)  # what people can choose about the result (see _setting)
+    mentions: dict = field(default_factory=dict)  # kind -> how the prompt names its nth file ("<<<image_{n}>>>")
+
+
+MENTIONS = {"image": "Image {n}", "video": "Video {n}", "audio": "Audio {n}"}
 
 
 def _is_path(p: Any, plus: bool = False) -> bool:
@@ -309,13 +319,16 @@ def parse(d: dict) -> Adapter:
     st = d.get("settings") or []
     if not isinstance(st, list):
         raise AdapterError(f"{model}: settings is a list")
+    mentions = d.get("mentions", MENTIONS)
+    if not isinstance(mentions, dict) or not all(k in KINDS and isinstance(v, str) and "{n}" in v and len(v) <= 40 for k, v in mentions.items()):
+        raise AdapterError(f"{model}: mentions maps image, video or audio to a name holding {{n}}")
     settings = [_setting(model, x, roles) for x in st]
     if len({x["key"] for x in settings}) != len(settings):
         raise AdapterError(f"{model}: two settings share a key")
     return Adapter(model=model, name=name.strip(), mode="motion" if d["makes"] == "video" else "edit",
                    body=body, prompt=prompt, inputs=inputs, result=[list(p) for p in result],
                    models=[{"model": m["model"], "takes": list(m["takes"])} for m in models],
-                   media_mb=float(mmb) if mmb is not None else None, settings=settings)
+                   media_mb=float(mmb) if mmb is not None else None, settings=settings, mentions=dict(mentions))
 
 
 _cache: dict[str, Adapter] | None = None
@@ -361,6 +374,7 @@ def describe(a: Adapter) -> dict:
                     **({"set": i["set"]} if i["set"] else {}), **({"needs": i["needs"]} if i.get("needs") else {})} for i in a.inputs],
         **({"models": a.models} if a.models else {}),
         "settings": [{k: v for k, v in s.items() if k != "at"} for s in a.settings],
+        "mentions": a.mentions,
     }
 
 
