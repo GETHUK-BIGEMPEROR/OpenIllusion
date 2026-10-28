@@ -13,7 +13,7 @@ from typing import Any
 
 from .. import adapters, paths, prep
 from .workflow import BuildError
-from .analysis import NO_REFMOD, output_kind, result_nodes, _label, _int_widget
+from .analysis import output_kind, result_nodes, _label, _int_widget
 
 
 # ---- drafts -------------------------------------------------------------------
@@ -162,7 +162,6 @@ def assemble_local(spec: dict, draft: dict, info: dict) -> dict:
             raise BuildError(f"Node {m.get('node')} isn't in the workflow")
         n["inputs"][m["input"]] = "{{%s}}" % m["slot"]
         _input(data, m["slot"])["bind"] = [[str(m["node"]), m["input"]]]
-    _refmod_inputs(api, data, spec.get("refmods") or [], media)
     pr = spec.get("prompt")
     if pr:
         n = api.get(str(pr.get("node")))
@@ -214,25 +213,6 @@ def assemble_local(spec: dict, draft: dict, info: dict) -> dict:
                 source=_txt(spec.get("source"), 200, "the source") or "Built in OpenIllusion from a ComfyUI workflow",
                 hints={"models": {}, "nodes": {}})
     return data
-
-
-def _refmod_inputs(api: dict, data: dict, rows: list[dict], media: list[dict]) -> None:
-    """One RefMod input per loader slot the author kept, after the media inputs, in their order.
-    ``photo`` names the photo input that takes the face of a Lab character picked in it."""
-    at = next((i for i, f in enumerate(data["inputs"]) if f["key"] == "prompt"), len(data["inputs"]))
-    for n, r in enumerate(rows, 1):
-        node = api.get(str(r.get("node")))
-        if node is None or r.get("input") not in node["inputs"]:
-            raise BuildError(f"Node {r.get('node')} isn't in the workflow")
-        f: dict[str, Any] = {"key": f"refmod:{n}", "type": "refmod", "required": True, "bind": [[str(r["node"]), r["input"]]]}
-        ph = r.get("photo")
-        if ph:
-            m = next((m for m in media if str(m.get("node")) == str(ph.get("node")) and m.get("input") == ph.get("input")), None)
-            if m is None or m["kind"] != "image":
-                raise BuildError("A RefMod's face goes into one of the template's photo inputs")
-            f["photo"] = m["slot"]
-        node["inputs"][r["input"]] = NO_REFMOD  # a run writes the one picked
-        data["inputs"].insert(at + n - 1, f)
 
 
 def _size_input(api: dict, sz: dict) -> dict:
@@ -307,21 +287,18 @@ def preset(e) -> dict:
 
     keep = ("label", "hint", "required")
     media = [{**at(f), "slot": f["key"], **{k: f[k] for k in (*keep, "window", "fps") if k in f}} for f in e.fields if f["type"] in ("image", "video", "audio")]
-    by_slot = {m["slot"]: m for m in media}
-    refmods = [{**at(f), "slot": f["key"], "photo": {k: by_slot[f["photo"]][k] for k in ("node", "input")} if f.get("photo") in by_slot else None}
-               for f in e.fields if f["type"] == "refmod"]
     text = next((f for f in e.fields if f["key"] == "prompt"), None)
     prompt = {**at(text), **{k: text[k] for k in keep if k in text}, "default": e.default_prompt,
               "examples": [x.get("text", "") if isinstance(x, dict) else str(x) for x in text.get("examples") or []]} if text else None
     # A control the workflow doesn't read (Sound, put on after the run) has no node to match: the copy goes without it.
     params = [{**at(f), "key": f["key"], "label": f.get("label") or _label(f["key"]), "default": f.get("default"), "help": f.get("help"),
                **{k: f[k] for k in ("type", "options", "unit", "min", "max", "step") if k in f}}
-              for f in e.fields if f["type"] not in ("image", "video", "audio", "refmod", "size") and f["key"] != "prompt" and f.get("bind")]
+              for f in e.fields if f["type"] not in ("image", "video", "audio", "size") and f["key"] != "prompt" and f.get("bind")]
     out = next((f for f in e.fields if f["type"] == "size"), None)
     size = {"node": str(out["bind"][0][0]), **{k: out[k] for k in ("label", "aspect", "default") if k in out}} if out else None
     name, _, rest = e.label.partition(" · ")
     return {"base": e.id, "label": f"{name} (copy)" + (f" · {rest}" if rest else ""), "blurb": e.blurb, "tags": list(e.tags),
-            "mode": e.mode, "media": media, "refmods": refmods, "prompt": prompt, "params": params, "size": size, "outputs": list(e.outputs)}
+            "mode": e.mode, "media": media, "prompt": prompt, "params": params, "size": size, "outputs": list(e.outputs)}
 
 
 def inherit(data: dict, base: dict, base_label: str) -> None:

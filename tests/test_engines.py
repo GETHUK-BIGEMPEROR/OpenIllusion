@@ -33,7 +33,6 @@ TESTED = {HAT} | {f"local/qwen21-{n}" for n in (
     "glasses", "makeup", "restyle", "remove", "recolor", "product-shot", "hold-product", "weather", "restore",
     "cutout",  # 1 MP, 25 steps, ~2 min
 )} | {"local/minimax-h3-character-swap",  # same card, 0.4 MP x 124 frames, 4 steps, ~10 min
-     "local/minimax-h3-character-refmod",  # same as the swap plus a RefMod, 4 steps, ~11 min (another card's load)
      "local/minimax-h3-animate",  # 0.4 MP x 124 frames, 4 steps, ~4 min
      "local/minimax-h3-create"} | {"local/qwen21-create"}  # text only: 0.4 MP x 124 frames ~3.5 min; 1 MP, 25 steps ~1.5 min
 
@@ -48,7 +47,7 @@ def test_shipped_templates_list_every_input_and_bind_it(tid):
     raw = json.loads(e.path.read_text("utf-8"))
     assert raw["version"] == 2 and "bindings" not in raw and "instruction" not in raw and "defaults" not in raw
     d = engines.describe(e)
-    keys = [f["key"] for f in d["fields"] if f["type"] != "refmod"]  # a RefMod is picked, not dropped in
+    keys = [f["key"] for f in d["fields"]]
     assert keys[: len(e.inputs)] == ["video:1"] * e.needs_video + [f"image:{n}" for n in range(1, e.max_images + 1)]
     assert "prompt" in keys and all(f["bind"] or f.get("keep_sound") for f in d["fields"])  # Sound acts after the run
     # The whole prompt is the input: the workflow has no text of its own around it.
@@ -59,7 +58,7 @@ def test_shipped_templates_list_every_input_and_bind_it(tid):
     assert all(x["label"] and x["text"].startswith(prompt["default"][:12]) for x in d["examples"]) and d["tags"]
     # A template is its inputs, its prompt and the output settings any generator has (size, length, sound);
     # everything else runs as the workflow says.
-    assert all(f["type"] in ("image", "video", "audio", "refmod", "size") or f["key"] in ("prompt", "duration", "sound") for f in d["fields"])
+    assert all(f["type"] in ("image", "video", "audio", "size") or f["key"] in ("prompt", "duration", "sound") for f in d["fields"])
 
 
 def test_hat_template_writes_every_binding():
@@ -320,7 +319,7 @@ def test_sample_clip_is_described_as_video_with_a_poster():
 
 
 
-@pytest.mark.parametrize("tid", [SWAP, "local/minimax-h3-character-refmod"])
+@pytest.mark.parametrize("tid", [SWAP])
 def test_a_swap_renders_at_the_clips_own_frame(tid):
     """The clip as prepared sets the frame: its shape, at the template's 0.4 MP unless you pick another size."""
     e = engines.ENGINES[tid]
@@ -408,7 +407,7 @@ def test_the_prompt_is_sent_exactly_as_written():
     assert wf["5"]["inputs"]["prompt"] == "A cap."
 
 
-@pytest.mark.parametrize("tid", ["local/minimax-h3-character-swap", "local/minimax-h3-character-refmod"])
+@pytest.mark.parametrize("tid", ["local/minimax-h3-character-swap"])
 def test_a_local_swap_can_keep_the_clips_own_sound(tmp_path, tid):
     from types import SimpleNamespace as NS
     from server import jobs

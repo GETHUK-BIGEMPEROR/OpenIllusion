@@ -73,9 +73,8 @@ class Engine:
 # the workflow, or paths into a cloud body). Nothing is written into the request that isn't
 # one of these inputs, so the prompt box holds the whole prompt the model reads.
 
-# A RefMod input fills its binds with a RefMod from the RefMod folder (Character Lab makes them).
 # An ``aspect`` is a choice of shapes (Create shows them as frames); ``size`` is a shape and a step written as pixels.
-FIELD_TYPES = {*MEDIA, "refmod", "text", "string", "int", "number", "bool", "seed", "select", "segmented", "aspect", "size"}
+FIELD_TYPES = {*MEDIA, "text", "string", "int", "number", "bool", "seed", "select", "segmented", "aspect", "size"}
 _PARAM_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 
@@ -182,7 +181,7 @@ def _field(f: Any) -> dict:
     if not isinstance(f, dict) or f.get("type") not in FIELD_TYPES or not isinstance(f.get("key"), str):
         raise ValueError(f"bad input {f!r:.80}")
     key, t = f["key"], f["type"]
-    if t in (*MEDIA, "refmod"):
+    if t in MEDIA:
         if not re.fullmatch(rf"{t}:\d+", key):
             raise ValueError(f"a {t} input's key is {t}:<n>, not {key!r}")
     elif t == "size":
@@ -195,10 +194,10 @@ def _field(f: Any) -> dict:
         raise ValueError(f"bad input key {key!r}")
     out = {**f, "bind": [list(b) for b in f.get("bind") or []]}
     # A photo or clip is named by its place ("Image 1"), the prompt is "Prompt": the prompt says what each one is.
-    if t in (*MEDIA, "refmod"):
+    if t in MEDIA:
         for k in ("hint", "role", "area"):
             out.pop(k, None)
-        out["label"] = f"{'RefMod' if t == 'refmod' else t.capitalize()} {key.split(':')[1]}"
+        out["label"] = f"{t.capitalize()} {key.split(':')[1]}"
     elif key == "prompt":
         out.pop("hint", None)
         out["label"] = "Prompt"
@@ -281,7 +280,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
     out = next((f for f in fields if f["type"] == "size"), None)
     bindings = {}
     for f in fields:
-        bindings[f["key"] if f["type"] in (*MEDIA, "refmod", "size") or f["key"] == "prompt" else f"params.{f['key']}"] = f["bind"]
+        bindings[f["key"] if f["type"] in (*MEDIA, "size") or f["key"] == "prompt" else f"params.{f['key']}"] = f["bind"]
     slots = [{"slot": f["key"], "label": f["label"], **({"size": f["size"]} if f.get("size") else {})} for f in media]
     e = Engine(
         id=tid, mode=data.get("mode", "edit"), label=data["label"].strip(), provider=data.get("provider", "local"),
@@ -289,7 +288,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         needs_video=bool(video and video.get("required", True)),
         video_window=tuple(video["window"]) if video and video.get("window") else None,
         fps_window=tuple(video.get("fps") or (1.0, 60.0)) if video else (1.0, 60.0),
-        params=[{k: v for k, v in f.items() if k != "bind"} for f in fields if f["type"] not in (*MEDIA, "refmod", "size") and f["key"] != "prompt"],
+        params=[{k: v for k, v in f.items() if k != "bind"} for f in fields if f["type"] not in (*MEDIA, "size") and f["key"] != "prompt"],
         curated=True, kind="cloud" if cloud else "local",
         workflow=None if cloud else data["workflow"], bindings=bindings, outputs=[str(o) for o in data.get("outputs", [])],
         model=data.get("model") if cloud else None, body=data.get("body") if cloud else None, built=bool(data.get("built")),

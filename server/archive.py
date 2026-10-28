@@ -13,7 +13,7 @@ from pathlib import PurePosixPath
 from . import media
 
 # What a generation folder holds. Scripts, binaries and anything else are refused.
-# .safetensors: a RefMod (a run's copy, or the RefMod folder in a backup). Tensors only; nothing in it runs.
+# .safetensors: a RefMod a run used (runs from before RefMods moved to their own branch). Tensors only; nothing in it runs.
 GENERATION_EXT = {".json", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mov", ".md", ".safetensors", *media.AUDIO_EXT}
 
 

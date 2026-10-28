@@ -303,42 +303,11 @@ def refmod_graph(mod_1="(none)"):
     }
 
 
-def test_a_refmod_loader_becomes_refmod_inputs():
+def test_a_refmod_loader_is_just_a_setting():
+    """RefMods live on the refmod branch: on main a RefMod loader's slots are ordinary choices."""
     a = builder.analyze(refmod_graph(), REFMOD_INFO)
-    assert [(r["input"], r["slot"], r["suggested"]) for r in a["refmods"]] == [("mod_1", "refmod:1", True), ("mod_2", "refmod:2", False)]
-    assert not any(p["input"].startswith("mod_") for p in a["params"]) and a["check"]["bad_values"] == []
-    # A slot the workflow already fills is the one suggested.
-    a = builder.analyze(refmod_graph(mod_1="(none)") | {"2": {**refmod_graph()["2"], "inputs": {**refmod_graph()["2"]["inputs"], "mod_2": "mara.safetensors"}}}, REFMOD_INFO)
-    assert [r["suggested"] for r in a["refmods"]] == [False, True]
-
-
-def test_kept_refmod_slots_are_picked_at_run_time():
-    spec = {"label": "Swap", "media": [{"node": "1", "input": "image", "kind": "image"}],
-            "refmods": [{"node": "2", "input": "mod_1", "photo": {"node": "1", "input": "image"}}, {"node": "2", "input": "mod_2"}],
-            "prompt": None}
-    data = builder.assemble_local(spec, {"workflow": refmod_graph(mod_1="mara.safetensors")}, REFMOD_INFO)
-    by = {f["key"]: f for f in data["inputs"]}
-    assert list(by) == ["image:1", "refmod:1", "refmod:2"]
-    assert by["refmod:1"] == {"key": "refmod:1", "type": "refmod", "required": True, "bind": [["2", "mod_1"]], "photo": "image:1"}
-    assert data["workflow"]["2"]["inputs"]["mod_1"] == "(none)"
-    data["id"] = "swap"
-    e = engines.load_template(data)
-    wf = e.build({"inputs": [{"slot": "image:1"}, {"slot": "refmod:1"}, {"slot": "refmod:2"}], "prompt": "", "params": {}})
-    assert wf["2"]["inputs"]["mod_1"] == "{{refmod:1}}" and wf["2"]["inputs"]["mod_2"] == "{{refmod:2}}"
-    # One left empty loads nothing there; the loader and what follows it still run.
-    wf = e.build({"inputs": [{"slot": "image:1"}, {"slot": "refmod:1"}], "prompt": "", "params": {}})
-    assert wf["2"]["inputs"]["mod_2"] == "(none)" and set(wf) == {"1", "2", "3", "4"}
-    # Its face goes into a photo input, nothing else.
-    with pytest.raises(builder.BuildError, match="photo inputs"):
-        builder.assemble_local({**spec, "refmods": [{"node": "2", "input": "mod_1", "photo": {"node": "9", "input": "image"}}]},
-                               {"workflow": refmod_graph()}, REFMOD_INFO)
-
-
-def test_a_refmod_template_opens_in_the_builder_as_it_is():
-    p = builder.preset(engines.get("local/minimax-h3-character-refmod"))
-    assert any(m["slot"] == "image:1" for m in p["media"])
-    assert p["refmods"] == [{"node": "201", "input": "mod_1", "slot": "refmod:1", "photo": None}]
-    assert not any(x["input"].startswith("mod_") for x in p["params"])
+    assert "refmods" not in a
+    assert [(p["input"], p["type"]) for p in a["params"] if p["input"].startswith("mod_")] == [("mod_1", "select"), ("mod_2", "select")]
 
 
 def test_a_template_rebuilt_in_the_builder_keeps_its_settings():

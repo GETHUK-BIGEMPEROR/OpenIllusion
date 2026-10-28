@@ -27,8 +27,6 @@ DEFAULTS: dict = {
     "local_token": "",
     "local_autostart_proxy": True,
     "output_folder": "",
-    # Character Lab saves RefMods here; a template's RefMod input lists what's in it. Empty: <home>/refmods.
-    "refmod_folder": "",
     "max_parallel": 2,
     "community_indexes": [],
     "strip_exif": True,

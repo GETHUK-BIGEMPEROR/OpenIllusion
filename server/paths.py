@@ -24,8 +24,6 @@ TIERS = {
     "generations": "library",
     "templates": "library",
     "covers": "library",
-    "characters": "library",
-    "refmods": "library",
     "trash": "library",
     "secrets.json": "machine",
     "index.sqlite": "machine",
@@ -75,15 +73,6 @@ def generations_dir() -> Path:
 
 def trash_dir() -> Path:
     return _ensure(user_root() / "trash")
-
-
-def refmods_dir() -> Path:
-    """The RefMod folder: where Character Lab saves RefMods and where a template's RefMod input picks from.
-    ``<home>/refmods`` unless Settings names another folder."""
-    from . import settings
-
-    custom = settings.load().get("refmod_folder")
-    return _ensure(Path(custom).expanduser() if custom else user_root() / "refmods")
 
 
 def cache_dir() -> Path:

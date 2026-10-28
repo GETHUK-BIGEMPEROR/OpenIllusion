@@ -212,9 +212,9 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
   const before = e.cover ? e.cover_before : null;
   const ar = Math.max(clampAspect(e.cover ? e.cover_aspect : lead?.width && lead?.height ? lead.width / lead.height : 4 / 5), 4 / 5);
   const fields = fieldsOf(e);
-  const media = fields.filter((f) => isMedia(f) || f.type === "refmod");
+  const media = fields.filter(isMedia);
   const texts = fields.length ? fields.filter(isText) : [];
-  const settings = fields.filter((f) => !isMedia(f) && !isText(f) && f.type !== "refmod");
+  const settings = fields.filter((f) => !isMedia(f) && !isText(f));
   const rawPrompt = !fields.length ? promptField(e) : undefined;
 
   return (
@@ -263,11 +263,11 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
             <div className="kv-h">Inputs<span>{media.length} input{media.length > 1 ? "s" : ""}</span></div>
             {media.map((f) => {
               const sm = samples.find((y) => y.slot === f.key);
-              const thumb = sm && f.type !== "audio" ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : f.type === "audio" ? "sound" : f.type === "refmod" ? "person" : "image"} /></span>;
+              const thumb = sm && f.type !== "audio" ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : f.type === "audio" ? "sound" : "image"} /></span>;
               return (
                 <div key={f.key} className="inrow">
                   {thumb}
-                  <div><b>{f.label}{f.required === false ? " · optional" : ""}</b><span>{sm ? "Sample included" : f.type === "refmod" ? "A RefMod from your RefMod folder" : f.type === "video" ? "Your clip" : f.type === "audio" ? "Your sound" : "Your photo"}</span></div>
+                  <div><b>{f.label}{f.required === false ? " · optional" : ""}</b><span>{sm ? "Sample included" : f.type === "video" ? "Your clip" : f.type === "audio" ? "Your sound" : "Your photo"}</span></div>
                 </div>
               );
             })}

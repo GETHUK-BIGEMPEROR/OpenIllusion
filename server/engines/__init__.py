@@ -24,13 +24,13 @@ from pathlib import Path
 from typing import Any
 
 from .. import fit, media, paths
-from .build import TOKEN, MEDIA, _images, _videos, SEED_TOKEN, build_local, reroll, defaults_workflow, fill_media, fill_refmods, build_cloud, prune, materialize, tokens_in, file_resolver, run_size
+from .build import TOKEN, MEDIA, _images, _videos, SEED_TOKEN, build_local, reroll, defaults_workflow, fill_media, build_cloud, prune, materialize, tokens_in, file_resolver, run_size
 from .contract import Engine, FIELD_TYPES, upgrade, lift_computed, load_template, media_path, shipped_ref, template_dirs, load_templates
 from .covers import COVER_SIDE, COVER_LOOP_SECONDS, CACHE_ERA, BEFORE_EXT, user_cover, cover_files, cover_file, cover_before, lead_slot, defaults_info, _cover_info, set_cover, clear_cover, clip_limits, clip_file, poster_file
 from .results import VIDEO_EXT, IMAGE_EXT, classify_failure, find_assets, result_media, decode_media, slim, result_seed
 
 __all__ = [
-    "TOKEN", "MEDIA", "SEED_TOKEN", "build_local", "reroll", "defaults_workflow", "fill_media", "fill_refmods",
+    "TOKEN", "MEDIA", "SEED_TOKEN", "build_local", "reroll", "defaults_workflow", "fill_media",
     "build_cloud", "prune", "materialize", "tokens_in", "file_resolver", "run_size", "Engine",
     "FIELD_TYPES", "upgrade", "lift_computed", "load_template", "template_dirs",
     "load_templates", "COVER_SIDE", "COVER_LOOP_SECONDS", "CACHE_ERA", "BEFORE_EXT", "user_cover",
@@ -336,19 +336,9 @@ def compose(spec: dict) -> dict:
         for f in e.fields:
             if f["type"] in MEDIA and f.get("required", True) and f["key"] not in given:
                 warnings.append({"field": "video" if f["type"] == "video" else "inputs", "level": "error", "text": f"Add {f['label']}"})
-            elif f["type"] == "refmod" and f["key"] not in given:
-                warnings.append({"field": "inputs", "level": "error", "text": f"Pick {f['label']}"})
     elif len(imgs) < e.min_images:
         n = e.min_images
         warnings.append({"field": "inputs", "level": "error", "text": f"{e.label} needs at least {n} image{'' if n == 1 else 's'}"})
-    for i in spec["inputs"]:
-        if i["slot"].startswith("refmod:") and i.get("refmod"):
-            from .. import characters
-
-            try:
-                characters.refmod_file(i["refmod"])
-            except FileNotFoundError:
-                warnings.append({"field": "inputs", "level": "error", "text": f"{i['refmod']} isn't in your RefMod folder any more. Pick another."})
     for v in vids:  # longer than the model takes is cut at the run (staging.fitted); shorter can't run
         window, _ = clip_limits(e, v["slot"])
         d = v.get("trimmed_duration") or v.get("duration")

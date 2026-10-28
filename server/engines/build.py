@@ -80,8 +80,6 @@ def build_local(e: "Engine", spec: dict) -> dict:
             for node, inp, side in (t for t in targets if str(t[0]) in wf):
                 wf[str(node)]["inputs"][inp] = dims[0] if side == "width" else dims[1]
             continue
-        elif key.startswith("refmod:"):  # a RefMod slot: left empty, the loader loads nothing there
-            value, cast_ok = ("{{%s}}" % key if key in slots else NO_REFMOD), False
         elif ":" in key:  # a media slot
             value, cast_ok = ("{{%s}}" % key if key in slots else None), False
         else:
@@ -130,17 +128,6 @@ def fill_media(wf: dict, names: dict[str, str]) -> dict:
             if isinstance(v, str) and v.startswith("{{") and v[2:-2] in names:
                 n["inputs"][k] = names[v[2:-2]]
     return wf
-
-
-REFMOD = re.compile(r"^\{\{refmod:\d+\}\}$")
-NO_REFMOD = "(none)"  # what a RefMod loader's empty slot holds
-
-
-def fill_refmods(wf: dict, names: dict[str, str]) -> dict:
-    """Swap ``{{refmod:N}}`` for the name ComfyUI loads that RefMod by (``names`` by slot)."""
-    def one(v):
-        return names.get(v[2:-2], v) if isinstance(v, str) and REFMOD.match(v) else v
-    return {nid: {**n, "inputs": {k: one(v) for k, v in n.get("inputs", {}).items()}} for nid, n in wf.items()}
 
 
 def _setting_value(f: dict, v: Any) -> Any:

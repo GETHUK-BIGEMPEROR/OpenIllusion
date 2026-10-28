@@ -39,10 +39,8 @@ same commit as the code it describes.
 
 **MiniMax H3 is the core model.** Every video template the app ships runs MiniMax H3
 locally through ComfyUI's built-in H3 nodes: Create a video (from words) and Animate a
-photo (photo as first frame), both video with sound on H3 FL2VA with its 4-step turbo LoRA; Character swap (H3 Ref2VA with a character swap
-LoRA), and Character swap with RefMod (the same, plus H3's 4-step Ref2V turbo LoRA). Character Lab is built on H3 too: it turns a
-person's photos into an H3 RefMod with H3's video VAE and feeds it to H3 runs. The
-photo templates (Qwen Image 2.1) are there to make and fix the stills those videos start from.
+photo (photo as first frame), both video with sound on H3 FL2VA with its 4-step turbo LoRA; and Character swap (H3 Ref2VA with a character swap
+LoRA). The photo templates (Qwen Image 2.1) are there to make and fix the stills those videos start from.
 
 **What's new in it:**
 
@@ -50,9 +48,6 @@ photo templates (Qwen Image 2.1) are there to make and fix the stills those vide
   numbered inputs, one prompt and the output settings any generator has (shape, size,
   length); the app detects them, runs the workflow untouched and puts it on Explore at
   once; a result of its own becomes its cover. See [The idea](#the-idea).
-- **Character Lab.** A person is kept once (photos plus an H3 RefMod made on your GPU in
-  seconds, saved to your RefMod folder); any template with a RefMod input picks from that
-  folder. See [Character Lab](#character-lab).
 - **Files fitted to the model.** Each input card says whether the model takes the file
   as it is; one editor crops, cuts, resizes and resamples to fit before the run. See the
   Edit a file row in [The app](#the-app-screen-by-screen).
@@ -61,7 +56,7 @@ photo templates (Qwen Image 2.1) are there to make and fix the stills those vide
 
 Built with ComfyUI, comfy-api-proxy (Comfy API v2), MiniMax H3 and Qwen Image 2.1 by
 Comfy-Org, the [MiniMax H3 Character Swap LoRA](https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA)
-by akatz-ai, and [ComfyUI-MiniMaxH3Mod](https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod) (MIT) for RefMods.
+by akatz-ai.
 
 ## Setup
 
@@ -98,11 +93,10 @@ links) before it runs; the app never downloads models. Into ComfyUI's `models/` 
 | --- | --- | --- | --- |
 | [minimax_h3_fl2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) | `diffusion_models` | 21 GB | Create a video, Animate a photo |
 | [minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors) | `loras` | 2 GB | Create a video, Animate a photo |
-| [minimax_h3_ref2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors) | `diffusion_models` | 21 GB | Character swap (both) |
-| [minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors) | `loras` | 2 GB | Character swap with RefMod |
-| [h3_character_swap_pro4500_1000](https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA/resolve/main/h3_character_swap_pro4500_1000.safetensors) | `loras` | 0.2 GB | Character swap (both) |
+| [minimax_h3_ref2va_pruned_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors) | `diffusion_models` | 21 GB | Character swap |
+| [h3_character_swap_pro4500_1000](https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA/resolve/main/h3_character_swap_pro4500_1000.safetensors) | `loras` | 0.2 GB | Character swap |
 | [qwen3vl_32b_minimax_h3_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors) | `text_encoders` | 27 GB | every H3 template |
-| [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) | `vae` | 2.8 GB | every H3 template, Character Lab |
+| [minimax_h3_video_vae_int8_convrot](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) | `vae` | 2.8 GB | every H3 template |
 | [minimax_h3_audio_vae_fp32](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors) | `vae` | 0.6 GB | every H3 template |
 | [qwen_image_2.1_int8_convrot](https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/diffusion_models/qwen_image_2.1_int8_convrot.safetensors) | `diffusion_models` | 7.3 GB | every photo template |
 | [qwen3vl_8b_int8_convrot](https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3vl_8b_int8_convrot.safetensors) | `text_encoders` | 9.4 GB | every photo template |
@@ -110,24 +104,7 @@ links) before it runs; the app never downloads models. Into ComfyUI's `models/` 
 
 Restart ComfyUI (or press Check again in the app) after adding files.
 
-**3 · Character Lab (optional).** Needs the [ComfyUI-MiniMaxH3Mod](https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod)
-node pack and a `refmods` folder line in ComfyUI's `extra_model_paths.yaml`:
-
-```powershell
-git clone https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod <ComfyUI>\custom_nodes\ComfyUI-MiniMaxH3Mod
-```
-
-```yaml
-openillusion:
-    base_path: <ComfyUI>          # the folder holding ComfyUI's input and output
-    refmods: |
-        output/refmods
-        input/refmods
-```
-
-Restart ComfyUI. Why both folders: see [Character Lab](#character-lab).
-
-**4 · Cloud templates (optional).** Paste a Comfy API key in Settings → Cloud. The
+**3 · Cloud templates (optional).** Paste a Comfy API key in Settings → Cloud. The
 browser keeps it; the server never saves it. A headless server can take it from `COMFY_API_KEY`.
 
 ## The idea
@@ -177,9 +154,9 @@ its Router docs.
 ## The app, screen by screen
 
 Hash routes keep the app one static page (`lib/route.ts`). The rail on the left
-holds Explore, Create, Library, Characters, Build, Queue, and at the bottom Trash and Settings. On phones it is a tab bar
-(Explore, Library, Create, Queue, More); More opens Characters, Build, Trash and Settings;
-keys 1–5 jump between the first five, Ctrl K opens the palette.
+holds Explore, Create, Library, Build, Queue, and at the bottom Trash and Settings. On phones it is a tab bar
+(Explore, Library, Create, Queue, More); More opens Build, Trash and Settings;
+keys 1–4 jump between the first four, Ctrl K opens the palette.
 
 Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 `components/oi.tsx`), each opening a card on click:
@@ -194,12 +171,11 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Explore | `#/explore` | Every published template on one wall: photos and videos, your GPU and cloud together. On top, one search field (`/` jumps to it, Esc clears; it reads the name, model, tags, blurb and prompts, best matches first) with how many match. Under it the filters: Photo / Video, Model (each says Your GPU or Cloud; that is where it runs), Input (a photo, a clip, a sound, words only), Clear, and Sort on the right (Recently used, the default, then Featured, Most used, A to Z; used = your runs). Each filter's counts follow the others. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Moving the mouse over a card wipes between the cover and the input it was made from (photo or clip; a clip plays only while hovered). Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back). A template without a cover yet shows its name until a result is made its cover. The inspector shows the cover beside its input as a slider you drag across, photos or clips (two clips loop in step). | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
 | Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips name each filled file the way the model reads it), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. Opening a template shows a finished run, as after Run: your latest run of it, else its Example (the cover beside the input it was made from); Inputs flips to editing. Input and result compare with a slider you drag across, for clips too (Side by side is one click away). A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
-| Characters | `#/characters`, `#/characters/{id}` | Character Lab: people you keep for runs. Each has a name, notes, up to 16 photos (the starred one is the face) and a RefMod made from them on your ComfyUI into the RefMod folder, with its state (ready, photos changed since, failed and why). The Lab points at no template: any template's RefMod input picks it. See [Character Lab](#character-lab). | `screens/Characters.tsx`, `screens/create/RefModInput.tsx` |
 | Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, remix into Create, notes, export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
 | Build | `#/build`, `#/build?from={template}`, `#/build?track=cloud` (opens on Comfy Router) | Make a template in three steps; see [Builder](#making-a-template-builder). | `screens/builder/` |
 | Queue | drawer | Every run from both studios, grouped by what it needs from you. | `screens/QueueDrawer.tsx` |
-| Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs, RefMod folder), Output limits, Templates (shipped ones taken off Explore, each with Put back), Storage (disk use, clean working copies, back up and restore), Cloud (API key). | `screens/Settings.tsx` |
+| Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Templates (shipped ones taken off Explore, each with Put back), Storage (disk use, clean working copies, back up and restore), Cloud (API key). | `screens/Settings.tsx` |
 | Connect | `#/connect` | First run only: check the ComfyUI on this machine, then open Explore. No account. | `screens/Connect.tsx` |
 | Import | dialog | A dropped bundle, PNG or MP4 with a recipe, or a link: review, then add to the Library. A dropped ComfyUI workflow goes to Build instead. | `screens/ImportReview.tsx` |
 | Edit a file | Create's stage; a sheet in the Builder | One workbench for every photo, clip and sound: the model's limits as pills on top (green fits, orange a run changes it, red can't run; a pill opens its tool) with **Fit to spec**, tools on the left (crop, turn, size, cut, rate, sound), the file in the middle with what the model keeps outlined, the tool's settings on the right, a clip's timeline below (past the model's length is hatched: not sent), and what changes along the bottom. Hold for original. In Create the edits wait on the input and are made when it runs (crop and cut go through the run's own crop and trim; turn, size, rate and sound make a new file just before the run, or now with Apply now). In the Builder, Save makes the new file. The original always stays. | `components/MediaEditor.tsx`, `lib/edits.ts` |
@@ -294,7 +270,7 @@ Where to look when you change something.
 | File | What it does |
 | --- | --- |
 | `server.py` · `__main__.py` | Start-up: `python -m server [--host] [--port] [--open]`. Claims the home folder (`server.lock`: a second server on the same home refuses to start, so no run is resumed twice), deletes secrets an older version wrote to disk, resumes interrupted jobs (a cloud run waits for the key until a browser sends it), keeps comfy-api-proxy up in front of a live ComfyUI (checked every 15 s), cleans scratch and old trash every 6 h, refuses cross-origin writes (`_same_origin`), sets nosniff, no-referrer, no framing and a strict CSP on every response (`_headers`), and takes the key and proxy token from the `X-Comfy-Key` and `X-Comfy-Proxy-Token` headers (`_secrets`). |
-| `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, run, jobs), `library` (generations, trash, storage, re-run, export, import), `backup` (back up, restore), `characters` (Character Lab); shared helpers in `common`. Thin: it checks input and calls the modules below. |
+| `routes/` | Every `/api/*` route (see [API](#api)), the WebSocket, and the built app, one module per area: `system` (app, socket, status, settings, key, local check), `templates`, `builder`, `generations` (uploads, compose, run, jobs), `library` (generations, trash, storage, re-run, export, import), `backup` (back up, restore); shared helpers in `common`. Thin: it checks input and calls the modules below. |
 | `engines/` | Templates, in layers: `build` (fill a workflow or cloud body; `materialize` swaps media tokens for file data), `contract` (the `Engine` record; load and upgrade template files), `covers` (covers, samples, clip limits), `results` (`result_media` finds the image or video in an answer). `__init__` keeps the registry (`ENGINES`, `get`, `describe`), editing (edit/duplicate/delete/reset) and `compose` (the request a run sends), and re-exports the rest. |
 | `builder/` | The Builder, in layers: `workflow` (read a dropped file, `read_workflow`; UI graph to API graph, `ui_to_api`), `analysis` (detect inputs, prompt, settings and result nodes, `analyze`), `assemble` (`assemble_local`, `assemble_cloud`, `preset`, `save`). `__init__` re-exports them. |
 | `adapters/` | `__init__.py` reads and checks adapter files and puts a request together from one (`parse`, `check`, `assemble`, `pick_model`) and the result settings a job asks for (`settings_for`, `write_setting`, `setting_field`). One `*.json` per cloud model. |
@@ -308,7 +284,6 @@ Where to look when you change something.
 | `fit.py` | What a model takes in each file (`fit`: sides, shape, MB, seconds, total, fps) and how a photo or clip's plan and a clip's span change to meet it. `staging.fitted` applies it to a run. |
 | `store.py` · `generation.py` | The library: one folder per generation with `generation.json` (pydantic `Manifest`), indexed in SQLite with full-text search; trash. |
 | `bundle.py` · `archive.py` | Export a generation as a zip, import one back; the checks every zip from outside passes first (`archive.files`: paths stay inside, allowed types, count and size caps). |
-| `characters.py` | Character Lab: a character is a folder (`character.json`, `photos/`); `start_refmod` runs `templates/lab/make-refmod.json` on ComfyUI and fetches the RefMod back like a result, into the RefMod folder; `list_refmods` / `refmod_file` are what RefMod inputs pick from; `stage` uploads a run's RefMod where the loader looks. See [Character Lab](#character-lab). |
 | `backup.py` | Whole-library backups (`.illusionbackup`): `create`, `inspect` (what a restore would add), `restore` (merge). See [Backups](#backups). |
 | `settings.py` · `storage.py` · `paths.py` | Settings (on disk) and the secrets (in memory, `remember`); disk usage and cleanup; home folder paths, what each entry is (`TIERS`), and `write_atomic`. See [Storage](#storage). |
 
@@ -318,13 +293,12 @@ Where to look when you change something.
 | --- | --- |
 | `lib/api.ts` | Every API call and its types. Start here. |
 | `lib/store.ts` | App state (zustand): the open studio's inputs, prompt and sounds, one unsent draft per template, remix (`loadGeneration`). |
-| `lib/characters.ts` | A character's RefMod state in words; `withRefmod` (pick a RefMod into a RefMod input and, when a Lab character made it, their face into the paired photo input). |
 | `lib/spec.ts` · `fields.ts` | Studio state → the run spec the server composes (`toSpec`); which inputs a template shows. |
 | `lib/route.ts` · `live.ts` · `query.ts` | Hash routes; the WebSocket feed of job updates; React Query setup. |
 | `App.tsx` · `components/Shell.tsx` · `Palette.tsx` | Layout, rail and tab bar, drops anywhere on the page (files from outside only: a drag that starts on the page, like selected text, is ignored; a page with inputs of its own takes media through `usePageDrop`), Ctrl K palette. |
 | `screens/*` | One file per screen; see [The app](#the-app-screen-by-screen). |
 | `screens/builder/` | Builder: Local workflow and Comfy Router tabs, three steps with Back, save and first run (`Builder.tsx`); the start step (`Start.tsx`), the template's sections (`Sections.tsx`), output size and settings (`Settings.tsx`), row state from a workflow or preset (`model.ts`). On Router: job cards built from the adapter's sets or `models` (`modes.ts`), inputs grouped by role (each role's limits as pills counted across its files, **Fit all to spec**, a card per sample with Edit, Replace, Remove), a sentence on what the run makes, and the same `set`/`needs`/`models` checks as the server. |
-| `screens/create/` | Create: the page (`CreateStudio.tsx`; the stage shows the picked input in the editor, or the run), input cards, the inline editor and the edits made just before Run (`Inputs.tsx`), RefMod cards and the RefMod folder picker (`RefModInput.tsx`), the canvas (`Canvas.tsx`), prompt and Run (`Panel.tsx`), this template's runs (`History.tsx`). |
+| `screens/create/` | Create: the page (`CreateStudio.tsx`; the stage shows the picked input in the editor, or the run), input cards, the inline editor and the edits made just before Run (`Inputs.tsx`), the canvas (`Canvas.tsx`), prompt and Run (`Panel.tsx`), this template's runs (`History.tsx`). |
 | `components/Studio.tsx` · `Refs.tsx` · `Trimmer.tsx` · `ABPlayer.tsx` | Create's parts: template seeding, `useRunner` (with a `prepare` step before the run), uploads, clip and sound trimming (filmstrip or wave; past the model's length hatched), before/after player. |
 | `components/MediaEditor.tsx` | The one editor for photos, clips and sounds: `Editor` (inline on Create's stage), `MediaSheet` (the Builder's sheet, saves a new file), `MediaThumb` (a file as its edits leave it), `FitLine` ("Fits Kling", "Run crops it to 5:2"). |
 | `lib/edits.ts` | The editor's logic, no UI: the `Edits` a file carries, what they make (`outOf`), the model's limits as checks and a file's one-line status, Fit to spec (a port of `fit.plan`), and the ops sent to `/api/media/edit`. |
@@ -336,7 +310,6 @@ Where to look when you change something.
 | Path | What lives there |
 | --- | --- |
 | `templates/local/` | Shipped workflow templates, plus `media/` (samples and covers) |
-| `templates/lab/` | Tool workflows the app runs itself, not templates: `make-refmod.json` (Character Lab) |
 | `templates/cloud/` | Shipped Router templates, once one has run for real (none yet) |
 | `tests/` | pytest suite; Router, Comfy Cloud and ComfyUI are faked with `httpx.MockTransport` |
 | `schema/` | `generation.v1.json` (`python -m server.gen_schema`) |
@@ -355,12 +328,11 @@ each entry is; a test fails when the app writes something it doesn't list.
 
 | Tier | Entries | Backed up | Cleaned |
 | --- | --- | --- | --- |
-| library | `generations/`, `templates/`, `covers/`, `characters/`, `refmods/`, `trash/`, `settings.json` | yes (trash optional) | trash after 7 days |
+| library | `generations/`, `templates/`, `covers/`, `trash/`, `settings.json` | yes (trash optional) | trash after 7 days |
 | machine | `index.sqlite`, `jobs.json`, `proxy-state/`, `proxy.log`, `server.lock` | no | never |
 | scratch | `uploads/`, `cache/` | no | on their own after 30 days unused (Builder drafts: 1 day), or from Settings → Storage |
 
-`outputs/` is the default export folder: the user's files, not the app's. `refmods/` is
-the default RefMod folder; Settings → `refmod_folder` moves it anywhere (`paths.refmods_dir`).
+`outputs/` is the default export folder: the user's files, not the app's.
 
 - **Whole or nothing.** Every JSON file the app keeps (`generation.json`, settings,
   templates, `.shelf`, the queue) goes through `paths.write_atomic`: temp file,
@@ -397,10 +369,8 @@ with a `backup.json` (format, version, app, counts, and every file's size and sh
   app understands (newer → refused), `archive.files` passes, every entry is under
   `library/` and one of the library entries, generation ids are real ids, every file has
   a checksum, and the disk has room.
-- **Characters** travel whole (`library/characters/<id>/`: record and photos); one whose
-  RefMod is being made is skipped. **RefMods** travel as `library/refmods/<name>`, from
-  whichever folder Settings points at. Restore adds the characters and RefMod files
-  missing here and keeps the rest.
+- **Older backups** may hold `library/characters/` and `library/refmods/` (Character Lab,
+  now on the `refmod` branch); restore leaves them out (`backup.GONE`).
 - **Restore merges, never replaces.** Dropping a backup shows what it would add
   (`inspect`). Restoring then unpacks each generation to a staging folder, checks every
   checksum and the manifest, and moves it in whole; one that fails is listed in
@@ -426,7 +396,6 @@ typed call for each.
 | Runs | `POST compose` (the request, without running) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
 | Library | `GET generations` · `GET facets` · `GET/PATCH/DELETE generations/{id}` · `POST generations/trash` · `GET generations/{id}/file/…`, `/output`, `/workflow`, `/recipe` · `POST generations/{id}/rerun` |
 | Trash and storage | `GET trash` · `POST trash/{id}/restore` · `POST trash/restore` · `DELETE trash/{id}` · `POST trash/purge` (picked, for good) · `DELETE trash` · `GET storage` · `POST storage/clean` |
-| Characters | `GET/POST characters` · `GET/PATCH/DELETE characters/{id}` · `POST characters/{id}/photos` (`{asset}`) · `GET/DELETE characters/{id}/photos/{name}` · `POST characters/{id}/refmod` (make it; poll the character for `making`) · `GET refmods` (the RefMod folder: path and files, each with the Lab character that made it, if any) |
 | Backups | `POST backup` (`{trash}`) · `GET backup/file/{name}` · `POST restore` (the file as the body; answers what it would add, with a `token`) · `POST restore/{token}` |
 | Share | `GET generations/{id}/export/sizes` · `POST generations/{id}/export` · `GET exports/{name}` · `POST import` · `GET import/{token}/file/…` · `POST import/{token}/commit` · `GET community` |
 
@@ -455,7 +424,7 @@ it. The tabs differ only in step 1, where the input list comes from.
 ```mermaid
 flowchart LR
   subgraph Local["Local workflow"]
-    D["Drop a workflow<br/>UI or API json, or a<br/>ComfyUI PNG/WebP/MP4"] --> DE["Detect<br/>loaders → Image/Video N<br/>RefMod slots → RefMod N<br/>text box → Prompt<br/>save node → Photo/Video"]
+    D["Drop a workflow<br/>UI or API json, or a<br/>ComfyUI PNG/WebP/MP4"] --> DE["Detect<br/>loaders → Image/Video N<br/>text box → Prompt<br/>save node → Photo/Video"]
   end
   subgraph Cloud["Comfy Router"]
     M["Pick a model<br/>any with an adapter"] --> MO["Pick a mode<br/>tabs from its adapter:<br/>Text to video, Image to video,<br/>From references, Video edit…"]
@@ -469,11 +438,6 @@ flowchart LR
 - **Detect** is `builder.analyze`: UI-format workflows are converted to API format
   and subgraphs flattened, then every loader becomes a required input. Step *Run*
   is `builder.assemble_local`.
-- **RefMod slots.** A RefMod loader (class with `RefMod` and `Load`, e.g.
-  `MiniMaxH3RefModsLoader`) shows each `mod_N` slot as a row. The author switches on the
-  ones people fill (the first is on unless the workflow already names a RefMod there) and
-  picks which photo input gets the face of a Lab-made RefMod. Each one on becomes a
-  `refmod:N` input; the rest load nothing (`(none)`).
 - **Picking a model**: each adapter is a card under *Make video* and *Make photos*.
   Each card says what the model **Does** (its mode names, `modeNames`) and what it
   **Takes** (its roles, with the most files each takes, e.g. Reference image ×9),
@@ -607,10 +571,6 @@ A cloud template, trimmed (Kling 3 Omni, built as a video edit):
 }
 ```
 
-- **`refmod`** inputs (`refmod:N`, local only) take a RefMod file from the RefMod folder
-  and bind to a RefMod loader's slot (`MiniMaxH3RefModsLoader.mod_1`); `photo` names the
-  photo input that gets the face when a Lab character made the RefMod (if that input is
-  empty, a sample or another character's face). See [Character Lab](#character-lab).
 - **`model`** is the Router model the request goes to. For an adapter that
   spans several model ids (`models`), it is the one the run's inputs picked.
 - **`body`** is the cloud box: the adapter's starting request with the run's
@@ -670,69 +630,16 @@ models had settings gets its job's settings at their defaults when it loads
 A template that starts from a photo or clip renders at that input's frame, as prepared:
 its own shape (or the crop), at the size step picked in Create (Original keeps it, under
 the cap). An input can name the step it opens at (`"size": "0.4 MP"` on the input); the
-two character swaps do, so a clip of any shape runs at H3's usual 0.4 MP budget. Their
-workflows read the frame from the clip (`GetImageSize` on `GetVideoComponents`), the way
+character swap does, so a clip of any shape runs at H3's usual 0.4 MP budget. Its
+workflow reads the frame from the clip (`GetImageSize` on `GetVideoComponents`), the way
 Animate a photo reads it from the photo, so no shape is fixed in the graph.
 
-## Character Lab
+## RefMods and Character Lab: on the `refmod` branch
 
-A character is someone you keep for runs: a name, a few photos, and the **RefMod**
-made from them. **The Lab only makes RefMods; templates use them.** Nothing is made
-on its own at run time: a template's RefMod input picks a file from the **RefMod
-folder** (`~/.openillusion/refmods`, or Settings → RefMod folder), which holds what the
-Lab saved and anything you put there yourself. A RefMod (from [ComfyUI-MiniMaxH3Mod](https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod), MIT) is
-a small `.safetensors` reference adapter for MiniMax H3: the photos encoded once by H3's
-video VAE, loaded into any H3 run by `MiniMaxH3RefModsLoader` and applied to its
-conditioning by `MiniMaxH3RefModApply`. One photo in a prompt shows a face; a RefMod
-carries every photo's look into each frame.
-
-```mermaid
-flowchart LR
-  PH["Photos<br/>characters/&lt;id&gt;/photos"] -- "/upload/image" --> MK["make-refmod.json<br/>Create H3 RefMod"]
-  MK -- "saves to output/refmods" --> V["/view"] --> RM["RefMod folder<br/>&lt;name&gt;.safetensors"]
-  RM -- "picked in a RefMod input,<br/>copied at Run" --> G["generation<br/>refs/refmod-1.safetensors"]
-  G -- "/upload/image → input/refmods/openillusion/" --> LD["RefMods Loader<br/>openillusion/&lt;sha16&gt;"]
-```
-
-- **Making one** (`characters.start_refmod`) is a tool run, straight to ComfyUI's
-  `/prompt`, not a job: photos up as `input/openillusion/<id>-p-NN`, one `LoadImage`
-  per photo wired into `MiniMaxH3RefModExtract` (Full Reference, identity), poll
-  `/history`, then fetch `refmods/openillusion/<id>.safetensors` from the output folder
-  through `/view`, the way results come back, and save it in the RefMod folder as
-  `<character name>.safetensors` (` 2`, ` 3` if taken; making it again overwrites its own
-  file). About 2 s on the GPU. Missing nodes or the VAE are named first; a failure stays
-  on the character with ComfyUI's reason.
-- **Picking one** (Create): a RefMod input's card opens the folder as a grid; Lab-made
-  ones show the character's face, others the file name. A template can pair a photo input with a RefMod input
-  (Builder: "photo"); there a Lab character's RefMod also puts their starred face in that photo input. Deleting a character leaves its
-  RefMod in the folder. A file gone from the folder is flagged on the card and blocks Run.
-- **Using one.** A run copies the RefMod into the generation (`refs/refmod-N.safetensors`),
-  so re-runs, remixes and exports keep it after the file leaves the folder. At run time
-  it is uploaded by content (`input/refmods/openillusion/<sha256[:16]>.safetensors`) and
-  the loader's `{{refmod:N}}` becomes that name (`engines.fill_refmods`).
-- **Stale.** Photos added or removed after the RefMod was made: it still runs, and the
-  Lab says to make it again.
-- **ComfyUI needs** the node pack in `custom_nodes/` and a `refmods` folder that reaches
-  both `output/refmods` (where Create saves first) and `input/refmods` (where runs upload).
-  In `extra_model_paths.yaml`, with `base_path` the folder holding ComfyUI's `input` and `output`:
-
-  ```yaml
-  openillusion:
-      base_path: /path/to/ComfyUI
-      refmods: |
-          output/refmods
-          input/refmods
-  ```
-
-  The app never installs either (see Develop: nothing installs itself).
-- **Template:** `local/minimax-h3-character-refmod` is the character swap with a RefMod
-  loader and apply node before the guider. The RefMod is the character; `image:1` is optional
-  (no sample, no paired face): left empty, its loader is pruned and the reference node keeps only the clip.
-  The prompt names the clip, not a picture, so it reads the same either way. It runs H3's Ref2V turbo LoRA on top of the swap LoRA at 4 steps
-  (the workflow's Turbo switch, on); the plain Character swap keeps it off and runs 20.
-- **Characters are RefMods only.** Cloud "omni reference" (Seedance, Kling) is not a saved
-  character: it is several reference photos sent with each request, which a cloud template
-  takes as ordinary photo inputs. Nothing on Router keeps a person between runs.
+Character Lab (people kept as photos plus an H3 RefMod made on your GPU) and RefMod inputs
+need more work, so they live on the `refmod` branch, not in this build. Generations made
+with a RefMod still open and export with their own copy; a RefMod loader dropped
+into the Builder shows its `mod_N` slots as plain settings.
 
 ## Cloud = Comfy Router
 
@@ -1070,7 +977,6 @@ second base URL plus the key; not planned yet.
 | 7 | Storage: safe writes, secrets off disk, one server per home, scratch that cleans itself, `.illusionbackup` back up and merge-restore | built, tested on throwaway homes |
 | 8 | Inputs fitted to each model: published per-file limits in adapters (`fit`, `media_mb`); runs crop, scale, cut, resample and re-encode to them; Create lists the changes | built, tested against fakes |
 | 9 | Dataset prep, per file: one workbench editor for every photo, clip and sound (inline on Create's stage, a sheet in the Builder), file cards that say whether the model takes each file, the model's limits as pills with Fit to spec and the Builder's Fit all; any common format converted on upload | built, tested; batch editing next |
-| 10 | Character Lab: characters as folders, RefMod made on ComfyUI into the RefMod folder, `refmod` inputs picked from it, Builder RefMod slots, the RefMod swap template, backups | built, tested; RefMod made and a swap run on the GPU |
 | 11 | Result settings: shape, size, length, resolution, sound and quality for every Router model (adapter `settings`) and the shipped create templates; Create's shape tiles and size steps; the Builder's Output size and Settings for both tabs; no drafts, a saved template is on Explore at once | built, tested; cloud values unchecked against real runs |
 
 ## Known weak spots

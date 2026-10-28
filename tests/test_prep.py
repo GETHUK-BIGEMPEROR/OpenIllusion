@@ -172,9 +172,8 @@ def test_every_template_opens_ready_to_run():
         assert all(f.get("default") for f in media if f["required"]), e.id
         assert sorted(i["slot"] for i in d["inputs"]) == sorted(f["key"] for f in media if f.get("default")), e.id
         spec = {"engine": e.id, "prompt": d["prompt"], "params": {}, "inputs": [{"slot": i["slot"], "asset": i["asset"], "duration": i.get("duration")} for i in d["inputs"]]}
-        # A template that takes a RefMod opens asking for one; nothing else.
-        picks = [f"Pick {f['label']}" for f in e.fields if f["type"] == "refmod"]
-        assert [w["text"] for w in engines.compose(spec)["warnings"] if w["level"] == "error"] == picks, e.id
+        # It runs as it opens.
+        assert [w["text"] for w in engines.compose(spec)["warnings"] if w["level"] == "error"] == [], e.id
 
 
 def test_samples_resolve_like_uploads():

@@ -21,7 +21,7 @@ const last: Filters = { q: "", use: "", kind: "all", model: "", takes: "", sort:
 // Mixed shapes, so the placeholder wall looks like the one that replaces it.
 const SKELETON = [0.8, 0.75, 0.8, 1, 0.66, 0.8, 1.33, 0.75].map((aspect, i) => ({ key: String(i), aspect }));
 
-const NAMES: Record<string, string> = { lora: "LoRA", refmod: "RefMod" };
+const NAMES: Record<string, string> = { lora: "LoRA" };
 const tagLabel = (t: string) => NAMES[t] ?? t.charAt(0).toUpperCase() + t.slice(1);
 
 const TAKES: { v: Takes; label: string; icon: IconName }[] = [

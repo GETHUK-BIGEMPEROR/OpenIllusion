@@ -8,7 +8,7 @@ import { cx, GpuStat, I, KeyStat } from "../../components/oi";
 import { invalidFields, LocalNeeds, NoTemplates, useCompose, useCurrent, useRunner, useStudio, type Fix } from "../../components/Studio";
 import { tplName } from "../../components/TemplateCard";
 import { api, isMedia, type Manifest, type Mode } from "../../lib/api";
-import { clipSlots, clipWindow, fieldsOf, leadSlot, mediaFields, refmodFields, settingsOf, videoField } from "../../lib/fields";
+import { clipSlots, clipWindow, fieldsOf, leadSlot, mediaFields, settingsOf, videoField } from "../../lib/fields";
 import { errMsg } from "../../lib/format";
 import { isActive, useJobs } from "../../lib/live";
 import { go } from "../../lib/route";
@@ -17,7 +17,6 @@ import { canvasSize, dimsText, plans, usePrepImages, type PrepInput } from "../.
 import { Canvas } from "./Canvas";
 import { HistList, HistStrip, useRuns } from "./History";
 import { bakePending, FileCard, InputStage } from "./Inputs";
-import { RefModCard, RefModStage } from "./RefModInput";
 import { toSpec } from "../../lib/spec";
 import { advSummary, Hero, PromptSection, RunBar, UseAsCover } from "./Panel";
 import { FAILED, type View, withInput } from "./shared";
@@ -35,9 +34,8 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const [s, set] = useStudio(mode);
   const engine = useEngine(mode, s.engine);
   const media = mediaFields(engine);
-  const mods = refmodFields(engine);
-  // The inputs list: photos, clips, sounds and RefMods, in the template's order.
-  const cards = fieldsOf(engine).filter((f) => isMedia(f) || f.type === "refmod");
+  // The inputs list: photos, clips and sounds, in the template's order.
+  const cards = fieldsOf(engine).filter(isMedia);
   const vField = videoField(engine);
   const lead = leadSlot(engine);
   const leadVideo = lead.startsWith("video:");
@@ -65,7 +63,6 @@ function CreateStudio({ mode }: { mode: Mode }) {
   // The input the stage edits: the one you picked, else the lead.
   const [picked, setPicked] = useState<string | null>(null);
   useEffect(() => setPicked(null), [s.engine]);
-  const selMod = mods.find((f) => f.key === picked);
   const selField = media.find((f) => f.key === picked) ?? media.find((f) => f.key === lead) ?? media[0];
   // A declared output size: the shape and step picked under Output. Without one, the workflow sizes its own output.
   const canvas = sized?.canvas ? canvasSize(sized, s.params.aspect, s.params.out_size) : null;
@@ -206,7 +203,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
   if (!s.engine && !engine) return <NoTemplates mode={mode} />;
 
   const inputView = eff === "input" || eff === "empty";
-  const editing = inputView && !!engine && (!!selMod || !!selField);
+  const editing = inputView && !!engine && !!selField;
   const pickRun = (id: string) => { set({ current: id, group: [id] }); setView("compare"); };
   const setParam = (k: string, v: unknown) => set((st) => ({ params: { ...st.params, [k]: v } }));
   const required = cards.filter((f) => f.required !== false).length;
@@ -223,12 +220,9 @@ function CreateStudio({ mode }: { mode: Mode }) {
           <section className="sec" aria-labelledby="sec-inputs">
             <div className="sec-h"><h4 id="sec-inputs">Inputs</h4><span className="mono">{cards.length > required ? `${cards.length - required} optional` : `${cards.length} ${cards.length === 1 ? "input" : "inputs"}`}</span></div>
             <div className="flist">
-              {cards.map((f) => f.type === "refmod" ? (
-                <RefModCard key={f.key} e={engine} f={f as (typeof mods)[number]} s={s} set={set}
-                  on={inputView && f.key === selMod?.key} onPick={() => { setPicked(f.key); setView("input"); }} />
-              ) : (
+              {cards.map((f) => (
                 <FileCard key={f.key} e={engine} f={f as (typeof media)[number]} s={s} set={set} photos={photos} plan={planOf(f.key)}
-                  on={inputView && !selMod && f.key === selField?.key} onPick={() => { setPicked(f.key); setView("input"); }} />
+                  on={inputView && f.key === selField?.key} onPick={() => { setPicked(f.key); setView("input"); }} />
               ))}
             </div>
           </section>
@@ -288,8 +282,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
 
         {editing ? (
           <div className="stage-ed">
-            {selMod ? <RefModStage e={engine} f={selMod} s={s} set={set} />
-              : <InputStage key={selField!.key} e={engine} f={selField!} s={s} set={set} photos={photos} />}
+            <InputStage key={selField!.key} e={engine} f={selField!} s={s} set={set} photos={photos} />
           </div>
         ) : (
         <div className={cx("canvas", stageDrop.over && "drop")} {...stageDrop.props} data-drop="Drop to fill the inputs in order">

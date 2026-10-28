@@ -46,10 +46,6 @@ export function toSpec(mode: Mode, s: StudioState, engine?: EngineInfo): Spec {
     if (engine?.fields?.length && !engine.fields.some((f) => f.key === a.slot)) continue;
     inputs.push({ slot: a.slot, role: "audio", asset: a.missing ? undefined : a.asset, license: a.license, contains_person: false, consent: false });
   }
-  for (const [slot, m] of Object.entries(s.mods ?? {})) {
-    if (!engine?.fields?.some((f) => f.key === slot)) continue;
-    inputs.push({ slot, role: "character", refmod: m.file, asset: m.file ? undefined : m.asset, label: m.name, license: "own-image", contains_person: false, consent: false });
-  }
   return {
     engine: s.engine,
     mode,

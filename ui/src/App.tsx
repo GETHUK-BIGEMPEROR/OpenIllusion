@@ -17,7 +17,6 @@ import { Builder, buildAction, workflowToBuilder } from "./screens/builder/Build
 import { ImportReview } from "./screens/ImportReview";
 import { isBackup, openBackup, RestoreReview } from "./screens/RestoreReview";
 import { Trash } from "./screens/Trash";
-import { Characters } from "./screens/Characters";
 import { Library } from "./screens/Library";
 import { QueueDrawer } from "./screens/QueueDrawer";
 import { Settings } from "./screens/Settings";
@@ -132,7 +131,6 @@ export function App() {
           {route.name === "generation" && <GenerationDetail key={route.id} id={route.id} />}
           {route.name === "settings" && <Settings />}
           {route.name === "trash" && <Trash />}
-          {route.name === "characters" && <Characters id={route.id} />}
           {route.name === "build" && <Builder key={route.cloud ? "cloud" : "local"} from={route.from} cloud={route.cloud} />}
         </main>
         <TabBar route={route} />

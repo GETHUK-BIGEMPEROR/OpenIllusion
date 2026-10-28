@@ -1,5 +1,6 @@
 """Whole-library backups: what goes in, what stays out, restoring by merging, refusing bad files."""
 
+import hashlib
 import io
 import json
 import zipfile
@@ -117,6 +118,31 @@ def test_restore_refuses_bad_backups(tmp_path, change, match):
     bad.write_bytes(tampered(src, change).getvalue())
     with pytest.raises(archive.Refused, match=match):
         backup.inspect(bad, "1")
+
+
+@pytest.mark.usefixtures("fresh_templates")
+def test_an_older_backups_characters_and_refmods_are_left_out(tmp_path):
+    m, _ = a_library()
+    src = backup.create(dest_dir=tmp_path / "b")["file"]
+    old = {"library/characters/c1/character.json": b'{"id": "c1", "photos": []}', "library/refmods/Ana.safetensors": b"tensors"}
+    buf = io.BytesIO()
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(buf, "w") as zout:
+        for n in zin.namelist():
+            d = zin.read(n)
+            if n == "backup.json":
+                man = json.loads(d)
+                man["files"].update({k: {"size": len(v), "sha256": hashlib.sha256(v).hexdigest()} for k, v in old.items()})
+                d = json.dumps(man).encode()
+            zout.writestr(n, d)
+        for k, v in old.items():
+            zout.writestr(k, v)
+    f = tmp_path / "old.illusionbackup"
+    f.write_bytes(buf.getvalue())
+    fresh_home(tmp_path, "new")
+    assert "characters" not in backup.inspect(f, "1")
+    res = backup.restore(f, tmp_path / "stage")
+    assert res["generations"] == 1 and res["damaged"] == [] and store.get(m.id).title == "Kept"
+    assert not (paths.user_root() / "characters").exists() and not (paths.user_root() / "refmods").exists()
 
 
 @pytest.mark.usefixtures("fresh_templates")

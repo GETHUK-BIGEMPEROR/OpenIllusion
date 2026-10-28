@@ -1,6 +1,6 @@
 // Router models: the jobs each one does, the inputs each job takes, and what a set of filled inputs makes.
 import type { AdapterSetting, Asset, Fit, Range, RouterAdapter } from "../../lib/api";
-import type { Details, MediaRow, OutputState, ParamRow, PromptState, RefModRow } from "./model";
+import type { Details, MediaRow, OutputState, ParamRow, PromptState } from "./model";
 
 /** What a job asks of an input: always, only if you want it, or at least one of the "any" ones. */
 export type Need = "yes" | "no" | "any";
@@ -156,7 +156,7 @@ export function fromAdapter(a: RouterAdapter) {
   const prompt: PromptState = { pick: "prompt", label: "Prompt", hint: "", def: "", required: true };
   // Labels read "Name · Model": the model half is set, the name is yours to write.
   const details: Details = { label: ` · ${a.name}`, blurb: "", mode: a.mode, tags: "" };
-  return { media, mods: [] as RefModRow[], prompt, params: [] as ParamRow[], details, output: { result: "", size: "" } as OutputState };
+  return { media, prompt, params: [] as ParamRow[], details, output: { result: "", size: "" } as OutputState };
 }
 
 /** The model's settings a job with these rows filled asks for: none an input decides (off_with), none missing a role they need

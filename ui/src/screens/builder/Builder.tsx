@@ -11,7 +11,7 @@ import { autorun, useApp } from "../../lib/store";
 import { CloudInputs, InputsSection, JobSection, PromptSection, ResultSection, slotNames, SourceBar, TitleField } from "./Sections";
 import { CloudSettings, type CloudSettingState, ControlsSection, SizeSection } from "./Settings";
 import { Start, Tabs, type Track } from "./Start";
-import { type Details, fromWorkflow, type MediaRow, type OutputState, type ParamRow, type PromptState, type RefModRow, type Source } from "./model";
+import { type Details, fromWorkflow, type MediaRow, type OutputState, type ParamRow, type PromptState, type Source } from "./model";
 import { adapterProblems, fromAdapter, settingsFor, settingValue } from "./modes";
 
 // A workflow handed over from elsewhere (Import, a drop on another page).
@@ -56,7 +56,6 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
   const [reading, setReading] = useState<string | null>(null);
   const [readErr, setReadErr] = useState<string | null>(null);
   const [media, setMedia] = useState<MediaRow[]>([]);
-  const [mods, setMods] = useState<RefModRow[]>([]);
   const [prompt, setPrompt] = useState<PromptState>({ pick: "", label: "", hint: "", def: "", required: true });
   const [params, setParams] = useState<ParamRow[]>([]);
   const [details, setDetails] = useState<Details>({ label: "", blurb: "", mode: "edit", tags: "" });
@@ -71,7 +70,6 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     const init = s.kind === "local" ? fromWorkflow(s.a) : fromAdapter(s.a);
     setSrc(s);
     setMedia(init.media);
-    setMods(init.mods);
     setPrompt(init.prompt);
     setParams(init.params);
     setDetails(init.details);
@@ -149,13 +147,13 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
   const problems = useMemo(() => {
     const p: string[] = [];
     if (!details.label.split(" · ")[0].trim()) p.push("Give the template a name");
-    if (src && !media.some((m) => m.on) && !mods.some((m) => m.on) && !prompt.pick) p.push("Ask for at least one input or a prompt");
+    if (src && !media.some((m) => m.on) && !prompt.pick) p.push("Ask for at least one input or a prompt");
     if (params.some((r) => r.on && !r.label.trim())) p.push("Name every control");
     if (src?.kind === "local" && !output.result) p.push("Pick the node the result comes from");
     if (src && prompt.pick && prompt.required && !prompt.def.trim()) p.push("Write the prompt the first run uses");
     if (src?.kind === "cloud") p.push(...adapterProblems(src.a, media));
     return p;
-  }, [details.label, media, mods, prompt.pick, prompt.required, prompt.def, params, src, output.result]);
+  }, [details.label, media, prompt.pick, prompt.required, prompt.def, params, src, output.result]);
 
   // Width and height on the output size's node belong to it, not to the controls.
   const sizeOwns = (r: ParamRow) => !!output.size && r.node === output.size && (r.input === "width" || r.input === "height");
@@ -180,10 +178,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     if (src.kind === "local") {
       const fixed = params.filter((r) => !r.on && !sizeOwns(r) && JSON.stringify(r.value) !== JSON.stringify(r.orig)).map((r) => ({ node: r.node!, input: r.input!, value: r.value }));
       const size = output.size ? { node: output.size, ...(output.keep ?? {}) } : null;
-      // A RefMod's face goes into a photo input the template keeps.
-      const faces = new Map(on.filter((m) => m.kind === "image").map((m) => [m.key, { node: m.node!, input: String(m.input) }]));
-      const refmods = mods.filter((r) => r.on).map((r) => ({ node: r.node, input: r.input, photo: faces.get(r.photo) ?? null }));
-      return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...base, refmods, fixed, outputs: [output.result], size };
+      return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...base, fixed, outputs: [output.result], size };
     }
     // The adapter writes the request: the files go where it says, the settings at the values picked here.
     const settings = settingsFor(src.a, on).map((x) => ({ key: x.key, value: settingValue(x, csets[x.key]?.value), locked: !!csets[x.key]?.locked }));
@@ -263,7 +258,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
                 </div>
               ) : (
                 <div className="bform">
-                  <InputsSection rows={media} setRows={setMedia} mods={mods} setMods={setMods} />
+                  <InputsSection rows={media} setRows={setMedia} />
                   <PromptSection src={src} p={prompt} setP={setPrompt} />
                   <SizeSection a={src.a} mode={src.a.results.find((r) => r.node === output.result)?.kind === "video" ? "motion" : "edit"} o={output} setO={setOutput} />
                   <ControlsSection rows={params} setRows={setParams} owned={sizeOwns} />
