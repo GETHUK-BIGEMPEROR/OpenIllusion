@@ -25,6 +25,8 @@ interface Draft {
 }
 
 const isText = (f: InputField) => f.type === "text";
+/** Built by you, in your templates folder: deleted for real. A shipped template made in the Builder is still shipped. */
+const mine = (e: EngineInfo) => !!e.built && e.origin === "user" && !e.edited;
 /** A setting's starting value as Create shows it: "16:9 · 0.4 MP", "5 s", "On", "Auto". */
 function startText(f: InputField) {
   const d = "default" in f ? f.default : undefined;
@@ -223,7 +225,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
             <I n={editing ? "check" : "pencil"} />{editing ? "Done editing" : "Edit details"}
           </button>
         )}
-        {e.built
+        {mine(e)
           ? <button className="icon-btn sm" type="button" onClick={remove} disabled={saving} aria-label="Delete template" title="Delete this template"><I n="trash" /></button>
           : e.origin && <button className="icon-btn sm" type="button" onClick={hide} disabled={saving} aria-label="Remove from Explore" title="Remove from Explore"><I n="trash" /></button>}
         <button className="icon-btn sm" type="button" aria-label="Close details" onClick={onClose}><I n="x" /></button>
@@ -247,7 +249,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
           <>
             <div className="insp-title">
               <h3>{tplName(e)}</h3>
-              <p>{tplModel(e)} · {e.mode === "motion" ? "Video" : "Image"} · {e.kind === "local" ? "Runs on your GPU" : "Runs on Comfy Router"}{e.edited ? " · Edited" : e.built ? " · Built by you" : e.origin === "user" ? " · Yours" : ""}</p>
+              <p>{tplModel(e)} · {e.mode === "motion" ? "Video" : "Image"} · {e.kind === "local" ? "Runs on your GPU" : "Runs on Comfy Router"}{e.edited ? " · Edited" : mine(e) ? " · Built by you" : e.origin === "user" ? " · Yours" : ""}</p>
             </div>
             {e.blurb && <p className="insp-blurb">{e.blurb}</p>}
           </>
@@ -328,7 +330,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
         ) : (
           <>
             {e.edited && editing && <button className="btn" type="button" onClick={resetAll} disabled={saving}><I n="undo" />Reset to shipped</button>}
-            {e.built && editing && <button className="btn danger" type="button" onClick={remove} disabled={saving}><I n="trash" />Delete</button>}
+            {mine(e) && editing && <button className="btn danger" type="button" onClick={remove} disabled={saving}><I n="trash" />Delete</button>}
             <button className="icon-btn" type="button" onClick={duplicate} disabled={saving} aria-label="Duplicate" title="Duplicate: make your own copy to change"><I n="copy" /></button>
             <button className="btn primary" type="button" style={{ flex: 1, justifyContent: "center" }} onClick={onUse}>Use template<I n="arrow" /></button>
           </>
@@ -417,7 +419,7 @@ function CoverBox({ e, onUse }: { e: EngineInfo; onUse: () => void }) {
       <div className="kv-h">Cover</div>
       <p className="help">A cover is always a real result. Open a finished run of this template and choose <b>Use as template cover</b>.</p>
       {!e.cover && !e.cover_video && <button className="btn primary" type="button" style={{ justifyContent: "center" }} onClick={onUse}><I n="play" />Run it</button>}
-      {e.cover_custom && !e.built && <button className="btn ghost sm" type="button" style={{ justifySelf: "start" }} onClick={reset} disabled={busy}>{busy ? <Spinner size={13} /> : <I n="undo" />}Use the shipped cover</button>}
+      {e.cover_custom && !mine(e) && <button className="btn ghost sm" type="button" style={{ justifySelf: "start" }} onClick={reset} disabled={busy}>{busy ? <Spinner size={13} /> : <I n="undo" />}Use the shipped cover</button>}
     </div>
   );
 }
