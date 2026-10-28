@@ -5,13 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import { isImage, useFileDrop } from "../components/Drop";
 import { cx, EmptyBox, I, PageHead } from "../components/oi";
 import { useUploader } from "../components/Refs";
-import { seedFrom } from "../components/Studio";
-import { tplName } from "../components/TemplateCard";
 import { Spinner } from "../components/ui";
-import { api, type Character, type EngineInfo } from "../lib/api";
-import { coverUrl, refmodOf, refmodState, withRefmod } from "../lib/characters";
+import { api, type Character } from "../lib/api";
+import { coverUrl, refmodState } from "../lib/characters";
 import { confirm } from "../lib/confirm";
-import { refmodFields } from "../lib/fields";
 import { ago, bytes, errMsg } from "../lib/format";
 import { go } from "../lib/route";
 import { useApp } from "../lib/store";
@@ -38,23 +35,6 @@ export function useCharacters() {
     prev.current = made;
   }, [made, qc]);
   return q;
-}
-
-/** The templates that take a RefMod. */
-export const useRefmodTemplates = () => {
-  const q = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
-  return (q.data ?? []).filter((e) => refmodFields(e).length);
-};
-
-/** Open `e` in Create with `c`'s RefMod in its first RefMod input. */
-export function openWith(e: EngineInfo, c: Character) {
-  const st = useApp.getState();
-  st.openTemplate(e.mode, e.id);
-  st.setStudio(e.mode, (s) => {
-    const seeded = { ...s, ...seedFrom(e) };
-    return { ...seedFrom(e), ...withRefmod(seeded, e, refmodFields(e)[0].key, refmodOf(c)) };
-  });
-  go({ name: e.mode });
 }
 
 export function Characters({ id }: { id?: string }) {
@@ -130,7 +110,6 @@ function CharacterDetail({ c }: { c: Character }) {
   const [name, setName] = useState(c.name);
   const [notes, setNotes] = useState(c.notes);
   useEffect(() => setName(c.name), [c.name]);
-  const templates = useRefmodTemplates();
   const st = refmodState(c);
   const making = busy(c);
   const full = c.photos.length >= MAX_PHOTOS;
@@ -204,20 +183,15 @@ function CharacterDetail({ c }: { c: Character }) {
                 title={c.photos.length ? undefined : "Add a photo first"}>
                 {making ? <Spinner size={12} /> : <I n={c.refmod ? "refresh" : "zap"} />}{c.refmod || c.making?.state === "failed" ? "Make again" : "Make RefMod"}
               </button>
-              {templates.map((e) => (
-                <button key={e.id} className={cx("btn", c.refmod && !c.refmod_stale && "primary")} type="button" disabled={!c.refmod}
-                  onClick={() => openWith(e, c)} title={c.refmod ? `Open ${tplName(e)} with ${c.name}` : "Make the RefMod first"}>
-                  <I n="wand" />Use in {tplName(e)}
-                </button>
-              ))}
             </div>
+            {c.refmod && !making && <p className="refmod-why">Pick {c.name} in any template's RefMod input.</p>}
           </section>
         </div>
       </header>
 
       <section className="char-photos" aria-labelledby="ph-h">
         <div className="sec-h"><h4 id="ph-h">Photos</h4><span className="mono">{c.photos.length} / {MAX_PHOTOS}</span></div>
-        <p className="char-hint">Clear, well-lit shots of one person: the face close, then head to toe. The star marks the face Create uses for a template's photo input.</p>
+        <p className="char-hint">Clear, well-lit shots of one person: the face close, then head to toe. The star marks their face: it shows wherever their RefMod is picked.</p>
         <div className={cx("char-grid", drop.over && "drop")} {...drop.props} data-drop="Drop to add">
           {c.photos.map((p) => (
             <figure key={p} className={cx("char-ph", p === c.cover && "cover")}>

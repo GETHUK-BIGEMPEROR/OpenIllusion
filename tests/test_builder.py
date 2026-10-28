@@ -336,8 +336,8 @@ def test_kept_refmod_slots_are_picked_at_run_time():
 
 def test_a_refmod_template_opens_in_the_builder_as_it_is():
     p = builder.preset(engines.get("local/minimax-h3-character-refmod"))
-    img = next(m for m in p["media"] if m["slot"] == "image:1")
-    assert p["refmods"] == [{"node": "201", "input": "mod_1", "slot": "refmod:1", "photo": {"node": img["node"], "input": img["input"]}}]
+    assert any(m["slot"] == "image:1" for m in p["media"])
+    assert p["refmods"] == [{"node": "201", "input": "mod_1", "slot": "refmod:1", "photo": None}]
     assert not any(x["input"].startswith("mod_") for x in p["params"])
 
 

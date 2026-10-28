@@ -167,8 +167,10 @@ def test_every_template_opens_ready_to_run():
             continue
         d = engines.describe(e)["defaults"]
         assert d["prompt"].strip(), e.id
-        want = [f"image:{n}" for n in range(1, e.max_images + 1)] + (["video:1"] if e.needs_video else [])
-        assert sorted(i["slot"] for i in d["inputs"]) == sorted(want), e.id
+        # Every input it needs comes with a sample; one it can do without may start empty.
+        media = [f for f in e.fields if f["type"] in ("image", "video", "audio")]
+        assert all(f.get("default") for f in media if f["required"]), e.id
+        assert sorted(i["slot"] for i in d["inputs"]) == sorted(f["key"] for f in media if f.get("default")), e.id
         spec = {"engine": e.id, "prompt": d["prompt"], "params": {}, "inputs": [{"slot": i["slot"], "asset": i["asset"], "duration": i.get("duration")} for i in d["inputs"]]}
         # A template that takes a RefMod opens asking for one; nothing else.
         picks = [f"Pick {f['label']}" for f in e.fields if f["type"] == "refmod"]

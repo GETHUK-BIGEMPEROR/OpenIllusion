@@ -182,6 +182,20 @@ def test_a_run_carries_the_characters_refmod(tmp_path):
     assert (store.folder(again.id) / "refs" / "refmod-1.safetensors").read_bytes() == FAKE_MOD
 
 
+def test_the_refmod_alone_is_the_character(tmp_path):
+    """No photo: the photo loader goes, and the reference node keeps only the clip; the RefMod brings the person."""
+    c = with_refmod(tmp_path)
+    spec = refmod_spec(c)
+    spec["inputs"] = [i for i in spec["inputs"] if i["slot"] != "image:1"]
+    out = engines.compose(spec)
+    assert not [w for w in out["warnings"] if w["level"] == "error"]
+    wf = out["template"]
+    assert "137" not in wf and "ref_images.ref_image_0" not in wf["136"]["inputs"] and wf["136"]["inputs"]["ref_videos.ref_video_0"] == ["148", 0]
+    assert wf["202"]["inputs"]["conditioning"] == ["136", 0] and wf["201"]["inputs"]["mod_1"] == "{{refmod:1}}"
+    # Nothing in the template points at a photo it may not have.
+    assert "<Picture 1>" not in engines.get(REFMOD_TPL).default_prompt
+
+
 def test_a_run_uploads_the_refmod_where_the_loader_looks(tmp_path):
     comfy, seen = fake_comfyui()
     p = tmp_path / "m.safetensors"

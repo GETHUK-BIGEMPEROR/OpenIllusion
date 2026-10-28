@@ -14,12 +14,6 @@ export function refmodState(c: Character): { tone: "ok" | "warn" | "bad" | "busy
 
 export const coverUrl = (c: Character) => (c.cover ? c.photo_urls[c.cover] : null);
 
-/** A character's RefMod as the RefMod folder lists it. */
-export const refmodOf = (c: Character): RefModFile | null => c.refmod && {
-  name: c.refmod.file, label: c.refmod.file.replace(/\.safetensors$/i, ""), bytes: c.refmod.bytes, modified: c.refmod.made,
-  character: { id: c.id, name: c.name, cover: c.cover, face: coverUrl(c) },
-};
-
 /**
  * The studio with RefMod `r` in a RefMod input. When a Lab character made it, their face also goes in the photo
  * input the template pairs with it (`photo`), if that holds nothing of the user's own: empty, a sample, or another

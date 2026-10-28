@@ -190,7 +190,7 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Explore | `#/explore` | Every published template on one wall, photos and videos together. Filter All / Local / Cloud and by tag. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back). A template without a cover yet shows its name until a result is made its cover. | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
 | Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips name each filled file the way the model reads it), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
-| Characters | `#/characters`, `#/characters/{id}` | Character Lab: people you keep for runs. Each has a name, notes, up to 16 photos (the starred one is the face) and a RefMod made from them on your ComfyUI into the RefMod folder, with its state (ready, photos changed since, failed and why). **Use in** opens a template with a RefMod input, this one's RefMod picked. See [Character Lab](#character-lab). | `screens/Characters.tsx`, `screens/create/RefModInput.tsx` |
+| Characters | `#/characters`, `#/characters/{id}` | Character Lab: people you keep for runs. Each has a name, notes, up to 16 photos (the starred one is the face) and a RefMod made from them on your ComfyUI into the RefMod folder, with its state (ready, photos changed since, failed and why). The Lab points at no template: any template's RefMod input picks it. See [Character Lab](#character-lab). | `screens/Characters.tsx`, `screens/create/RefModInput.tsx` |
 | Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, remix into Create, notes, export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
 | Build | `#/build`, `#/build?from={template}`, `#/build?track=cloud` (opens on Comfy Router) | Make a template in three steps; see [Builder](#making-a-template-builder). | `screens/builder/` |
@@ -682,7 +682,8 @@ flowchart LR
   file). About 2 s on the GPU. Missing nodes or the VAE are named first; a failure stays
   on the character with ComfyUI's reason.
 - **Picking one** (Create): a RefMod input's card opens the folder as a grid; Lab-made
-  ones show the character's face, others the file name. Deleting a character leaves its
+  ones show the character's face, others the file name. A template can pair a photo input with a RefMod input
+  (Builder: "photo"); there a Lab character's RefMod also puts their starred face in that photo input. Deleting a character leaves its
   RefMod in the folder. A file gone from the folder is flagged on the card and blocks Run.
 - **Using one.** A run copies the RefMod into the generation (`refs/refmod-N.safetensors`),
   so re-runs, remixes and exports keep it after the file leaves the folder. At run time
@@ -704,7 +705,9 @@ flowchart LR
 
   The app never installs either (see Develop: nothing installs itself).
 - **Template:** `local/minimax-h3-character-refmod` is the character swap with a RefMod
-  loader and apply node before the guider; its `refmod:1` pairs with `image:1`. 4 steps take about 11 minutes on an RTX 4060 Ti.
+  loader and apply node before the guider. The RefMod is the character; `image:1` is optional
+  (no sample, no paired face): left empty, its loader is pruned and the reference node keeps only the clip.
+  The prompt names the clip, not a picture, so it reads the same either way. 4 steps take about 11 minutes on an RTX 4060 Ti.
 - **Characters are RefMods only.** Cloud "omni reference" (Seedance, Kling) is not a saved
   character: it is several reference photos sent with each request, which a cloud template
   takes as ordinary photo inputs. Nothing on Router keeps a person between runs.

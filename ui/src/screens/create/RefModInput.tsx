@@ -1,6 +1,6 @@
 // Create's RefMod inputs: a card in the inputs list, and the picker it opens on the stage.
-// The picker lists the RefMod folder (Settings), where Character Lab saves what it makes. A RefMod a Lab character
-// was made into also puts their face in the photo input the template pairs with it.
+// The picker lists the RefMod folder (Settings), where Character Lab saves what it makes. Where a template pairs a
+// photo input with the RefMod, a Lab character's RefMod also puts their face there.
 import { useQuery } from "@tanstack/react-query";
 import { cx, EmptyBox, I } from "../../components/oi";
 import { Spinner } from "../../components/ui";
@@ -63,7 +63,7 @@ export function RefModStage({ e, f, s, set }: { e: EngineInfo; f: RefModField; s
     <div className="cpick">
       <div className="cpick-h">
         <h3>{f.label}</h3>
-        <p>{f.help ?? f.hint ?? "Who goes into the clip. RefMods from your RefMod folder; one made in Character Lab also puts its face in the photo input."}</p>
+        <p>{f.help ?? f.hint ?? `Who goes into the clip, from your RefMod folder.${f.photo ? " One made in Character Lab also puts their face in the photo input." : ""}`}</p>
         <a className="btn sm ghost" href="#/characters"><I n="plus" />Character Lab</a>
       </div>
       <div className="cpick-grid" role="listbox" aria-label={f.label}>

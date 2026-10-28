@@ -3,7 +3,7 @@
   "version": 2,
   "mode": "motion",
   "label": "Character swap with RefMod · MiniMax H3",
-  "blurb": "Puts someone into Video 1 in place of one person. RefMod 1 is a RefMod from your RefMod folder (Character Lab makes them from a few photos); Image 1 is their face photo. The RefMod carries the rest of their photos, so the look holds from every angle.",
+  "blurb": "Puts a character into Video 1 in place of one person. Pick their RefMod: it carries all their photos, so the look holds from every angle. Image 1 is optional: another photo to go with it, like an outfit.",
   "tags": [
     "swap",
     "character",
@@ -32,31 +32,39 @@
           "201",
           "mod_1"
         ]
-      ],
-      "photo": "image:1"
+      ]
     },
     {
       "key": "image:1",
       "type": "image",
-      "required": true,
+      "required": false,
       "bind": [
         [
           "137",
           "image"
         ]
-      ],
-      "default": "media/man-mustard.jpg"
+      ]
     },
     {
       "key": "prompt",
       "type": "text",
       "required": true,
-      "default": "Replace only the woman in the foreground in <Video 1> with the character in <Picture 1>. Keep the replacement character's identity, outfit, and art style from <Picture 1>. Preserve the source video's camera, framing, background, lighting, objects, and all other people. Match the selected woman's position, scale, pose, and movement throughout the clip. Do not show the reference sheet or its background.",
+      "default": "Replace only the woman in the foreground in <Video 1> with the character from the reference. Keep the character's identity, face, hair, outfit, and style. Preserve the source video's camera, framing, background, lighting, objects, and all other people. Match the selected woman's position, scale, pose, and movement throughout the clip. Do not show the reference sheet or its background.",
       "bind": [
         [
           "138",
           "value"
         ]
+      ],
+      "examples": [
+        {
+          "label": "Swap in the character",
+          "text": "Replace only the woman in the foreground in <Video 1> with the character from the reference. Keep the character's identity, face, hair, outfit, and style. Preserve the source video's camera, framing, background, lighting, objects, and all other people. Match the selected woman's position, scale, pose, and movement throughout the clip. Do not show the reference sheet or its background."
+        },
+        {
+          "label": "Outfit from Image 1",
+          "text": "Replace only the woman in the foreground in <Video 1> with the character from the reference, wearing the outfit from <Picture 1>. Keep the character's identity, face, hair, and style. Preserve the source video's camera, framing, background, lighting, objects, and all other people. Match the selected woman's position, scale, pose, and movement throughout the clip. Do not show the reference sheet or its background."
+        }
       ]
     }
   ],
@@ -304,7 +312,7 @@
     "138": {
       "class_type": "PrimitiveStringMultiline",
       "inputs": {
-        "value": "Replace only the woman in the foreground in <Video 1> with the character in <Picture 1>. Keep the replacement character's identity, outfit, and art style from <Picture 1>. Preserve the source video's camera, framing, background, lighting, objects, and all other people. Match the selected woman's position, scale, pose, and movement throughout the clip. Do not show the reference sheet or its background."
+        "value": "Replace only the woman in the foreground in <Video 1> with the character from the reference. Keep the character's identity, face, hair, outfit, and style. Preserve the source video's camera, framing, background, lighting, objects, and all other people. Match the selected woman's position, scale, pose, and movement throughout the clip. Do not show the reference sheet or its background."
       },
       "_meta": {
         "title": "Swap prompt · update the target person"
