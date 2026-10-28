@@ -7,6 +7,7 @@ import { errMsg } from "../lib/format";
 import { go } from "../lib/route";
 import { defaults } from "../lib/spec";
 import { useApp } from "../lib/store";
+import { optionText } from "./Engine";
 import { clampAspect } from "./Masonry";
 import { Compare, gpuName, I, useStatus } from "./oi";
 import { useLocalCheck } from "./Studio";
@@ -24,6 +25,15 @@ interface Draft {
 }
 
 const isText = (f: InputField) => f.type === "text";
+/** A setting's starting value as Create shows it: "16:9 · 0.4 MP", "5 s", "On", "Auto". */
+function startText(f: InputField) {
+  const d = "default" in f ? f.default : undefined;
+  if (f.type === "size") return [f.aspect, d].filter(Boolean).join(" · ") || "—";
+  if (f.type === "bool") return d === true || d === "on" || d === "true" ? "On" : "Off";
+  if (d == null) return "—";
+  return optionText(f as { labels?: Record<string, string>; unit?: string }, String(d));
+}
+
 const textOf = (f: InputField) => (isText(f) && "default" in f && typeof f.default === "string" ? f.default : "");
 const ideasOf = (f: InputField): PromptIdea[] => ("examples" in f && f.examples) || [];
 
@@ -224,7 +234,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
             <div className="kv-h">Inputs<span>{media.length} input{media.length > 1 ? "s" : ""}</span></div>
             {media.map((f) => {
               const sm = samples.find((y) => y.slot === f.key);
-              const thumb = sm && f.type !== "audio" ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : f.type === "audio" ? "zap" : f.type === "refmod" ? "person" : "image"} /></span>;
+              const thumb = sm && f.type !== "audio" ? <img src={sm.poster ?? sm.url} alt="" loading="lazy" /> : <span className="empty-ic" style={{ width: 44, height: 44, margin: 0, borderRadius: 9 }}><I n={f.type === "video" ? "film" : f.type === "audio" ? "sound" : f.type === "refmod" ? "person" : "image"} /></span>;
               return (
                 <div key={f.key} className="inrow">
                   {thumb}
@@ -268,7 +278,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
             <div className="kv-h">Settings<span>{settings.length}</span></div>
             <div className="checks">
               {settings.map((f) => (
-                <div key={f.key}>{f.label}<span className="mono">{"default" in f && f.default != null && f.default !== "" ? String(f.default) : "—"}{f.advanced ? " · advanced" : ""}</span></div>
+                <div key={f.key}>{f.label}<span className="mono">{startText(f)}{f.advanced ? " · advanced" : ""}</span></div>
               ))}
             </div>
           </div>

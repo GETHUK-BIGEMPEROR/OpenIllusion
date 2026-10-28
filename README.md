@@ -173,7 +173,8 @@ its Router docs.
 ## The app, screen by screen
 
 Hash routes keep the app one static page (`lib/route.ts`). The rail on the left
-(a tab bar on phones) holds Explore, Create, Library, Characters, Build, Queue, and at the bottom Trash and Settings;
+holds Explore, Create, Library, Characters, Build, Queue, and at the bottom Trash and Settings. On phones it is a tab bar
+(Explore, Library, Create, Queue, More); More opens Characters, Build, Trash and Settings;
 keys 1–5 jump between the first five, Ctrl K opens the palette.
 
 Every page header ends with two status chips (`KeyStat`, `GpuStat` in
@@ -700,8 +701,9 @@ flowchart LR
   The app never installs either (see Develop: nothing installs itself).
 - **Template:** `local/minimax-h3-character-refmod` is the character swap with a RefMod
   loader and apply node before the guider; its `refmod:1` pairs with `image:1`. 4 steps take about 11 minutes on an RTX 4060 Ti.
-- **Seedance omni reference** has no saved character on Comfy Router (references go
-  inline with each request), so cloud characters are not built yet.
+- **Characters are RefMods only.** Cloud "omni reference" (Seedance, Kling) is not a saved
+  character: it is several reference photos sent with each request, which a cloud template
+  takes as ordinary photo inputs. Nothing on Router keeps a person between runs.
 
 ## Cloud = Comfy Router
 

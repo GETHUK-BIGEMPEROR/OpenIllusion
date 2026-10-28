@@ -18,6 +18,18 @@
   .engines{grid-template-columns:1fr}
 }
 
+/* ---------- crowded headers (an open inspector, a narrow stage) ---------- */
+@container (max-width:1080px){
+  .gchip .gv,.gchip .gcv,.hfilters .seg .n{display:none}
+}
+@container (max-width:880px){
+  .hactions .btn{width:34px;padding:0}
+  .hactions .btn .lbl{display:none}
+}
+@container (max-width:520px){
+  .gchip b{display:none}
+}
+
 /* ---------- phone ---------- */
 @container app (max-width:760px){
   .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
@@ -33,9 +45,16 @@
   .tab.create .fab .i{stroke-width:2.2}
   .tab.create span{color:var(--text-3)}
   .tab.create[aria-current="page"] span{color:var(--text)}
+  .tabbar{position:relative}
+  .tabmore-scrim{position:absolute;left:0;right:0;bottom:100%;height:100vh;border:0;padding:0;background:rgba(6,4,9,.45);animation:fade .2s}
+  .tabmore{position:absolute;right:8px;bottom:calc(100% + 8px);min-width:210px;display:grid;padding:6px;border-radius:16px;background:#1A1421;border:1px solid var(--line-2);box-shadow:0 30px 70px -24px #000;transform-origin:bottom right;animation:drop .22s var(--spring)}
+  .tabmore a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:var(--text-2);font-size:14px;text-decoration:none}
+  .tabmore a:hover,.tabmore a[aria-current="page"]{background:var(--raised);color:var(--text)}
+  .tabmore .i{width:19px;height:19px;color:var(--text-3)}
   .phead-row{padding:12px 14px 10px;gap:8px}
   .phead-sub{padding:0 14px 10px}
   .ptitle h1{font-size:18px}
+  .ptitle .count{display:none}
   .phead-row.hrow{padding:10px 12px 10px 14px;gap:8px}
   .hfilters .chip,.hfilters .vsep,.hfilters .seg .n,.hfilters .seg .i{display:none}
   .hactions .btn{width:34px;padding:0}
@@ -44,7 +63,7 @@
   .gchip{padding:0 7px;gap:6px}
   .gchip .gcv{display:none}
   .kchip .kic{display:block}
-  .filters{padding:0 14px 10px;gap:6px}
+  .filters{padding:0 14px 10px;gap:6px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent)}
   .filters .hint{display:none}
   .wall-wrap{padding:12px 10px 32px}
   .cap{padding:34px 10px 9px}

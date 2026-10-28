@@ -82,7 +82,7 @@ const cap = (t: string) => t.trim().charAt(0).toUpperCase() + t.trim().slice(1);
 
 export const KIND_NOUN: Record<MediaKind, string> = { image: "Image", video: "Video", audio: "Audio" };
 
-export const KIND_ICON: Record<MediaKind, "image" | "film" | "zap"> = { image: "image", video: "film", audio: "zap" };
+export const KIND_ICON: Record<MediaKind, "image" | "film" | "sound"> = { image: "image", video: "film", audio: "sound" };
 
 // "image_qwen_image_2_1_background_removal.json" -> "Qwen image 2.1 background removal"
 const fileTitle = (name: string) => cap(name.replace(/\.[a-z0-9]+$/i, "").replace(/^(image|video|audio|utility|api|templates?)[-_]+/i, "")

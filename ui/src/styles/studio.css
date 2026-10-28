@@ -109,7 +109,7 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .run:disabled kbd{display:none}
 .run .i{width:18px;height:18px;stroke-width:2.2}
 .stage{display:grid;grid-template-columns:minmax(0,1fr) 92px;grid-template-rows:auto minmax(0,1fr);min-width:0;min-height:0;background:radial-gradient(ellipse at 45% 35%,#1C1523,var(--bg) 70%);position:relative}
-.stage-top{grid-column:1;display:flex;align-items:center;gap:10px;padding:12px 18px;min-height:58px}
+.stage-top{container-type:inline-size;grid-column:1;display:flex;align-items:center;gap:10px;padding:12px 18px;min-height:58px}
 .stage-top .btn:disabled{opacity:.35}
 /* With a result's actions up, the name already on the recipe gives way. */
 .stage-top[data-acts] .crumb{display:none}

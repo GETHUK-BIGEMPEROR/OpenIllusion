@@ -66,20 +66,45 @@ export function Rail({ route }: { route: Route }) {
   );
 }
 
-/** Phone: the rail becomes a tab bar with Create in the middle. */
+/** The rail's other pages, under More on a phone. */
+const MORE = [
+  { name: "characters", label: "Characters", icon: "person" },
+  { name: "build", label: "Build a template", icon: "graph" },
+  { name: "trash", label: "Trash", icon: "trash" },
+  { name: "settings", label: "Settings", icon: "sliders" },
+] as const;
+
+/** Phone: the rail becomes a tab bar with Create in the middle; the rest of the rail is under More. */
 export function TabBar({ route }: { route: Route }) {
   const setQueue = useApp((s) => s.setQueue);
   const badge = useQueueBadge();
   const current = section(route);
   const cur = (n: string) => (current === n ? "page" : undefined);
   const lastStudio = useApp((s) => s.lastStudio);
+  const [more, setMore] = useState(false);
+  useEffect(() => setMore(false), [current]);
+  useEffect(() => {
+    if (!more) return;
+    const on = (e: KeyboardEvent) => { if (e.key === "Escape") setMore(false); };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [more]);
+  const inMore = MORE.some((m) => m.name === current);
   return (
     <nav className="tabbar" aria-label="Main">
+      {more && <button className="tabmore-scrim" type="button" aria-label="Close" onClick={() => setMore(false)} />}
+      {more && (
+        <div className="tabmore" id="tabmore">
+          {MORE.map((m) => (
+            <a key={m.name} href={href({ name: m.name })} aria-current={cur(m.name)} onClick={() => setMore(false)}><I n={m.icon} />{m.label}</a>
+          ))}
+        </div>
+      )}
       <a className="tab" href={href({ name: "explore" })} aria-current={cur("explore")}><I n="compass" />Explore</a>
       <a className="tab" href={href({ name: "library" })} aria-current={cur("library")}><I n="library" />Library</a>
       <a className="tab create" href={href({ name: lastStudio })} aria-current={cur("edit")}><span className="fab"><I n="plus" /></span><span>Create</span></a>
       <button className="tab" type="button" onClick={() => setQueue(true)}><I n="layers" />Queue<span className="badge">{badge}</span></button>
-      <a className="tab" href={href({ name: "settings" })} aria-current={cur("settings")}><I n="sliders" />Settings</a>
+      <button className="tab" type="button" aria-expanded={more} aria-controls="tabmore" aria-current={inMore ? "page" : undefined} onClick={() => setMore(!more)}><I n="more" />More</button>
     </nav>
   );
 }

@@ -1,10 +1,11 @@
 /* Character Lab: the list on the left, one character on the right (its face, name, RefMod, then its photos as a
    contact sheet). Create's character picker reuses the status dots. */
 .char-loading{display:grid;place-items:center;padding:80px}
-.chars{display:grid;grid-template-columns:268px minmax(0,1fr);gap:28px;padding:4px 28px 40px;max-width:var(--wall-max);margin:0 auto;align-items:start}
+.chars{display:grid;grid-template-columns:268px minmax(0,1fr);gap:28px;padding:24px 28px 40px;max-width:var(--wall-max);margin:0 auto;align-items:start}
 
 .char-new{display:flex;gap:8px;width:100%;max-width:360px}
 .char-new .input{flex:1;min-width:0}
+.char-new .btn{height:auto;min-height:34px}
 .empty .char-new{margin-top:6px}
 
 .char-list{position:sticky;top:8px;display:grid;gap:4px}
