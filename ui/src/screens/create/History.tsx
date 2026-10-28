@@ -6,7 +6,8 @@ import { api, fileUrl, type GenerationRow, type Job } from "../../lib/api";
 import { isActive } from "../../lib/live";
 import { FAILED } from "./shared";
 
-function useRuns(engine: string) {
+/** Your runs of this template, newest first. */
+export function useRuns(engine: string) {
   return useQuery({
     queryKey: ["generations", "runs", engine],
     queryFn: () => api.generations({ model: engine, shelf: "mine" }),

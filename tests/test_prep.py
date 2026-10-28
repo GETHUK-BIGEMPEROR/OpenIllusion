@@ -155,7 +155,7 @@ def test_shipped_templates_only_write_what_they_declare():
         assert "follows" not in (e.data.get("size") or {}) and "computed" not in e.data, e.id
         # Made from words alone, it asks for an output size; from a photo or clip, the input sets it.
         assert any(f["type"] == "size" for f in e.fields) == (not e.inputs), e.id
-        assert [p["key"] for p in e.params] in ([], ["duration"]), e.id
+        assert [p["key"] for p in e.params] in ([], ["duration"], ["sound"]), e.id
 
 
 # ---- template defaults: samples and prompt -------------------------------------

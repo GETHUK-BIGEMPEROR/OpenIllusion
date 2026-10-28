@@ -26,7 +26,8 @@ def register(routes: web.RouteTableDef) -> None:
     @routes.get(API + "/cover")
     async def get_cover(request):
         e = engines.ENGINES.get(request.query.get("engine", ""))
-        f = engines.cover_file(e, video=bool(request.query.get("video"))) if e else None
+        q = request.query
+        f = (engines.cover_before(e) if q.get("before") else engines.cover_file(e, video=bool(q.get("video")))) if e else None
         if f is None:
             return err(404, "No cover")
         return web.FileResponse(f, headers={"Cache-Control": "public, max-age=31536000, immutable"})
@@ -56,10 +57,13 @@ def register(routes: web.RouteTableDef) -> None:
             return err(409, "Only a run of this template can be its cover")
         if m.status != "done" or not (m.result and m.result.poster):
             return err(409, "This run has no finished result to use yet")
-        src = store.folder(m.id) / m.result.poster
+        # A photo's cover is the full result, not its 960 px poster: it sits beside its full-size input.
+        src = store.folder(m.id) / (m.result.file if m.result.kind == "image" and m.result.file else m.result.poster)
         loop = store.folder(m.id) / m.result.file if m.result.kind == "video" and m.result.file else None
+        lead = next((i for i in m.inputs if i.slot == engines.lead_slot(e) and i.file), None)
+        before = store.folder(m.id) / lead.file if lead else None  # shown beside the cover
         try:
-            await asyncio.to_thread(engines.set_cover, e.id, src, loop)
+            await asyncio.to_thread(engines.set_cover, e.id, src, loop, before)
         except Exception as ex:
             return err(422, f"Couldn't make a cover from that file: {ex}")
         return web.json_response(engines.describe(e))

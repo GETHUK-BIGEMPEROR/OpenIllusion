@@ -139,7 +139,19 @@ def test_cover_comes_only_from_a_finished_run_of_that_template():
         assert (await put(generation=other.id)).status == 409
         assert (await put(generation=running.id)).status == 409
         r = await put(generation=mine.id)
-        assert r.status == 200 and (await r.json())["cover_custom"]
+        d = await r.json()
+        assert r.status == 200 and d["cover_custom"]
+        assert d["cover_before"] is None  # the run kept no input file: nothing to show beside it
+        # A run's lead input goes beside its cover, served by the cover route.
+        m = store.get(mine.id)
+        (store.folder(mine.id) / "refs").mkdir()
+        make_image(store.folder(mine.id) / "refs" / "in.png", size=(320, 400))
+        m.inputs = [sc.InputItem(slot="image:1", file="refs/in.png")]
+        store.save(m)
+        d = await (await put(generation=mine.id)).json()
+        assert d["cover_before"] == {"url": d["cover"] + "&before=1", "kind": "image"}
+        got = await c.get(d["cover_before"]["url"])
+        assert got.status == 200 and (await got.read())[8:12] == b"WEBP"
         return True
 
     try:

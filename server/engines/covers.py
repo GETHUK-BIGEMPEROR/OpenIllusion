@@ -16,14 +16,17 @@ from .contract import Engine
 # ---- covers ------------------------------------------------------------------
 # A template's tile in the Library: a poster image, plus an optional short muted
 # loop. The user's choice (saved under covers/) wins over the one the template
-# ships with; neither is required.
+# ships with; neither is required. A cover is a real result, shown beside the input
+# it was made from: a cover set from a run keeps a copy of that run's lead input
+# (``.before.webp`` / ``.before.mp4``); a shipped cover was made from the shipped samples.
 
-COVER_SIDE = 960
+COVER_SIDE = 1600  # sharp on a hi-dpi stage, beside its input
 COVER_LOOP_SECONDS = 8.0
 # Covers and samples are cached as immutable. Bump this to make browsers fetch them
 # again, e.g. after empty bodies were cached while aiohttp's sendfile was broken on Windows.
 CACHE_ERA = "&c=2"
 _VIDEO_EXT = {".mp4", ".mov", ".webm", ".m4v"}
+BEFORE_EXT = (".before.webp", ".before.mp4")
 
 
 def user_cover(engine_id: str, ext: str = ".webp") -> Path:
@@ -43,6 +46,24 @@ def cover_files(e: Engine) -> tuple[Path | None, Path | None]:
 
 def cover_file(e: Engine, video: bool = False) -> Path | None:
     return cover_files(e)[1 if video else 0]
+
+
+def lead_slot(e: Engine) -> str | None:
+    """The input the stage shows a run by: the first clip, else the first photo (Create's ``leadSlot``)."""
+    media = [f for f in e.fields if f["type"] in ("video", "image")]
+    return next((f["key"] for f in media if f["type"] == "video"), None) or next((f["key"] for f in media), None)
+
+
+def cover_before(e: Engine) -> Path | None:
+    """The input the cover was made from, or None when that isn't known (no cover, a template
+    without photos or clips, or a cover set before covers kept their input)."""
+    if user_cover(e.id).is_file():
+        return next((p for p in (user_cover(e.id, x) for x in BEFORE_EXT) if p.is_file()), None)
+    if cover_files(e)[0] is None:
+        return None
+    slot = lead_slot(e)
+    p = e.default_inputs.get(slot) if slot else None
+    return p if p is not None and p.is_file() else None
 
 
 @functools.lru_cache(maxsize=256)
@@ -87,19 +108,22 @@ def defaults_info(e: Engine) -> dict:
 def _cover_info(e: Engine) -> dict:
     poster, loop = cover_files(e)
     if poster is None:
-        return {"cover": None, "cover_video": None, "cover_aspect": None}
+        return {"cover": None, "cover_video": None, "cover_aspect": None, "cover_before": None}
     v = poster.stat().st_mtime_ns // 1_000_000
     url = f"/api/cover?engine={quote(e.id, safe='')}&v={v}{CACHE_ERA}"
+    before = cover_before(e)
     return {
         "cover": url,
         "cover_video": f"{url}&video=1" if loop else None,
         "cover_aspect": _aspect(str(poster), v),
+        "cover_before": {"url": f"{url}&before=1", "kind": "video" if before.suffix.lower() in _VIDEO_EXT else "image"} if before else None,
     }
 
 
-def set_cover(engine_id: str, src: Path, loop: Path | None = None) -> Path:
+def set_cover(engine_id: str, src: Path, loop: Path | None = None, before: Path | None = None) -> Path:
     """Make ``src`` this template's cover. A video becomes a short muted loop
-    plus its first frame as the poster; ``loop`` adds a loop to an image poster."""
+    plus its first frame as the poster; ``loop`` adds a loop to an image poster.
+    ``before``: the input it was made from, kept beside it the same way."""
     dst = user_cover(engine_id)
     dst.parent.mkdir(parents=True, exist_ok=True)
     clip = loop or (src if src.suffix.lower() in _VIDEO_EXT else None)
@@ -112,12 +136,22 @@ def set_cover(engine_id: str, src: Path, loop: Path | None = None) -> Path:
         media.transcode(clip, tmp, end=COVER_LOOP_SECONDS, max_height=720, max_bytes=4 * 1024 * 1024,
                         min_fps=1, keep_audio=False)
         tmp.replace(mp4)
+    for x in BEFORE_EXT:
+        user_cover(engine_id, x).unlink(missing_ok=True)
+    if before is not None and before.is_file():
+        if before.suffix.lower() in _VIDEO_EXT:
+            tmp = user_cover(engine_id, ".before.tmp.mp4")
+            media.transcode(before, tmp, end=COVER_LOOP_SECONDS, max_height=720, max_bytes=4 * 1024 * 1024,
+                            min_fps=1, keep_audio=False)
+            tmp.replace(user_cover(engine_id, ".before.mp4"))
+        else:
+            media.save_webp(media.open_image(before), user_cover(engine_id, ".before.webp"), max_side=COVER_SIDE)
     return media.save_webp(poster, dst, max_side=COVER_SIDE)
 
 
 def clear_cover(engine_id: str) -> None:
-    user_cover(engine_id).unlink(missing_ok=True)
-    user_cover(engine_id, ".mp4").unlink(missing_ok=True)
+    for x in (".webp", ".mp4", *BEFORE_EXT):
+        user_cover(engine_id, x).unlink(missing_ok=True)
 
 
 def clip_limits(e: Engine, slot: str) -> tuple[tuple[float, float] | None, tuple[float, float]]:

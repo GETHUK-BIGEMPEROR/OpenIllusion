@@ -73,6 +73,7 @@ const drafts = new Map<string, Draft>();
 
 const fill: CSSProperties = { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" };
 
+
 function Field({ id, label, help, children }: { id: string; label: string; help?: string; children: ReactNode }) {
   return <div className="ofield"><label htmlFor={id}>{label}</label>{children}{help && <p className="help">{help}</p>}</div>;
 }
@@ -208,6 +209,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
 
   const samples = e.defaults?.inputs ?? [];
   const lead = samples.find((x) => x.slot === "image:1");
+  const before = e.cover ? e.cover_before : null;
   const ar = Math.max(clampAspect(e.cover ? e.cover_aspect : lead?.width && lead?.height ? lead.width / lead.height : 4 / 5), 4 / 5);
   const fields = fieldsOf(e);
   const media = fields.filter((f) => isMedia(f) || f.type === "refmod");
@@ -233,8 +235,8 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
 
       <div className="insp-body">
         <div className="insp-hero" style={{ "--ar": ar } as CSSProperties}>
-          {e.cover_video ? <video key={e.cover_video} src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={fill} />
-            : e.cover && lead && !e.cover_custom ? <Compare before={lead.url} after={e.cover} lb="Sample" la="Result" />
+          {e.cover && before ? <Compare before={before} after={e.cover_video ? { url: e.cover_video, kind: "video", poster: e.cover } : e.cover} lb="Input" la="Result" />
+            : e.cover_video ? <video key={e.cover_video} src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={fill} />
             : e.cover ? <img src={e.cover} alt="" style={fill} />
             : <div className="empty" style={{ padding: 30 }}><div className="empty-ic"><I n="image" /></div><h3>No cover yet</h3><p>Run it, then make a result you like its cover.</p></div>}
         </div>

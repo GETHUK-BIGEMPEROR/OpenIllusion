@@ -473,3 +473,98 @@ def test_a_sound_uploads_and_ships_as_a_sample(tmp_path):
 def test_an_unknown_engine_doesnt_run():
     with pytest.raises(KeyError, match="No template"):
         engines.get("acme/any-router-model")
+
+
+# ---- keeping the edited clip's own sound -------------------------------------------
+
+def _with_sound(path, seconds=4.0, size=(854, 480)):
+    """A clip with a tone on it."""
+    from fractions import Fraction
+
+    import av
+    import numpy as np
+
+    silent = make_video(path.with_name(path.stem + "-silent.mp4"), seconds=seconds, size=size)
+    with av.open(str(silent)) as inp, av.open(str(path), "w", format="mp4") as out:
+        vin = inp.streams.video[0]
+        vout = out.add_stream_from_template(vin)
+        a = out.add_stream("aac", rate=48000)
+        for pkt in inp.demux(vin):
+            if pkt.dts is not None:
+                pkt.stream = vout
+                out.mux(pkt)
+        t = np.arange(int(seconds * 48000)) / 48000
+        tone = (np.sin(2 * np.pi * 440 * t) * 0.3).astype(np.float32)
+        for k in range(0, len(tone), 1024):
+            f = av.AudioFrame.from_ndarray(np.stack([tone[k:k + 1024]] * 2), format="fltp", layout="stereo")
+            f.sample_rate, f.pts, f.time_base = 48000, k, Fraction(1, 48000)
+            for p in a.encode(f):
+                out.mux(p)
+        for p in a.encode():
+            out.mux(p)
+    return path
+
+
+def test_keep_the_clips_sound_is_offered_only_with_a_clip_to_edit():
+    a = adapters.get(SEEDANCE)
+    sound = lambda *roles: next(s for s in adapters.settings_for(a, list(roles)) if s["key"] == "sound")
+    assert sound("First frame")["options"] == ["new", "none"] and "keep_sound" not in sound("First frame")
+    assert sound("Video to edit")["options"] == ["new", "clip", "none"]
+    # What the model is sent: its own sound for "new", none for the other two.
+    for v, sent in (("new", True), ("clip", False), ("none", False)):
+        assert adapters.assemble(a, _roles(a, "Video to edit"), "p", {"sound": v})[0]["generate_audio"] is sent
+    with pytest.raises(adapters.AdapterError, match="Sound can't be 'clip'"):
+        adapters.assemble(a, _roles(a, "First frame"), "p", {"sound": "clip"})
+
+
+def test_a_template_names_the_clip_whose_sound_it_keeps():
+    data = builder.assemble_cloud(_spec(model=SEEDANCE, media=[(5, "video")], prompt="make it snow"))
+    f = next(f for f in data["inputs"] if f["key"] == "sound")
+    assert f["keep_sound"] == {"option": "clip", "slot": "video:1"} and f["default"] == "new"
+    e = engines.load_template({**data, "format": "openillusion.template", "id": "keep"})
+    assert engines.sound_from(e, {}) is None and engines.sound_from(e, {"sound": "clip"}) == "video:1"
+    assert engines.build_cloud(e, {"inputs": [{"slot": "video:1"}], "prompt": "x", "params": {"sound": "clip"}})["generate_audio"] is False
+    # Fixed at "Keep the clip's": no input, and every run keeps it.
+    fixed = builder.assemble_cloud(_spec(model=SEEDANCE, media=[(5, "video")], settings=[{"key": "sound", "value": "clip", "locked": True}]))
+    assert fixed["keep_sound"] == "video:1" and not any(f["key"] == "sound" for f in fixed["inputs"])
+    assert fixed["body"]["generate_audio"] is False
+    assert engines.sound_from(engines.load_template({**fixed, "format": "openillusion.template", "id": "k2"}), {}) == "video:1"
+    with pytest.raises(ValueError, match="keep_sound"):
+        engines.load_template({**fixed, "format": "openillusion.template", "id": "k3", "keep_sound": "video:2"})
+
+
+@pytest.mark.parametrize("pick,keeps", [("clip", True), ("new", False)])
+def test_the_result_keeps_the_clips_own_sound(tmp_path, monkeypatch, pick, keeps):
+    clip = _with_sound(tmp_path / "clip.mp4")
+    out = make_video(tmp_path / "out.mp4", seconds=3).read_bytes()  # the model's answer, silent
+    tid = builder.save(builder.assemble_cloud(_spec(model=SEEDANCE, media=[(5, "video")], prompt="make it snow")), {})
+    engines.reload_templates()
+    settings.save({"api_key": "comfyui-test-key-1234"})
+    sent, seen = {}, []
+    mgr = jobs.Manager()
+    mgr.router_factory = lambda: Router(transport=httpx.MockTransport(
+        _router(sent, {"content": {"video_url": "https://cdn.test/o.mp4"}}, {"https://cdn.test/o.mp4": out})))
+    mgr.assets_factory = lambda: local.ComfyV2(base="https://cloud.test", token=settings.api_key(),
+                                               transport=httpx.MockTransport(_cloud(seen)))
+    _fast(monkeypatch)
+    (jobs.paths.uploads_dir() / "clip.mp4").write_bytes(clip.read_bytes())
+
+    async def go():
+        ids = await mgr.start({"engine": tid, "inputs": [{"slot": "video:1", "asset": "clip.mp4"}], "prompt": "make it snow",
+                               "params": {"sound": pick}})
+        await asyncio.gather(*mgr.tasks.values())
+        return ids
+
+    job = mgr.jobs[asyncio.run(go())[0]]
+    assert job.state == "done", job.detail
+    assert sent["body"]["generate_audio"] is (pick == "new")
+    m = store.get(job.id)
+    got = media.probe(m.result.output_file)
+    assert got["has_audio"] is keeps and abs(got["duration"] - 3.0) < 0.15  # cut to the result's length
+    assert media.read_mp4_recipe(m.result.output_file)["id"] == m.id
+
+
+def test_a_silent_clip_has_no_sound_to_keep(tmp_path):
+    v = make_video(tmp_path / "v.mp4", seconds=1)
+    before = v.read_bytes()
+    assert media.put_sound(v, make_video(tmp_path / "s.mp4", seconds=1)) is False and v.read_bytes() == before

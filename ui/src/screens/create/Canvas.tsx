@@ -39,6 +39,24 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
     ? (shown && drove ? fileUrl(shown.id, posterOf(drove.file!)) : clip?.poster ?? undefined)
     : shown && before ? fileUrl(shown.id, before) : base?.url;
 
+  // The template's example: its cover beside the input it was made from, like a finished run.
+  if (eff === "example" && engine?.cover) {
+    const b = engine.cover_before;
+    const after = engine.cover_video ? { kind: "video" as const, src: engine.cover_video, poster: engine.cover, label: "Result" }
+      : { kind: "image" as const, src: engine.cover, label: "Result" };
+    const tag = <div className="corner r"><span className="pill mono" title="Made with this template. Run it to make your own.">Example</span></div>;
+    if (b && (b.kind === "video" || after.kind === "video")) {
+      return <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}><ABPlayer a={{ kind: b.kind, src: b.url, label: "Input" }} b={after} overlay={tag} /></div>;
+    }
+    return (
+      <div className="frame" style={{ "--ar": engine.cover_aspect ?? 1 } as CSSProperties}>
+        {after.kind === "video" ? <video src={after.src} poster={engine.cover} muted loop playsInline autoPlay style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+          : b ? <Compare key={after.src} before={b.url} after={after.src} lb="Input" la="Result" intro /> : <img src={after.src} alt="Example result" className="alpha" />}
+        {tag}
+      </div>
+    );
+  }
+
   // Words only: nothing to drop, the prompt is the whole input.
   if (eff === "empty" && engine && (engine.size?.canvas || !engine.inputs?.length)) {
     return (

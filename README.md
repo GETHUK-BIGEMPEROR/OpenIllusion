@@ -149,7 +149,10 @@ Anything else is the box's business.
 **3 · A template is frozen to its job.** A built template asks for exactly the
 inputs its first run used, all required, so it does the same job every time. It
 is on Explore as soon as it's saved; a result of its own becomes its cover. Every
-shipped template ships with its cover.
+shipped template ships with its cover. A cover is shown beside the input it was made
+from: setting one keeps a copy of that run's lead photo or clip (`covers/<id>.before.*`),
+and a shipped cover pairs with the shipped samples. A photo cover is made from the full
+result (up to 1600 px), not its 960 px poster, so it is as sharp as the input beside it.
 
 The two kinds differ only in where the box comes from and who knows its inputs:
 
@@ -188,8 +191,8 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 
 | Screen | Route | What you do there | File |
 | --- | --- | --- | --- |
-| Explore | `#/explore` | Every published template on one wall, photos and videos together. Filter All / Local / Cloud and by tag. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back). A template without a cover yet shows its name until a result is made its cover. | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
-| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips name each filled file the way the model reads it), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
+| Explore | `#/explore` | Every published template on one wall: photos and videos, your GPU and cloud together. On top, one search field (`/` jumps to it, Esc clears; it reads the name, model, tags, blurb and prompts, best matches first) with how many match. Under it the filters: Photo / Video, Model (each says Your GPU or Cloud; that is where it runs), Input (a photo, a clip, a sound, words only), Clear, and Sort on the right (Recently used, the default, then Featured, Most used, A to Z; used = your runs). Each filter's counts follow the others. Tags sit in their own row under the filters; a long row scrolls sideways with the mouse wheel and fades at whichever edge has more. Moving the mouse over a card wipes between the cover and the input it was made from (photo or clip; a clip plays only while hovered). Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt ideas and cover are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back). A template without a cover yet shows its name until a result is made its cover. The inspector shows the cover beside its input as a slider you drag across, photos or clips (two clips loop in step). | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
+| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips name each filled file the way the model reads it), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. Opening a template shows a finished run, as after Run: your latest run of it, else its Example (the cover beside the input it was made from); Inputs flips to editing. Input and result compare with a slider you drag across, for clips too (Side by side is one click away). A template with no cover yet offers Use as cover on its results. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
 | Characters | `#/characters`, `#/characters/{id}` | Character Lab: people you keep for runs. Each has a name, notes, up to 16 photos (the starred one is the face) and a RefMod made from them on your ComfyUI into the RefMod folder, with its state (ready, photos changed since, failed and why). The Lab points at no template: any template's RefMod input picks it. See [Character Lab](#character-lab). | `screens/Characters.tsx`, `screens/create/RefModInput.tsx` |
 | Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
@@ -639,7 +642,17 @@ They are ordinary inputs after the prompt, drawn by Create under **Settings**:
   `options` are the model's values, numbers kept as numbers; `labels` says what
   people see (`"std": "720p"`); `unit` follows a value (`5 s`); a bool can be
   spelled `values: ["off", "on"]`. The value `""` means Auto: the field leaves the
-  request and the model decides.
+  request and the model decides. `send` maps an option to what the request gets when
+  that isn't the option itself (`"clip": false`).
+- **Keeping a clip's own sound** (`keep_sound: {option, slot}` on a setting): picking
+  that option gives the result the sound of the clip in `slot`. The model is asked for
+  none; once the result is downloaded the app puts the clip's sound on it (`media.put_sound`:
+  the picture copied as it is, the sound from the clip's start, cut to the result's length).
+  A setting fixed in the Builder at that option leaves no input; the template says
+  `"keep_sound": "video:1"` at the top instead. Seedance's Sound is Make new / Keep the clip's
+  / None, the middle one only when it edits a clip (Kling keeps the clip's sound itself).
+  The local MiniMax H3 swaps say it the same way, by hand in the template: Sound is Make
+  new (H3's own) / Keep the clip's (Video 1's).
 
 ```jsonc
 { "key": "size", "type": "size", "label": "Output size", "aspect": "16:9", "default": "0.4 MP",
@@ -915,6 +928,10 @@ Each setting (`settings`), from the model's Router schema and docs:
   "labels": { "std": "720p" },                                 // optional: what people see
   "off_with": ["Video to edit"],                               // roles that decide it instead: not asked, left out
   "only_with": ["Photo"] }                                     // roles it needs
+{ "key": "sound", "type": "segmented", "at": ["generate_audio"], "options": ["new", "clip", "none"],
+  "send": { "new": true, "clip": false, "none": false },       // optional: what the request gets for each option
+  "keep_sound": { "option": "clip", "role": "Video to edit" }, // optional: that option keeps the role's own sound;
+  "default": "new" }                                           //   offered only when the role is filled
 { "key": "size", "type": "size", "at": { "width": ["width"], "height": ["height"] },  // or { "text": ["size"] } for "WxH"
   "aspects": ["1:1", "16:9", …], "aspect": "1:1", "steps": [0.5, 1, 2, 4], "default": "1 MP",
   "sides": [256, 2048], "pixels": [1048576, 4194304], "multiple": 16 }
@@ -929,7 +946,7 @@ for each one asked.
 | Model | Settings |
 | --- | --- |
 | Kling 3 Omni | Aspect 16:9 / 9:16 / 1:1 · Resolution 720p (`std`) / 1080p (`pro`) · Duration 3–15 s · Sound |
-| Seedance 2.5 | Aspect (8, Auto = `adaptive`) · Resolution 480p–4K · Duration 4–30 s · Sound |
+| Seedance 2.5 | Aspect (8, Auto = `adaptive`) · Resolution 480p–4K · Duration 4–30 s · Sound: Make new / Keep the clip's (editing a clip) / None |
 | Veo 3.1 Fast | Aspect 16:9 / 9:16 · Resolution 720p / 1080p / 4K · Duration 4 / 6 / 8 s · Sound |
 | Wan 3.0 | Aspect (5, Auto) · Resolution 480p–1080p · Duration 2–30 s · Sound |
 | FLUX 2 Max | Size 0.5–4 MP, sides 256–2048 (none when editing a photo) |

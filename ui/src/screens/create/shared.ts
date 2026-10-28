@@ -5,7 +5,7 @@ import { clipWindow, roleOf, slotNo } from "../../lib/fields";
 import { newKey, slotOf, type RefSlot, type StudioState, type VideoSlot } from "../../lib/store";
 import type { Crop } from "../../lib/size";
 
-export type View = "input" | "result" | "compare" | "grid";
+export type View = "input" | "result" | "compare" | "grid" | "example";
 
 export type SetS = ReturnType<typeof useStudio>[1];
 

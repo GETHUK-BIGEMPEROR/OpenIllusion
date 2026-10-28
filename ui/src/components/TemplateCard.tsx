@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type CSSProperties, type PointerEvent } from "react";
+import { useState, type CSSProperties, type PointerEvent, type SyntheticEvent } from "react";
 import { api, templateWorkflowUrl, type EngineInfo } from "../lib/api";
 import { errMsg } from "../lib/format";
 import { go } from "../lib/route";
@@ -25,27 +25,37 @@ export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: Eng
   const n = e.inputs?.length ?? 0;
   const local = e.kind === "local";
   const video = e.mode === "motion";
-  // Photo templates show their sample under the cursor: left of it is what goes in, right is what comes out.
-  const sample = !video && e.cover ? e.defaults?.inputs.find((i) => i.kind === "image") : undefined;
+  // The cover's input under the cursor, photo or clip: left of it is what goes in, right is what comes out.
+  const before = e.cover ? e.cover_before : null;
+  // A clip only plays while the cursor is on the card.
+  const [over, setOver] = useState(false);
   const scrub = (ev: PointerEvent<HTMLElement>) => {
-    if (!sample || ev.pointerType === "touch") return;
+    if (!before || ev.pointerType === "touch") return;
     const el = ev.currentTarget, r = el.getBoundingClientRect();
     el.style.setProperty("--x", `${Math.max(0, Math.min(100, ((ev.clientX - r.left) / r.width) * 100))}%`);
-    if (!el.classList.contains("live")) el.classList.add("live");
+    if (!el.classList.contains("scrubbing")) { el.classList.add("scrubbing"); setOver(true); }
   };
-  const unscrub = (ev: PointerEvent<HTMLElement>) => { ev.currentTarget.classList.remove("live"); ev.currentTarget.style.setProperty("--x", "0%"); };
+  const unscrub = (ev: PointerEvent<HTMLElement>) => { ev.currentTarget.classList.remove("scrubbing"); ev.currentTarget.style.setProperty("--x", "0%"); setOver(false); };
+  // The input's clip starts where the cover's loop is, so the two move together.
+  const follow = (ev: SyntheticEvent<HTMLVideoElement>) => {
+    const v = ev.currentTarget, loop = v.closest(".media")?.querySelector<HTMLVideoElement>(":scope > video");
+    if (loop && v.duration) v.currentTime = loop.currentTime % v.duration;
+  };
   // Drop a photo or clip on a card: the template opens in Create with it in place of the sample.
   const drop = useFileDrop((files) => void openWithFiles(e, files), { accept: isMediaFile, disabled: !n });
   return (
-    <article className={cx("card tcard", selected && "sel", drop.over && "drop", sample && "scrub")} {...drop.props} data-drop="Drop to run it on your file"
+    <article className={cx("card tcard", selected && "sel", drop.over && "drop", before && "scrub")} {...drop.props} data-drop="Drop to run it on your file"
       onPointerMove={scrub} onPointerLeave={unscrub}
       tabIndex={0} role="button" aria-label={`Open ${tplName(e)}`}
       onClick={onUse} onKeyDown={(ev) => { if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); onUse(); } }}>
       <Media src={e.cover} video={e.cover_video} poster={e.cover} ar={clampAspect(e.cover ? e.cover_aspect : 1)}>
         {!e.cover && !e.cover_video && <NoCover e={e} />}
-        {sample && (
+        {before && (
           <>
-            <div className="before" aria-hidden><img src={sample.poster ?? sample.url} alt="" loading="lazy" draggable={false} /></div>
+            <div className="before" aria-hidden>
+              {before.kind === "image" ? <img src={before.url} alt="" loading="lazy" draggable={false} />
+                : over && <video src={before.url} muted loop playsInline autoPlay onLoadedMetadata={follow} />}
+            </div>
             <span className="seam" aria-hidden /><span className="pill tagb">Before</span><span className="pill taga">After</span>
           </>
         )}

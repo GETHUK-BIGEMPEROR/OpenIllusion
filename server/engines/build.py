@@ -145,7 +145,9 @@ def fill_refmods(wf: dict, names: dict[str, str]) -> dict:
 
 def _setting_value(f: dict, v: Any) -> Any:
     """A setting as the model reads it: an option in its own type (Create sends "8" for 8), a
-    switch as the model's off/on words when it has them."""
+    switch as the model's off/on words when it has them, an option as what it sends when it says."""
+    if f.get("send") and str(v) in f["send"]:
+        return f["send"][str(v)]
     if f.get("type") == "bool" and f.get("values"):
         return f["values"][1] if v in (True, "true", 1) else f["values"][0]
     for o in f.get("options") or []:

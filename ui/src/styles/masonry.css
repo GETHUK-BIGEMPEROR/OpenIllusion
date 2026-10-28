@@ -24,17 +24,17 @@
 .reveal{opacity:0;transition:opacity .2s}
 .card:hover .reveal,.card:focus-within .reveal,.card.sel .reveal{opacity:1}
 @media (hover:none){.go,.reveal{opacity:1;transform:none}}
-/* template cards: the sample left of the cursor, the result right of it */
+/* template cards: the cover's input left of the cursor, the cover right of it */
 .media .before{position:absolute;inset:0;z-index:2;clip-path:inset(0 calc(100% - var(--x)) 0 0);transition:--x .45s var(--ease)}
-.media .before img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1}
-.card:hover .media .before img{transform:scale(1.04)}
-.scrub.live .before{transition:none}
+.media .before img,.media .before video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1}
+.card:hover .media .before img,.card:hover .media .before video{transform:scale(1.04)}
+.scrub.scrubbing .before{transition:none}
 .media .seam{position:absolute;top:0;bottom:0;left:var(--x);width:2px;margin-left:-1px;background:rgba(255,255,255,.92);box-shadow:0 0 14px rgba(0,0,0,.5);z-index:3;opacity:0;transition:opacity .2s}
-.scrub.live .seam{opacity:1}
+.scrub.scrubbing .seam{opacity:1}
 .media .tagb,.media .taga{position:absolute;top:50%;z-index:3;transform:translateY(-50%);opacity:0;transition:opacity .2s}
 .media .tagb{right:calc(100% - var(--x) + 8px)}
 .media .taga{left:calc(var(--x) + 8px)}
-.scrub.live .tagb,.scrub.live .taga{opacity:1}
+.scrub.scrubbing .tagb,.scrub.scrubbing .taga{opacity:1}
 
 /* A card without a cover: the model's maker set in type, tinted per provider. */
 .nocover{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:48px 18px 70px;overflow:hidden;align-items:center;text-align:center;

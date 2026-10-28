@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { api, type Job, type LocalStatus, type Status } from "../lib/api";
 import { isActive, useJobs } from "../lib/live";
 import { useApp } from "../lib/store";
@@ -70,12 +70,29 @@ export function Media({ src, video, poster, ar, children, imgStyle }: {
   );
 }
 
-/** Before/after wipe. Drag, or use the arrow keys. */
-export function Compare({ before, after, lb = "Before", la = "After", intro, children }: { before: string; after: string; lb?: string; la?: string; intro?: boolean; children?: ReactNode }) {
+/** One side of a Compare: a photo's url, or a clip (a muted loop). */
+export type CompareSide = string | { url: string; kind: "image" | "video"; poster?: string | null };
+
+/** Before/after wipe, photos or clips. Drag, or use the arrow keys. Two clips loop in step. */
+export function Compare({ before, after, lb = "Before", la = "After", intro, children }: { before: CompareSide; after: CompareSide; lb?: string; la?: string; intro?: boolean; children?: ReactNode }) {
   // With intro, the result wipes in from the right once, then the slider is yours.
   const [x, setX] = useState(intro ? 100 : 50);
   const [wiping, setWiping] = useState(!!intro);
   const el = useRef<HTMLDivElement>(null);
+  const vBefore = useRef<HTMLVideoElement>(null);
+  const vAfter = useRef<HTMLVideoElement>(null);
+  // Two clips: the result's loop leads, the input's follows it.
+  useEffect(() => {
+    const lead = vAfter.current, follow = vBefore.current;
+    if (!lead || !follow) return;
+    const sync = () => {
+      if (!follow.duration) return;
+      const t = lead.currentTime % follow.duration;
+      if (Math.abs(follow.currentTime - t) > 0.15) follow.currentTime = t;
+    };
+    lead.addEventListener("timeupdate", sync);
+    return () => lead.removeEventListener("timeupdate", sync);
+  }, [before, after]);
   useEffect(() => {
     if (!intro) return;
     const f = requestAnimationFrame(() => requestAnimationFrame(() => setX(50)));
@@ -95,13 +112,18 @@ export function Compare({ before, after, lb = "Before", la = "After", intro, chi
         if (e.key === "ArrowLeft") { e.preventDefault(); setX((v) => Math.max(0, v - 5)); }
         if (e.key === "ArrowRight") { e.preventDefault(); setX((v) => Math.min(100, v + 5)); }
       }}>
-      <img src={before} alt={lb} draggable={false} />
-      <img className="after" src={after} alt={la} draggable={false} />
+      {side(before, lb, vBefore)}
+      {side(after, la, vAfter, "after")}
       <span className="pill tg l">{lb}</span><span className="pill tg r">{la}</span>
       <div className="handle"><div className="knob"><I n="compare" /></div></div>
       {children}
     </div>
   );
+}
+
+function side(s: CompareSide, alt: string, ref: RefObject<HTMLVideoElement>, className?: string) {
+  if (typeof s === "string" || s.kind === "image") return <img className={className} src={typeof s === "string" ? s : s.url} alt={alt} draggable={false} />;
+  return <video ref={ref} className={className} key={s.url} src={s.url} poster={s.poster ?? undefined} muted loop playsInline autoPlay aria-label={alt} />;
 }
 
 export function EmptyBox({ icon, title, children, action, style }: { icon?: IconName; title: string; children?: ReactNode; action?: ReactNode; style?: CSSProperties }) {
@@ -132,13 +154,15 @@ export function useStatus() {
 
 /** Sticky page header. With a title: title, actions, search, Comfy API, GPU. Without one (Explore): the filters take the
  *  title's place, and `sub` is a second row under them (Explore's tags). */
-export function PageHead({ title, count, filters, actions, sub }: { title?: ReactNode; count?: number | null; filters?: ReactNode; actions?: ReactNode; sub?: ReactNode }) {
+/** A page's header. ``search={false}``: the page has its own search field, so no search button. ``bar``: a row of
+ *  filters between the header line and ``sub`` (a row that scrolls sideways). */
+export function PageHead({ title, count, filters, actions, sub, bar, search = true }: { title?: ReactNode; count?: number | null; filters?: ReactNode; actions?: ReactNode; sub?: ReactNode; bar?: ReactNode; search?: boolean }) {
   const setPalette = useApp((s) => s.setPalette);
   const mac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
   const right = (
     <div className="hactions">
       {actions}
-      <button className="icon-btn" type="button" aria-label="Search templates and results" title={`Search (${mac ? "⌘K" : "Ctrl K"})`} onClick={() => setPalette(true)}><I n="search" /></button>
+      {search && <button className="icon-btn" type="button" aria-label="Search templates and results" title={`Search (${mac ? "⌘K" : "Ctrl K"})`} onClick={() => setPalette(true)}><I n="search" /></button>}
       <KeyStat />
       <GpuStat />
     </div>
@@ -146,7 +170,8 @@ export function PageHead({ title, count, filters, actions, sub }: { title?: Reac
   if (!title) {
     return (
       <header className="phead">
-        <div className="phead-row hrow"><div className="hfilters">{filters}</div>{right}</div>
+        <div className="phead-row hrow"><div className={bar ? "hfilters open" : "hfilters"}>{filters}</div>{right}</div>
+        {bar && <div className="phead-bar">{bar}</div>}
         {sub && <div className="phead-sub"><SideScroll className="hsub">{sub}</SideScroll></div>}
       </header>
     );

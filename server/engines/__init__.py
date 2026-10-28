@@ -26,15 +26,15 @@ from typing import Any
 from .. import fit, media, paths
 from .build import TOKEN, MEDIA, _images, _videos, SEED_TOKEN, build_local, reroll, defaults_workflow, fill_media, fill_refmods, build_cloud, prune, materialize, tokens_in, file_resolver, run_size
 from .contract import Engine, FIELD_TYPES, upgrade, lift_computed, load_template, media_path, shipped_ref, template_dirs, load_templates
-from .covers import COVER_SIDE, COVER_LOOP_SECONDS, CACHE_ERA, user_cover, cover_files, cover_file, defaults_info, _cover_info, set_cover, clear_cover, clip_limits, clip_file, poster_file
+from .covers import COVER_SIDE, COVER_LOOP_SECONDS, CACHE_ERA, BEFORE_EXT, user_cover, cover_files, cover_file, cover_before, lead_slot, defaults_info, _cover_info, set_cover, clear_cover, clip_limits, clip_file, poster_file
 from .results import VIDEO_EXT, IMAGE_EXT, classify_failure, find_assets, result_media, decode_media, slim, result_seed
 
 __all__ = [
     "TOKEN", "MEDIA", "SEED_TOKEN", "build_local", "reroll", "defaults_workflow", "fill_media", "fill_refmods",
     "build_cloud", "prune", "materialize", "tokens_in", "file_resolver", "run_size", "Engine",
     "FIELD_TYPES", "upgrade", "lift_computed", "load_template", "template_dirs",
-    "load_templates", "COVER_SIDE", "COVER_LOOP_SECONDS", "CACHE_ERA", "user_cover",
-    "cover_files", "cover_file", "defaults_info", "set_cover", "clear_cover", "clip_limits",
+    "load_templates", "COVER_SIDE", "COVER_LOOP_SECONDS", "CACHE_ERA", "BEFORE_EXT", "user_cover",
+    "cover_files", "cover_file", "cover_before", "lead_slot", "defaults_info", "set_cover", "clear_cover", "clip_limits",
     "clip_file", "poster_file", "VIDEO_EXT", "IMAGE_EXT", "classify_failure", "find_assets",
     "result_media", "decode_media", "slim", "result_seed", "edit_template", "delete_template",
     "duplicate_template", "reset_template", "ENGINES", "reload_templates",
@@ -129,7 +129,7 @@ def delete_template(engine_id: str) -> None:
     media_dir = e.path.parent / "media" / e.path.stem
     if media_dir.is_dir() and media_dir.parent == e.path.parent / "media":
         shutil.rmtree(media_dir, ignore_errors=True)
-    for ext in (".webp", ".mp4"):
+    for ext in (".webp", ".mp4", *BEFORE_EXT):
         user_cover(e.id, ext).unlink(missing_ok=True)
     e.path.unlink(missing_ok=True)
     reload_templates()
@@ -171,8 +171,7 @@ def duplicate_template(engine_id: str) -> Engine:
         if f.get("type") in MEDIA and f.get("default"):
             f["default"] = take(f["default"])
     paths.write_atomic(root / f"{stem}.json", json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-    poster, loop = user_cover(e.id), user_cover(e.id, ".mp4")
-    for src, dst in ((poster, user_cover(tid)), (loop, user_cover(tid, ".mp4"))):
+    for src, dst in ((user_cover(e.id, x), user_cover(tid, x)) for x in (".webp", ".mp4", *BEFORE_EXT)):
         if src.is_file():
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dst)
@@ -276,6 +275,18 @@ def varies(e: Engine) -> bool:
         return True
     return any(m != "fixed" for n in (e.workflow or {}).values()
                for m in ((n.get("_meta") or {}).get("control_after_generate") or {}).values())
+
+
+def sound_from(e: Engine, params: dict) -> str | None:
+    """The clip whose own sound a run's result takes: fixed by the template (cloud), or the
+    keep_sound option picked (a setting left out of ``params`` is at its default)."""
+    if e.keep_sound:
+        return e.keep_sound
+    for f in e.fields:
+        ks = f.get("keep_sound")
+        if ks and str(params.get(f["key"], f.get("default"))) == str(ks["option"]):
+            return ks["slot"]
+    return None
 
 
 def requirements(e: Engine) -> dict:

@@ -28,3 +28,60 @@
 .checks .mono{margin-left:auto;color:var(--text-3);font-size:11px}
 .scrim{display:none}
 .wall-wrap.wtop{padding-top:14px}
+/* search and filters: one field on the header line, the filters under it, tags under those */
+.hfilters.open{overflow:visible;padding:0;margin:0;-webkit-mask-image:none;mask-image:none}
+.xsearch{flex:1;max-width:640px;height:44px;display:flex;align-items:center;gap:10px;padding:0 8px 0 15px;border-radius:14px;background:var(--field);border:1px solid var(--line-2);cursor:text;transition:border-color .15s,box-shadow .2s,background .15s}
+.xsearch:hover{border-color:rgba(226,214,255,.26)}
+.xsearch:focus-within{border-color:var(--violet);background:#251D2E;box-shadow:0 0 0 4px rgba(154,134,240,.16)}
+.xs-ic{color:var(--text-3);transition:color .15s}
+.xsearch:focus-within .xs-ic,.xsearch.on .xs-ic{color:var(--violet)}
+.xsearch input{flex:1;min-width:0;height:100%;background:none;border:0;outline:0;color:var(--text);font:400 14px var(--body)}
+.xsearch input::placeholder{color:var(--text-3)}
+.xsearch input::-webkit-search-cancel-button{display:none}
+.xsearch kbd{margin-right:4px}
+.xs-n{font-size:11px;color:var(--text-3);white-space:nowrap}
+.xs-x{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:var(--text-2);flex:none;transition:background .15s,color .15s}
+.xs-x:hover{background:var(--hover);color:var(--text)}
+.phead-bar{max-width:calc(var(--wall-max) + 48px);margin:0 auto;padding:0 24px 10px}
+.xbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.xfacet{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 9px 0 11px;border-radius:11px;border:1px solid var(--line);background:var(--panel);color:var(--text-2);font-size:12.5px;white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
+.xfacet:hover,.xfacet[data-state="open"]{color:var(--text);border-color:var(--line-2);background:var(--raised)}
+.xfacet b{font-weight:600;color:var(--text);max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.xfacet .xf-cv{color:var(--text-3);transition:transform .3s var(--spring)}
+.xfacet[data-state="open"] .xf-cv{transform:rotate(180deg)}
+.xfacet.on{border-color:rgba(154,134,240,.5);background:rgba(154,134,240,.13);color:var(--text-2)}
+.xfacet.on b{color:#DCD3FF}
+.xfacet.on > .i:first-child{color:var(--violet)}
+.xfacet.end{margin-left:auto}
+.xclear{height:30px;padding:0 10px;border-radius:9px;color:var(--text-3);font-size:12px;display:inline-flex;align-items:center;gap:5px;transition:background .15s,color .15s;animation:fade .2s}
+.xclear:hover{background:var(--hover);color:var(--text)}
+.xpop{min-width:250px;max-height:min(440px,70vh);overflow:auto;padding:6px;display:grid;gap:2px}
+.xopt{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:9px;text-align:left;color:var(--text-2);text-decoration:none;transition:background .12s,color .12s}
+.xopt:hover,.xopt:focus-visible{background:var(--hover);color:var(--text);outline:none}
+.xo-t{flex:1;min-width:0;display:grid;gap:2px}
+.xo-t b{font-weight:500;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xo-t span{font-size:11px;color:var(--text-3)}
+.xo-n{font-size:11px;color:var(--text-3)}
+.xo-on{color:var(--violet);opacity:0}
+.xopt[aria-selected="true"] .xo-on{opacity:1}
+.xopt[aria-selected="true"] .xo-t b{font-weight:600}
+.xopt.dim{opacity:.42}
+.xopt.more{margin-top:4px;border-top:1px solid var(--line);border-radius:0 0 9px 9px;padding-top:11px}
+.xopt.more > .i{color:var(--yellow)}
+@media (max-width:720px){
+  .phead-row.hrow:has(.hfilters.open){flex-wrap:wrap}
+  .hfilters.open{order:2;flex:1 1 100%}
+  .phead-bar{padding:0 14px 10px}
+  .xsearch{height:40px}
+  .xsearch kbd{display:none}
+  .xfacet.on .xf-l{display:none}
+}
+/* room between search, filters and tags: three rows, each its own step */
+.explore .phead-row.hrow{padding-top:16px;padding-bottom:16px}
+.explore .phead-bar{padding-bottom:14px}
+.explore .phead-sub{padding-bottom:16px}
+@media (max-width:720px){
+  .explore .phead-row.hrow{padding-top:12px;padding-bottom:12px}
+  .explore .phead-bar{padding-bottom:12px}
+  .explore .phead-sub{padding-bottom:12px}
+}

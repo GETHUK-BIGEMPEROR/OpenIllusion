@@ -70,6 +70,25 @@
           "text": "Replace only the woman in the foreground in <Video 1> with the character from the reference, wearing the outfit from <Picture 1>. Keep the character's identity, face, hair, and style. Preserve the source video's camera, framing, background, lighting, objects, and all other people. Match the selected woman's position, scale, pose, and movement throughout the clip. Do not show the reference sheet or its background."
         }
       ]
+    },
+    {
+      "key": "sound",
+      "type": "segmented",
+      "label": "Sound",
+      "options": [
+        "new",
+        "clip"
+      ],
+      "labels": {
+        "new": "Make new",
+        "clip": "Keep the clip's"
+      },
+      "default": "new",
+      "keep_sound": {
+        "option": "clip",
+        "slot": "video:1"
+      },
+      "help": "Make new: MiniMax H3 makes the sound. Keep the clip's: the result keeps Video 1's own sound."
     }
   ],
   "built": true,

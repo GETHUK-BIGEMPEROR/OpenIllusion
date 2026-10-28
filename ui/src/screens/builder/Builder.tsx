@@ -12,7 +12,7 @@ import { CloudInputs, InputsSection, JobSection, PromptSection, ResultSection, s
 import { CloudSettings, type CloudSettingState, ControlsSection, SizeSection } from "./Settings";
 import { Start, Tabs, type Track } from "./Start";
 import { type Details, fromWorkflow, type MediaRow, type OutputState, type ParamRow, type PromptState, type RefModRow, type Source } from "./model";
-import { adapterProblems, fromAdapter, settingDefault, settingsFor } from "./modes";
+import { adapterProblems, fromAdapter, settingsFor, settingValue } from "./modes";
 
 // A workflow handed over from elsewhere (Import, a drop on another page).
 let pending: File | null = null;
@@ -186,7 +186,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
       return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...base, refmods, fixed, outputs: [output.result], size };
     }
     // The adapter writes the request: the files go where it says, the settings at the values picked here.
-    const settings = settingsFor(src.a, on).map((x) => ({ key: x.key, value: csets[x.key]?.value ?? settingDefault(x), locked: !!csets[x.key]?.locked }));
+    const settings = settingsFor(src.a, on).map((x) => ({ key: x.key, value: settingValue(x, csets[x.key]?.value), locked: !!csets[x.key]?.locked }));
     return { kind: "cloud", model: src.a.model, ...base, settings };
   };
 

@@ -15,7 +15,7 @@ import { go } from "../../lib/route";
 import { autorun, clipIn, slotOf, useApp, type VideoSlot } from "../../lib/store";
 import { canvasSize, dimsText, plans, usePrepImages, type PrepInput } from "../../lib/size";
 import { Canvas } from "./Canvas";
-import { HistList, HistStrip } from "./History";
+import { HistList, HistStrip, useRuns } from "./History";
 import { bakePending, FileCard, InputStage } from "./Inputs";
 import { RefModCard, RefModStage } from "./RefModInput";
 import { toSpec } from "../../lib/spec";
@@ -80,9 +80,12 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const done = shown?.status === "done" && !!shown.result?.file;
   const failed = shown && !live && FAILED.has(shown.status) ? shown : null;
 
+  // The template's own example: its cover beside the input it was made from.
+  const example = !!engine?.cover;
   // What the stage shows, given what exists.
   const eff: View | "live" | "failed" | "empty" =
     view === "grid" && group.length > 1 ? "grid"
+      : view === "example" && !shown && example ? "example"
       : !shown || view === "input" ? (hasInput ? "input" : "empty")
       : live ? "live" : failed ? "failed" : !done ? (hasInput ? "input" : "empty")
       : view === "result" || noInput ? "result" : "compare";
@@ -94,11 +97,25 @@ function CreateStudio({ mode }: { mode: Mode }) {
     prevState.current = job?.state;
   }, [job?.state, view]);
 
-  // A new lead input puts it back on the stage.
+  // Opening a template shows a finished run, as after Run: your latest of it, else the template's example.
+  const runs = useRuns(s.engine);
+  const opened = useRef<string | null>(null);
+  useEffect(() => {
+    if (!s.engine || !engine || opened.current === s.engine || !runs.isFetched) return;
+    opened.current = s.engine;
+    if (s.current) return setView("compare");
+    const last = (runs.data ?? []).find((g) => g.status === "done");
+    if (last) {
+      set({ current: last.id, group: [last.id] });
+      setView("compare");
+    } else setView("example");
+  }, [s.engine, engine, runs.isFetched, runs.data, s.current, set]);
+
+  // A new lead input puts it back on the stage (the template's own sample filling in doesn't).
   const leadAsset = leadVideo ? clip?.asset : base?.asset;
   const prevLead = useRef(leadAsset);
   useEffect(() => {
-    if (prevLead.current !== leadAsset && leadAsset) setView("input");
+    if (prevLead.current !== leadAsset && leadAsset && (prevLead.current || !leadAsset.startsWith("tpl:"))) setView("input");
     prevLead.current = leadAsset;
   }, [leadAsset]);
 
@@ -243,10 +260,12 @@ function CreateStudio({ mode }: { mode: Mode }) {
         <div className="stage-top" data-acts={done && shown ? "" : undefined}>
           <div className="crumb">Create<span>/</span><b>{engine ? tplName(engine) : "…"}</b></div>
           <span style={{ flex: 1 }} />
-          {!!shown && !!media.length && (
+          {(!!shown || example) && !!media.length && (
             <div className="vseg" role="group" aria-label="Show">
               <button type="button" aria-pressed={inputView} onClick={() => setView("input")} title="Edit the inputs"><I n="pencil" /><span className="lbl">Inputs</span></button>
-              <button type="button" aria-pressed={!inputView} onClick={() => setView(group.length > 1 ? "grid" : "compare")} title="See the run"><I n="image" /><span className="lbl">{live ? "Running" : "Result"}</span></button>
+              {shown
+                ? <button type="button" aria-pressed={!inputView} onClick={() => setView(group.length > 1 ? "grid" : "compare")} title="See the run"><I n="image" /><span className="lbl">{live ? "Running" : "Result"}</span></button>
+                : <button type="button" aria-pressed={!inputView} onClick={() => setView("example")} title="What this template makes"><I n="image" /><span className="lbl">Example</span></button>}
             </div>
           )}
           {group.length > 1 && (

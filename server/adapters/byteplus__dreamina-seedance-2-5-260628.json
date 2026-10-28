@@ -315,12 +315,31 @@
     {
       "key": "sound",
       "label": "Sound",
-      "type": "bool",
+      "type": "segmented",
       "at": [
         "generate_audio"
       ],
-      "default": true,
-      "help": "Make sound with the clip"
+      "options": [
+        "new",
+        "clip",
+        "none"
+      ],
+      "labels": {
+        "new": "Make new",
+        "clip": "Keep the clip's",
+        "none": "None"
+      },
+      "send": {
+        "new": true,
+        "clip": false,
+        "none": false
+      },
+      "keep_sound": {
+        "option": "clip",
+        "role": "Video to edit"
+      },
+      "default": "new",
+      "help": "Make new: Seedance makes the sound. Keep the clip's: the video you edit keeps its own sound. None: silent."
     }
   ],
   "result": [

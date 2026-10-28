@@ -6,7 +6,7 @@ import { cx, Toggle } from "../../components/ui";
 import { OutputSize, ParamFields } from "../../components/Engine";
 import type { AdapterSetting, ParamSpec, SizeSpec, WorkflowAnalysis } from "../../lib/api";
 import { human, type OutputState, type ParamRow } from "./model";
-import { settingDefault } from "./modes";
+import { settingValue } from "./modes";
 import { Sec } from "./Sections";
 
 /** A size block for the shape and step pickers: the steps as labels, each about px x px pixels. */
@@ -111,7 +111,7 @@ export function CloudSettings({ list, st, setSt }: { list: AdapterSetting[]; st:
       desc="The model's options for the result. On, people pick it on Create; off, every run uses the value set here.">
       <div className="bsets">
         {list.map((s) => {
-          const v = st[s.key]?.value ?? settingDefault(s);
+          const v = settingValue(s, st[s.key]?.value);
           const open = !st[s.key]?.locked;
           return (
             <div key={s.key} className={cx("bset", open && "on")}>

@@ -250,7 +250,10 @@ export function GenerationDetail({ id }: { id: string }) {
           <div className="kv">
             <div className="kv-h">Settings</div>
             <dl className="dl">
-              {params.map(([k, v]) => <div key={k}><dt style={{ textTransform: "capitalize" }}>{k.replace(/_/g, " ")}</dt><dd style={{ overflowWrap: "anywhere" }}>{String(v)}</dd></div>)}
+              {params.map(([k, v]) => {
+                const f = tpl?.fields?.find((x) => x.key === k);  // named and worded as the template asks for it
+                return <div key={k}><dt style={f?.label ? undefined : { textTransform: "capitalize" }}>{f?.label ?? k.replace(/_/g, " ")}</dt><dd style={{ overflowWrap: "anywhere" }}>{(f && "labels" in f ? f.labels?.[String(v)] : undefined) ?? String(v)}</dd></div>;
+              })}
               <div><dt>Seed</dt><dd>{seed ?? "Random"}</dd></div>
             </dl>
           </div>

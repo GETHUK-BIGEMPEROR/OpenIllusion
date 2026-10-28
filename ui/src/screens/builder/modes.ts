@@ -159,14 +159,26 @@ export function fromAdapter(a: RouterAdapter) {
   return { media, mods: [] as RefModRow[], prompt, params: [] as ParamRow[], details, output: { result: "", size: "" } as OutputState };
 }
 
-/** The model's settings a job with these rows filled asks for: none an input decides (off_with), none missing a role they need (only_with). */
+/** The model's settings a job with these rows filled asks for: none an input decides (off_with), none missing a role they need
+ *  (only_with). A keep_sound option ("Keep the clip's") is offered only with its clip, as the server does. */
 export function settingsFor(a: RouterAdapter, rows: Filled[]): AdapterSetting[] {
   const roles = new Set(filledSlots(rows).map((i) => a.inputs[i].role));
-  return (a.settings ?? []).filter((s) => !s.off_with.some((r) => roles.has(r)) && (!s.only_with.length || s.only_with.some((r) => roles.has(r))));
+  return (a.settings ?? [])
+    .filter((s) => !s.off_with.some((r) => roles.has(r)) && (!s.only_with.length || s.only_with.some((r) => roles.has(r))))
+    .map((s) => {
+      const ks = s.keep_sound;
+      if (!ks || roles.has(ks.role)) return s;
+      const { keep_sound: _, ...rest } = s;
+      return { ...rest, options: s.options?.filter((o) => o !== ks.option) };
+    });
 }
 
 /** A setting's starting value: a size is its shape and step. */
 export const settingDefault = (s: AdapterSetting): unknown => s.type === "size" ? { aspect: s.aspect, size: s.default } : s.default;
+
+/** The value picked for `s`, or its default once the pick isn't offered any more (its clip was taken out). */
+export const settingValue = (s: AdapterSetting, picked: unknown): unknown =>
+  picked === undefined || (s.options && !s.options.some((o) => String(o) === String(picked))) ? settingDefault(s) : picked;
 
 type Filled = { sample: unknown; slot?: number };
 

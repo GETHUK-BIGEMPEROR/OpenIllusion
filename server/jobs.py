@@ -520,11 +520,15 @@ class Manager:
             provider=meta.get("provider") or "comfy",
         )
 
+        sound = _kept_sound(m, folder) if is_video else None
+
         def write_files():
             recipe = staging.recipe_manifest(m, res)
             if is_video:
                 raw = folder / "result" / "_raw.mp4"
                 raw.write_bytes(data)
+                if sound is not None:
+                    media.put_sound(raw, sound)
                 final = out_dir / f"{m.id}.mp4"
                 try:
                     media.write_mp4_recipe(raw, final, recipe)
@@ -588,6 +592,14 @@ class Manager:
 
 
 MANAGER = Manager()
+
+
+def _kept_sound(m: sc.Manifest, folder: Path) -> Path | None:
+    """The input clip whose own sound the result takes ("Keep the clip's"), when the run asks for it."""
+    e = engines.ENGINES.get(m.engine.model)
+    slot = engines.sound_from(e, m.params) if e is not None else None
+    item = next((i for i in m.inputs if i.slot == slot and i.file), None) if slot else None
+    return folder / item.file if item else None
 
 
 def _fmt_elapsed(s: float) -> str:

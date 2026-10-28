@@ -249,6 +249,48 @@ def preview(src: str | Path, dst: str | Path, max_height: int = 720, max_bytes: 
     return transcode(src, dst, max_height=max_height, max_bytes=max_bytes, min_fps=1, max_fps=60)
 
 
+def put_sound(video: str | Path, sound: str | Path) -> bool:
+    """Give ``video`` the sound of the clip ``sound``, in place: the picture copied as it is,
+    the sound from its start, cut to the video's length, as AAC. False when ``sound`` has none."""
+    video = Path(video)
+    tmp = video.with_name(video.stem + ".sound.mp4")
+    with av.open(str(sound)) as src:
+        ain = next((s for s in src.streams if s.type == "audio"), None)
+        if ain is None:
+            return False
+        with av.open(str(video)) as inp, av.open(str(tmp), "w", format="mp4") as out:
+            vin = next(s for s in inp.streams if s.type == "video")
+            length = float(inp.duration / av.time_base) if inp.duration else float((vin.duration or 0) * vin.time_base)
+            vout = out.add_stream_from_template(vin)
+            aout = out.add_stream("aac", rate=48000)
+            aout.bit_rate = 192_000
+            resampler = av.AudioResampler(format="fltp", layout="stereo", rate=48000)
+            for pkt in inp.demux(vin):
+                if pkt.dts is None:
+                    continue
+                pkt.stream = vout
+                out.mux(pkt)
+            pts, limit = 0, round(length * 48000)
+            for frame in src.decode(ain):
+                for rf in resampler.resample(frame):
+                    n = min(rf.samples, limit - pts)
+                    if n <= 0:
+                        break
+                    if n < rf.samples:
+                        rf = av.AudioFrame.from_ndarray(rf.to_ndarray()[:, :n].copy(order="C"), format="fltp", layout="stereo")
+                        rf.sample_rate = 48000
+                    rf.pts, rf.time_base = pts, Fraction(1, 48000)
+                    pts += n
+                    for pkt in aout.encode(rf):
+                        out.mux(pkt)
+                if pts >= limit:
+                    break
+            for pkt in aout.encode():
+                out.mux(pkt)
+    tmp.replace(video)
+    return True
+
+
 def write_mp4_recipe(src: str | Path, dst: str | Path, manifest: dict) -> None:
     """Remux without re-encoding and set the container comment to the recipe."""
     payload = MP4_PREFIX + b64url(json.dumps(manifest, separators=(",", ":")).encode())

@@ -45,6 +45,9 @@ Adapter file::
 - ``fit``: what the model takes in each file (sides, shape, size, length, frame rate);
   runs make every file fit. ``media_mb``: the most a request may carry inline.
   Both are the model's published limits; ``server/fit.py`` has the details.
+- Settings: ``send`` maps each option to the value the request gets; ``keep_sound``
+  ``{option, role}``: picking that option gives the result the sound of the clip in
+  that role, put on by the app after the run (the model's own sound is sent off).
 - ``mentions``: how the prompt names a file, by kind; ``{n}`` is its place among the
   run's files of that kind, in the order the request carries them (Kling
   ``<<<image_1>>>``, Seedance ``@Image 1``). Left out: ``Image 1``, ``Video 1``,
@@ -227,13 +230,28 @@ def _setting(model: str, s: Any, roles: list) -> dict:
         lb = s.get("labels") or {}
         if not (isinstance(lb, dict) and all(isinstance(v, str) for v in lb.values())):
             raise AdapterError(f"{what}: labels maps a value to what people see")
+        send = s.get("send")
+        if send is not None and not (isinstance(send, dict) and set(send) == {str(o) for o in opts}):
+            raise AdapterError(f"{what}: send gives the value the request gets for every option")
+        ks = s.get("keep_sound")
+        if ks is not None and not (isinstance(ks, dict) and ks.get("option") in opts and ks.get("role") in roles):
+            raise AdapterError(f"{what}: keep_sound is {{option, role}}: the option whose result keeps that input's own sound")
     return out
 
 
 def settings_for(a: Adapter, roles: list[str]) -> list[dict]:
-    """The settings a run with these roles asks for."""
+    """The settings a run with these roles asks for. A keep_sound option needs its role filled."""
     rs = set(roles)
-    return [s for s in a.settings if not rs & set(s["off_with"]) and (not s["only_with"] or rs & set(s["only_with"]))]
+    out = []
+    for s in a.settings:
+        if rs & set(s["off_with"]) or (s["only_with"] and not rs & set(s["only_with"])):
+            continue
+        ks = s.get("keep_sound")
+        if ks and ks["role"] not in rs:  # no clip to keep the sound of
+            s = {k: v for k, v in s.items() if k != "keep_sound"}
+            s["options"] = [o for o in s["options"] if o != ks["option"]]
+        out.append(s)
+    return out
 
 
 def setting_paths(s: dict) -> list[list]:
@@ -271,12 +289,15 @@ def write_setting(body: dict, s: dict, v: Any) -> None:
             _put(body, list(s["at"]["height"]), h)
     elif v == "":  # "Auto": the model decides, so the field isn't sent
         _remove(body, list(s["at"]))
+    elif s.get("send"):
+        _put(body, list(s["at"]), s["send"][str(v)])
     else:
         _put(body, list(s["at"]), s["values"][int(v)] if s["type"] == "bool" and s.get("values") else v)
 
 
-def setting_field(s: dict, v: Any) -> dict:
-    """A setting as a template input people change in Create, starting at ``v``."""
+def setting_field(s: dict, v: Any, slots: dict[str, str] | None = None) -> dict:
+    """A setting as a template input people change in Create, starting at ``v``. ``slots``: the
+    template's slot for each filled role, so a keep_sound option names the clip it keeps."""
     if s["type"] == "size":
         at = s["at"]
         bind = [[list(at["text"]), "text"]] if "text" in at else [[list(at["width"]), "width"], [list(at["height"]), "height"]]
@@ -284,7 +305,10 @@ def setting_field(s: dict, v: Any) -> dict:
                 "aspects": list(s["aspects"]), "steps": list(s["steps"]), "multiple": s["multiple"], "bind": bind,
                 **{k: s[k] for k in ("sides", "pixels", "sep", "help") if s.get(k)}}
     f = {"key": s["key"], "type": s["type"], "label": s["label"], "default": v, "bind": [list(s["at"])]}
-    f.update({k: s[k] for k in ("options", "labels", "values", "min", "max", "step", "unit", "help") if s.get(k) is not None})
+    f.update({k: s[k] for k in ("options", "labels", "values", "send", "min", "max", "step", "unit", "help") if s.get(k) is not None})
+    ks = s.get("keep_sound")
+    if ks and ks["role"] in (slots or {}):
+        f["keep_sound"] = {"option": ks["option"], "slot": slots[ks["role"]]}
     return f
 
 
@@ -482,8 +506,9 @@ def assemble(a: Adapter, files: list[tuple[int, str]], prompt: str, values: dict
     # Settings first: what an input does to the request (with, drop) has the last word.
     roles = [a.inputs[i]["role"] for i in used]
     on = settings_for(a, roles)
+    asked = {s["key"] for s in on}
     for s in a.settings:
-        if s not in on:
+        if s["key"] not in asked:
             for path in setting_paths(s):
                 _remove(body, path)
     for s in on:

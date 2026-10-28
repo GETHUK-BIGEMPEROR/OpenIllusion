@@ -50,16 +50,16 @@ def test_shipped_templates_list_every_input_and_bind_it(tid):
     d = engines.describe(e)
     keys = [f["key"] for f in d["fields"] if f["type"] != "refmod"]  # a RefMod is picked, not dropped in
     assert keys[: len(e.inputs)] == ["video:1"] * e.needs_video + [f"image:{n}" for n in range(1, e.max_images + 1)]
-    assert "prompt" in keys and all(f["bind"] for f in d["fields"])
+    assert "prompt" in keys and all(f["bind"] or f.get("keep_sound") for f in d["fields"])  # Sound acts after the run
     # The whole prompt is the input: the workflow has no text of its own around it.
     prompt = next(f for f in d["fields"] if f["key"] == "prompt")
     node, inp = prompt["bind"][0]
     assert e.workflow[node]["inputs"][inp] == prompt["default"] == e.default_prompt
     assert not any(n["class_type"] == "StringConcatenate" for n in e.workflow.values())
     assert all(x["label"] and x["text"].startswith(prompt["default"][:12]) for x in d["examples"]) and d["tags"]
-    # A template is its inputs, its prompt and the output settings any generator has (size, length);
+    # A template is its inputs, its prompt and the output settings any generator has (size, length, sound);
     # everything else runs as the workflow says.
-    assert all(f["type"] in ("image", "video", "audio", "refmod", "size") or f["key"] in ("prompt", "duration") for f in d["fields"])
+    assert all(f["type"] in ("image", "video", "audio", "refmod", "size") or f["key"] in ("prompt", "duration", "sound") for f in d["fields"])
 
 
 def test_hat_template_writes_every_binding():
@@ -152,10 +152,10 @@ def test_cover_from_image_then_reset(tmp_path):
     e = engines.get(HAT)
     shipped = engines.describe(e)["cover"]  # the template ships one
     assert shipped and not engines.describe(e)["cover_custom"]
-    engines.set_cover(e.id, make_image(tmp_path / "big.png", size=(2400, 1600)))
+    engines.set_cover(e.id, make_image(tmp_path / "big.png", size=(3200, 2000)))
     d = engines.describe(e)
     assert d["cover_custom"] and d["cover"].startswith("/api/cover?engine=local%2Fqwen21-add-hat&v=")
-    assert d["cover_video"] is None and d["cover_aspect"] == 1.5
+    assert d["cover_video"] is None and d["cover_aspect"] == 1.6
     from PIL import Image
 
     with Image.open(engines.cover_file(e)) as img:
@@ -176,6 +176,28 @@ def test_cover_from_video_is_a_muted_loop_with_poster(tmp_path):
     engines.set_cover(HAT, make_video(tmp_path / "clip2.mp4", seconds=2))
     engines.clear_cover(HAT)
     assert engines.cover_files(e) == (e.cover, None)  # back to the shipped still
+
+
+def test_a_cover_shows_beside_the_input_it_was_made_from(tmp_path):
+    # Shipped covers were made from the shipped samples: the lead one (a clip first, else a photo).
+    hat = engines.describe(engines.get(HAT))["cover_before"]
+    assert hat == {"url": engines.describe(engines.get(HAT))["cover"] + "&before=1", "kind": "image"}
+    assert engines.cover_before(engines.get(HAT)) == engines.get(HAT).default_inputs["image:1"]
+    swap = engines.get("local/minimax-h3-character-swap")
+    assert engines.lead_slot(swap) == "video:1" and engines.cover_before(swap) == swap.default_inputs["video:1"]
+    assert engines.cover_before(engines.get("local/minimax-h3-create")) is None  # words only: nothing beside it
+    # A cover set from a run keeps that run's input; one set without it shows alone.
+    engines.set_cover(HAT, make_image(tmp_path / "out.png"), before=make_image(tmp_path / "in.png", size=(900, 600)))
+    assert engines.cover_before(engines.get(HAT)) == engines.user_cover(HAT, ".before.webp")
+    engines.set_cover(HAT, make_image(tmp_path / "out2.png"))
+    assert engines.cover_before(engines.get(HAT)) is None
+    engines.set_cover(HAT, make_video(tmp_path / "o.mp4", seconds=2), before=make_video(tmp_path / "i.mp4", seconds=12))
+    clip = engines.cover_before(engines.get(HAT))
+    info = engines.media.probe(clip)
+    assert clip.name.endswith(".before.mp4") and info["duration"] <= engines.COVER_LOOP_SECONDS + 0.2 and not info["has_audio"]
+    engines.clear_cover(HAT)
+    assert not any(engines.user_cover(HAT, x).exists() for x in engines.BEFORE_EXT)
+    assert engines.cover_before(engines.get(HAT)) == engines.get(HAT).default_inputs["image:1"]  # the shipped pair again
 
 
 def test_shipped_cover_is_the_fallback(tmp_path, monkeypatch):
@@ -284,7 +306,7 @@ def test_swap_needs_its_clip_and_character_by_name():
     assert t["137"]["inputs"]["image"] == "{{image:1}}" and t["139"]["inputs"]["file"] == "{{video:1}}"
     assert t["138"]["inputs"]["value"] == "the man on the left"
     assert t["123"]["inputs"]["sampler_name"] == "res_multistep" and t["143"]["inputs"]["value"] == 20
-    assert [f["key"] for f in e.fields] == ["video:1", "image:1", "prompt"]
+    assert [f["key"] for f in e.fields] == ["video:1", "image:1", "prompt", "sound"]
 
 
 def test_sample_clip_is_described_as_video_with_a_poster():
@@ -384,3 +406,15 @@ def test_variants_only_when_the_workflow_rerolls_its_seed():
 def test_the_prompt_is_sent_exactly_as_written():
     wf = engines.ENGINES[HAT].build({"inputs": [{"slot": "image:1"}], "prompt": "A cap.", "params": {}})
     assert wf["5"]["inputs"]["prompt"] == "A cap."
+
+
+@pytest.mark.parametrize("tid", ["local/minimax-h3-character-swap", "local/minimax-h3-character-refmod"])
+def test_a_local_swap_can_keep_the_clips_own_sound(tmp_path, tid):
+    from types import SimpleNamespace as NS
+    from server import jobs
+    e = engines.get(tid)
+    assert engines.sound_from(e, {}) is None  # Make new: H3's own sound
+    assert engines.sound_from(e, {"sound": "new"}) is None
+    assert engines.sound_from(e, {"sound": "clip"}) == "video:1"
+    m = NS(engine=NS(model=tid), params={"sound": "clip"}, inputs=[NS(slot="image:1", file="in/a.png"), NS(slot="video:1", file="in/v.mp4")])
+    assert jobs._kept_sound(m, tmp_path) == tmp_path / "in/v.mp4"

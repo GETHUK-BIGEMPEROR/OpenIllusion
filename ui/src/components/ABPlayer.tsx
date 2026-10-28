@@ -17,11 +17,11 @@ export const typing = (e: KeyboardEvent) => {
 };
 
 /**
- * Synced A/B player: side by side or wipe, one transport for both.
+ * Synced A/B player: wipe (the default, as for photos) or side by side, one transport for both.
  * Fills its parent; media are letterboxed (object-contain) so nothing is cropped.
  */
 export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a: Side | null; b: Side | null; overlay?: ReactNode; height?: number | string; keys?: boolean; className?: string }) {
-  const [mode, setMode] = useState<"side" | "wipe">("side");
+  const [mode, setMode] = useState<"side" | "wipe">("wipe");
   const [wipe, setWipe] = useState(0.5);
   const va = useRef<HTMLVideoElement>(null);
   const vb = useRef<HTMLVideoElement>(null);
@@ -131,7 +131,7 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
           {render(b, vb)}
           <div className="ab-clip" style={{ clipPath: `inset(0 ${100 - wipe * 100}% 0 0)` }}>{render(a, va)}</div>
           <div aria-hidden className="ab-line" style={{ left: `${wipe * 100}%` }}>
-            <span><I n="split" size={13} /></span>
+            <span><I n="compare" size={17} /></span>
           </div>
           {label(a!, "left")}
           {label(b!, "right")}
@@ -153,7 +153,7 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
           )}
           {both && (
             <div role="radiogroup" aria-label="Compare mode" className={cx("seg sm", !hasVideo && "end")}>
-              {([["side", "Side by side", "columns"], ["wipe", "Wipe", "split"]] as const).map(([k, l, n]) => (
+              {([["wipe", "Wipe", "split"], ["side", "Side by side", "columns"]] as const).map(([k, l, n]) => (
                 <button key={k} type="button" role="radio" aria-checked={mode === k} title={l} onClick={() => setMode(k)}>
                   <I n={n} size={13} /><span>{l}</span>
                 </button>

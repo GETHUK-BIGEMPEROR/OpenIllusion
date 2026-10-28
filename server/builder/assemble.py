@@ -287,7 +287,12 @@ def assemble_cloud(spec: dict) -> dict:
     for m in media:
         _input(data, m["slot"])["bind"] = [where[m["slot"]]]
     prompt["bind"] = [list(a.prompt)]
-    data["inputs"] += [adapters.setting_field(s, values[s["key"]]) for s in on if not chosen.get(s["key"], {}).get("locked")]
+    slots = {a.inputs[m["input"]]["role"]: m["slot"] for m in reversed(media)}  # a role's first file
+    data["inputs"] += [adapters.setting_field(s, values[s["key"]], slots) for s in on if not chosen.get(s["key"], {}).get("locked")]
+    for s in on:  # fixed at "keep the clip's sound": every run's result takes it
+        ks = s.get("keep_sound")
+        if ks and chosen.get(s["key"], {}).get("locked") and values[s["key"]] == ks["option"]:
+            data["keep_sound"] = slots[ks["role"]]
     data.update(kind="cloud", model=model, provider=model.split("/", 1)[0], body=body, result=a.result,
                 source=f"Comfy Router · {a.name}")
     return data
@@ -308,9 +313,10 @@ def preset(e) -> dict:
     text = next((f for f in e.fields if f["key"] == "prompt"), None)
     prompt = {**at(text), **{k: text[k] for k in keep if k in text}, "default": e.default_prompt,
               "examples": [x.get("text", "") if isinstance(x, dict) else str(x) for x in text.get("examples") or []]} if text else None
+    # A control the workflow doesn't read (Sound, put on after the run) has no node to match: the copy goes without it.
     params = [{**at(f), "key": f["key"], "label": f.get("label") or _label(f["key"]), "default": f.get("default"), "help": f.get("help"),
                **{k: f[k] for k in ("type", "options", "unit", "min", "max", "step") if k in f}}
-              for f in e.fields if f["type"] not in ("image", "video", "audio", "refmod", "size") and f["key"] != "prompt"]
+              for f in e.fields if f["type"] not in ("image", "video", "audio", "refmod", "size") and f["key"] != "prompt" and f.get("bind")]
     out = next((f for f in e.fields if f["type"] == "size"), None)
     size = {"node": str(out["bind"][0][0]), **{k: out[k] for k in ("label", "aspect", "default") if k in out}} if out else None
     name, _, rest = e.label.partition(" · ")

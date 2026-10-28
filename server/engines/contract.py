@@ -58,6 +58,7 @@ class Engine:
     body: dict | None = None  # cloud templates: the request body, with media tokens and fixed values
     result: list[list] = field(default_factory=list)  # cloud templates: where the media is in the model's output, first match wins
     built: bool = False  # made in the template builder
+    keep_sound: str | None = None  # cloud templates: the clip whose own sound every result takes (a fixed "Keep the clip's")
 
     def __post_init__(self):
         if self.size is None:
@@ -222,12 +223,13 @@ def _model_settings(data: dict, fields: list[dict]) -> list[dict]:
             except (KeyError, IndexError, TypeError):
                 return None
         return body
-    roles = []
+    slots: dict[str, str] = {}
     for f in fields:
         if f["type"] in MEDIA and f["bind"]:
             held = at(data.get("body") or {}, f["bind"][0])
-            roles += [i["role"] for i in a.inputs if adapters.fill(i["value"], f["key"]) == held][:1]
-    return [_field(adapters.setting_field(s, adapters.setting_default(s))) for s in adapters.settings_for(a, roles)]
+            for r in [i["role"] for i in a.inputs if adapters.fill(i["value"], f["key"]) == held][:1]:
+                slots.setdefault(r, f["key"])
+    return [_field(adapters.setting_field(s, adapters.setting_default(s), slots)) for s in adapters.settings_for(a, list(slots))]
 
 
 SHIPPED = "shipped:"
@@ -269,6 +271,10 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
     if len({f["key"] for f in fields}) != len(fields):
         raise ValueError("two inputs share a key")
     media = [f for f in fields if f["type"] in MEDIA]
+    clips = {f["key"] for f in media if f["type"] == "video"}
+    keep = data.get("keep_sound") if cloud else None
+    if keep is not None and keep not in clips or any(f["keep_sound"]["slot"] not in clips for f in fields if f.get("keep_sound")):
+        raise ValueError("keep_sound names one of the template's clips")
     images = [f for f in media if f["type"] == "image"]
     video = next((f for f in media if f["type"] == "video"), None)
     text = next((f for f in fields if f["key"] == "prompt"), None)
@@ -287,7 +293,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         curated=True, kind="cloud" if cloud else "local",
         workflow=None if cloud else data["workflow"], bindings=bindings, outputs=[str(o) for o in data.get("outputs", [])],
         model=data.get("model") if cloud else None, body=data.get("body") if cloud else None, built=bool(data.get("built")),
-        result=[list(p) for p in result] if cloud else [],
+        result=[list(p) for p in result] if cloud else [], keep_sound=keep,
         hints=data.get("hints", {}), source=data.get("source"),
         prompt={k: text[k] for k in ("label", "required") if k in text} if text else None,
         examples=text.get("examples", []) if text else [], tags=list(data.get("tags", [])),

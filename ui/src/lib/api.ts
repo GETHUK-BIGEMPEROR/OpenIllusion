@@ -100,6 +100,8 @@ export interface EngineInfo {
   cover_aspect?: number | null;
   /** True when the user picked the cover, so it can be reset. */
   cover_custom?: boolean;
+  /** The input the cover was made from (its lead photo or clip), shown beside it; null when unknown. */
+  cover_before?: { url: string; kind: "image" | "video" } | null;
   /** Built but not published: no cover until one of its own results becomes it. Hidden from the wall. */
   /** How the app crops and sizes images before the run (server/prep.py). */
   size?: SizeSpec | null;
@@ -185,6 +187,10 @@ export interface RouterAdapter {
 export type AdapterSetting = Omit<ParamSpec, "type"> & {
   type: "aspect" | "select" | "segmented" | "int" | "bool" | "size";
   off_with: string[]; only_with: string[];
+  /** The value the request gets for each option, when it isn't the option itself. */
+  send?: Record<string, unknown>;
+  /** Picking `option` gives the result the own sound of the clip in `role`; offered only with that clip. */
+  keep_sound?: { option: string; role: string };
   /** size: the shapes and megapixel steps, the shape it opens at, and the model's limits. */
   aspects?: string[]; aspect?: string; steps?: number[]; sides?: [number, number]; pixels?: [number, number]; multiple?: number;
 };
