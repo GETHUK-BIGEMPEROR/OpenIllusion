@@ -70,7 +70,7 @@ def clean(bucket: str, now: float | None = None) -> dict:
     if bucket == "trash":
         n = store.empty_trash()
     else:
-        for f in list(d.iterdir()):
+        for f in list(d.iterdir()) if d.is_dir() else []:  # nothing exported or backed up yet
             try:
                 if bucket == "uploads" and now - f.stat().st_mtime < UPLOAD_GRACE:
                     continue

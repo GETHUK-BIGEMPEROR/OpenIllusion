@@ -103,6 +103,8 @@ def test_storage_usage_and_clean():
     assert storage.clean("cache")["removed"] == 1 and storage.usage()["cache"]["items"] == 0
     with pytest.raises(ValueError):
         storage.clean("generations")
+    # Nothing exported or backed up yet: there's no folder, and nothing to clean.
+    assert not storage.backups_dir().exists() and storage.clean("backups") == {"removed": 0, "bytes": 0}
 
 
 @pytest.mark.usefixtures("fresh_templates")
