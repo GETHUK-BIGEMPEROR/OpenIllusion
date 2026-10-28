@@ -86,7 +86,7 @@
   .insp{width:auto;max-height:90cqh;height:auto}
   .insp-head::before{content:"";position:absolute;top:7px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:var(--line-2)}
   .insp-head{position:relative;padding-top:18px}
-  .insp-hero{max-height:240px}
+  .insp-hero{--hmax:300px}
   .studio{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 38cqh minmax(0,1fr)}
   .stage{display:contents}
   .stage-top{order:0;padding:6px 10px;min-height:46px;background:var(--bg)}

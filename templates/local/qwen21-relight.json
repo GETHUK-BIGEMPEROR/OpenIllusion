@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Changes the lighting of the photo in Image 1: direction, color, time of day. Nothing else moves.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "lighting",
-    "portrait"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Relight the photo in <image1>. New lighting: warm golden-hour sun from the left. Light direction, color and shadows change consistently across the face, body and background. Keep the person's identity, expression, pose, clothing, framing and composition exactly as they are.",
-      "examples": [
-        {
-          "label": "Golden hour",
-          "text": "Relight the photo in <image1>. New lighting: warm golden-hour sun from the left. Light direction, color and shadows change consistently across the face, body and background. Keep the person's identity, expression, pose, clothing, framing and composition exactly as they are."
-        },
-        {
-          "label": "Neon",
-          "text": "Relight the photo in <image1>. New lighting: cool blue neon from behind, magenta fill. Light direction, color and shadows change consistently across the face, body and background. Keep the person's identity, expression, pose, clothing, framing and composition exactly as they are."
-        },
-        {
-          "label": "Overcast",
-          "text": "Relight the photo in <image1>. New lighting: soft overcast daylight. Light direction, color and shadows change consistently across the face, body and background. Keep the person's identity, expression, pose, clothing, framing and composition exactly as they are."
-        },
-        {
-          "label": "Spotlight",
-          "text": "Relight the photo in <image1>. New lighting: single hard spotlight from above, dark background. Light direction, color and shadows change consistently across the face, body and background. Keep the person's identity, expression, pose, clothing, framing and composition exactly as they are."
-        }
-      ],
       "bind": [
         [
           "5",

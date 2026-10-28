@@ -153,7 +153,7 @@ export function useStatus() {
 }
 
 /** Sticky page header. With a title: title, actions, search, Comfy API, GPU. Without one (Explore): the filters take the
- *  title's place, and `sub` is a second row under them (Explore's tags). */
+ *  title's place, and `sub` is a second row under them. */
 /** A page's header. ``search={false}``: the page has its own search field, so no search button. ``bar``: a row of
  *  filters between the header line and ``sub`` (a row that scrolls sideways). */
 export function PageHead({ title, count, filters, actions, sub, bar, search = true }: { title?: ReactNode; count?: number | null; filters?: ReactNode; actions?: ReactNode; sub?: ReactNode; bar?: ReactNode; search?: boolean }) {

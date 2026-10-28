@@ -7,10 +7,6 @@
   "provider": "minimax",
   "blurb": "Brings Image 1 to life as a short video with sound. The photo is the first frame; the prompt says what happens next.",
   "source": "ComfyUI template video_minimax_h3_i2v with the FL2V 4-step turbo LoRA and the int8 text encoder",
-  "tags": [
-    "animate",
-    "portrait"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "The scene opens exactly on <Picture 1>. The person slowly turns their head toward the camera and breaks into a warm, natural smile. The camera holds steady with a gentle push-in. Audio: soft room tone and a quiet breath. Keep the person's identity, face, hair, outfit and the setting from <Picture 1>. Natural, realistic motion; no cuts.",
-      "examples": [
-        {
-          "label": "Turn and smile",
-          "text": "The scene opens exactly on <Picture 1>. The person slowly turns their head toward the camera and breaks into a warm, natural smile. The camera holds steady with a gentle push-in. Audio: soft room tone and a quiet breath. Keep the person's identity, face, hair, outfit and the setting from <Picture 1>. Natural, realistic motion; no cuts."
-        },
-        {
-          "label": "Breeze",
-          "text": "The scene opens exactly on <Picture 1>. A light breeze moves through the person's hair and clothes as they glance off to the side, then back at the camera. Audio: soft outdoor wind and distant birds. Keep the person's identity, face, hair, outfit and the setting from <Picture 1>. Natural, realistic motion; no cuts."
-        },
-        {
-          "label": "Laugh",
-          "text": "The scene opens exactly on <Picture 1>. The person laughs at something just off camera, shoulders relaxing, then settles into a grin. Audio: a natural, warm laugh. Keep the person's identity, face, hair, outfit and the setting from <Picture 1>. Natural, realistic motion; no cuts."
-        },
-        {
-          "label": "Orbit",
-          "text": "The scene opens exactly on <Picture 1>. The person holds still as the camera slowly arcs around them from left to right, revealing depth and light on the face. Audio: calm ambient room tone. Keep the person's identity, face, hair, outfit and the setting from <Picture 1>. Natural, realistic motion; no cuts."
-        }
-      ],
       "bind": [
         [
           "105:104",

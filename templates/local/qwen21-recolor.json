@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Changes the color of one thing in Image 1, keeping its material, shading and detail.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "color",
-    "product"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "In <image1>, change the color of the shoe to matte black with a white sole. Keep the material, texture, shading, reflections and every detail of it; only the color changes. Keep everything else in the image exactly as it is.",
-      "examples": [
-        {
-          "label": "Black shoe",
-          "text": "In <image1>, change the color of the shoe to matte black with a white sole. Keep the material, texture, shading, reflections and every detail of it; only the color changes. Keep everything else in the image exactly as it is."
-        },
-        {
-          "label": "Green jacket",
-          "text": "In <image1>, change the color of the jacket to forest green. Keep the material, texture, shading, reflections and every detail of it; only the color changes. Keep everything else in the image exactly as it is."
-        },
-        {
-          "label": "Blue car",
-          "text": "In <image1>, change the color of the car to pastel blue. Keep the material, texture, shading, reflections and every detail of it; only the color changes. Keep everything else in the image exactly as it is."
-        },
-        {
-          "label": "Terracotta walls",
-          "text": "In <image1>, change the color of the walls to warm terracotta. Keep the material, texture, shading, reflections and every detail of it; only the color changes. Keep everything else in the image exactly as it is."
-        }
-      ],
       "bind": [
         [
           "5",

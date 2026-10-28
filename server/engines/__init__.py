@@ -47,7 +47,7 @@ __all__ = [
 # Edits never touch the shipped file: the whole template is written to the user's
 # templates folder, which overrides it by id. Resetting deletes that copy.
 
-_TEXT_LIMIT = {"label": 80, "blurb": 400, "item": 240, "text": 4000, "examples": 12}
+_TEXT_LIMIT = {"label": 80, "blurb": 400, "text": 4000}
 
 
 def _clean(v: Any, limit: int) -> str:
@@ -59,30 +59,15 @@ def _clean(v: Any, limit: int) -> str:
     return v
 
 
-def _clean_list(v: Any, n: int = 20) -> list[str]:
-    if not isinstance(v, list) or len(v) > n:
-        raise ValueError(f"expected a list of up to {n} items")
-    return [x for x in (_clean(i, _TEXT_LIMIT["item"]) for i in v) if x]
-
-
 def _edit_input(f: dict, ch: Any) -> None:
-    """The prompt's default and ideas. Photos and clips have nothing to edit here: they're named by their place."""
+    """The prompt's default. Photos and clips have nothing to edit here: they're named by their place."""
     if not isinstance(ch, dict):
         raise ValueError("expected an object per input")
-    if ("default" in ch or "examples" in ch) and f["type"] != "text":
-        raise ValueError(f"{f.get('label') or f['key']}: only the prompt takes a default and ideas")
+    if "default" in ch and f["type"] != "text":
+        raise ValueError(f"{f.get('label') or f['key']}: only the prompt takes a default")
     if "default" in ch:
         f["default"] = _clean(ch["default"], _TEXT_LIMIT["text"])
-    if "examples" in ch:
-        if not isinstance(ch["examples"], list) or len(ch["examples"]) > _TEXT_LIMIT["examples"]:
-            raise ValueError(f"up to {_TEXT_LIMIT['examples']} ideas")
-        rows = []
-        for x in ch["examples"]:
-            x = x if isinstance(x, dict) else {"text": x}
-            text = _clean(x.get("text", ""), _TEXT_LIMIT["text"])
-            if text:
-                rows.append({"label": _clean(x.get("label") or "", _TEXT_LIMIT["item"]) or text[:60], "text": text})
-        f["examples"] = rows
+    f.pop("examples", None)
 
 
 def edit_template(engine_id: str, patch: dict) -> Engine:
@@ -94,9 +79,8 @@ def edit_template(engine_id: str, patch: dict) -> Engine:
         data["label"] = _clean(patch["label"], _TEXT_LIMIT["label"]) or data["label"]
     if "blurb" in patch:
         data["blurb"] = _clean(patch["blurb"], _TEXT_LIMIT["blurb"])
-    if "tags" in patch:
-        data["tags"] = _clean_list(patch["tags"])
     data.pop("tips", None)
+    data.pop("tags", None)  # templates had tags once; Explore no longer shows them
     if "inputs" in patch:
         if not isinstance(patch["inputs"], dict):
             raise ValueError("inputs: expected an object keyed by input")
@@ -233,7 +217,7 @@ def describe(e: Engine) -> dict:
         "max_images": e.max_images, "min_images": e.min_images, "needs_video": e.needs_video,
         "video_window": e.video_window, "fps_window": e.fps_window, "url_only": e.url_only,
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
-        "examples": e.examples, "tags": e.tags, "varies": varies(e), "inputs": e.inputs, "fields": fields, "requires": requirements(e),
+        "varies": varies(e), "inputs": e.inputs, "fields": fields, "requires": requirements(e),
         "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "model": e.model,
         "defaults": defaults, "mentions": mentions_of(e), "hidden": e.id in hidden_templates(),
         **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),

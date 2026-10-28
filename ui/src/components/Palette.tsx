@@ -53,7 +53,7 @@ function PaletteBody({ close }: { close: () => void }) {
   const rows = useMemo<Row[]>(() => {
     const s = q.trim().toLowerCase();
     const tpl = (engines.data ?? [])
-      .filter((e) => !e.hidden && (!s || `${e.label} ${(e.tags ?? []).join(" ")} ${e.blurb}`.toLowerCase().includes(s)))
+      .filter((e) => !e.hidden && (!s || `${e.label} ${e.blurb}`.toLowerCase().includes(s)))
       .slice(0, s ? 8 : 5)
       .map<Row>((e) => ({ key: `t:${e.id}`, group: "Templates", label: tplName(e), small: tplModel(e), img: e.cover, run: () => { openTemplate(e.mode, e.id); go({ name: e.mode }); } }));
     const gs = (s.length > 1 ? gens.data ?? [] : [])

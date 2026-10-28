@@ -41,8 +41,6 @@ export interface ParamSpec {
 
 export type MediaType = "image" | "video" | "audio";
 
-/** A prompt idea: a short name on the chip, the whole prompt it puts in the box. */
-export interface PromptIdea { label: string; text: string }
 
 /**
  * One thing a template takes, in the order the studio shows it. Photos and clips are keyed `image:N` / `video:N`,
@@ -50,7 +48,7 @@ export interface PromptIdea { label: string; text: string }
  */
 export type Field = (
   | { type: MediaType; size?: string; window?: [number, number]; fps?: [number, number]; fit?: Fit; role?: string; sample?: (Asset & { slot: string }) | null }
-  | (Omit<ParamSpec, "key" | "label"> & { examples?: PromptIdea[] })
+  | Omit<ParamSpec, "key" | "label">
   /** A declared output size: the width and height it writes come from the shape and step picked under Output. */
   | { type: "size"; aspect?: string; aspects?: string[]; default?: string; steps?: number[] }
 ) & { key: string; label: string; hint?: string; help?: string; required?: boolean; advanced?: boolean; bind?: unknown[][] };
@@ -76,8 +74,6 @@ export interface EngineInfo {
   source: string | null;
   prompt?: { label?: string; required?: boolean } | null;
   /** Prompts known to work, shown as chips. */
-  examples?: PromptIdea[];
-  tags?: string[];
   /** Whether two runs with the same inputs can differ (the workflow re-rolls a seed). Variants need it. */
   varies?: boolean;
   /** The photos and clips it takes (a view of `fields`). */
@@ -152,9 +148,9 @@ export interface WorkflowAnalysis {
 }
 type At = { node: string; input: string };
 export interface BuildPreset {
-  base: string; label: string; blurb: string; tags: string[]; mode: Mode;
+  base: string; label: string; blurb: string; mode: Mode;
   media: (At & { slot: string; label?: string; hint?: string; required?: boolean; window?: [number, number]; fps?: [number, number] })[];
-  prompt: (At & { label?: string; hint?: string; required?: boolean; default: string; examples: string[] }) | null;
+  prompt: (At & { label?: string; hint?: string; required?: boolean; default: string }) | null;
   params: (At & { key: string; label: string; default?: unknown; help?: string | null; type?: BuildParamType; options?: (string | number)[]; unit?: string; min?: number; max?: number; step?: number })[];
   size: { node: string; label?: string; aspect?: string; default?: string } | null;
   outputs: string[];
@@ -190,12 +186,12 @@ export type AdapterSetting = Omit<ParamSpec, "type"> & {
   aspects?: string[]; aspect?: string; steps?: number[]; sides?: [number, number]; pixels?: [number, number]; multiple?: number;
 };
 
-export interface BuildPrompt { node?: string; input?: string; label: string; hint: string; default: string; required: boolean; examples?: string[] }
+export interface BuildPrompt { node?: string; input?: string; label: string; hint: string; default: string; required: boolean }
 /** A cloud template opened in the Builder: its Router model, the adapter input each file fills, its prompt and settings. */
 export interface CloudPreset {
-  kind: "cloud"; base: string; model: string; label: string; blurb: string; tags: string[]; mode: Mode;
+  kind: "cloud"; base: string; model: string; label: string; blurb: string; mode: Mode;
   media: { slot: string; kind: MediaKind; input: number; sample: Asset | null }[];
-  prompt: { default: string; examples: string[] };
+  prompt: { default: string };
   settings: Record<string, { value: unknown; locked: boolean }>;
 }
 
@@ -203,7 +199,7 @@ export interface BuildSpec {
   kind: "local" | "cloud"; token?: string; model?: string; replace?: string;
   /** The template this one was built from: it keeps that one's sizing, tips and model hints. */
   base?: string;
-  label: string; blurb: string; mode: Mode; tags: string[];
+  label: string; blurb: string; mode: Mode;
   media: {
     /** Local: the loader's node and input. Cloud: the adapter input the file goes to, by index. */
     node?: string; input?: string | number; kind: MediaKind; label: string; hint: string; required: boolean; sample?: string | null;
@@ -251,9 +247,8 @@ export interface PrepPlan {
 export interface TemplatePatch {
   label?: string;
   blurb?: string;
-  tags?: string[];
-  /** The prompt's default and ideas, by input key. */
-  inputs?: Record<string, { default?: string; examples?: PromptIdea[] }>;
+  /** The prompt's default, by input key. */
+  inputs?: Record<string, { default?: string }>;
 }
 
 export interface MissingModel {

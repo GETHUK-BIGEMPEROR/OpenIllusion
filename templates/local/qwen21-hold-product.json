@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Puts the product from Image 2 in the hand of the person in Image 1. Logos and shape carry over.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "product",
-    "ad"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -41,16 +37,6 @@
       "type": "text",
       "required": true,
       "default": "Show the person in <image1> holding the product from <image2> in their hand. Holding it up next to their face. Reproduce the product exactly: shape, color, materials, logos and text. They hold it naturally at a realistic scale, fingers wrapped around it, with light and shadow matching the photo. Keep the person's face, identity, hair, clothing and background exactly as they are.",
-      "examples": [
-        {
-          "label": "By the face",
-          "text": "Show the person in <image1> holding the product from <image2> in their hand. Holding it up next to their face. Reproduce the product exactly: shape, color, materials, logos and text. They hold it naturally at a realistic scale, fingers wrapped around it, with light and shadow matching the photo. Keep the person's face, identity, hair, clothing and background exactly as they are."
-        },
-        {
-          "label": "At chest height",
-          "text": "Show the person in <image1> holding the product from <image2> in their hand. Holding it at chest height, showing it to the camera. Reproduce the product exactly: shape, color, materials, logos and text. They hold it naturally at a realistic scale, fingers wrapped around it, with light and shadow matching the photo. Keep the person's face, identity, hair, clothing and background exactly as they are."
-        }
-      ],
       "bind": [
         [
           "5",

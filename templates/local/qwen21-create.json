@@ -7,38 +7,12 @@
   "provider": "qwen",
   "blurb": "Makes a picture from words alone: photos, product shots, posters with lettering, illustrations.",
   "source": "ComfyUI template image_qwen_image_2_1_t2i (prompt enhancer left out)",
-  "tags": [
-    "create",
-    "poster"
-  ],
   "inputs": [
     {
       "key": "prompt",
       "type": "text",
       "required": true,
       "default": "High quality photograph of a young Korean woman cycling along a Copenhagen canal street at golden hour, hair moving in the wind, a canvas tote in the front basket, colorful townhouses softly blurred behind her. Candid, warm natural light, shot on 35mm film.",
-      "examples": [
-        {
-          "label": "Golden-hour cyclist",
-          "text": "High quality photograph of a young Korean woman cycling along a Copenhagen canal street at golden hour, hair moving in the wind, a canvas tote in the front basket, colorful townhouses softly blurred behind her. Candid, warm natural light, shot on 35mm film."
-        },
-        {
-          "label": "Perfume ad",
-          "text": "High quality product photograph of a frosted glass perfume bottle with a brass cap on a slab of black marble, one white orchid beside it, dramatic side light, soft reflections, deep shadows, luxury advertising look."
-        },
-        {
-          "label": "Travel poster",
-          "text": "High quality minimalist travel poster of Mount Fuji at sunrise, flat geometric shapes, warm orange and pink gradient sky, a small red torii gate in the foreground, the bold sans-serif title \"FUJI\" across the top."
-        },
-        {
-          "label": "Food overhead",
-          "text": "High quality overhead photograph of a bowl of Nigerian jollof rice with fried plantains and grilled chicken on a colorful woven tablecloth, a glass of hibiscus drink beside it, bright natural daylight."
-        },
-        {
-          "label": "Watercolor",
-          "text": "High quality watercolor illustration of a cozy corner bookshop on a rainy evening, warm glowing windows, stacks of books in the display and a ginger cat asleep among them, soft loose brushwork."
-        }
-      ],
       "bind": [
         [
           "459:452",

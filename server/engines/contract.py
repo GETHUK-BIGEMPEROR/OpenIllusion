@@ -40,9 +40,7 @@ class Engine:
     hints: dict = field(default_factory=dict)
     source: str | None = None
     prompt: dict | None = None  # {label, hint, required} of the template's prompt input, if it has one
-    examples: list[dict] = field(default_factory=list)  # prompts known to work: {label, text}
     tips: list[str] = field(default_factory=list)
-    tags: list[str] = field(default_factory=list)
     inputs: list[dict] = field(default_factory=list)  # the media inputs: {slot, label, hint, size, role}
     fields: list[dict] = field(default_factory=list)  # every input the template takes, in order (see load_template)
     data: dict | None = None  # the template file as loaded (local templates)
@@ -83,7 +81,7 @@ def upgrade(data: dict) -> dict:
 
     Version 1 kept media slots, the prompt and settings apart, bindings in their own map,
     and could hide fixed text around the prompt (``instruction`` nodes or ``prompt_wrap``).
-    That text is folded into the prompt's default and examples here, so it stays visible
+    That text is folded into the prompt's default here, so it stays visible
     and editable; the hidden copy in the workflow is emptied.
     """
     if int(data.get("version") or 1) >= 2:
@@ -126,7 +124,7 @@ def upgrade(data: dict) -> dict:
             elif part == "end":
                 end = node["inputs"][inp]
             node["inputs"][inp] = ""
-    examples = d.pop("examples", None) or []
+    d.pop("examples", None)  # prompt ideas: gone, the default prompt is the one to start from
     if "prompt" in binds and not pr.get("hidden"):
         wrapped = bool(start or end)
         f = {"key": "prompt", "type": "text", "label": "Prompt" if wrapped else pr.get("label") or "Prompt"}
@@ -134,8 +132,6 @@ def upgrade(data: dict) -> dict:
             f["hint"] = pr["hint"]
         f["required"] = True if wrapped else bool(pr.get("required", True))
         f["default"] = f"{start}{defaults.get('prompt') or ''}{end}"
-        if examples:
-            f["examples"] = [{"label": x, "text": f"{start}{x}{end}"} if wrapped else x for x in examples]
         f["bind"] = binds["prompt"]
         fields.append(f)
     for p in d.pop("params", None) or []:
@@ -166,17 +162,6 @@ def lift_computed(data: dict) -> dict:
     return d
 
 
-def _examples(v: Any) -> list[dict]:
-    """Prompt ideas: plain strings, or {label, text} when the chip shows a short name for a long prompt."""
-    out = []
-    for x in v or []:
-        if isinstance(x, str) and x.strip():
-            out.append({"label": x.strip(), "text": x})
-        elif isinstance(x, dict) and isinstance(x.get("text"), str) and x["text"].strip():
-            out.append({"label": str(x.get("label") or x["text"]).strip(), "text": x["text"]})
-    return out
-
-
 def _field(f: Any) -> dict:
     if not isinstance(f, dict) or f.get("type") not in FIELD_TYPES or not isinstance(f.get("key"), str):
         raise ValueError(f"bad input {f!r:.80}")
@@ -202,8 +187,7 @@ def _field(f: Any) -> dict:
         out.pop("hint", None)
         out["label"] = "Prompt"
     out.setdefault("label", key)
-    if "examples" in f:
-        out["examples"] = _examples(f["examples"])
+    out.pop("examples", None)  # files made when the prompt had ideas: the default prompt is the one to start from
     return out
 
 
@@ -296,7 +280,6 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         result=[list(p) for p in result] if cloud else [], keep_sound=keep,
         hints=data.get("hints", {}), source=data.get("source"),
         prompt={k: text[k] for k in ("label", "required") if k in text} if text else None,
-        examples=text.get("examples", []) if text else [], tags=list(data.get("tags", [])),
         inputs=slots, fields=fields,
         cover=media_path(base, data["cover"]) if base and data.get("cover") else None,
         cover_video=media_path(base, data["cover_video"]) if base and data.get("cover_video") else None,

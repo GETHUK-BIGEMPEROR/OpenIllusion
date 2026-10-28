@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Puts glasses or sunglasses on the person in Image 1.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "accessory",
-    "portrait"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Put glasses on the person in <image1>. The glasses: round tortoiseshell frames. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are.",
-      "examples": [
-        {
-          "label": "Tortoiseshell",
-          "text": "Put glasses on the person in <image1>. The glasses: round tortoiseshell frames. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are."
-        },
-        {
-          "label": "Gold aviators",
-          "text": "Put glasses on the person in <image1>. The glasses: thin gold aviator sunglasses. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are."
-        },
-        {
-          "label": "Black frames",
-          "text": "Put glasses on the person in <image1>. The glasses: thick black rectangular frames. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are."
-        },
-        {
-          "label": "Blue tint",
-          "text": "Put glasses on the person in <image1>. The glasses: clear frames with light blue lenses. They sit naturally on the nose and ears at the right scale, with realistic lens reflections and shadows. Keep the face, identity, eyes, expression, hair, pose, clothing, lighting, framing and background exactly as they are."
-        }
-      ],
       "bind": [
         [
           "5",

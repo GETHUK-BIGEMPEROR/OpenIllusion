@@ -14,13 +14,6 @@ import type { IconName } from "./sprite";
 export const tplName = (e: Pick<EngineInfo, "label">) => e.label.split(" · ")[0];
 export const tplModel = (e: Pick<EngineInfo, "label" | "provider">) => e.label.split(" · ")[1] ?? e.provider;
 
-/** Tags two or more templates share: the filters on Explore, most used first. */
-export function sharedTags(list: Pick<EngineInfo, "tags">[]): string[] {
-  const n = new Map<string, number>();
-  for (const e of list) for (const t of new Set(e.tags ?? [])) n.set(t, (n.get(t) ?? 0) + 1);
-  return [...n].filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
-}
-
 /** A template on the Explore wall. Click opens it in Create; the (i) button opens its details. */
 export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: EngineInfo; selected?: boolean; locked?: string | null; onUse: () => void; onInspect: () => void }) {
   const n = e.inputs?.length ?? 0;
@@ -70,7 +63,7 @@ export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: Eng
         </div>
         <span className="pill kindb" title={video ? "Makes a video" : "Makes a photo"}><I n={video ? "film" : "image"} />{video ? "Video" : "Photo"}</span>
       </div>
-      {/* Shown on hover, under the kind badge, so they never take room from the tags. */}
+      {/* Shown on hover, under the kind badge, so they never take room from the badges. */}
       <div className="cacts">
         {local && (
           <a className="icon-btn sm glass reveal" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} aria-label={`Download the ComfyUI workflow of ${tplName(e)}`} title="Download ComfyUI workflow"

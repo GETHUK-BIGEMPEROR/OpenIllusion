@@ -55,7 +55,7 @@ def test_shipped_templates_list_every_input_and_bind_it(tid):
     node, inp = prompt["bind"][0]
     assert e.workflow[node]["inputs"][inp] == prompt["default"] == e.default_prompt
     assert not any(n["class_type"] == "StringConcatenate" for n in e.workflow.values())
-    assert all(x["label"] and x["text"].startswith(prompt["default"][:12]) for x in d["examples"]) and d["tags"]
+    assert "examples" not in prompt and "examples" not in d and "tags" not in d
     # A template is its inputs, its prompt and the output settings any generator has (size, length, sound);
     # everything else runs as the workflow says.
     assert all(f["type"] in ("image", "video", "audio", "size") or f["key"] in ("prompt", "duration", "sound") for f in d["fields"])
@@ -229,7 +229,7 @@ def test_hat_describes_what_it_needs():
     d = engines.describe(engines.ENGINES[HAT])
     assert d["origin"] == "shipped" and d["edited"] is False
     assert d["inputs"][0]["slot"] == "image:1" and d["fields"][0]["sample"]["slot"] == "image:1"
-    assert d["examples"] and d["tags"] and "tips" not in d and d["varies"] is True
+    assert "examples" not in d and "tags" not in d and "tips" not in d and d["varies"] is True
     assert d["defaults"]["prompt"].startswith("Put a hat on") and "The hat sits naturally" in d["defaults"]["prompt"]
     assert [f["key"] for f in d["fields"]] == ["image:1", "prompt"]
     names = {m["name"] for m in d["requires"]["models"]}
@@ -242,15 +242,15 @@ def test_edit_writes_a_user_copy_and_reset_removes_it():
     shipped = engines.ENGINES[HAT].path
     before = shipped.read_text("utf-8")
     e = engines.edit_template(HAT, {
-        "label": "  Hat me  ", "tags": ["hat", " ", "fun"],
+        "label": "  Hat me  ",
         "inputs": {"prompt": {"default": "Give <image1> a top hat.", "examples": [{"label": "Top hat", "text": "Give <image1> a top hat."}, "Give <image1> a cap."]}},
     })
-    assert e.label == "Hat me" and e.tags == ["hat", "fun"] and e.prompt == {"label": "Prompt", "required": True}
+    assert e.label == "Hat me" and e.prompt == {"label": "Prompt", "required": True}
     assert e.default_prompt == "Give <image1> a top hat." and e.inputs[0]["label"] == "Image 1"
-    assert e.examples == [{"label": "Top hat", "text": "Give <image1> a top hat."}, {"label": "Give <image1> a cap.", "text": "Give <image1> a cap."}]
     assert e.origin == "user" and e.edited and e.default_inputs["image:1"].is_file()  # the sample stays where it shipped
     assert shipped.read_text("utf-8") == before
     saved = json.loads(e.path.read_text("utf-8"))
+    assert not any("examples" in f for f in saved["inputs"])  # prompt ideas are gone: one sent by an old page is dropped
     refs = [f["default"] for f in saved["inputs"] if f["type"] == "image" and f.get("default")] + [saved[k] for k in ("cover", "cover_video") if saved.get(k)]
     assert refs and all(r.startswith("shipped:local/media/") for r in refs)  # no machine's absolute path: backups restore anywhere
     assert e.cover is not None and e.cover.is_file()
@@ -266,8 +266,6 @@ def test_edit_writes_a_user_copy_and_reset_removes_it():
 @pytest.mark.usefixtures("fresh_templates")
 @pytest.mark.parametrize("patch", [
     {"label": "x" * 81},
-    {"tags": "hat"},
-    {"inputs": {"prompt": {"examples": ["x"] * 13}}},
     {"inputs": {"nope": {"label": "x"}}},
     {"inputs": {"prompt": {"default": 3}}},
     {"inputs": {"image:1": {"default": "other.png"}}},
@@ -350,7 +348,7 @@ def test_version_1_files_load_with_their_hidden_text_moved_into_the_prompt():
     e = engines.load_template(old)
     assert [(f["key"], f.get("required")) for f in e.fields] == [("image:1", True), ("image:2", False), ("prompt", True), ("steps", None)]
     assert e.default_prompt == "Give <image1> a beret. Keep the rest."
-    assert e.examples == [{"label": "a cap", "text": "Give <image1> a cap. Keep the rest."}]
+    assert not any("examples" in f for f in e.fields)  # its prompt ideas are dropped
     assert e.min_images == 1 and e.max_images == 2 and e.inputs[0] == {"slot": "image:1", "label": "Image 1", "size": "1 MP"}
     assert e.size["inputs"] == {"image:1": "1 MP", "image:2": "Original"}  # a size the template names is the input's default
     wf = e.build({"inputs": [{"slot": "image:1"}], "prompt": "Give <image1> a cap.", "params": {"steps": 9}})

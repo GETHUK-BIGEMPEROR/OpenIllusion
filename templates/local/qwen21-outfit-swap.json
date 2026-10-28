@@ -7,9 +7,6 @@
   "provider": "qwen",
   "blurb": "Dresses the person in Image 1 in the garment from Image 2. Fabric, color and pattern carry over; the person stays the same.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "fashion"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -40,20 +37,6 @@
       "type": "text",
       "required": true,
       "default": "Dress the person in <image1> in the outfit shown in <image2>. Keep it unbuttoned. Match the garment's color, fabric, pattern, details and fit exactly, draped naturally on their body and pose. Keep the face, identity, hair, pose, body shape, lighting, framing and background of <image1> exactly as they are.",
-      "examples": [
-        {
-          "label": "Unbuttoned",
-          "text": "Dress the person in <image1> in the outfit shown in <image2>. Keep it unbuttoned. Match the garment's color, fabric, pattern, details and fit exactly, draped naturally on their body and pose. Keep the face, identity, hair, pose, body shape, lighting, framing and background of <image1> exactly as they are."
-        },
-        {
-          "label": "Sleeves rolled",
-          "text": "Dress the person in <image1> in the outfit shown in <image2>. Sleeves rolled up to the elbow. Match the garment's color, fabric, pattern, details and fit exactly, draped naturally on their body and pose. Keep the face, identity, hair, pose, body shape, lighting, framing and background of <image1> exactly as they are."
-        },
-        {
-          "label": "Tucked in",
-          "text": "Dress the person in <image1> in the outfit shown in <image2>. Tucked into the trousers. Match the garment's color, fabric, pattern, details and fit exactly, draped naturally on their body and pose. Keep the face, identity, hair, pose, body shape, lighting, framing and background of <image1> exactly as they are."
-        }
-      ],
       "bind": [
         [
           "5",

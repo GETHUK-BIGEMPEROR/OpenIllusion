@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Turns the scene in Image 1 into another season, weather or time of day. Everything stays where it is.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "scene",
-    "weather"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Change the season and weather in <image1> to: deep winter, heavy snowfall. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place.",
-      "examples": [
-        {
-          "label": "Snowfall",
-          "text": "Change the season and weather in <image1> to: deep winter, heavy snowfall. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place."
-        },
-        {
-          "label": "Autumn",
-          "text": "Change the season and weather in <image1> to: autumn, golden leaves, soft afternoon light. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place."
-        },
-        {
-          "label": "Thunderstorm",
-          "text": "Change the season and weather in <image1> to: a thunderstorm, dark clouds and rain. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place."
-        },
-        {
-          "label": "Blue hour",
-          "text": "Change the season and weather in <image1> to: blue hour, city lights coming on. Update the sky, light, ground, plants and surfaces to match, consistently across the whole picture. Keep the composition, buildings, landscape and every object in its place."
-        }
-      ],
       "bind": [
         [
           "5",

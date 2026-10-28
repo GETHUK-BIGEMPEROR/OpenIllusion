@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Puts a hat on the person in Image 1 and leaves everything else alone.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "accessory",
-    "portrait"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Put a hat on the person in <image1>. The hat: straw fedora with a black band. The hat sits naturally on the head, at the right scale, with light and shadow that match the photo. Keep the face, identity, hair outside the hat, expression, pose, clothing, lighting, framing and background exactly as they are.",
-      "examples": [
-        {
-          "label": "Red beanie",
-          "text": "Put a hat on the person in <image1>. The hat: red wool beanie, slightly tilted. The hat sits naturally on the head, at the right scale, with light and shadow that match the photo. Keep the face, identity, hair outside the hat, expression, pose, clothing, lighting, framing and background exactly as they are."
-        },
-        {
-          "label": "Straw fedora",
-          "text": "Put a hat on the person in <image1>. The hat: straw fedora with a black band. The hat sits naturally on the head, at the right scale, with light and shadow that match the photo. Keep the face, identity, hair outside the hat, expression, pose, clothing, lighting, framing and background exactly as they are."
-        },
-        {
-          "label": "Backwards cap",
-          "text": "Put a hat on the person in <image1>. The hat: white baseball cap, worn backwards. The hat sits naturally on the head, at the right scale, with light and shadow that match the photo. Keep the face, identity, hair outside the hat, expression, pose, clothing, lighting, framing and background exactly as they are."
-        },
-        {
-          "label": "Wide-brim felt",
-          "text": "Put a hat on the person in <image1>. The hat: black wide-brim felt hat. The hat sits naturally on the head, at the right scale, with light and shadow that match the photo. Keep the face, identity, hair outside the hat, expression, pose, clothing, lighting, framing and background exactly as they are."
-        }
-      ],
       "bind": [
         [
           "5",

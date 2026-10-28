@@ -4,11 +4,6 @@
   "mode": "motion",
   "label": "Character swap · MiniMax H3",
   "blurb": "Puts the character from Image 1 into Video 1 in place of one person. Their pose, timing, camera and scene stay; face, hair and outfit come from the photo.",
-  "tags": [
-    "swap",
-    "character",
-    "lora"
-  ],
   "size": {
     "multiple": 32
   },

@@ -261,10 +261,6 @@ export function GenerationDetail({ id }: { id: string }) {
           <Lineage m={m} />
 
           <div className="kv">
-            <div className="kv-h">Tags</div>
-            <Tags tags={m.tags} onSave={(tags) => save({ tags })} />
-          </div>
-          <div className="kv">
             <div className="kv-h"><label htmlFor="vnotes">Notes</label></div>
             <Notes m={m} onSave={(notes) => save({ notes })} />
           </div>
@@ -361,27 +357,6 @@ function Notes({ m, onSave }: { m: Manifest; onSave: (v: string) => void }) {
   const [v, setV] = useState(m.notes);
   useEffect(() => setV(m.notes), [m.notes]);
   return <textarea className="textarea" id="vnotes" rows={3} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== m.notes && onSave(v)} placeholder="What worked, what to try next" />;
-}
-
-function Tags({ tags, onSave }: { tags: string[]; onSave: (t: string[]) => void }) {
-  const [v, setV] = useState("");
-  const add = () => {
-    const t = v.trim().replace(/^#/, "").toLowerCase();
-    if (t && !tags.includes(t)) onSave([...tags, t]);
-    setV("");
-  };
-  return (
-    <div className="tags">
-      {tags.map((t) => (
-        <span key={t} className="tag" style={{ display: "inline-flex", alignItems: "center", gap: 2, paddingRight: 3 }}>
-          {t}
-          <button type="button" aria-label={`Remove tag ${t}`} onClick={() => onSave(tags.filter((x) => x !== t))} style={{ width: 16, height: 16, display: "grid", placeItems: "center", borderRadius: 4 }}><I n="x" style={{ width: 10, height: 10 }} /></button>
-        </span>
-      ))}
-      <input className="input" aria-label="Add tag" value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); } }} onBlur={add}
-        placeholder="Add tag" style={{ height: 26, width: 110, fontSize: 12, borderRadius: 8, padding: "0 8px" }} />
-    </div>
-  );
 }
 
 function Lineage({ m }: { m: Manifest }) {

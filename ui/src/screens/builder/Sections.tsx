@@ -426,7 +426,7 @@ export function TitleField({ d, setD, invalid, from }: { d: Details; setD: (f: (
         {model && <span className="pill bname-m" title="The model, shown under the name on Explore">{model}</span>}
       </div>
       {invalid && <span className="bname-err" role="alert">Give it a name. Explore, Create and your Library show it.</span>}
-      {from && <p className="bname-from">Built from <b>{from}</b>. Keeps its prompt ideas.</p>}
+      {from && <p className="bname-from">Built from <b>{from}</b>.</p>}
     </div>
   );
 }

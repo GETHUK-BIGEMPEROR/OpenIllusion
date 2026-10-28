@@ -209,7 +209,7 @@ def test_api_json_and_png_are_read():
 
 def _local_spec(**over):
     spec = {
-        "label": "Red hat", "blurb": "Puts a hat on", "tags": ["Hat"],
+        "label": "Red hat", "blurb": "Puts a hat on",
         "media": [{"node": "10", "input": "image", "kind": "image", "label": "Photo", "required": True}],
         "prompt": {"node": "12:2", "input": "text", "label": "What hat", "default": "Add a red hat to the person."},
         "params": [{"node": "12:5", "input": "steps", "type": "int", "label": "Steps", "min": 1, "max": 30},
@@ -235,7 +235,7 @@ def test_local_template_round_trip():
     assert data["workflow"]["12:2"]["inputs"]["text"] == "Add a red hat to the person."
     data["id"] = "red-hat"
     e = engines.load_template(data)
-    assert e.id == "local/red-hat" and e.built and e.min_images == 1 and e.tags == ["hat"]
+    assert e.id == "local/red-hat" and e.built and e.min_images == 1 and "tags" not in data
     assert e.default_prompt == "Add a red hat to the person."
     wf = e.build({"inputs": [{"slot": "image:1"}], "prompt": "Add a blue cap.", "params": {"steps": 12, "seed": 5, "sampler_name": "dpmpp_2m"}})
     assert wf["12:2"]["inputs"]["text"] == "Add a blue cap."

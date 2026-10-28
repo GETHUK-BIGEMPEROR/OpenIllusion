@@ -77,7 +77,7 @@ export function UseAsCover({ e, run }: { e: EngineInfo; run: string }) {
   );
 }
 
-/** The prompt, whole: what's in the box is what the workflow gets. Ideas swap in a complete prompt. */
+/** The prompt, whole: what's in the box is what the workflow gets. */
 export function PromptSection({ s, set, engine, invalid, onRun }: {
   s: StudioState; set: SetS; engine?: EngineInfo; invalid: boolean; onRun: () => void;
 }) {
@@ -104,7 +104,6 @@ export function PromptSection({ s, set, engine, invalid, onRun }: {
   const files = engine?.kind === "cloud" ? filled(engine, s) : [];
   const named = engine?.kind === "cloud" && !!Object.keys(engine.mentions ?? {}).length;
   const def = pf.default ?? engine?.defaults?.prompt ?? "";
-  const ideas = pf.examples ?? [];
   return (
     <section className="sec" aria-labelledby="sec-prompt">
       <div className="sec-h">
@@ -120,11 +119,6 @@ export function PromptSection({ s, set, engine, invalid, onRun }: {
         <div className="pbox-foot">{named ? <span title={`Image 1, Video 1… go to ${tplModel(engine!)} in its own form, such as ${(engine!.mentions!.image ?? Object.values(engine!.mentions!)[0]).replace("{n}", "1")}`}>Names sent in {tplModel(engine!)}'s form</span> : <span>Sent exactly as written</span>}<kbd>Ctrl</kbd><kbd>↵</kbd><span>runs</span></div>
       </div>
       {engine?.kind === "cloud" && <Mentions list={mentions(engine.mentions, files)} none={noNames(engine.mentions, files, tplModel(engine))} model={tplModel(engine)} ta={ta} value={s.prompt} onChange={(v) => set({ prompt: v })} />}
-      {!!ideas.length && (
-        <div className="ideas" role="group" aria-label="Prompt ideas">
-          {ideas.map((x) => <button key={x.label} className="ex" type="button" title={x.text} aria-pressed={s.prompt === x.text} onClick={() => set({ prompt: x.text })}>{x.label}</button>)}
-        </div>
-      )}
     </section>
   );
 }

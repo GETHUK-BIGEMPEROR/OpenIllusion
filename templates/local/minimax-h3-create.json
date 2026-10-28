@@ -7,34 +7,12 @@
   "provider": "minimax",
   "blurb": "Makes a short video with sound from words alone. Describe the scene, the action, the camera and the audio.",
   "source": "ComfyUI template video_minimax_h3_t2v with the FL2V 4-step turbo LoRA and the int8 text encoder",
-  "tags": [
-    "create",
-    "scene"
-  ],
   "inputs": [
     {
       "key": "prompt",
       "type": "text",
       "required": true,
       "default": "Realistic cinematic footage. A slow aerial drone shot glides over a Norwegian fjord at sunrise, mist on still water, a small red cabin on the rocky shore, steep green cliffs. Audio: soft wind and distant birds.",
-      "examples": [
-        {
-          "label": "Fjord flyover",
-          "text": "Realistic cinematic footage. A slow aerial drone shot glides over a Norwegian fjord at sunrise, mist on still water, a small red cabin on the rocky shore, steep green cliffs. Audio: soft wind and distant birds."
-        },
-        {
-          "label": "Fisherman at dawn",
-          "text": "Realistic cinematic footage. An elderly fisherman in a yellow raincoat hauls a net onto a small wooden boat at dawn, waves rocking the boat, seagulls circling overhead, pale pink sky. Slow handheld push-in. Audio: waves against the hull, creaking wood, gulls."
-        },
-        {
-          "label": "Street dancer",
-          "text": "Realistic cinematic footage. A young dancer in a red hoodie breakdances on a wet Seoul side street at night, neon signs reflected in the puddles. Low-angle tracking shot circling the dancer. Audio: a hip-hop beat from a small speaker, city hum."
-        },
-        {
-          "label": "Wok fire",
-          "text": "Realistic cinematic footage. Close-up of a cook's hands tossing vegetables in a flaming wok in a busy restaurant kitchen, sparks and steam rising. Steady close shot, shallow depth of field. Audio: sizzling, clanging pans, kitchen chatter."
-        }
-      ],
       "bind": [
         [
           "140:131",

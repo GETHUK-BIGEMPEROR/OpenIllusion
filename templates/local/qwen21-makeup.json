@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Applies a makeup look to the person in Image 1, blended to their face and light.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "beauty",
-    "portrait"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Apply this makeup to the person in <image1>: bold red lips and winged eyeliner. The makeup looks realistic and well blended, following the shape of the face and the lighting of the photo. Keep the face shape, identity, skin texture, expression, hair, pose, clothing, framing and background exactly as they are.",
-      "examples": [
-        {
-          "label": "Red lips",
-          "text": "Apply this makeup to the person in <image1>: bold red lips and winged eyeliner. The makeup looks realistic and well blended, following the shape of the face and the lighting of the photo. Keep the face shape, identity, skin texture, expression, hair, pose, clothing, framing and background exactly as they are."
-        },
-        {
-          "label": "Natural glow",
-          "text": "Apply this makeup to the person in <image1>: soft natural glow, peach blush. The makeup looks realistic and well blended, following the shape of the face and the lighting of the photo. Keep the face shape, identity, skin texture, expression, hair, pose, clothing, framing and background exactly as they are."
-        },
-        {
-          "label": "Smoky eyes",
-          "text": "Apply this makeup to the person in <image1>: smoky eyes, nude lips. The makeup looks realistic and well blended, following the shape of the face and the lighting of the photo. Keep the face shape, identity, skin texture, expression, hair, pose, clothing, framing and background exactly as they are."
-        },
-        {
-          "label": "Glitter",
-          "text": "Apply this makeup to the person in <image1>: glitter eyeshadow, glossy pink lips. The makeup looks realistic and well blended, following the shape of the face and the lighting of the photo. Keep the face shape, identity, skin texture, expression, hair, pose, clothing, framing and background exactly as they are."
-        }
-      ],
       "bind": [
         [
           "5",

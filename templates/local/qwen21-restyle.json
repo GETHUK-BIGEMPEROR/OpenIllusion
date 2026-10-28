@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Redraws the photo in Image 1 in another style: anime, 3D, painting, comic. The scene and the people stay recognizable.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "style",
-    "art"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,28 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Redraw the image in <image1> in this style: Studio Ghibli style watercolor anime. Apply the style consistently to the whole picture. Keep the composition, framing, poses, each person's recognizable features and expression, and the layout of everything in the scene.",
-      "examples": [
-        {
-          "label": "Ghibli",
-          "text": "Redraw the image in <image1> in this style: Studio Ghibli style watercolor anime. Apply the style consistently to the whole picture. Keep the composition, framing, poses, each person's recognizable features and expression, and the layout of everything in the scene."
-        },
-        {
-          "label": "3D render",
-          "text": "Redraw the image in <image1> in this style: glossy 3D Pixar-style render. Apply the style consistently to the whole picture. Keep the composition, framing, poses, each person's recognizable features and expression, and the layout of everything in the scene."
-        },
-        {
-          "label": "Claymation",
-          "text": "Redraw the image in <image1> in this style: claymation, soft studio light. Apply the style consistently to the whole picture. Keep the composition, framing, poses, each person's recognizable features and expression, and the layout of everything in the scene."
-        },
-        {
-          "label": "Comic book",
-          "text": "Redraw the image in <image1> in this style: 1980s comic book with halftone dots. Apply the style consistently to the whole picture. Keep the composition, framing, poses, each person's recognizable features and expression, and the layout of everything in the scene."
-        },
-        {
-          "label": "Oil painting",
-          "text": "Redraw the image in <image1> in this style: oil painting with thick brush strokes. Apply the style consistently to the whole picture. Keep the composition, framing, poses, each person's recognizable features and expression, and the layout of everything in the scene."
-        }
-      ],
       "bind": [
         [
           "5",

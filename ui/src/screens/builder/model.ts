@@ -54,7 +54,7 @@ export interface PromptState {
   required: boolean;
 }
 
-export interface Details { label: string; blurb: string; mode: Mode; tags: string }
+export interface Details { label: string; blurb: string; mode: Mode }
 
 /** Local: the node a run's result comes from, and where a declared output size goes ("" when the workflow sizes itself). */
 export interface OutputState { result: string; size: string; keep?: { label?: string; aspect?: string; default?: string } }
@@ -107,7 +107,7 @@ export function fromWorkflow(a: WorkflowAnalysis): { media: MediaRow[]; prompt: 
     group: `${p.title} · #${p.node}`, name: p.input, min: p.min, max: p.max, step: p.step, options: p.options, help: p.help,
     suggested: p.suggested, node: p.node, input: p.input,
   }));
-  const details: Details = { label: fileTitle(a.source), blurb: "", mode: a.mode, tags: "" };
+  const details: Details = { label: fileTitle(a.source), blurb: "", mode: a.mode };
   // Made from words alone with one place to set width and height: people pick the output's shape and size.
   const output: OutputState = { result: a.outputs[0] ?? "", size: a.size?.node ?? "" };
   return a.preset ? withPreset(a.preset, { media, prompt, params, details, output }) : { media, prompt, params, details, output };
@@ -139,6 +139,6 @@ function withPreset(p: BuildPreset, init: { media: MediaRow[]; prompt: PromptSta
       const own = x ? Object.fromEntries((["type", "options", "unit", "min", "max", "step"] as const).filter((k) => x[k] !== undefined).map((k) => [k, x[k]])) : {};
       return x ? { ...r, ...own, on: true, label: x.label, key: x.key, value: x.default ?? r.value, help: x.help ?? r.help } : { ...r, on: false };
     }),
-    details: { label: p.label, blurb: p.blurb, mode: p.mode, tags: p.tags.join(", ") },
+    details: { label: p.label, blurb: p.blurb, mode: p.mode },
   };
 }

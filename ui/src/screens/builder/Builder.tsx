@@ -60,14 +60,14 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
   const [media, setMedia] = useState<MediaRow[]>([]);
   const [prompt, setPrompt] = useState<PromptState>({ pick: "", label: "", hint: "", def: "", required: true });
   const [params, setParams] = useState<ParamRow[]>([]);
-  const [details, setDetails] = useState<Details>({ label: "", blurb: "", mode: "edit", tags: "" });
+  const [details, setDetails] = useState<Details>({ label: "", blurb: "", mode: "edit" });
   const [output, setOutput] = useState<OutputState>({ result: "", size: "" });
   const [csets, setCsets] = useState<CloudSettingState>({});
   const [saving, setSaving] = useState<"save" | "try" | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
   const [track, setTrack] = useState<Track>(cloud ? "cloud" : "local");
-  // A cloud template this one is built from: it keeps that one's prompt ideas.
+  // A cloud template this one is built from: it keeps that one's model hints and the multiple its inputs are trimmed to.
   const [base, setBase] = useState<string | undefined>(undefined);
 
   const load = (s: Source) => {
@@ -100,7 +100,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     const jobs = routerJobs(a);
     setMedia(toJob(jobs.find((j) => used.every((i) => j.inputs.includes(i))) ?? jobs[0], rows));
     setPrompt((x) => ({ ...x, def: p.prompt.default }));
-    setDetails({ label: p.label, blurb: p.blurb, mode: a.mode, tags: p.tags.join(", ") });
+    setDetails({ label: p.label, blurb: p.blurb, mode: a.mode });
     setCsets(p.settings);
     setBase(p.base);
   };
@@ -216,7 +216,6 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     const shown = params.filter((r) => r.on && !sizeOwns(r));
     const shared = {
       label: details.label.trim(), blurb: details.blurb.trim(), mode: details.mode,  // mode: the server reads it off the result node for workflows
-      tags: details.tags.split(",").map((t) => t.trim()).filter(Boolean),
       media: on.map((m) => ({
         node: m.node, input: src.kind === "cloud" ? m.slot : m.input, kind: m.kind, label: "", hint: "", required: src.kind === "cloud" || m.required, sample: m.sample?.asset ?? null,
       })),

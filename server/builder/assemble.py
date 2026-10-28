@@ -128,9 +128,6 @@ def _common(spec: dict, media: list[dict]) -> dict:
     if pr:
         f = {"key": "prompt", "type": "text", "required": bool(pr.get("required", True)),
              "default": _txt(pr.get("default"), TEXT_MAX["default_prompt"], "the default prompt")}
-        examples = [e for e in (_txt(x, TEXT_MAX["default_prompt"], "an example") for x in (pr.get("examples") or [])[:12]) if e]
-        if examples:
-            f["examples"] = examples
         fields.append(f)
     return {
         "format": "openillusion.template",
@@ -138,7 +135,6 @@ def _common(spec: dict, media: list[dict]) -> dict:
         "mode": mode,
         "label": label,
         "blurb": _txt(spec.get("blurb"), TEXT_MAX["blurb"], "the description"),
-        "tags": [t for t in (_txt(x, 24, "a tag").lower() for x in (spec.get("tags") or [])[:8]) if t],
         "inputs": fields,
         "built": True,
     }
@@ -289,8 +285,7 @@ def preset(e) -> dict:
     keep = ("label", "hint", "required")
     media = [{**at(f), "slot": f["key"], **{k: f[k] for k in (*keep, "window", "fps") if k in f}} for f in e.fields if f["type"] in ("image", "video", "audio")]
     text = next((f for f in e.fields if f["key"] == "prompt"), None)
-    prompt = {**at(text), **{k: text[k] for k in keep if k in text}, "default": e.default_prompt,
-              "examples": [x.get("text", "") if isinstance(x, dict) else str(x) for x in text.get("examples") or []]} if text else None
+    prompt = {**at(text), **{k: text[k] for k in keep if k in text}, "default": e.default_prompt} if text else None
     # A control the workflow doesn't read (Sound, put on after the run) has no node to match: the copy goes without it.
     params = [{**at(f), "key": f["key"], "label": f.get("label") or _label(f["key"]), "default": f.get("default"), "help": f.get("help"),
                **{k: f[k] for k in ("type", "options", "unit", "min", "max", "step") if k in f}}
@@ -298,7 +293,7 @@ def preset(e) -> dict:
     out = next((f for f in e.fields if f["type"] == "size"), None)
     size = {"node": str(out["bind"][0][0]), **{k: out[k] for k in ("label", "aspect", "default") if k in out}} if out else None
     name, _, rest = e.label.partition(" · ")
-    return {"base": e.id, "label": f"{name} (copy)" + (f" · {rest}" if rest else ""), "blurb": e.blurb, "tags": list(e.tags),
+    return {"base": e.id, "label": f"{name} (copy)" + (f" · {rest}" if rest else ""), "blurb": e.blurb,
             "mode": e.mode, "media": media, "prompt": prompt, "params": params, "size": size, "outputs": list(e.outputs)}
 
 
@@ -348,11 +343,10 @@ def cloud_preset(e) -> dict:
             if [at(out, p) for p in adapters.setting_paths(s)] == want:
                 values[s["key"]] = v
                 break
-    text = next((f for f in e.fields if f["key"] == "prompt"), None) or {}
     name, _, rest = e.label.partition(" · ")
     return {"kind": "cloud", "base": e.id, "model": a.model, "label": f"{name} (copy)" + (f" · {rest}" if rest else ""),
-            "blurb": e.blurb, "tags": list(e.tags), "mode": e.mode, "media": media,
-            "prompt": {"default": e.default_prompt, "examples": [x.get("text", "") if isinstance(x, dict) else str(x) for x in text.get("examples") or []]},
+            "blurb": e.blurb, "mode": e.mode, "media": media,
+            "prompt": {"default": e.default_prompt},
             "settings": {s["key"]: {"value": values[s["key"]], "locked": s in locked} for s in on}}
 
 
@@ -369,18 +363,11 @@ def _choices(s: dict) -> list:
 
 def inherit(data: dict, base: dict, base_label: str) -> None:
     """A template built from another keeps what the builder doesn't show: the multiple its inputs are
-    trimmed to, its model hints and its prompt ideas."""
+    trimmed to and its model hints."""
     if (base.get("size") or {}).get("multiple"):
         data["size"] = {"multiple": base["size"]["multiple"]}
     if base.get("hints"):
         data["hints"] = copy.deepcopy(base["hints"])
-    old = {f.get("key"): f for f in base.get("inputs") or []}
-    for f in data["inputs"]:
-        o = old.get(f["key"])
-        if not o or o.get("type") != f["type"]:
-            continue
-        if f["key"] == "prompt" and o.get("examples") and not f.get("examples"):
-            f["examples"] = copy.deepcopy(o["examples"])
     data["source"] = f"Built in OpenIllusion from {base_label}"
 
 

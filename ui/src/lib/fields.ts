@@ -1,4 +1,4 @@
-import { isMedia, type EngineInfo, type Field, type Fit, type MediaType, type ParamSpec, type PromptIdea } from "./api";
+import { isMedia, type EngineInfo, type Field, type Fit, type MediaType, type ParamSpec } from "./api";
 
 /**
  * A template's inputs, read the same way everywhere. The studio draws whatever a template lists here;
@@ -37,11 +37,11 @@ export const clipFps = (e: EngineInfo | undefined, slot: string): [number, numbe
   return f?.fps ?? (e?.fields?.length ? [1, 60] : e?.fps_window ?? [1, 60]);
 };
 
-export interface PromptField { key: "prompt"; label: string; hint?: string; required?: boolean; default?: string; examples?: PromptIdea[] }
+export interface PromptField { key: "prompt"; label: string; hint?: string; required?: boolean; default?: string }
 
 /** The template's prompt. Raw Router models have no fields and always take one. */
 export const promptField = (e?: EngineInfo): PromptField | undefined =>
-  e?.fields?.length ? (e.fields.find((f) => f.key === "prompt") as PromptField | undefined) : e ? { key: "prompt", label: "Prompt", examples: e.examples } : undefined;
+  e?.fields?.length ? (e.fields.find((f) => f.key === "prompt") as PromptField | undefined) : e ? { key: "prompt", label: "Prompt" } : undefined;
 
 /** Settings: everything that isn't a photo, a clip or the prompt. `advanced` ones go under Advanced. */
 export function settingsOf(e?: EngineInfo): { main: ParamSpec[]; advanced: ParamSpec[] } {

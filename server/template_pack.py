@@ -61,6 +61,9 @@ def export(engine_id: str) -> tuple[bytes, str]:
     if e is None or e.data is None or e.path is None:
         raise KeyError(engine_id)
     data = engines.upgrade(copy.deepcopy(e.data))
+    data.pop("tags", None)
+    for f in data.get("inputs") or []:
+        f.pop("examples", None)
     files: dict[str, bytes] = {}
     taken: dict[Path, str] = {}
     for holder, key in _refs(data):

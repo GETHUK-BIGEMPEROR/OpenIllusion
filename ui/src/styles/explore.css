@@ -8,7 +8,8 @@
 .insp-body{flex:1;min-height:0;overflow:auto;padding:16px 18px 24px;display:flex;flex-direction:column;gap:20px;scrollbar-width:thin}
 .insp-foot{display:flex;gap:8px;padding:12px 18px 16px;border-top:1px solid var(--line)}
 .insp-foot .btn{flex:1;height:42px;border-radius:12px}
-.insp-hero{flex:none;position:relative;border-radius:16px;overflow:hidden;aspect-ratio:var(--ar);max-height:360px;margin:0 auto;width:100%;background:var(--raised)}
+/* As wide as the panel, or as wide as its shape allows at --hmax tall: the box always has the cover's own ratio. */
+.insp-hero{--hmax:min(460px,56vh);flex:none;position:relative;border-radius:16px;overflow:hidden;aspect-ratio:var(--ar);width:min(100%,calc(var(--hmax) * var(--ar)));margin:0 auto;background:var(--raised)}
 .insp-title h3{margin:0;font:600 22px/1.15 var(--display);letter-spacing:-.01em;text-wrap:balance}
 .insp-title p{margin:6px 0 0;color:var(--text-3);font-size:12.5px}
 .insp-blurb{margin:0;color:var(--text-2);font-size:13.5px;line-height:1.55}
@@ -20,7 +21,6 @@
 .inrow b{display:block;font-size:13px;font-weight:500}
 .inrow span{font-size:11.5px;color:var(--text-3)}
 .quote{padding:12px 14px;border-radius:12px;background:var(--field);border:1px solid var(--line);font-size:13.5px;line-height:1.5}
-.tags{display:flex;flex-wrap:wrap;gap:6px}
 .tag{height:26px;padding:0 10px;border-radius:8px;background:var(--raised);font-size:12px;color:var(--text-2);display:inline-flex;align-items:center}
 .checks{display:grid;gap:8px;font-size:12.5px;color:var(--text-2)}
 .checks div{display:flex;align-items:center;gap:9px}
@@ -87,12 +87,12 @@
 }
 
 /* Stuck to the bottom of the wall, see-through: add a template someone shared. */
-.xadd{position:sticky;bottom:16px;z-index:4;display:flex;align-items:center;gap:14px;margin-top:22px;padding:10px 12px 10px 14px;border-radius:16px;border:1.5px dashed rgba(255,255,255,.18);background:rgba(20,16,28,.55);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);box-shadow:0 10px 30px rgba(0,0,0,.35);transition:border-color .15s,background .15s}
+.xadd{position:sticky;bottom:16px;z-index:4;max-width:720px;margin-inline:auto;display:flex;align-items:center;gap:14px;margin-top:22px;padding:10px 12px 10px 14px;border-radius:16px;border:1.5px dashed rgba(255,255,255,.18);background:rgba(20,16,28,.55);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);box-shadow:0 10px 30px rgba(0,0,0,.35);transition:border-color .15s,background .15s}
 .xadd.over{border-color:var(--yellow);background:color-mix(in srgb,var(--yellow) 10%,rgba(20,16,28,.7))}
 .xadd-ic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--text-2)}
 .xadd-ic .i{width:18px;height:18px}
 .xadd-t{flex:1;min-width:0}
 .xadd-t b{display:block;font-size:14px;font-weight:600}
-.xadd-t p{margin:2px 0 0;font-size:12px;line-height:1.45;color:var(--text-3)}
+.xadd-t p{margin:2px 0 0;font-size:12px;line-height:1.45;color:rgba(255,255,255,.86)}
 .xadd>.btn{flex:none}
-@container app (max-width:560px){.xadd{flex-wrap:wrap}.xadd>.btn{width:100%;justify-content:center}}
+@container app (max-width:560px){.xadd{gap:10px;padding:8px 8px 8px 10px}.xadd-t p{display:none}.xadd-t b{font-size:13px}}

@@ -63,10 +63,6 @@
 .slotrow.empty .sth{display:grid;place-items:center;color:var(--text-2);background:var(--raised)}
 .slotrow.drag{border-color:var(--violet)!important;background:rgba(154,134,240,.12)!important;box-shadow:0 0 0 4px rgba(154,134,240,.15)}
 .tag-sample{font:600 9.5px/1 var(--body);letter-spacing:.06em;padding:3px 5px;border-radius:5px;background:var(--yellow);color:var(--on-yellow)}
-.ex{font-size:12px;padding:6px 10px;border-radius:999px;background:var(--raised);border:1px solid var(--line);color:var(--text-2);transition:all .15s;line-height:1.2}
-.ex:hover{color:var(--text);border-color:var(--line-2)}
-.ex[aria-pressed="true"]{border-color:rgba(242,255,89,.5);color:var(--yellow)}
-.examples{display:flex;flex-wrap:wrap;gap:6px}
 .sizes{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:3px;border-radius:12px;background:var(--bg);border:1px solid var(--line)}
 .sizes button{padding:7px 4px 6px;border-radius:9px;text-align:center;color:var(--text-2);transition:background .15s}
 .sizes button b{display:block;font-size:13px;font-weight:600;white-space:nowrap}
@@ -166,8 +162,6 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .pbox-foot span:first-child{margin-right:auto}
 .pbox-foot kbd{font-size:10px;padding:0 4px;height:17px}
 .pbox-foot span:last-child{margin-left:2px}
-.ideas{display:flex;flex-wrap:wrap;gap:6px}
-.ideas .ex{white-space:nowrap}
 .runbar{flex:none;display:grid;gap:10px;padding:12px 14px 14px;border-top:1px solid var(--line);background:linear-gradient(180deg,rgba(22,17,28,.6),var(--panel) 40%)}
 .rb-status{display:flex;align-items:center;min-height:18px;font-size:11.5px;color:var(--text-3)}
 .rb-status .warn{color:var(--orange);display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}

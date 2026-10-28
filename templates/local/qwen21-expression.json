@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Changes the facial expression of the person in Image 1, keeping who they are.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "face",
-    "portrait"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Change the facial expression of the person in <image1> to: a big genuine laugh, eyes squinting. The expression is natural and believable for this person. Keep the face shape, identity, hair, pose, clothing, lighting, framing and background exactly as they are.",
-      "examples": [
-        {
-          "label": "Big laugh",
-          "text": "Change the facial expression of the person in <image1> to: a big genuine laugh, eyes squinting. The expression is natural and believable for this person. Keep the face shape, identity, hair, pose, clothing, lighting, framing and background exactly as they are."
-        },
-        {
-          "label": "Surprised",
-          "text": "Change the facial expression of the person in <image1> to: surprised, mouth slightly open. The expression is natural and believable for this person. Keep the face shape, identity, hair, pose, clothing, lighting, framing and background exactly as they are."
-        },
-        {
-          "label": "Half smile",
-          "text": "Change the facial expression of the person in <image1> to: a calm, confident half smile. The expression is natural and believable for this person. Keep the face shape, identity, hair, pose, clothing, lighting, framing and background exactly as they are."
-        },
-        {
-          "label": "Serious",
-          "text": "Change the facial expression of the person in <image1> to: serious and focused. The expression is natural and believable for this person. Keep the face shape, identity, hair, pose, clothing, lighting, framing and background exactly as they are."
-        }
-      ],
       "bind": [
         [
           "5",

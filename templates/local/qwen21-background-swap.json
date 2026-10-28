@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Puts the person in Image 1 somewhere else. Perspective and light are matched so they sit in the new place.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "background",
-    "portrait"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Replace the background behind the person in <image1> with: a rainy Tokyo street at night, neon signs. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are.",
-      "examples": [
-        {
-          "label": "Tokyo at night",
-          "text": "Replace the background behind the person in <image1> with: a rainy Tokyo street at night, neon signs. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are."
-        },
-        {
-          "label": "Palm beach",
-          "text": "Replace the background behind the person in <image1> with: a sunlit beach with palm trees. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are."
-        },
-        {
-          "label": "White studio",
-          "text": "Replace the background behind the person in <image1> with: a minimal white photo studio. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are."
-        },
-        {
-          "label": "Snowy ridge",
-          "text": "Replace the background behind the person in <image1> with: a snowy mountain ridge at sunrise. Match perspective, depth of field and lighting so the person sits naturally in the new place, with clean edges and consistent shadows. Keep the person, their face, identity, hair, pose and clothing exactly as they are."
-        }
-      ],
       "bind": [
         [
           "5",

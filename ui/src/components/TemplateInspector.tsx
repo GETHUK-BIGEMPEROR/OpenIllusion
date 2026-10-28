@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { api, isMedia, templateExportUrl, type EngineInfo, type Field as InputField, type PromptIdea, type Spec, type TemplatePatch } from "../lib/api";
+import { api, isMedia, templateExportUrl, type EngineInfo, type Field as InputField, type Spec, type TemplatePatch } from "../lib/api";
 import { fieldsOf, promptField, roleOf } from "../lib/fields";
 import { confirm } from "../lib/confirm";
 import { errMsg } from "../lib/format";
@@ -14,13 +14,12 @@ import { useLocalCheck } from "./Studio";
 import { mine, tplModel, tplName, useCoverActions, useRemoveTemplate } from "./TemplateCard";
 import { Spinner } from "./ui";
 
-/** The prompt as the form holds it: its default and ideas. Photos and clips have nothing to edit. */
-interface InputDraft { text?: string; ideas?: PromptIdea[] }
+/** The prompt as the form holds it: its default. Photos and clips have nothing to edit. */
+interface InputDraft { text?: string }
 
 interface Draft {
   label: string;
   blurb: string;
-  tags: string;
   inputs: Record<string, InputDraft>;
 }
 
@@ -35,18 +34,14 @@ function startText(f: InputField) {
 }
 
 const textOf = (f: InputField) => (isText(f) && "default" in f && typeof f.default === "string" ? f.default : "");
-const ideasOf = (f: InputField): PromptIdea[] => ("examples" in f && f.examples) || [];
 
 const draftOf = (e: EngineInfo): Draft => ({
   label: e.label,
   blurb: e.blurb ?? "",
-  tags: (e.tags ?? []).join(", "),
-  inputs: Object.fromEntries(fieldsOf(e).filter(isText).map((f) => [f.key, { text: textOf(f), ideas: ideasOf(f) }])),
+  inputs: Object.fromEntries(fieldsOf(e).filter(isText).map((f) => [f.key, { text: textOf(f) }])),
 });
 
 const fit = (s: string, max = 8) => Math.min(max, Math.max(3, Math.ceil(s.length / 48) + s.split("\n").length));
-const commas = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Only what changed goes to the server, so an untouched field never gets rewritten. */
 function patchOf(e: EngineInfo, d: Draft): TemplatePatch {
@@ -54,13 +49,11 @@ function patchOf(e: EngineInfo, d: Draft): TemplatePatch {
   const p: TemplatePatch = {};
   if (d.label !== base.label) p.label = d.label;
   if (d.blurb !== base.blurb) p.blurb = d.blurb;
-  if (d.tags !== base.tags) p.tags = commas(d.tags);
   for (const [key, x] of Object.entries(d.inputs)) {
     const b = base.inputs[key];
     if (!b) continue;
     const ch: NonNullable<TemplatePatch["inputs"]>[string] = {};
     if (x.text !== undefined && x.text !== b.text) ch.default = x.text;
-    if (x.ideas && !same(x.ideas, b.ideas)) ch.examples = x.ideas.filter((i) => i.text.trim());
     if (Object.keys(ch).length) (p.inputs ??= {})[key] = ch;
   }
   return p;
@@ -93,7 +86,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
     else drafts.delete(e.id);
   }, [e.id, d, dirty]);
 
-  const set = <K extends "label" | "blurb" | "tags">(k: K) => (ev: { target: { value: string } }) => setD((x) => ({ ...x, [k]: ev.target.value }));
+  const set = <K extends "label" | "blurb">(k: K) => (ev: { target: { value: string } }) => setD((x) => ({ ...x, [k]: ev.target.value }));
   const setIn = (key: string, ch: Partial<InputDraft>) => setD((x) => ({ ...x, inputs: { ...x.inputs, [key]: { ...x.inputs[key], ...ch } } }));
   const land = (next: EngineInfo) => {
     qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.map((x) => (x.id === next.id ? next : x)));
@@ -117,7 +110,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
   const resetAll = async () => {
     const res = await confirm({
       tone: "neutral", icon: "undo",
-      view: () => ({ title: "Reset to the shipped version?", body: "Your edits to the name, description, prompt and ideas are dropped. The cover you set stays.", action: "Reset" }),
+      view: () => ({ title: "Reset to the shipped version?", body: "Your edits to the name, description and prompt are dropped. The cover you set stays.", action: "Reset" }),
     });
     if (!res.ok) return;
     setSaving(true);
@@ -165,7 +158,8 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
   const samples = e.defaults?.inputs ?? [];
   const lead = samples.find((x) => x.slot === "image:1");
   const before = e.cover ? e.cover_before : null;
-  const ar = Math.max(clampAspect(e.cover ? e.cover_aspect : lead?.width && lead?.height ? lead.width / lead.height : 4 / 5), 4 / 5);
+  // The hero takes the cover's own shape, tall or wide: a portrait clip isn't cropped to a square.
+  const ar = clampAspect(e.cover ? e.cover_aspect : lead?.width && lead?.height ? lead.width / lead.height : 4 / 5);
   const fields = fieldsOf(e);
   const media = fields.filter(isMedia);
   const texts = fields.length ? fields.filter(isText) : [];
@@ -199,7 +193,6 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
           <>
             <Field id="ti-label" label="Name"><input className="input" id="ti-label" value={d.label} onChange={set("label")} maxLength={80} /></Field>
             <Field id="ti-blurb" label="What it does"><textarea className="textarea" id="ti-blurb" rows={3} value={d.blurb} onChange={set("blurb")} maxLength={400} /></Field>
-            <Field id="ti-tags" label="Tags" help="Comma separated. Tags two or more templates share become filters on Explore."><input className="input" id="ti-tags" value={d.tags} onChange={set("tags")} /></Field>
           </>
         ) : (
           <>
@@ -230,7 +223,6 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
 
         {texts.map((f) => {
           const x = d.inputs[f.key];
-          const ideas = ideasOf(f).filter((i) => i.text !== textOf(f));
           return (
             <div key={f.key} className="kv">
               <div className="kv-h">{f.label}<span>{f.required === false ? "Optional" : "Default"}</span></div>
@@ -238,13 +230,9 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
                 <>
                   <textarea className="textarea" aria-label={`Default ${f.label.toLowerCase()}`} rows={fit(x.text ?? "", 12)} value={x.text ?? ""} onChange={(ev) => setIn(f.key, { text: ev.target.value })} maxLength={4000} />
                   <p className="help" style={{ marginTop: -4 }}>The whole text the workflow gets. The prompt box opens with it, and anyone can change any of it there.</p>
-                  <IdeasEditor ideas={x.ideas ?? []} seed={x.text ?? ""} onChange={(ideas) => setIn(f.key, { ideas })} />
                 </>
               ) : (
-                <>
-                  <div className="quote" style={{ whiteSpace: "pre-wrap" }}>{textOf(f) || <span style={{ color: "var(--text-3)" }}>Empty by default</span>}</div>
-                  {!!ideas.length && <div className="examples">{ideas.map((i) => <span key={i.label} className="ex" title={i.text}>{i.label}</span>)}</div>}
-                </>
+                <div className="quote" style={{ whiteSpace: "pre-wrap" }}>{textOf(f) || <span style={{ color: "var(--text-3)" }}>Empty by default</span>}</div>
               )}
             </div>
           );
@@ -267,7 +255,6 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
           </div>
         )}
 
-        {!editing && !!e.tags?.length && <div className="kv"><div className="kv-h">Tags</div><div className="tags">{e.tags.map((t) => <span key={t} className="tag">{t}</span>)}</div></div>}
 
         {e.kind === "local" && <Ready e={e} />}
         <CoverBox e={e} onUse={onUse} />
@@ -341,29 +328,6 @@ function Ready({ e }: { e: EngineInfo }) {
           {!!nodes && <p className="mono" style={{ margin: "6px 0 0", overflowWrap: "anywhere" }}>{e.requires.nodes.join(" · ")}</p>}
         </details>
       )}
-    </div>
-  );
-}
-
-/** Prompt ideas: a short name on the chip, the whole prompt it puts in the box. */
-function IdeasEditor({ ideas, seed, onChange }: { ideas: PromptIdea[]; seed: string; onChange: (ideas: PromptIdea[]) => void }) {
-  const put = (i: number, ch: Partial<PromptIdea>) => onChange(ideas.map((x, k) => (k === i ? { ...x, ...ch } : x)));
-  return (
-    <div className="ofield">
-      <label>Ideas</label>
-      {ideas.map((x, i) => (
-        <div key={i} style={{ display: "grid", gap: 6, padding: 10, border: "1px solid var(--line)", borderRadius: 10 }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            <input className="input" aria-label={`Idea ${i + 1} name`} placeholder="Chip name" value={x.label} maxLength={40} onChange={(ev) => put(i, { label: ev.target.value })} />
-            <button className="icon-btn sm" type="button" aria-label={`Remove idea ${i + 1}`} onClick={() => onChange(ideas.filter((_, k) => k !== i))}><I n="x" /></button>
-          </div>
-          <textarea className="textarea" aria-label={`Idea ${i + 1} prompt`} rows={fit(x.text, 10)} value={x.text} maxLength={4000} onChange={(ev) => put(i, { text: ev.target.value })} />
-        </div>
-      ))}
-      {ideas.length < 12 && (
-        <button className="btn sm ghost" type="button" style={{ justifySelf: "start" }} onClick={() => onChange([...ideas, { label: "", text: seed }])}><I n="plus" />Add idea</button>
-      )}
-      <p className="help">Shown as Try chips over the prompt. Each one fills the box with its whole prompt. New ones start from the default.</p>
     </div>
   );
 }

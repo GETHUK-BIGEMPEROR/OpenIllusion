@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { Masonry } from "../components/Masonry";
 import { EmptyBox, I, PageHead, useStatus } from "../components/oi";
 import type { IconName } from "../components/sprite";
-import { sharedTags, TemplateCard, tplModel } from "../components/TemplateCard";
+import { TemplateCard, tplModel } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
 import { useFileDrop } from "../components/Drop";
 import { cx, Spinner } from "../components/ui";
@@ -17,15 +17,12 @@ import { useApp } from "../lib/store";
 type Kind = "all" | "edit" | "motion";
 type Takes = "" | "image" | "video" | "audio" | "words";
 type Sort = "featured" | "recent" | "most" | "az";
-type Filters = { q: string; use: string; kind: Kind; model: string; takes: Takes; sort: Sort };
+type Filters = { q: string; kind: Kind; model: string; takes: Takes; sort: Sort };
 // Search, filters and order outlive a trip to Create and back. Recently used first: what you ran last, then the rest as featured.
-const last: Filters = { q: "", use: "", kind: "all", model: "", takes: "", sort: "recent" };
+const last: Filters = { q: "", kind: "all", model: "", takes: "", sort: "recent" };
 
 // Mixed shapes, so the placeholder wall looks like the one that replaces it.
 const SKELETON = [0.8, 0.75, 0.8, 1, 0.66, 0.8, 1.33, 0.75].map((aspect, i) => ({ key: String(i), aspect }));
-
-const NAMES: Record<string, string> = { lora: "LoRA" };
-const tagLabel = (t: string) => NAMES[t] ?? t.charAt(0).toUpperCase() + t.slice(1);
 
 const TAKES: { v: Takes; label: string; icon: IconName }[] = [
   { v: "image", label: "A photo", icon: "image" },
@@ -46,14 +43,13 @@ function takes(e: EngineInfo, t: Takes): boolean {
   return t === "" || (t === "words" ? !slots.length : slots.includes(t));
 }
 
-/** Everything a search can hit, weighted: the name counts most, then model and tags, then what it says and its prompts. */
+/** Everything a search can hit, weighted: the name counts most, then the model, then what it says and its prompt. */
 function haystack(e: EngineInfo): [string, number][] {
   return [
     [e.label.split(" · ")[0], 4],
     [`${tplModel(e)} ${e.provider} ${e.model ?? ""} ${e.kind === "local" ? "local gpu comfyui" : "cloud router"}`, 2],
-    [(e.tags ?? []).join(" "), 2],
     [e.blurb, 1],
-    [[...(e.examples ?? []).map((x) => `${x.label} ${x.text}`), e.defaults?.prompt ?? ""].join(" "), 0.5],
+    [e.defaults?.prompt ?? "", 0.5],
   ].map(([s, w]) => [String(s).toLowerCase(), w as number]);
 }
 
@@ -93,12 +89,9 @@ export function Explore({ t }: { t?: string }) {
 
   const words = f.q.toLowerCase().split(/\s+/).filter(Boolean);
   const scores = useMemo(() => new Map(every.map((e) => [e.id, score(e, words)])), [every, f.q]); // words come from f.q
-  const uses = sharedTags(every);
-  const tag = uses.includes(f.use) ? f.use : "";
   // Each filter's counts follow every other filter, so a number always says what picking it shows.
   const pass = (e: EngineInfo, skip?: keyof Filters) =>
     (scores.get(e.id) ?? 0) > 0
-    && (skip === "use" || !tag || !!e.tags?.includes(tag))
     && (skip === "kind" || f.kind === "all" || e.mode === f.kind)
     && (skip === "model" || !f.model || tplModel(e) === f.model)
     && (skip === "takes" || takes(e, f.takes));
@@ -124,8 +117,8 @@ export function Explore({ t }: { t?: string }) {
   };
   const shown = every.filter((e) => pass(e)).sort(order[f.sort]);
   const tiles = shown.map((e) => ({ key: e.id, aspect: e.cover ? e.cover_aspect : undefined, e }));
-  const narrowed = !!(f.q || tag || f.kind !== "all" || f.model || f.takes);
-  const clear = () => set({ q: "", use: "", kind: "all", model: "", takes: "" });
+  const narrowed = !!(f.q || f.kind !== "all" || f.model || f.takes);
+  const clear = () => set({ q: "", kind: "all", model: "", takes: "" });
 
   const locked = (e: EngineInfo) =>
     e.kind === "cloud" ? (status.data?.router.ok ? null : "Add a Comfy API key in Settings")
@@ -184,19 +177,12 @@ export function Explore({ t }: { t?: string }) {
       </Facet>
     </div>
   );
-  // Tags get their own row: one tap each, tap again (or Everything) to clear.
-  const tags = uses.length > 0 && (
-    <div className="tagrow" role="group" aria-label="Tags">
-      <button className="chip" type="button" aria-pressed={!tag} onClick={() => set({ use: "" })}>Everything</button>
-      {uses.map((u) => <button key={u} className="chip" type="button" aria-pressed={tag === u} onClick={() => set({ use: tag === u ? "" : u })}>{tagLabel(u)}</button>)}
-    </div>
-  );
 
   return (
     <div className="page explore">
       <div className="scroll">
         <PageHead search={false} filters={<Search value={f.q} onChange={(q) => set({ q })} found={engines.data ? shown.length : null} total={every.length} />}
-          bar={bar} sub={tags || undefined}
+          bar={bar}
           actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a Comfy Router model"><I n="plus" /><span className="lbl">New template</span></a>} />
         <div className="wall-wrap wtop">
           {engines.isLoading ? (
@@ -208,7 +194,7 @@ export function Explore({ t }: { t?: string }) {
               render={({ e }) => <TemplateCard e={e} locked={locked(e)} selected={e.id === t} onUse={() => use_(e)} onInspect={() => inspect(e.id === t ? undefined : e.id)} />} />
           ) : (
             <EmptyBox icon="search" title={f.q ? `Nothing matches “${f.q.trim()}”` : "No templates match"} action={<button className="btn" type="button" onClick={clear}>Show all</button>}>
-              {f.q ? "Try another word: what it does (hat, swap, relight), the model, or a tag." : "Clear the filters to see all of them."}
+              {f.q ? "Try another word: what it does (hat, swap, relight), or the model." : "Clear the filters to see all of them."}
             </EmptyBox>
           )}
           <AddTemplate />

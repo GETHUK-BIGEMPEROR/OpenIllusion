@@ -7,9 +7,6 @@
   "provider": "qwen",
   "blurb": "Cleans up an old photo in Image 1, removes scratches and dust, and adds natural color.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "restore"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -28,16 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Restore and colorize the old photo in <image1>. Colors: brown hair, white t-shirt, natural skin tones. Remove scratches, dust, stains and noise, recover sharp detail, and add natural, realistic colors to skin, hair, clothing and background. Keep the people, faces, identity, expressions, pose and composition exactly as they are.",
-      "examples": [
-        {
-          "label": "Navy suit",
-          "text": "Restore and colorize the old photo in <image1>. Colors: navy suit, red tie. Remove scratches, dust, stains and noise, recover sharp detail, and add natural, realistic colors to skin, hair, clothing and background. Keep the people, faces, identity, expressions, pose and composition exactly as they are."
-        },
-        {
-          "label": "Summer colors",
-          "text": "Restore and colorize the old photo in <image1>. Colors: bright summer day colors. Remove scratches, dust, stains and noise, recover sharp detail, and add natural, realistic colors to skin, hair, clothing and background. Keep the people, faces, identity, expressions, pose and composition exactly as they are."
-        }
-      ],
       "bind": [
         [
           "5",

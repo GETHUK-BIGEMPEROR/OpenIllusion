@@ -7,11 +7,6 @@
   "provider": "qwen",
   "blurb": "Cuts the subject out of Image 1 and saves it as a PNG with a transparent background.",
   "source": "ComfyUI template image_qwen_image_2_1_background_removal",
-  "tags": [
-    "cutout",
-    "product",
-    "portrait"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -30,16 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Remove the background and keep the whole subject: the person with all of their hair, clothing and accessories, nothing cropped away. Output a PNG image",
-      "examples": [
-        {
-          "label": "Whole subject",
-          "text": "Remove the background and keep the whole subject: the person with all of their hair, clothing and accessories, nothing cropped away. Output a PNG image"
-        },
-        {
-          "label": "Product only",
-          "text": "Remove the background and anything that is not the product, and output a PNG image"
-        }
-      ],
       "bind": [
         [
           "459:474",

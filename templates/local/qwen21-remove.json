@@ -7,9 +7,6 @@
   "provider": "qwen",
   "blurb": "Erases what you name from Image 1 and fills in what would be behind it.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "cleanup"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -28,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Completely remove the following from <image1>, every part of it: the arm in the mustard sweater and its hand. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is.",
-      "examples": [
-        {
-          "label": "Stray hand",
-          "text": "Completely remove the following from <image1>, every part of it: the hand and arm reaching in. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is."
-        },
-        {
-          "label": "Background people",
-          "text": "Completely remove the following from <image1>, every part of it: the people in the background. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is."
-        },
-        {
-          "label": "Text & logos",
-          "text": "Completely remove the following from <image1>, every part of it: all text and logos. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is."
-        },
-        {
-          "label": "Power lines",
-          "text": "Completely remove the following from <image1>, every part of it: the power lines in the sky. Nothing of it may remain, not even partly. Fill the area with what would naturally be behind it, matching texture, perspective, lighting and grain, with no trace, smear or blur left. Keep everything else in the image exactly as it is."
-        }
-      ],
       "bind": [
         [
           "5",

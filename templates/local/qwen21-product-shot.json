@@ -7,10 +7,6 @@
   "provider": "qwen",
   "blurb": "Puts the product from Image 1 in a new scene, lit like an ad. The product itself is kept exactly.",
   "source": "ComfyUI template image_qwen_image_2_1_image_edit (prompt enhancer left out)",
-  "tags": [
-    "product",
-    "ad"
-  ],
   "inputs": [
     {
       "key": "image:1",
@@ -29,24 +25,6 @@
       "type": "text",
       "required": true,
       "default": "Place the product from <image1> in a new scene: on wet black rocks by a waterfall, misty morning. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo.",
-      "examples": [
-        {
-          "label": "Waterfall rocks",
-          "text": "Place the product from <image1> in a new scene: on wet black rocks by a waterfall, misty morning. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo."
-        },
-        {
-          "label": "Marble counter",
-          "text": "Place the product from <image1> in a new scene: on a marble kitchen counter, soft window light. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo."
-        },
-        {
-          "label": "Pastel float",
-          "text": "Place the product from <image1> in a new scene: floating over a pastel gradient, studio light. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo."
-        },
-        {
-          "label": "Beach sunset",
-          "text": "Place the product from <image1> in a new scene: on a sandy beach at sunset. Reproduce the product exactly: shape, proportions, color, materials, logos and text. Light it to match the scene, with realistic contact shadows and reflections, like a professional advertising photo."
-        }
-      ],
       "bind": [
         [
           "5",
