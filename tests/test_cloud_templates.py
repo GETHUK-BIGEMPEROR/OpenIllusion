@@ -16,9 +16,9 @@ from conftest import make_image, make_video
 VEO = "veo/veo-3.1-fast-generate-001"
 SEEDANCE = "byteplus/dreamina-seedance-2-5-260628"
 KLING = "kling/kling-v3-omni"
-HORSE = "wan/happyhorse-1.1"
-TEN = {"openai/gpt-image-2", "vertexai/gemini-nano-banana-2.1", "byteplus/seedream-5-0-pro-260628", "bfl/flux-2-max",
-       "xai/grok-imagine-image-2.0", SEEDANCE, KLING, VEO, "wan/wan3.0-video", HORSE}
+FAMILY = "acme/family"  # the conftest fixture's adapter
+SHIPPED = {"openai/gpt-image-2", "vertexai/gemini-nano-banana-2.1", "byteplus/seedream-5-0-pro-260628", "bfl/flux-2-max",
+       "xai/grok-imagine-image-2.0", SEEDANCE, KLING, VEO, "wan/wan3.0-video"}
 
 
 def _spec(model=VEO, media=(), prompt="a fox in the snow", **kw):
@@ -45,14 +45,13 @@ def _run(model, *roles, prompt="p"):
 
 # ---- the adapters themselves -----------------------------------------------------
 
-def test_ten_models_ship_with_an_adapter():
+def test_nine_models_ship_with_an_adapter():
     got = adapters.all_adapters()
-    assert set(got) == TEN
+    assert set(got) == SHIPPED
     assert got["openai/gpt-image-2"].mode == "edit" and got[VEO].mode == "motion"
     for a in got.values():
         body, where, _ = adapters.assemble(a, [], "x")  # prompt only: every model takes that
         assert "{{" not in json.dumps(body) and where == {}
-    assert adapters.assemble(got[HORSE], [], "x")[2] == "wan/happyhorse-1.1-t2v"
 
 
 GOOD = {"model": "acme/m", "makes": "photo", "body": {"prompt": ""}, "prompt": ["prompt"],
@@ -137,14 +136,14 @@ def test_an_edit_reshapes_the_request():
 
 
 @pytest.mark.parametrize("roles,model", [
-    ((), "wan/happyhorse-1.1-t2v"),
-    (("First frame",), "wan/happyhorse-1.1-i2v"),
-    (("Reference image", "Reference image"), "wan/happyhorse-1.1-r2v"),
-    (("Video to edit",), "wan/happyhorse-1.0-video-edit"),
-    (("Video to edit", "Reference image"), "wan/happyhorse-1.0-video-edit"),
+    ((), "acme/family-t2v"),
+    (("First frame",), "acme/family-i2v"),
+    (("Reference image", "Reference image"), "acme/family-r2v"),
+    (("Video to edit",), "acme/family-edit"),
+    (("Video to edit", "Reference image"), "acme/family-edit"),
 ])
-def test_a_family_picks_its_model_from_the_inputs(roles, model):
-    body, _, got = _run(HORSE, *roles)
+def test_a_family_picks_its_model_from_the_inputs(roles, model, family):
+    body, _, got = _run(FAMILY, *roles)
     assert got == model
     assert ("duration" in body["parameters"]) == ("Video to edit" not in roles)
 
@@ -156,20 +155,20 @@ def test_a_family_picks_its_model_from_the_inputs(roles, model):
     (SEEDANCE, ("Reference image",) * 31, "up to 30"),
     (KLING, ("Reference image",) * 5 + ("Reference video",), "up to 4 × Reference image with a Reference video"),
     (KLING, ("Reference image",) * 8, "up to 7"),
-    (HORSE, ("Video to edit",) + ("Reference image",) * 6, "up to 5 × Reference image with a Video to edit"),
+    (FAMILY, ("Video to edit",) + ("Reference image",) * 6, "up to 5 × Reference image with a Video to edit"),
     (KLING, ("Video to edit", "Reference video"), "not both"),
     (KLING, ("First frame", "Video to edit"), "not both"),
     (VEO, ("Style image", "Reference image"), "not both"),
     (VEO, ("Video to extend", "First frame"), "not both"),
-    (HORSE, ("First frame", "Reference image"), "can't take First frame and Reference image together"),
-    (HORSE, ("First frame", "Video to edit"), "together"),
+    (FAMILY, ("First frame", "Reference image"), "can't take First frame and Reference image together"),
+    (FAMILY, ("First frame", "Video to edit"), "together"),
 ])
-def test_inputs_the_model_cant_take_together(model, roles, match):
+def test_inputs_the_model_cant_take_together(model, roles, match, family):
     with pytest.raises(adapters.AdapterError, match=match):
         _run(model, *roles)
 
 
-def test_inputs_that_share_a_set_go_together():
+def test_inputs_that_share_a_set_go_together(family):
     _run(KLING, "Reference image", "Reference video")
     _run(KLING, "Reference image", "Video to edit")
     _run(SEEDANCE, "Reference image", "Reference video", "Reference audio")
@@ -177,7 +176,7 @@ def test_inputs_that_share_a_set_go_together():
     # Each model's own limit, not a lower one: Kling takes 7 images alone, 4 beside a video.
     _run(KLING, *("Reference image",) * 7)
     _run(KLING, *("Reference image",) * 4, "Reference video")
-    _run(HORSE, *("Reference image",) * 9)
+    _run(FAMILY, *("Reference image",) * 9)
     _run(SEEDANCE, *("Reference image",) * 30, *("Reference video",) * 10, *("Reference audio",) * 10)
     with pytest.raises(adapters.AdapterError, match="no such input"):
         adapters.assemble(adapters.get(SEEDANCE), [(7, "image:1")], "x")
@@ -206,9 +205,9 @@ def test_template_is_frozen_to_the_files_its_run_used():
     assert [f["key"] for f in plain["inputs"]] == ["prompt", "aspect", "resolution", "duration", "sound"]
 
 
-def test_template_goes_to_the_model_its_inputs_picked():
-    data = builder.assemble_cloud(_spec(model=HORSE, media=[(2, "video"), 1]))
-    assert data["model"] == "wan/happyhorse-1.0-video-edit" and data["provider"] == "wan"
+def test_template_goes_to_the_model_its_inputs_picked(family):
+    data = builder.assemble_cloud(_spec(model=FAMILY, media=[(2, "video"), 1]))
+    assert data["model"] == "acme/family-edit" and data["provider"] == "acme"
     assert data["body"]["input"]["media"] == [{"type": "video", "url": "{{video:1|url}}"},
                                               {"type": "reference_image", "url": "{{image:1|uri}}"}]
     assert [f["key"] for f in data["inputs"]] == ["video:1", "image:1", "prompt", "resolution"]  # the clip sets the length
@@ -229,9 +228,9 @@ def test_template_carries_its_own_copy_of_the_request():
     (_spec(prompt=""), "Write the prompt"),
     ({**_spec(), "media": [{"input": 0, "kind": "video"}]}, "no such video input"),
     ({**_spec(), "media": [{"input": "0", "kind": "image"}]}, "no such image input"),
-    (_spec(model=HORSE, media=[0, 1]), "together"),
+    (_spec(model=FAMILY, media=[0, 1]), "together"),
 ])
-def test_assemble_refuses_what_the_model_cant_take(spec, match):
+def test_assemble_refuses_what_the_model_cant_take(spec, match, family):
     with pytest.raises(builder.BuildError, match=match):
         builder.assemble_cloud(spec)
 
@@ -244,15 +243,19 @@ def test_builder_lists_only_adapter_models():
         return await r.json()
 
     got = call(go)
-    assert [m["model"] for m in got] == sorted(m["model"] for m in got) and {m["model"] for m in got} == TEN
+    assert [m["model"] for m in got] == sorted(m["model"] for m in got) and {m["model"] for m in got} == SHIPPED
     seed = next(m for m in got if m["model"] == SEEDANCE)
     assert seed["mode"] == "motion" and [i["role"] for i in seed["inputs"]] == [
         "First frame", "Last frame", "Reference image", "Reference video", "Reference audio", "Video to edit"]
     assert seed["inputs"][1] == {"role": "Last frame", "type": "image", "max": 1, "set": ["frames"], "needs": "First frame",
                                  "fit": {"short": [300.0, None], "long": [None, 6000.0], "aspect": [0.4, 2.5], "mb": 30.0}}
     assert seed["inputs"][2]["set"] == ["references", "edit"] and seed["inputs"][4]["type"] == "audio"
-    horse = next(m for m in got if m["model"] == HORSE)
-    assert horse["models"][0] == {"model": "wan/happyhorse-1.1-t2v", "takes": []} and "set" not in horse["inputs"][0]
+    assert all("models" not in m for m in got)  # one model id each
+
+
+def test_a_family_shows_its_model_ids(family):
+    d = adapters.describe(adapters.get(FAMILY))
+    assert d["models"][0] == {"model": "acme/family-t2v", "takes": []} and "set" not in d["inputs"][0]
 
 
 # ---- running one -------------------------------------------------------------------

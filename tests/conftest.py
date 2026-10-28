@@ -26,6 +26,16 @@ def isolated(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def family(monkeypatch):
+    """A made-up adapter whose inputs pick one of several model ids; no shipped model does that."""
+    from server import adapters
+
+    a = adapters.parse(json.loads((FIX / "adapters" / "acme__family.json").read_text("utf-8")))
+    monkeypatch.setitem(adapters.all_adapters(), a.model, a)
+    return a.model
+
+
+@pytest.fixture
 def fresh_templates():
     """Reload templates against this test's user folder, and put the real set back after."""
     before = dict(engines.ENGINES)

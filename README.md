@@ -604,7 +604,7 @@ A cloud template, trimmed (Kling 3 Omni, built as a video edit):
   photo input that gets the face when a Lab character made the RefMod (if that input is
   empty, a sample or another character's face). See [Character Lab](#character-lab).
 - **`model`** is the Router model the request goes to. For an adapter that
-  spans several model ids (HappyHorse), it is the one the run's inputs picked.
+  spans several model ids (`models`), it is the one the run's inputs picked.
 - **`body`** is the cloud box: the adapter's starting request with the run's
   inputs put in and their side effects applied (`with`, `drop`). A template
   carries its own copy, the way a local template carries its workflow, so a later
@@ -719,8 +719,8 @@ What makes Router hard to do generically:
   endpoint: the inputs you send decide. GPT Image 2's docs say it outright:
   presence of `image` "selects the edit operation". Kling marks a video as the one
   to edit with `refer_type: base`; Seedance makes an edit from a reference video
-  with `duration: -1`. Some families split modes over several model ids instead
-  (HappyHorse `-t2v`, `-i2v`, `-r2v`, `-video-edit`).
+  with `duration: -1`. A family that splits its modes over several model ids
+  (`-t2v`, `-i2v`, ...) lists them in the adapter's `models`.
 - **Files:** some fields take a URL, some base64, some an item in a tagged list.
   Most video and audio fields take a link only. Requests are capped at 100 MiB,
   about 75 MB of media once base64-encoded.
@@ -768,7 +768,6 @@ models Router serves. Nobody publishes usage counts.
 | `byteplus/dreamina-seedance-2-5-260628` · Seedance 2.5 | Video + audio | First frame, Last frame, Reference image (30), Reference video (10), Reference audio (10), Video to edit | `content[]` items with a `role`; images and audio as data URIs, video by link |
 | `veo/veo-3.1-fast-generate-001` · Veo 3.1 Fast | Video + audio | First frame, Last frame, Reference image (3), Style image, Video to extend | `instances[0]`, `{bytesBase64Encoded, mimeType}` |
 | `wan/wan3.0-video` · Wan 3.0 | Video + audio | First frame, Last frame, Reference image (10), Reference video (5), Reference audio (5) | `input.media[]` items `{type, url}`; images as data URIs, video and audio by link |
-| `wan/happyhorse-1.1` · HappyHorse | Video | First frame, Reference image (9; 5 when editing a video), Video to edit | `input.media[]`; the inputs pick the model id (`-t2v`, `-i2v`, `-r2v`, or `happyhorse-1.0-video-edit`) |
 | `openai/gpt-image-2` · GPT Image 2 | Photo | Photo (16) | `image[]`, data URIs |
 | `vertexai/gemini-nano-banana-2.1` · Nano Banana 2.1 | Photo | Photo (14) | `contents[0].parts[]`, `inlineData` |
 | `byteplus/seedream-5-0-pro-260628` · Seedream 5.0 Pro | Photo | Photo (10) | `image[]`, data URIs |
@@ -789,7 +788,6 @@ What each model takes in one file (`fit`); runs make every file fit:
 | Seedance 2.5 | 300–6000 px, 2:5 to 5:2, ≤ 30 MB | 2–30 s (4–30 to edit), 30 s in all, 24–60 fps, 300–6000 px, 0.41–8.3 MP, ≤ 200 MB | 2–30 s, 30 s in all, ≤ 15 MB | Router's |
 | Veo 3.1 Fast | — | to extend: 1–30 s at 24 fps | — | Router's |
 | Wan 3.0 | 240–8000 px, 1:8 to 8:1, ≤ 20 MB | 15 s in all | 15 s in all | Router's |
-| HappyHorse | first frame ≥ 300 px, 2:5 to 5:2; references ≥ 400 px; ≤ 20 MB | to edit: 3–60 s, 360–4096 px, 2:5 to 5:2, ≤ 100 MB | — | Router's |
 | GPT Image 2 | ≤ 25 MB | — | — | 67 MB |
 | Nano Banana 2.1 | ≤ 7 MB | — | — | 14 MB |
 | Seedream 5.0 Pro | ≥ 15 px, ≤ 36 MP, 1:16 to 16:1, ≤ 30 MB | — | — | Router's |
@@ -880,14 +878,15 @@ may carry inline (Nano Banana: Google's 20 MB, base64 included).
   A local template can put the same `fit` on any photo, clip or sound input.
 - **`models`** (optional): when a family splits its modes over several model ids,
   list them with the roles each takes. A run goes to the first one that takes
-  every filled role; the template keeps that id.
+  every filled role; the template keeps that id. No shipped model needs it; the
+  tests' made-up family (`tests/fixtures/adapters/acme__family.json`) shows it.
 
   ```json
   "models": [
-    { "model": "wan/happyhorse-1.1-t2v", "takes": [] },
-    { "model": "wan/happyhorse-1.1-i2v", "takes": ["First frame"] },
-    { "model": "wan/happyhorse-1.1-r2v", "takes": ["Reference image"] },
-    { "model": "wan/happyhorse-1.0-video-edit", "takes": ["Video to edit", "Reference image"] }
+    { "model": "acme/family-t2v", "takes": [] },
+    { "model": "acme/family-i2v", "takes": ["First frame"] },
+    { "model": "acme/family-r2v", "takes": ["Reference image"] },
+    { "model": "acme/family-edit", "takes": ["Video to edit", "Reference image"] }
   ]
   ```
 
@@ -917,7 +916,6 @@ for each one asked.
 | Seedance 2.5 | Aspect (8, Auto = `adaptive`) · Resolution 480p–4K · Duration 4–30 s · Sound |
 | Veo 3.1 Fast | Aspect 16:9 / 9:16 · Resolution 720p / 1080p / 4K · Duration 4 / 6 / 8 s · Sound |
 | Wan 3.0 | Aspect (5, Auto) · Resolution 480p–1080p · Duration 2–30 s · Sound |
-| HappyHorse 1.1 | Resolution 720p / 1080p · Duration 5 / 10 s |
 | FLUX 2 Max | Size 0.5–4 MP, sides 256–2048 (none when editing a photo) |
 | Seedream 5 Pro | Size 1–4 MP as `"WxH"`; editing a photo: Resolution 1K / 2K |
 | GPT Image 2 | Aspect Auto / 1:1 / 3:2 / 2:3 · Quality |
@@ -945,7 +943,7 @@ so local templates show no chips.
 | --- | --- | --- |
 | Kling 3 Omni | `<<<image_1>>>`, `<<<video_1>>>`: the nth entry of `image_list` / `video_list` (frames count) | ComfyUI's Kling nodes turn `@image1` into these before sending |
 | Seedance 2.5 | `@Image 1`, `@Video 1`, `@Audio 1`, per kind in upload order | ByteDance's Seedance prompt skill (`@图片N` in Chinese) |
-| Wan 3.0, HappyHorse 1.1 | `Image 1`, `Video 1`, `Audio 1`, per kind in `media` order | Alibaba's Wan 3.0 API reference (HappyHorse assumed the same) |
+| Wan 3.0 | `Image 1`, `Video 1`, `Audio 1`, per kind in `media` order | Alibaba's Wan 3.0 API reference |
 | FLUX 2 Max, Seedream 5 Pro, GPT Image 2, Nano Banana 2.1, Grok Imagine 2 | `Image 1`: plain words the model reads, by input order | the default; none publishes a token |
 | Veo 3.1 Fast | none (`{}`): describe each reference in words | Veo has no names for its files |
 
@@ -1050,8 +1048,8 @@ second base URL plus the key; not planned yet.
 | med | Files by link | Unknown until a real key tries it: whether uploading needs a Comfy Cloud subscription, and how long the signed link lives. | Phase 6 |
 | med | Backups | Only run on small throwaway libraries. Time, disk room and progress on a library of many GB, and a restore across machines, are untested. | Back up and restore a real library into a fresh `OPENILLUSION_HOME` |
 | low | Proxy | The proxy token is passed to comfy-api-proxy on the command line (`--token`), so it shows in the process list to anyone on the machine. | Pass it by environment or a private file |
-| med | Settings | Settings values come from Router's schemas and docs, never a real run. HappyHorse's durations (5 / 10 s) are a guess from other Wan models; its aspect isn't offered (not documented). Veo's aspect still applies with a first frame. A Builder's size readout uses a 16 px grid, so a template based on a 32 px one can open a few pixels off. | Phase 6 |
-| med | Limits | Fits are read from docs, never from a refusal. Seedance's per-file numbers come second-hand; Kling's "720–2160 px" for clips is read as both sides; HappyHorse's 2:5–5:2 for references when editing isn't applied (it would crop reference-only runs too). | Phase 6: correct any fit a real refusal disagrees with |
+| med | Settings | Settings values come from Router's schemas and docs, never a real run. Veo's aspect still applies with a first frame. A Builder's size readout uses a 16 px grid, so a template based on a 32 px one can open a few pixels off. | Phase 6 |
+| med | Limits | Fits are read from docs, never from a refusal. Seedance's per-file numbers come second-hand; Kling's "720–2160 px" for clips is read as both sides. | Phase 6: correct any fit a real refusal disagrees with |
 
 ## Develop
 

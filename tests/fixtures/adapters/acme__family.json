@@ -1,6 +1,6 @@
 {
-  "model": "wan/happyhorse-1.1",
-  "name": "HappyHorse 1.1",
+  "model": "acme/family",
+  "name": "Family",
   "makes": "video",
   "body": {
     "input": {
@@ -146,23 +146,23 @@
   ],
   "models": [
     {
-      "model": "wan/happyhorse-1.1-t2v",
+      "model": "acme/family-t2v",
       "takes": []
     },
     {
-      "model": "wan/happyhorse-1.1-i2v",
+      "model": "acme/family-i2v",
       "takes": [
         "First frame"
       ]
     },
     {
-      "model": "wan/happyhorse-1.1-r2v",
+      "model": "acme/family-r2v",
       "takes": [
         "Reference image"
       ]
     },
     {
-      "model": "wan/happyhorse-1.0-video-edit",
+      "model": "acme/family-edit",
       "takes": [
         "Video to edit",
         "Reference image"

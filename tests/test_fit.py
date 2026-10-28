@@ -63,8 +63,8 @@ def test_an_adapter_photo_has_no_seconds():
         adapters.parse(d)
 
 
-def test_every_adapter_names_its_family_and_limits():
-    assert adapters.for_model("wan/happyhorse-1.1-i2v").model == "wan/happyhorse-1.1"
+def test_every_adapter_names_its_family_and_limits(family):
+    assert adapters.for_model("acme/family-i2v").model == family
     assert adapters.for_model("nobody/none") is None
     assert adapters.get(NANO).media_mb == 14
 
