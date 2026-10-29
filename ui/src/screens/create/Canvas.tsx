@@ -13,7 +13,7 @@ import { clipFps, clipWindow, mediaFields } from "../../lib/fields";
 import { ago, resultName } from "../../lib/format";
 import { isActive } from "../../lib/live";
 import { clipIn, posterOf, slotOf, withClip, type RefSlot, type StudioState } from "../../lib/store";
-import { aspectName, dimsText, type Crop } from "../../lib/size";
+import { askedAspect, aspectName, dimsText, type Crop } from "../../lib/size";
 import { FAILED, sampleRef, sampleVideo, type SetS, type View, withInput } from "./shared";
 
 export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group, vlist, jobs, fixes, earlier, action, onFocus }: {
@@ -35,9 +35,11 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
   const drove = shown?.inputs.find((i) => i.slot === lead && i.file) ?? shown?.inputs.find((i) => i.slot.startsWith("video:") && i.file);
   const lc = motion ? clipIn(s, lead) : null;
   const clip = lc && !lc.missing ? lc : null;
+  // A run still going holds the shape it asked for, not the one the form shows now.
+  const asked = shown && !result ? askedAspect(shown.params, engine?.size) : null;
   const ar = motion
-    ? (drove?.width && drove.height ? drove.width / drove.height : clip?.width && clip.height ? clip.width / clip.height : 16 / 9)
-    : size ? size.w / size.h : out ? out.width / out.height : base?.width && base?.height ? base.width / base.height : 1;
+    ? (drove?.width && drove.height ? drove.width / drove.height : clip?.width && clip.height ? clip.width / clip.height : asked ?? 16 / 9)
+    : size ? size.w / size.h : asked ?? (out ? out.width / out.height : base?.width && base?.height ? base.width / base.height : 1);
   const before = shown?.inputs.find((i) => i.slot === lead)?.file;
   const beforeUrl = motion
     ? (shown && drove ? fileUrl(shown.id, posterOf(drove.file!)) : clip?.poster ?? undefined)

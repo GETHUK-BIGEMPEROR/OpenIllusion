@@ -202,7 +202,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
           <>
             <div className="insp-title">
               <h3>{tplName(e)}</h3>
-              <p>{tplModel(e)} · {e.mode === "motion" ? "Video" : "Image"} · {e.kind === "local" ? "Runs on your GPU" : "Runs on Comfy Router"}{e.edited ? " · Edited" : mine(e) ? " · Built by you" : e.origin === "user" ? " · Yours" : ""}</p>
+              <p>{tplModel(e)} · {e.mode === "motion" ? "Video" : "Image"} · {e.kind === "local" ? "Runs on your GPU" : "Runs on Comfy Router"}{e.edited ? " · Edited" : mine(e) ? " · Built by you" : e.origin === "user" ? " · Created by you" : ""}</p>
             </div>
             {e.blurb && <p className="insp-blurb">{e.blurb}</p>}
           </>

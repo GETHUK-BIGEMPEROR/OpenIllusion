@@ -34,7 +34,6 @@ export function TemplateCard({ e, hint, selected, locked, onUse, onInspect }: { 
           {!local && <span className="pill" title={locked ?? "Runs on Comfy Router"} style={locked ? { color: "#FFC48F" } : undefined}><i className="dot violet" />Cloud</span>}
           {n > 1 ? <span className="pill minor">{n} inputs</span> : n === 0 ? <span className="pill minor">Words only</span> : null}
           {locked && local && <span className="pill" title={locked} style={{ color: "#FFC48F" }}>Needs setup</span>}
-          {e.origin === "user" && <span className="pill mine" title="Yours: built or imported here, not shipped with OpenIllusion">Yours</span>}
         </div>
         <span className="pill kindb" title={video ? "Makes a video" : "Makes a photo"}><I n={video ? "film" : "image"} />{video ? "Video" : "Photo"}</span>
       </div>
@@ -52,9 +51,17 @@ export function TemplateCard({ e, hint, selected, locked, onUse, onInspect }: { 
             onClick={(ev) => { ev.stopPropagation(); void del.run(); }}><I n="trash" /></button>
         )}
       </div>
-      <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)}{hint && <span className={cx("when", hint.off && "off")}>{hint.text}</span>}</p></div><span className="go"><I n="arrow" /></span></div>
+      <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)}{hint && <span className={cx("when", hint.off && "off")}>{hint.text}</span>}</p>
+        <OriginTag e={e} /></div><span className="go"><I n="arrow" /></span></div>
     </article>
   );
+}
+
+/** Where a template comes from: shipped with OpenIllusion, or built or imported here. */
+export function OriginTag({ e }: { e: Pick<EngineInfo, "origin"> }) {
+  if (!e.origin) return null;
+  const own = e.origin === "user";
+  return <span className="pill mine" title={own ? "Built or imported here, not shipped with OpenIllusion" : "Ships with OpenIllusion"}>{own ? "Created by you" : "Default"}</span>;
 }
 
 /** A template with no cover yet (most cloud ones until their first run): what goes in and what comes out, tinted per provider. */

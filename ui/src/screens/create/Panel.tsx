@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cx, I, useStatus, gpuName } from "../../components/oi";
 import { useLocalCheck, useRunner } from "../../components/Studio";
-import { TemplateTools, tplModel, tplName, useCoverActions } from "../../components/TemplateCard";
+import { OriginTag, TemplateTools, tplModel, tplName, useCoverActions } from "../../components/TemplateCard";
 import { Spinner } from "../../components/ui";
 import { api, type EngineInfo, type ParamSpec, type Spec } from "../../lib/api";
 import { mediaFields, mentions, noNames, promptField, type MediaField, type Mention } from "../../lib/fields";
@@ -48,7 +48,7 @@ export function Hero({ e, run }: { e: EngineInfo; run?: string | null }) {
         {e.cover_video ? <video src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 22%" }} />
           : e.cover ? <img src={e.cover} alt="" />
           : <span aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 90% at 100% 0%,rgba(255,79,163,.18),transparent 60%),linear-gradient(160deg,#261F3A,#141120)" }} />}
-        <div className="thero-cap"><h2>{tplName(e)}</h2><p><i className={cx("dot", e.kind !== "local" && "violet")} />{tplModel(e)} · {where}{e.origin === "user" && <span className="pill mine">Yours</span>}</p></div>
+        <div className="thero-cap"><h2>{tplName(e)}</h2><p><i className={cx("dot", e.kind !== "local" && "violet")} />{tplModel(e)} · {where}<OriginTag e={e} /></p></div>
       </div>
       <button className="btn sm glass change" type="button" aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen(!open)}><I n="refresh" />Change</button>
       {open && (
@@ -57,7 +57,7 @@ export function Hero({ e, run }: { e: EngineInfo; run?: string | null }) {
             <button key={x.id} type="button" role="option" aria-selected={x.id === e.id} aria-current={x.id === e.id}
               onClick={() => { setOpen(false); if (x.id !== e.id) openTemplate(e.mode, x.id); }}>
               {x.cover ? <img src={x.cover} alt="" /> : <span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n={x.mode === "motion" ? "film" : "image"} /></span>}
-              {tplName(x)}<small>{x.draft ? `Draft · ${tplModel(x)}` : tplModel(x)}{x.origin === "user" ? " · Yours" : ""}</small>
+              {tplName(x)}<small>{x.draft ? `Draft · ${tplModel(x)}` : tplModel(x)}{x.origin === "user" ? " · Created by you" : ""}</small>
             </button>
           ))}
           <button type="button" onClick={() => { setOpen(false); openTemplate(e.mode, e.id); }}><span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="undo" /></span>Start over with the samples</button>

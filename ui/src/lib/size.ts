@@ -86,6 +86,17 @@ export function canvasSize(size: SizeSpec, aspect?: unknown, choice?: unknown): 
   return target(w, h, budget(size, choice) || budget(size, c.size), size.multiple);
 }
 
+/** The shape a run asked for, before it has a result: its own aspect setting ("9:16"; "auto" names none), else its
+ *  declared canvas at the run's settings. Null when it named neither. */
+export function askedAspect(params: Record<string, unknown>, size?: SizeSpec | null): number | null {
+  for (const [k, v] of Object.entries(params)) {
+    const r = /aspect|ratio/i.test(k) && typeof v === "string" ? ratioOf(v) : null;
+    if (r) return r[0] / r[1];
+  }
+  const c = size ? canvasSize(size, params.aspect, params.out_size) : null;
+  return c ? c.width / c.height : null;
+}
+
 /** The steps an output size offers: a cloud model's own megapixels, else the template's steps (Original left out). */
 export const canvasSteps = (size: SizeSpec): string[] =>
   size.canvas?.steps ? size.canvas.steps.map((x) => `${x} MP`) : size.options.filter((o) => o.px).map((o) => o.label);
