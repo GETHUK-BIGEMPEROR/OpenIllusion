@@ -1,0 +1,154 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "mode": "motion",
+  "label": "Swap two people",
+  "blurb": "Puts the people from two photos into a clip on Seedance 2.5: Image 1 takes the one on the left, Image 2 the one on the right. The motion and the place stay. Runs on Comfy Router with your key.",
+  "inputs": [
+    {
+      "key": "image:1",
+      "type": "image",
+      "required": true,
+      "bind": [
+        [
+          "content",
+          1
+        ]
+      ],
+      "default": "media/swap-people-man.jpg"
+    },
+    {
+      "key": "image:2",
+      "type": "image",
+      "required": true,
+      "bind": [
+        [
+          "content",
+          2
+        ]
+      ],
+      "default": "media/swap-people-woman.jpg"
+    },
+    {
+      "key": "video:1",
+      "type": "video",
+      "required": true,
+      "bind": [
+        [
+          "content",
+          3
+        ]
+      ],
+      "default": "media/swap-people-aliens.mp4"
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "required": true,
+      "default": "Edit Video 1 to replace person on the left with Image 1 and person on the right with Image 2",
+      "bind": [
+        [
+          "content",
+          0,
+          "text"
+        ]
+      ]
+    },
+    {
+      "key": "resolution",
+      "type": "segmented",
+      "label": "Resolution",
+      "default": "720p",
+      "bind": [
+        [
+          "resolution"
+        ]
+      ],
+      "options": [
+        "480p",
+        "720p",
+        "1080p",
+        "4k"
+      ],
+      "labels": {
+        "4k": "4K"
+      }
+    },
+    {
+      "key": "sound",
+      "type": "segmented",
+      "label": "Sound",
+      "default": "new",
+      "bind": [
+        [
+          "generate_audio"
+        ]
+      ],
+      "options": [
+        "new",
+        "clip",
+        "none"
+      ],
+      "labels": {
+        "new": "Make new",
+        "clip": "Keep the clip's",
+        "none": "None"
+      },
+      "send": {
+        "new": true,
+        "clip": false,
+        "none": false
+      },
+      "help": "Make new: Seedance makes the sound. Keep the clip's: the video you edit keeps its own sound. None: silent.",
+      "keep_sound": {
+        "option": "clip",
+        "slot": "video:1"
+      }
+    }
+  ],
+  "built": true,
+  "kind": "cloud",
+  "model": "byteplus/dreamina-seedance-2-5-260628",
+  "provider": "byteplus",
+  "body": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Edit Video 1 to replace person on the left with Image 1 and person on the right with Image 2"
+      },
+      {
+        "type": "image_url",
+        "role": "reference_image",
+        "image_url": {
+          "url": "{{image:1|uri}}"
+        }
+      },
+      {
+        "type": "image_url",
+        "role": "reference_image",
+        "image_url": {
+          "url": "{{image:2|uri}}"
+        }
+      },
+      {
+        "type": "video_url",
+        "role": "reference_video",
+        "video_url": {
+          "url": "{{video:1|url}}"
+        }
+      }
+    ],
+    "resolution": "720p",
+    "generate_audio": true,
+    "duration": -1
+  },
+  "result": [
+    [
+      "content",
+      "video_url"
+    ]
+  ],
+  "source": "Comfy Router · Seedance 2.5",
+  "locked": [],
+  "id": "cloud/swap-two-people-seedance-2-5"
+}
