@@ -35,6 +35,9 @@ TESTED = {HAT} | {f"local/qwen21-{n}" for n in (
 )} | {"local/minimax-h3-character-swap",  # same card, 0.4 MP x 124 frames, 4 steps, ~10 min
      "local/minimax-h3-animate",  # 0.4 MP x 124 frames, 4 steps, ~4 min
      "local/minimax-h3-create"} | {"local/qwen21-create"}  # text only: 0.4 MP x 124 frames ~3.5 min; 1 MP, 25 steps ~1.5 min
+# Built and run here by the user: Create a video Turbo at 6 steps (0.75 MP x 124 frames, ~11 min), then that clip as
+# Character Swap's Video 1 on Seedance 2.5 with the astronaut cat. Each cover is its run's result.
+TESTED |= {"local/minimax-h3-create-turbo", "cloud/character-swap"}
 # Ran for real on Comfy Router with a key. Text to Image's cover is that run's result; the two Seedance edits
 # ship their samples (all generated here) and no cover, so the first run makes one.
 TESTED |= {"cloud/text-to-image-seedream-5-0-pro", "cloud/swap-two-people-seedance-2-5", "cloud/replace-character-seedance-2-5"}

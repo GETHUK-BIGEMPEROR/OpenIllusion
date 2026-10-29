@@ -1,0 +1,370 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "added": 1792999235,
+  "id": "local/minimax-h3-create-turbo",
+  "mode": "motion",
+  "label": "Create a video Turbo",
+  "model_name": "MiniMax H3",
+  "provider": "minimax",
+  "blurb": "Makes a short video with sound from words alone, fast with the turbo LoRA. Describe the scene, the action, the camera and the audio.",
+  "source": "ComfyUI template video_minimax_h3_t2v with the FL2V turbo LoRA at 6 steps and the int8 text encoder",
+  "inputs": [
+    {
+      "key": "prompt",
+      "type": "text",
+      "required": true,
+      "default": "Cinematic medium-wide shot, static camera. A small chubby orange monster with big round eyes and soft fur stands alone on a small wooden stage under a warm spotlight and dances to the beat: it steps left and right, shakes its arms, spins once and ends with a bow. Its whole body stays in frame and fully visible the entire time, nothing in front of it. Dark red velvet curtain behind it, a few fairy lights. Stylized 3D animated feature film look. Audio: an original funky bass and drum groove, no lyrics, the creature's soft footsteps and a happy little squeak when it bows.",
+      "bind": [
+        [
+          "140:131",
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "size",
+      "type": "size",
+      "label": "Output size",
+      "aspects": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "21:9"
+      ],
+      "aspect": "9:16",
+      "default": "0.75 MP",
+      "bind": [
+        [
+          "140:131",
+          "width",
+          "width"
+        ],
+        [
+          "140:131",
+          "height",
+          "height"
+        ]
+      ]
+    },
+    {
+      "key": "duration",
+      "type": "segmented",
+      "label": "Duration",
+      "options": [
+        3,
+        5,
+        8,
+        10,
+        15
+      ],
+      "default": 5,
+      "unit": "s",
+      "bind": [
+        [
+          "140:133",
+          "value",
+          "float"
+        ]
+      ]
+    }
+  ],
+  "size": {
+    "multiple": 32
+  },
+  "outputs": [
+    "92"
+  ],
+  "hints": {
+    "models": {
+      "minimax_h3_fl2va_pruned_int8_convrot.safetensors": {
+        "folder": "diffusion_models",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors"
+      },
+      "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors": {
+        "folder": "loras",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors"
+      },
+      "qwen3vl_32b_minimax_h3_int8_convrot.safetensors": {
+        "folder": "text_encoders",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
+      },
+      "minimax_h3_video_vae_int8_convrot.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors"
+      },
+      "minimax_h3_audio_vae_fp32.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    "nodes": {}
+  },
+  "workflow": {
+    "92": {
+      "class_type": "SaveVideo",
+      "inputs": {
+        "filename_prefix": "openillusion/h3-create-turbo",
+        "format": "auto",
+        "format.codec": "auto",
+        "video": [
+          "140:130",
+          0
+        ]
+      }
+    },
+    "140:119": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      }
+    },
+    "140:120": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    "140:121": {
+      "class_type": "VAEDecodeAudio",
+      "inputs": {
+        "samples": [
+          "140:125",
+          0
+        ],
+        "vae": [
+          "140:120",
+          0
+        ]
+      }
+    },
+    "140:122": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "140:125",
+          0
+        ],
+        "vae": [
+          "140:119",
+          0
+        ]
+      }
+    },
+    "140:123": {
+      "class_type": "KSamplerSelect",
+      "inputs": {
+        "sampler_name": "res_multistep"
+      }
+    },
+    "140:124": {
+      "class_type": "BasicScheduler",
+      "inputs": {
+        "scheduler": "simple",
+        "steps": [
+          "140:136",
+          0
+        ],
+        "denoise": 1,
+        "model": [
+          "140:135",
+          0
+        ]
+      }
+    },
+    "140:125": {
+      "class_type": "SamplerCustomAdvanced",
+      "inputs": {
+        "noise": [
+          "140:129",
+          0
+        ],
+        "guider": [
+          "140:126",
+          0
+        ],
+        "sampler": [
+          "140:123",
+          0
+        ],
+        "sigmas": [
+          "140:124",
+          0
+        ],
+        "latent_image": [
+          "140:131",
+          1
+        ]
+      }
+    },
+    "140:126": {
+      "class_type": "BasicGuider",
+      "inputs": {
+        "model": [
+          "140:135",
+          0
+        ],
+        "conditioning": [
+          "140:131",
+          0
+        ]
+      }
+    },
+    "140:127": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    "140:128": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    "140:129": {
+      "class_type": "RandomNoise",
+      "inputs": {
+        "noise_seed": 1
+      },
+      "_meta": {
+        "control_after_generate": {
+          "noise_seed": "fixed"
+        }
+      }
+    },
+    "140:130": {
+      "class_type": "CreateVideo",
+      "inputs": {
+        "fps": 24,
+        "bit_depth": 8,
+        "images": [
+          "140:122",
+          0
+        ],
+        "audio": [
+          "140:121",
+          0
+        ]
+      }
+    },
+    "140:131": {
+      "class_type": "MiniMaxH3ImageToVideo",
+      "inputs": {
+        "prompt": "Cinematic medium-wide shot, static camera. A small chubby orange monster with big round eyes and soft fur stands alone on a small wooden stage under a warm spotlight and dances to the beat: it steps left and right, shakes its arms, spins once and ends with a bow. Its whole body stays in frame and fully visible the entire time, nothing in front of it. Dark red velvet curtain behind it, a few fairy lights. Stylized 3D animated feature film look. Audio: an original funky bass and drum groove, no lyrics, the creature's soft footsteps and a happy little squeak when it bows.",
+        "width": 640,
+        "height": 1152,
+        "length": [
+          "140:132",
+          1
+        ],
+        "clip": [
+          "140:128",
+          0
+        ],
+        "vae": [
+          "140:119",
+          0
+        ]
+      }
+    },
+    "140:132": {
+      "class_type": "ComfyMathExpression",
+      "inputs": {
+        "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+        "values.a": [
+          "140:133",
+          0
+        ]
+      }
+    },
+    "140:133": {
+      "class_type": "PrimitiveFloat",
+      "inputs": {
+        "value": 5.0
+      },
+      "_meta": {
+        "title": "Float (duration)"
+      }
+    },
+    "140:134": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "lora_name": "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+        "strength_model": 1,
+        "model": [
+          "140:127",
+          0
+        ]
+      }
+    },
+    "140:135": {
+      "class_type": "ComfySwitchNode",
+      "inputs": {
+        "switch": [
+          "140:139",
+          0
+        ],
+        "on_false": [
+          "140:127",
+          0
+        ],
+        "on_true": [
+          "140:134",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "If/Else Switch (Model)"
+      }
+    },
+    "140:136": {
+      "class_type": "ComfySwitchNode",
+      "inputs": {
+        "switch": [
+          "140:139",
+          0
+        ],
+        "on_false": [
+          "140:137",
+          0
+        ],
+        "on_true": [
+          "140:138",
+          0
+        ]
+      },
+      "_meta": {
+        "title": "If/Else Switch (Steps)"
+      }
+    },
+    "140:137": {
+      "class_type": "PrimitiveInt",
+      "inputs": {
+        "value": 20
+      }
+    },
+    "140:138": {
+      "class_type": "PrimitiveInt",
+      "inputs": {
+        "value": 6
+      }
+    },
+    "140:139": {
+      "class_type": "PrimitiveBoolean",
+      "inputs": {
+        "value": true
+      },
+      "_meta": {
+        "title": "Boolean (Enable Lightning LoRA)"
+      }
+    }
+  },
+  "cover": "media/cover-create-video-turbo.webp",
+  "cover_video": "media/cover-create-video-turbo.mp4"
+}

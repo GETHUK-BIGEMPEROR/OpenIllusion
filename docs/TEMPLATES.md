@@ -107,8 +107,8 @@ They are ordinary inputs after the prompt, drawn by Create under **Settings**:
   "default": 5, "unit": "s", "bind": [["140:133", "value", "float"]] }
 ```
 
-The shipped templates made from words alone (Create a photo, Create a video) ask for
-size; both MiniMax H3 templates ask for a length. A cloud template saved before
+The shipped templates made from words alone (Create a photo, Create a video and its Turbo) ask for
+size; the MiniMax H3 ones ask for a length. A cloud template saved before
 models had settings gets its job's settings at their defaults when it loads
 (`contract._model_settings`).
 

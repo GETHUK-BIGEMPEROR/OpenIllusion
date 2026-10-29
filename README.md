@@ -34,9 +34,10 @@ Open source under the [MIT license](LICENSE). Entered in Comfy's
 | Demo video | _link added at submission_ |
 
 **MiniMax H3 is the core model.** Every video template that runs on your own GPU runs
-MiniMax H3 through ComfyUI's built-in H3 nodes: Create a video and H3 T2V Turbo (from
-words) and Animate a photo (photo as first frame), all video with sound on H3 FL2VA with
-its 4-step turbo LoRA; and Character swap (H3 Ref2VA with a character swap LoRA). The
+MiniMax H3 through ComfyUI's built-in H3 nodes: Create a video (the full model, 20 steps),
+Create a video Turbo and H3 T2V Turbo (from words) and Animate a photo (photo as first
+frame), all video with sound on H3 FL2VA, the last three with its turbo LoRA; and
+Character swap (H3 Ref2VA with a character swap LoRA). The
 local photo templates (Qwen Image 2.1) make and fix the stills those videos start from.
 The cloud templates (Comfy Router, your key) are there beside them for people with no GPU.
 
@@ -218,7 +219,8 @@ models in [Setup](#setup); cloud ones need a Comfy API key.
 
 | Template | Model | Runs | Takes | Makes |
 | --- | --- | --- | --- | --- |
-| Create a video | MiniMax H3 | Your GPU | words | video with sound |
+| Create a video | MiniMax H3 | Your GPU | words | video with sound, full model, 20 steps |
+| Create a video Turbo | MiniMax H3 | Your GPU | words | video with sound, turbo LoRA, 6 steps |
 | H3 T2V Turbo | MiniMax H3 | Your GPU | words | video with sound, 6 steps |
 | Animate a photo | MiniMax H3 | Your GPU | a photo (first frame) | video with sound |
 | Character swap | MiniMax H3 | Your GPU | a clip and a photo | the clip with the photo's character |
@@ -229,6 +231,7 @@ models in [Setup](#setup); cloud ones need a Comfy API key.
 | Text to Video | Veo 3.1 Fast, Kling 3 Omni, Wan 3.0 | Cloud | words | video with sound |
 | Reference to Video | Wan 3.0 | Cloud | a photo | video with sound |
 | Swap character | Kling 3 Omni | Cloud | a clip and a photo | the clip with the photo's character |
+| Character Swap | Seedance 2.5 | Cloud | a clip and a photo | the clip with the photo's character in place of its own |
 | Swap two people, Multi character swap | Seedance 2.5 | Cloud | a clip and two photos | the clip with both people swapped |
 | Dancing Animal | Seedance 2.5 | Cloud | a clip and a photo | the clip with the photo's animal |
 

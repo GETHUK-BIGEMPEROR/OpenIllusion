@@ -8,7 +8,7 @@
   "model_name": "MiniMax H3",
   "provider": "minimax",
   "blurb": "Makes a short video with sound from words alone. Describe the scene, the action, the camera and the audio.",
-  "source": "ComfyUI template video_minimax_h3_t2v with the FL2V 4-step turbo LoRA and the int8 text encoder",
+  "source": "ComfyUI template video_minimax_h3_t2v as the full model (turbo LoRA off, 20 steps) with the int8 text encoder",
   "inputs": [
     {
       "key": "prompt",
@@ -358,7 +358,7 @@
     "140:139": {
       "class_type": "PrimitiveBoolean",
       "inputs": {
-        "value": true
+        "value": false
       },
       "_meta": {
         "title": "Boolean (Enable Lightning LoRA)"
