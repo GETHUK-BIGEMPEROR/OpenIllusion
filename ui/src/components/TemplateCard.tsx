@@ -143,14 +143,15 @@ export function TemplateTools({ e }: { e: EngineInfo }) {
     <div className="ttools">
       <button className="ttool" type="button" onClick={() => go({ name: "build", from: e.id })}
         title={e.kind === "local" ? "A new template from this one's workflow, inputs and prompt" : "A new template on the same model, with this one's inputs, prompt and settings"}>
-        <I n="graph" />Build from this
+        Build from this
       </button>
       <a className="ttool" href={templateExportUrl(e.id)} download title="One .illusion file with this template, its samples and cover. Anyone drops it on Explore to add it.">
-        <I n="share" />Export .illusion
+        Export .illusion
       </a>
       {e.kind === "local" && (
-        <a className="ttool" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} title="The ComfyUI workflow with this template's prompt, settings and samples. Drop it into ComfyUI.">
-          <I n="download" />ComfyUI workflow
+        <a className="ttool sq" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} aria-label="ComfyUI workflow"
+          title="ComfyUI workflow: this template's prompt, settings and samples in one file. Drop it into ComfyUI.">
+          <I n="download" />
         </a>
       )}
       {del && (

@@ -1,22 +1,25 @@
 // Create's canvas: the input or result in the middle, crop box, compare, variant grid.
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
-import { ABPlayer } from "../../components/ABPlayer";
+import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { ABPlayer, type Side } from "../../components/ABPlayer";
 import { clipSlot as asClip, dropIntoStudio } from "../../components/Drop";
-import { Compare, cx, I, jobProgress, QUEUED, Ring } from "../../components/oi";
+import { cx, I, jobProgress, QUEUED, Ring } from "../../components/oi";
 import { bySlot, useUploader } from "../../components/Refs";
 import { StageError, type Fix } from "../../components/Studio";
 import { Spinner } from "../../components/ui";
 import { api, fileUrl, type EngineInfo, type Job, type Manifest, type Mode } from "../../lib/api";
 import { clipFps, clipWindow, mediaFields } from "../../lib/fields";
+import { ago } from "../../lib/format";
 import { isActive } from "../../lib/live";
 import { clipIn, posterOf, slotOf, withClip, type RefSlot, type StudioState } from "../../lib/store";
 import { aspectName, dimsText, type Crop } from "../../lib/size";
 import { FAILED, sampleRef, sampleVideo, type SetS, type View, withInput } from "./shared";
 
-export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group, vlist, jobs, fixes, onFocus }: {
+export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job, group, vlist, jobs, fixes, earlier, action, onFocus }: {
   mode: Mode; lead: string; eff: View | "live" | "failed" | "empty"; s: StudioState; set: SetS; engine?: EngineInfo; base?: RefSlot; out: { width: number; height: number } | null;
   shown: Manifest | null; job?: Job; group: string[]; vlist: Manifest[]; jobs: Job[]; fixes: Fix[];
+  /** The shown run is older than this template's newest; `action` (Use these inputs) goes in the bar beside it. */
+  earlier?: boolean; action?: ReactNode;
   onFocus: (id: string) => void;
 }) {
   const { upload, busy } = useUploader();
@@ -39,22 +42,23 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
     ? (shown && drove ? fileUrl(shown.id, posterOf(drove.file!)) : clip?.poster ?? undefined)
     : shown && before ? fileUrl(shown.id, before) : base?.url;
 
+  // Every result, the template's example included, sits over one bar: what it is on the left, how to compare on the right.
+  const player = (a: Side | null, b: Side, info: ReactNode, act?: ReactNode, tip?: string) => (
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+      <ABPlayer key={b.src ?? ""} a={a} b={b} info={<><div className="ab-info" title={tip}>{info}</div>{act}</>} />
+    </div>
+  );
+
   // The template's example: its cover beside the input it was made from, like a finished run.
   if (eff === "example" && engine?.cover) {
     const b = engine.cover_before;
-    const after = engine.cover_video ? { kind: "video" as const, src: engine.cover_video, poster: engine.cover, label: "Result" }
-      : { kind: "image" as const, src: engine.cover, label: "Result" };
-    const tag = <div className="corner r"><span className="pill mono" title="Made with this template. Run it to make your own.">Example</span></div>;
-    if (b && (b.kind === "video" || after.kind === "video")) {
-      return <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}><ABPlayer a={{ kind: b.kind, src: b.url, label: "Input" }} b={after} overlay={tag} /></div>;
-    }
-    return (
-      <div className="frame" style={{ "--ar": engine.cover_aspect ?? 1 } as CSSProperties}>
-        {after.kind === "video" ? <video src={after.src} poster={engine.cover} muted loop playsInline autoPlay style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-          : b ? <Compare key={after.src} before={b.url} after={after.src} lb="Input" la="Result" intro /> : <img src={after.src} alt="Example result" className="alpha" />}
-        {tag}
-      </div>
-    );
+    const after: Side = engine.cover_video ? { kind: "video", src: engine.cover_video, poster: engine.cover, label: "Example" }
+      : { kind: "image", src: engine.cover, label: "Example" };
+    // A clip's bar holds the timeline too, so its caption stays short; the whole sentence is on hover.
+    const clip = after.kind === "video" || b?.kind === "video";
+    return player(b ? { kind: b.kind, src: b.url, label: "Input" } : null, after,
+      <><span className="ex"><I n="info" size={14} /></span><b>Example</b>{!clip && <span>made with this template. Run it to make your own.</span>}</>,
+      null, "Made with this template. Run it to make your own.");
   }
 
   // Words only: nothing to drop, the prompt is the whole input.
@@ -93,10 +97,15 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
     );
   }
 
-  if ((motion || videoOut) && (eff === "compare" || eff === "result") && shown && result) {
-    const src = drove ? { kind: "video" as const, src: fileUrl(shown.id, drove.file!), poster: fileUrl(shown.id, posterOf(drove.file!)), label: "Input" } : null;
-    const res = { kind: (shown.result?.kind ?? "video") as "video" | "image", src: result, poster: shown.result?.poster ? fileUrl(shown.id, shown.result.poster) : null, label: "Result" };
-    return <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}><ABPlayer a={eff === "compare" ? src : null} b={res} /></div>;
+  if ((eff === "compare" || eff === "result") && shown && result) {
+    const moving = motion || videoOut;
+    const src: Side | null = moving
+      ? (drove ? { kind: "video", src: fileUrl(shown.id, drove.file!), poster: fileUrl(shown.id, posterOf(drove.file!)), label: "Input" } : null)
+      : beforeUrl ? { kind: "image", src: beforeUrl, label: "Input" } : null;
+    const res: Side = { kind: shown.result?.kind ?? (moving ? "video" : "image"), src: result, poster: shown.result?.poster ? fileUrl(shown.id, shown.result.poster) : null, label: "Result" };
+    const seed = shown.result?.seed;
+    const meta = [ago(shown.created), size && `${size.w}×${size.h}`, seed != null && `seed ${seed}`].filter(Boolean).join(" · ");
+    return player(eff === "compare" ? src : null, res, <><b>{earlier ? "Earlier run" : "Your run"}</b><span className="mono">{meta}</span></>, earlier ? action : null);
   }
 
   if (motion && eff === "input" && clip) {
@@ -169,17 +178,6 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
         <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "grid", placeItems: "center", padding: 16, background: "linear-gradient(rgba(255,107,126,.06),rgba(255,107,126,.14))", overflow: "auto" }}>
           <StageError state={shown.status} error={job?.error ?? shown.result?.error} detail={job?.detail} fixes={fixes} compact />
         </div>
-      </div>
-    );
-  }
-
-  if ((eff === "compare" || eff === "result") && shown?.result?.file) {
-    const after = fileUrl(shown.id, shown.result.file);
-    const dims = size ? `${size.w}×${size.h}` : "";
-    return (
-      <div className="frame" style={{ "--ar": ar } as CSSProperties}>
-        {eff === "compare" && beforeUrl ? <Compare key={after} before={beforeUrl} after={after} lb="Input" la="Result" intro /> : <img src={after} alt="Result" className="alpha" />}
-        {eff === "result" && <div className="corner r"><span className="pill mono">{dims}{shown.result.seed != null ? `${dims ? " · " : ""}seed ${shown.result.seed}` : ""}</span></div>}
       </div>
     );
   }

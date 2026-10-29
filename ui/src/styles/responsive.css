@@ -4,6 +4,8 @@
   .inspector.open{width:404px;transform:none}
   .explore .scrim.on{display:block;position:absolute;inset:0;z-index:25;background:rgba(6,4,9,.45);animation:fade .2s}
   .studio{grid-template-columns:316px minmax(0,1fr)}
+  .ttools{gap:6px}
+  .ttools .ttool{padding:0 6px;font-size:12px}
   .stage{grid-template-columns:minmax(0,1fr)}
   .hist{display:none}
   .hist-strip{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;align-items:center;margin-top:-6px}

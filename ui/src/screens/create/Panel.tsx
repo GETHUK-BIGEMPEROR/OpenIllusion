@@ -2,10 +2,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cx, I, useStatus, gpuName } from "../../components/oi";
-import { useRunner } from "../../components/Studio";
+import { useLocalCheck, useRunner } from "../../components/Studio";
 import { TemplateTools, tplModel, tplName, useCoverActions } from "../../components/TemplateCard";
 import { Spinner } from "../../components/ui";
-import { api, type EngineInfo, type ParamSpec } from "../../lib/api";
+import { api, type EngineInfo, type ParamSpec, type Spec } from "../../lib/api";
 import { mediaFields, mentions, noNames, promptField, type MediaField, type Mention } from "../../lib/fields";
 import { Mentions } from "../../components/Mentions";
 import { go } from "../../lib/route";
@@ -140,10 +140,13 @@ function filled(e: EngineInfo, s: StudioState): Omit<Mention, "token" | "name">[
 }
 
 /** Pinned under the recipe: how many, what's in the way, Run. */
-export function RunBar({ s, set, engine, runner, queued, varies }: {
-  s: StudioState; set: SetS; engine?: EngineInfo; runner: ReturnType<typeof useRunner>; queued: number; varies: boolean;
+export function RunBar({ s, set, engine, spec, runner, queued, varies }: {
+  s: StudioState; set: SetS; engine?: EngineInfo; spec: Spec; runner: ReturnType<typeof useRunner>; queued: number; varies: boolean;
 }) {
   const status = useStatus();
+  // The same check LocalNeeds shows the missing list from; here only its all-clear.
+  const check = useLocalCheck(spec).data;
+  const found = !!check && check.reachable !== false && !check.missing_nodes.length && !check.missing_models.length && !check.bad_values.length;
   const media = mediaFields(engine);
   const held = (f: MediaField) => f.type === "audio" ? !!soundIn(s, f.key)?.url && !soundIn(s, f.key)!.missing : f.type === "video"
     ? !!clipIn(s, f.key) && !clipIn(s, f.key)!.missing
@@ -159,15 +162,17 @@ export function RunBar({ s, set, engine, runner, queued, varies }: {
         ) : reasons.length ? (
           <span className="warn" title={reasons.join("\n")}><I n="alert" />{reasons[0]}{reasons.length > 1 ? ` · +${reasons.length - 1} more` : ""}</span>
         ) : runner.isLocal ? (
-          <span className="rdy"><i className="dot" />{gpu ?? "Your ComfyUI"}<em>{queued ? `${queued} in queue` : "free"}</em></span>
+          <span className="rdy"><i className="dot" />{gpu ?? "Your ComfyUI"}<em>{queued ? `${queued} in queue` : "free"}</em>
+            {found && <span className="ok" title="Every node and model this workflow uses is in your ComfyUI"><I n="check" size={12} />Models found</span>}</span>
         ) : (
           <span className="rdy"><i className="dot violet" />Comfy Router{queued ? <em>{queued} in queue</em> : null}</span>
         )}
       </div>
       <div className="rb-row">
-        {varies && <div className="rb-count" role="group" aria-label="Variants, one seed each" title="Variants, one seed each">
-          {[1, 2, 3, 4].map((v) => <button key={v} type="button" aria-pressed={s.variants === v} onClick={() => set({ variants: v })}>{v}</button>)}
-        </div>}
+        <div className="rb-count" role="group" aria-label="Variants, one seed each"
+          title={varies ? "Variants, one seed each" : "This workflow uses a fixed seed, so each run makes one result"}>
+          {[1, 2, 3, 4].map((v) => <button key={v} type="button" aria-pressed={s.variants === v} disabled={!varies && v > 1} onClick={() => set({ variants: v })}>{v}</button>)}
+        </div>
         <button className="run" type="button" disabled={runner.blocked || !!missing} onClick={() => void runner.run()} aria-keyshortcuts="Control+Enter R">
           {runner.busy ? <Spinner /> : <I n="zap" />}{s.variants > 1 ? `Run ${s.variants} variants` : "Run"}<kbd>R</kbd>
         </button>

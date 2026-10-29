@@ -35,10 +35,10 @@ export function HistList({ engine, current, jobs, onPick }: { engine: string; cu
   const list = runs.data ?? [];
   return (
     <>
-      <h5>Runs · {list.length}</h5>
+      <h5>Runs{list.length ? <span className="mono"> {list.length}</span> : null}</h5>
       <div className="hist-list">
         {list.length ? list.slice(0, 60).map((g) => <HThumb key={g.id} g={g} on={g.id === current} job={jobs.find((j) => j.id === g.id)} onPick={() => onPick(g.id)} />)
-          : <p className="none">{runs.isLoading ? "…" : "Your runs of this template land here."}</p>}
+          : runs.isLoading ? null : <><span className="hslot" aria-hidden /><p className="none">No runs yet</p></>}
       </div>
     </>
   );

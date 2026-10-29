@@ -19,9 +19,10 @@ export const typing = (e: KeyboardEvent) => {
 /**
  * Synced A/B player: wipe (the default, as for photos) or side by side, one transport for both.
  * Framed like a photo on the stage: sized to the result's shape (B, else A) within its parent; an input of
- * another shape is letterboxed (object-contain) so nothing is cropped.
+ * another shape is letterboxed (object-contain) so nothing is cropped. `info` (what's shown, and an action for it)
+ * sits in the bar under the frame, so a photo gets the same bar as a clip.
  */
-export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a: Side | null; b: Side | null; overlay?: ReactNode; height?: number | string; keys?: boolean; className?: string }) {
+export function ABPlayer({ a, b, overlay, info, height, keys = true, className }: { a: Side | null; b: Side | null; overlay?: ReactNode; info?: ReactNode; height?: number | string; keys?: boolean; className?: string }) {
   const [mode, setMode] = useState<"side" | "wipe">("wipe");
   // The frame's shape: the result's (B), else A's, once it has loaded.
   const [ar, setAr] = useState(16 / 9);
@@ -35,6 +36,7 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
   const master = () => vb.current ?? va.current;
   const videos = () => [va.current, vb.current].filter(Boolean) as HTMLVideoElement[];
   const hasVideo = (a?.kind === "video" && !!a.src) || (b?.kind === "video" && !!b.src);
+  const bar = hasVideo || !!(a && b) || !!info;
 
   const seek = useCallback((time: number) => {
     for (const v of videos()) v.currentTime = Math.max(0, Math.min(time, (v.duration || time) - 0.01));
@@ -109,7 +111,7 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
   const both = a && b;
   return (
     <div className={cx("ab", height == null && "fill", className)} style={height != null ? { height } : undefined}>
-      <div className="ab-box" style={{ "--ar": ar, "--n": mode === "side" && both ? 2 : 1, "--bar": hasVideo || both ? "44px" : "0px" } as CSSProperties}>
+      <div className="ab-box" style={{ "--ar": ar, "--n": mode === "side" && both ? 2 : 1, "--bar": bar ? "48px" : "0px" } as CSSProperties}>
       <div className="ab-stack">
       {mode === "side" || !both ? (
         <div className={cx("ab-panes", both && "two")}>
@@ -148,20 +150,21 @@ export function ABPlayer({ a, b, overlay, height, keys = true, className }: { a:
           {overlay}
         </div>
       )}
-      {(hasVideo || both) && (
+      {bar && (
         <div className="ab-bar">
           {hasVideo && (
             <>
-              <button type="button" aria-label={playing ? "Pause" : "Play"} onClick={toggle} className="ab-play">
+              <button type="button" aria-label={playing ? "Pause" : "Play"} onClick={toggle} className="ab-play" title="Space play/pause · J/L ±1 s (Shift: ±1 frame) · K stop">
                 <I n={playing ? "pause" : "play"} size={12} />
               </button>
               <span className="ab-time mono">{clock(t)} <em>/ {clock(dur)}</em></span>
               <input type="range" aria-label="Scrub" min={0} max={dur || 1} step={0.01} value={t} onChange={(e) => seek(+e.target.value)} className="ab-scrub" />
-              <span className="ab-keys mono" title="Space play/pause · J/L ±1 s (Shift: ±1 frame) · K stop">Space J K L</span>
+              {!info && <span className="ab-keys mono" title="Space play/pause · J/L ±1 s (Shift: ±1 frame) · K stop">Space J K L</span>}
             </>
           )}
+          {info}
           {both && (
-            <div role="radiogroup" aria-label="Compare mode" className={cx("seg sm", !hasVideo && "end")}>
+            <div role="radiogroup" aria-label="Compare mode" className="seg sm end">
               {([["wipe", "Wipe", "split"], ["side", "Side by side", "columns"]] as const).map(([k, l, n]) => (
                 <button key={k} type="button" role="radio" aria-checked={mode === k} title={l} onClick={() => setMode(k)}>
                   <I n={n} size={13} /><span>{l}</span>

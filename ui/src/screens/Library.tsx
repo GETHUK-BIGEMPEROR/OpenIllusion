@@ -320,7 +320,7 @@ function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; j
           <>
             <button className={cx("icon-btn sm glass fav", !g.starred && "reveal")} type="button" aria-pressed={g.starred} aria-label={g.starred ? "Unstar" : "Star"}
               onClick={(e) => { e.stopPropagation(); void star(); }}><I n="star" /></button>
-            <button className="icon-btn sm glass reveal" type="button" aria-label="Remix in Create" title="Remix in Create"
+            <button className="icon-btn sm glass reveal" type="button" aria-label="Open in Create" title="Open in Create"
               onClick={(e) => { e.stopPropagation(); void remix(); }}><I n="remix" /></button>
           </>
         )}

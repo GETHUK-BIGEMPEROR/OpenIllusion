@@ -112,7 +112,8 @@ const accept = (k: Kind) => (k === "video" ? ACCEPT_VIDEO : k === "audio" ? ACCE
 /** What a run does to the file, or (no model limits) the size it runs at. */
 function Line({ e, f, h, edits, plan }: { e: EngineInfo; f: MediaField; h: Held; edits: Edits; plan?: { width: number; height: number } | null }) {
   if (h.missing) return <span className="fline bad"><i className="dot" /><span>File missing: add your own</span></span>;
-  return <FitLine m={h} fit={fitOf(e, f.key)} e={edits} model={tplModel(e)} fallback={plan && kindOf(f) !== "audio" ? <>Runs at <b className="mono">{dimsText(plan)}</b></> : undefined} />;
+  return <FitLine m={h} fit={fitOf(e, f.key)} e={edits} model={tplModel(e)} lead={metaOf(h, edits)}
+    fallback={plan && kindOf(f) !== "audio" ? <span>runs at <b className="mono">{dimsText(plan)}</b></span> : undefined} />;
 }
 
 /** One input as a card: the file as edited, what it is, and whether the model takes it. Pick it to edit it on the stage. */
@@ -143,10 +144,9 @@ export function FileCard({ e, f, s, set, photos, on, plan, onPick }: {
             <b>{f.label}</b>
             <small title={h?.name}>{h ? h.name : f.required === false ? "Optional" : "Needed to run"}</small>
             {edited && <em className="tag-ed" title="Changed in the editor. Made when it runs; the original stays.">Edited</em>}
-            {h?.sample && !h.missing && !edited && <em className="tag-sample">SAMPLE</em>}
+            {h?.sample && !h.missing && !edited && <em className="tag-quiet" title="The template's own sample. Drop yours to replace it.">Sample</em>}
           </span>
           {h ? <>
-            {!h.missing && <span className="fcard-meta mono">{metaOf(h, edits)}</span>}
             <Line e={e} f={f} h={h} edits={edits} plan={plan} />
           </> : <span className="fline"><span>Drop a {NOUN[k]} or click to choose</span></span>}
         </span>

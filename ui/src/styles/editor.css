@@ -152,10 +152,16 @@ button.lpill:disabled{cursor:default}
 .fline.fix .dot{background:var(--orange)}.fline.fix span{color:#FFC48C}
 .fline.bad .dot{background:var(--rose)}.fline.bad span{color:#FF9DA9}
 .fline.need span{color:#FFC48C}
+.fline span.fl-meta,.fline span.fl-sep{color:var(--text-3)}
+.fline span.fl-sep{flex:none}
+/* The size gives way first, so whether the model takes the file stays readable. */
+.fline span.fl-meta{flex:0 4 auto;min-width:5ch;font-size:10.5px}
+.fline>.dot+span{flex:0 1 auto;min-width:6ch}
+.tag-quiet{flex:none;align-self:center;font:500 10px/16px var(--body);font-style:normal;padding:0 6px;border-radius:5px;color:var(--text-2);background:rgba(255,255,255,.06);border:1px solid var(--line-2)}
 .tag-ed{flex:none;font:600 9.5px/1 var(--body);font-style:normal;letter-spacing:.06em;padding:3px 5px;border-radius:5px;background:rgba(154,134,240,.2);color:#CFC4FF}
 
 /* Create: inputs as a list of files; the picked one is on the stage */
-.flist{display:flex;flex-direction:column;gap:6px}
+.flist{display:flex;flex-direction:column;gap:8px}
 .fcard{position:relative;display:flex;contain:inline-size;align-items:center;border-radius:12px;border:1px solid var(--line);background:var(--raised);transition:border-color .15s,background .15s,box-shadow .15s}
 .fcard:hover{border-color:var(--line-2)}
 .fcard.on{border-color:var(--violet);background:#1C1628;box-shadow:0 0 0 3px rgba(154,134,240,.12)}
@@ -170,7 +176,6 @@ button.lpill:disabled{cursor:default}
 .fcard-l1 b{flex:none;font-size:13px;font-weight:600}
 .fcard-l1 small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--text-3)}
 .fcard-l1 em{align-self:center}
-.fcard-meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;color:var(--text-3)}
 .fcard-acts{flex:none;display:flex;align-items:center;gap:2px;padding-right:6px}
 .fcard-fit{height:26px;padding:0 9px;border-radius:8px;font-size:11.5px;font-weight:500;color:#FFC48C;border:1px solid rgba(255,162,76,.4);transition:background .15s}
 .fcard-fit:hover{background:rgba(255,162,76,.12);color:var(--text)}
@@ -185,6 +190,7 @@ button.lpill:disabled{cursor:default}
 .vseg button .i{width:14px;height:14px}
 .vseg button:hover{color:var(--text)}
 .vseg button[aria-pressed="true"]{background:var(--hover);color:var(--text)}
+.vseg .pct{font-size:10.5px;color:var(--yellow)}
 
 /* Builder: each sample as a card under its role */
 .brole-h{align-items:center}

@@ -9,7 +9,6 @@ import { clipSlots, clipWindow, roleOf } from "../lib/fields";
 import { toSpec } from "../lib/spec";
 import { newKey, useApp, type StudioState } from "../lib/store";
 import { typing } from "./ABPlayer";
-import { gpuName } from "./Shell";
 import { Button, Notice, Spinner, cx } from "./ui";
 import { EmptyBox, I } from "./oi";
 
@@ -205,9 +204,6 @@ export function LocalNeeds({ spec }: { spec: Spec }) {
             )}
           </div>
         </Notice>
-      )}
-      {c && problems === 0 && c.reachable !== false && (
-        <p className="local-ok"><I n="check" size={12} />All nodes and models found{gpuName(local?.gpu) ? ` · ${gpuName(local?.gpu)}` : ""}</p>
       )}
     </>
   );

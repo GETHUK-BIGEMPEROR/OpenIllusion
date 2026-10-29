@@ -272,8 +272,8 @@ export function GenerationDetail({ id }: { id: string }) {
         </div>
 
         <div className="v-actions">
-          <button className="btn primary" type="button" onClick={() => remix()} title="Load every input and setting into Create"><I n="remix" />Remix</button>
-          <button className="btn" type="button" onClick={rerun} disabled={missingMedia || live} title={missingMedia ? "Some media isn't in this generation. Remix and add your own." : "Same settings, new seed"}><I n="refresh" />Re-run</button>
+          <button className="btn primary" type="button" onClick={() => remix()} title="Put every input and setting back in Create"><I n="remix" />Open in Create</button>
+          <button className="btn" type="button" onClick={rerun} disabled={missingMedia || live} title={missingMedia ? "Some media isn't in this generation. Open it in Create and add your own." : "Same settings, new seed"}><I n="refresh" />Re-run</button>
           <button className="icon-btn" type="button" aria-label="Export" title="Export (E)" onClick={() => share(m.id)} disabled={m.status !== "done"}><I n="share" /></button>
           <Popover.Root open={swap} onOpenChange={setSwap}>
             <Popover.Trigger asChild><button className="icon-btn" type="button" aria-label="Swap engine" title="Same inputs on another engine"><I n="cpu" /></button></Popover.Trigger>
@@ -287,7 +287,7 @@ export function GenerationDetail({ id }: { id: string }) {
           <button className="icon-btn" type="button" aria-label="More actions" aria-expanded={more} onClick={() => setMore(!more)}><I n="more" /></button>
           {more && <MoreMenu close={() => setMore(false)}>
             <button role="menuitem" type="button" onClick={() => { setMore(false); void save({ starred: !m.starred }); }}><I n="star" />{m.starred ? "Unstar" : "Star"}</button>
-            {m.mode === "motion" && <button role="menuitem" type="button" onClick={() => { setMore(false); remix({ dropVideo: true }); }}><I n="film" />Remix with my own video</button>}
+            {m.mode === "motion" && <button role="menuitem" type="button" onClick={() => { setMore(false); remix({ dropVideo: true }); }}><I n="film" />Open in Create with my own video</button>}
             {local && <a role="menuitem" className="mitem" href={workflowUrl(m.id)} download={`${m.id}.workflow.json`} onClick={() => setMore(false)}><I n="graph" />Download ComfyUI workflow</a>}
             {tpl && m.status === "done" && <CoverItem e={tpl} run={m.id} close={() => setMore(false)} />}
             <button role="menuitem" type="button" onClick={() => { navigator.clipboard?.writeText(m.id); setMore(false); toast({ text: "Generation ID copied.", tone: "ok" }); }}><I n="copy" />Copy generation ID</button>
@@ -361,7 +361,7 @@ function Notes({ m, onSave }: { m: Manifest; onSave: (v: string) => void }) {
 
 function Lineage({ m }: { m: Manifest }) {
   const links: { label: string; id: string }[] = [];
-  if (m.lineage.forked_from) links.push({ label: "Remixed from", id: m.lineage.forked_from });
+  if (m.lineage.forked_from) links.push({ label: "Made from", id: m.lineage.forked_from });
   for (const c of m.lineage.chain) links.push({ label: "From an image run", id: c.split(":")[1] ?? c });
   for (const c of m.lineage.sent_to) links.push({ label: "Sent to Video", id: c });
   for (const v of m._variants ?? []) if (v.id !== m.id) links.push({ label: `Variant · ${v.title}`, id: v.id });

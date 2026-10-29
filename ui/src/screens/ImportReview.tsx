@@ -97,7 +97,7 @@ export function ImportReview() {
               <div className="dlg-f">
                 <span className="note">Saved to the Imported shelf.</span>
                 <Button disabled={!!busy} onClick={() => commit("add")}>{busy === "add" ? <Spinner size={12} /> : null}Add to library</Button>
-                <Button tone="primary" disabled={!!busy} onClick={() => commit("remix")}>{busy === "remix" ? <Spinner size={12} /> : null}{review.has_driving ? "Open in studio" : "Remix with my video"}</Button>
+                <Button tone="primary" disabled={!!busy} onClick={() => commit("remix")}>{busy === "remix" ? <Spinner size={12} /> : null}{review.has_driving ? "Open in Create" : "Open in Create with my video"}</Button>
               </div>
             </>
           )}

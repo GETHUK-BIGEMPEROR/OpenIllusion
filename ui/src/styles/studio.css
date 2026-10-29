@@ -1,9 +1,10 @@
 /* ---------- studio ---------- */
 .studio{display:grid;grid-template-columns:372px minmax(0,1fr);height:100%}
 .recipe{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line);background:var(--panel);position:relative;z-index:5}
-.recipe-scroll{flex:1;min-height:0;overflow:auto;padding:14px 14px 22px;display:flex;flex-direction:column;gap:20px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent}
+.recipe-scroll{flex:1;min-height:0;overflow:auto;padding:16px 16px 22px;display:flex;flex-direction:column;gap:20px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent}
 .recipe-scroll>*{flex:none}
-.sec{display:grid;gap:10px}
+.recipe-scroll>:empty{display:none}
+.sec{display:grid;gap:8px}
 .sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:18px}
 .sec-h h4{margin:0;font:600 11px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
 .sec-h .mono{font-size:11px;color:var(--text-3)}
@@ -12,14 +13,14 @@
 .sec-act:hover{background:var(--hover);color:var(--text)}
 .sec-act .i{width:13px;height:13px}
 .thero{position:relative}
-.thero-img{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:16/10;background:var(--raised)}
+.thero-img{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:2/1;background:var(--raised)}
 .thero-img img{width:100%;height:100%;object-fit:cover;object-position:center 22%}
 .thero-img::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,7,14,.25),transparent 30%,transparent 45%,rgba(10,7,14,.9))}
 .thero-cap{position:absolute;left:14px;right:14px;bottom:12px;z-index:2}
 .thero-cap h2{margin:0;font:600 19px/1.15 var(--display);letter-spacing:-.01em;text-wrap:balance}
 .thero-cap p{margin:6px 0 0;font-size:11.5px;color:rgba(242,238,248,.72);display:flex;align-items:center;gap:6px}
 .thero .change{position:absolute;top:10px;right:10px;z-index:3}
-.thero-blurb{margin:10px 2px 0;font-size:12.5px;line-height:1.5;color:var(--text-2)}
+.thero-blurb{margin:12px 2px 0;font-size:12.5px;line-height:1.5;color:var(--text-2)}
 .btn.glass{background:rgba(14,10,19,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-color:rgba(255,255,255,.12);color:var(--text)}
 .btn.glass:hover{background:rgba(14,10,19,.85)}
 .tmenu{position:absolute;left:0;right:0;top:48px;z-index:40;background:#1A1421;border:1px solid var(--line-2);border-radius:16px;padding:6px;box-shadow:0 30px 60px -20px rgba(0,0,0,.8);max-height:min(440px,62cqh);overflow:auto;animation:rise .2s}
@@ -108,7 +109,6 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .stage-top{container-type:inline-size;grid-column:1;display:flex;align-items:center;gap:10px;padding:12px 18px;min-height:58px}
 .stage-top .btn:disabled{opacity:.35}
 /* With a result's actions up, the name already on the recipe gives way. */
-.stage-top[data-acts] .crumb{display:none}
 .crumb{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;color:var(--text-3)}
 .crumb b{color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .canvas{flex:1;min-height:0;container-type:size;display:grid;place-items:center;padding:0 28px 8px;position:relative}
@@ -150,6 +150,8 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .hthumb.failed::after{content:"";position:absolute;right:4px;bottom:4px;width:18px;height:18px;border-radius:6px;background:var(--rose) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23211927' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M12 6v8M12 18.5h.01'/%3E%3C/svg%3E") no-repeat center}
 .hthumb.failed[aria-current="true"]{box-shadow:0 0 0 2px var(--yellow)}
 .hthumb .pring{position:absolute;inset:0;margin:auto;width:28px;height:28px}
+.hist h5 .mono{letter-spacing:0;color:var(--text-2)}
+.hslot{width:64px;height:64px;flex:none;border-radius:12px;border:1.5px dashed var(--line-2)}
 .hist .none{font-size:11px;color:var(--text-3);text-align:center;padding:0 10px;line-height:1.45;margin:0}
 .hist-strip{display:none}
 .pbox{display:grid;border-radius:14px;background:var(--field);border:1px solid var(--line);transition:border-color .15s,box-shadow .15s}
@@ -170,11 +172,15 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .rb-status .rdy em{font-style:normal;color:var(--text-3)}
 .rb-status .rdy em::before{content:"·";margin-right:7px}
 .rb-status .rdy .dot{width:6px;height:6px}
+.rb-status .ok{display:inline-flex;align-items:center;gap:5px;margin-left:5px;color:var(--text-2)}
+.rb-status .ok .i{color:var(--mint)}
 .rb-row{display:flex;gap:8px}
 .rb-count{display:grid;grid-template-columns:repeat(4,30px);gap:2px;padding:3px;border-radius:14px;background:var(--bg);border:1px solid var(--line);flex:none}
 .rb-count button{display:grid;place-items:center;border-radius:10px;color:var(--text-3);font:500 13px var(--mono);transition:background .15s,color .15s}
 .rb-count button:hover{color:var(--text)}
 .rb-count button[aria-pressed="true"]{background:var(--hover);color:var(--text);box-shadow:inset 0 0 0 1px var(--line-2)}
+.rb-count button:disabled{opacity:.3;cursor:not-allowed}
+.rb-count button:disabled:hover{color:var(--text-3)}
 .runbar .run{flex:1;height:48px}
 .runbar .run kbd{margin-left:4px}
 .areachip{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 2px 0 8px;border-radius:6px;background:rgba(242,255,89,.12);color:var(--yellow);font-size:11px}
@@ -195,13 +201,13 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .cmp .tg{position:absolute;top:12px;z-index:3}
 .cmp .tg.l{left:12px}.cmp .tg.r{right:12px}
 /* template tools: its workflow, or a new template from it */
-.ttools{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.ttools{display:flex;gap:8px;margin-top:10px}
 .ttools .ttool{flex:1 1 auto;min-width:0;height:34px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 10px;border-radius:10px;border:1px solid var(--line);background:var(--raised);color:var(--text-2);font:inherit;font-size:12.5px;font-weight:500;white-space:nowrap;text-decoration:none;cursor:pointer;transition:border-color .15s,background .15s,color .15s}
 .ttools .ttool:hover{border-color:var(--line-2);background:rgba(255,255,255,.05);color:var(--text)}
 .ttools .ttool:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
 .ttools .ttool .i{width:14px;height:14px;flex:none;color:var(--text-3)}
 .ttools .ttool:hover .i{color:var(--text-2)}
-.ttools .ttool.del{flex:none;width:34px;padding:0}
+.ttools .ttool.del,.ttools .ttool.sq{flex:none;width:34px;padding:0}
 .ttools .ttool.del:hover{border-color:var(--rose);color:var(--rose)}
 .ttools .ttool.del:hover .i{color:inherit}
 
@@ -221,8 +227,6 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .need-l b{font:400 11px var(--mono);color:var(--text);word-break:break-all}
 .need-l small{font-size:10px;color:var(--text-2)}
 .need-l a:hover{text-decoration:underline}
-.local-ok{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-2)}
-.local-ok .i{color:var(--mint)}
 /* ---------- a run that failed or can't start ---------- */
 .serr{width:100%;max-width:440px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px}
 .serr.sm{max-width:300px}
@@ -247,8 +251,8 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .ab{display:flex;flex-direction:column;gap:8px;min-height:0}
 .ab.fill{flex:1}
 .ab-box{flex:1;min-height:0;container-type:size;display:grid;place-items:center}
-/* The frame and its transport, together: as wide as the frame (the bar never narrower than 520px). */
-.ab-stack{--fw:min(100cqw,calc((100cqh - var(--bar)) * var(--ar) * var(--n) + (var(--n) - 1) * 8px));width:max(var(--fw),min(100cqw,520px));display:flex;flex-direction:column;gap:8px}
+/* The frame and its bar, together: as wide as the frame (the bar never narrower than 600px). */
+.ab-stack{--fw:min(100cqw,calc((100cqh - var(--bar)) * var(--ar) * var(--n) + (var(--n) - 1) * 8px));width:max(var(--fw),min(100cqw,600px));display:flex;flex-direction:column;gap:8px}
 .ab-panes{width:var(--fw);margin-inline:auto;display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
 .ab-panes.two{grid-template-columns:repeat(2,minmax(0,1fr))}
 .ab-pane{position:relative;min-width:0;aspect-ratio:var(--ar);border-radius:16px;overflow:hidden;background:#0A0710;box-shadow:0 40px 90px -30px rgba(0,0,0,.85),0 0 0 1px var(--line)}
@@ -261,12 +265,19 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .ab-badge{position:absolute;right:12px;top:12px}
 .ab-line{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:rgba(255,255,255,.95);box-shadow:0 0 18px rgba(0,0,0,.55)}
 .ab-line span{position:absolute;top:50%;left:1px;translate:-50% -50%;width:36px;height:36px;border-radius:50%;background:#fff;color:#15101B;display:grid;place-items:center;box-shadow:0 0 0 1px rgba(240,239,237,.09),0 12px 32px rgba(0,0,0,.5)}
-.ab-bar{flex:none;height:36px;display:flex;align-items:center;gap:10px;padding:0 4px}
+.ab-bar{flex:none;height:40px;display:flex;align-items:center;gap:10px;padding:0 4px;border-radius:12px;border:1px solid var(--line);background:rgba(21,16,27,.7)}
+/* What the frame shows (Example, Your run, Earlier run) and its one action. */
+.ab-info{display:flex;align-items:center;gap:8px;min-width:0;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ab-bar>.ab-info:first-child{padding-left:8px}
+.ab-info b{color:var(--text);font-weight:500}
+.ab-info .mono{font-size:11px;color:var(--text-3)}
+.ab-info .ex{display:grid;color:var(--yellow)}
+.ab-bar>.btn{flex:none}
 .ab-play{width:28px;height:28px;flex:none;border-radius:6px;display:grid;place-items:center;background:var(--text);color:#211927;transition:background .15s}
 .ab-play:hover{background:#fff}
 .ab-time{font-size:11px;white-space:nowrap;color:#D6D0DF}
 .ab-time em{font-style:normal;color:var(--text-3)}
-.ab-scrub{flex:1;min-width:0;height:20px;accent-color:var(--yellow)}
+.ab-scrub{flex:1;min-width:96px;height:20px;accent-color:var(--yellow)}
 .ab-keys{font-size:10px;color:var(--text-3);white-space:nowrap}
 @container app (max-width:767px){.ab-keys{display:none}}
 @container app (max-width:639px){.ab-bar .seg span{display:none}}

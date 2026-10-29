@@ -114,10 +114,12 @@ export function MediaThumb({ m, e = NO_EDITS, className }: { m: Media; e?: Edits
 }
 
 /** "Fits Kling", "Run crops it to 5:2": one line under a file. */
-export function FitLine({ m, fit, e = NO_EDITS, model, fallback }: { m: MediaLike; fit?: Fit; e?: Edits; model: string; fallback?: ReactNode }) {
+export function FitLine({ m, fit, e = NO_EDITS, model, fallback, lead }: { m: MediaLike; fit?: Fit; e?: Edits; model: string; fallback?: ReactNode; lead?: string }) {
   const st = statusOf(m, fit, e, model);
-  if (!st) return fallback ? <span className="fline">{fallback}</span> : null;
-  return <span className={cx("fline", st.state)} title={st.text}><i className="dot" /><span>{st.text}</span></span>;
+  // `lead` (the file's size) goes first, so a card says what the file is and how it runs on one line.
+  const pre = lead ? <span className="fl-meta mono">{lead}</span> : null;
+  if (!st) return fallback || pre ? <span className="fline">{pre}{pre && fallback && <span className="fl-sep" aria-hidden>·</span>}{fallback}</span> : null;
+  return <span className={cx("fline", st.state)} title={st.text}>{pre}<i className="dot" /><span>{st.text}</span></span>;
 }
 
 /** What a file is: its size, length and rate after the edits. */

@@ -225,7 +225,7 @@ function Sheet({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 /** What the file is for, said before and after saving it. */
-const HOW = "The result with its recipe: template, inputs, prompt and settings. To use it, drop it on any OpenIllusion page or press Library → Import. It opens under Imported; Remix loads it into Create to run again.";
+const HOW = "The result with its recipe: template, inputs, prompt and settings. To use it, drop it on any OpenIllusion page or press Library → Import. It opens under Imported; Open in Create loads it to run again.";
 
 function Footer({ children }: { children: ReactNode }) {
   return <div className="dlg-f">{children}</div>;

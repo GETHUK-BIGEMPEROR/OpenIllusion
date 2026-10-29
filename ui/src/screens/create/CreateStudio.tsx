@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { typing } from "../../components/ABPlayer";
 import { dropIntoStudio, isMediaFile, useFileDrop } from "../../components/Drop";
 import { OutputSize, useEngine, ParamFields } from "../../components/Engine";
-import { cx, GpuStat, I, KeyStat } from "../../components/oi";
+import { cx, GpuStat, I, jobProgress, KeyStat } from "../../components/oi";
 import { invalidFields, LocalNeeds, NoTemplates, useCompose, useCurrent, useRunner, useStudio, type Fix } from "../../components/Studio";
 import { tplName } from "../../components/TemplateCard";
 import { api, isMedia, type Manifest, type Mode } from "../../lib/api";
@@ -155,11 +155,14 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const varies = engine?.varies !== false;
   useEffect(() => { if (!varies && s.variants !== 1) set({ variants: 1 }); }, [varies, s.variants, set]);
 
-  const remix = (g: Manifest) => {
+  // An earlier run than this template's newest: its inputs may no longer be the ones on the left, so the bar offers them back.
+  const newest = runs.data?.[0];
+  const earlier = done && !!shown && !!newest && shown.created < newest.created && !group.includes(newest.id);
+  const useInputs = (g: Manifest) => {
     useApp.getState().loadGeneration(g);
     set({ current: null, group: [] });
     setView("input");
-    toast({ text: "Loaded into a new draft. Change anything, then Run.", tone: "ok" });
+    toast({ text: "That run's inputs, prompt and settings are back. Change anything, then Run.", tone: "ok" });
   };
 
   // E exports what's on the stage.
@@ -251,19 +254,20 @@ function CreateStudio({ mode }: { mode: Mode }) {
             </div>
           </details>}
         </div>
-        <RunBar s={s} set={set} engine={engine} runner={runner} queued={jobs.filter(isActive).length} varies={varies} />
+        <RunBar s={s} set={set} engine={engine} spec={spec} runner={runner} queued={jobs.filter(isActive).length} varies={varies} />
       </aside>
 
       <section className="stage" aria-label="Preview">
-        <div className="stage-top" data-acts={done && shown ? "" : undefined}>
+        <div className="stage-top">
           <div className="crumb">Create<span>/</span><b>{engine ? tplName(engine) : "…"}</b></div>
           <span style={{ flex: 1 }} />
           {(!!shown || example) && !!media.length && (
             <div className="vseg" role="group" aria-label="Show">
               <button type="button" aria-pressed={inputView} onClick={() => setView("input")} title="Edit the inputs"><I n="pencil" /><span className="lbl">Inputs</span></button>
-              {shown
-                ? <button type="button" aria-pressed={!inputView} onClick={() => setView(group.length > 1 ? "grid" : "compare")} title="See the run"><I n="image" /><span className="lbl">{live ? "Running" : "Result"}</span></button>
-                : <button type="button" aria-pressed={!inputView} onClick={() => setView("example")} title="What this template makes"><I n="image" /><span className="lbl">Example</span></button>}
+              <button type="button" aria-pressed={!inputView} onClick={() => setView(shown ? (group.length > 1 ? "grid" : "compare") : "example")}
+                title={shown ? "See the run" : "What this template makes. Run it to make your own."}>
+                <I n="image" /><span className="lbl">Result</span>{live && <span className="mono pct">{Math.round(jobProgress(shownJob) * 100)}%</span>}
+              </button>
             </div>
           )}
           {group.length > 1 && (
@@ -273,7 +277,6 @@ function CreateStudio({ mode }: { mode: Mode }) {
           {done && shown && (
             <>
               {varies && <button className="btn sm ghost" type="button" onClick={() => rerun(shown.id)} title="Same inputs, new seed"><I n="refresh" /><span className="lbl">Re-run</span></button>}
-              <button className="btn sm ghost" type="button" onClick={() => remix(shown)} title="Load this run's inputs and settings as a new draft"><I n="remix" /><span className="lbl">Remix</span></button>
               <button className="btn sm" type="button" onClick={() => share(shown.id)} aria-keyshortcuts="E" title="Export (E)"><I n="share" /><span className="lbl">Export</span></button>
               {engine && !engine.cover && !engine.cover_video && shown.engine.model === engine.id && <UseAsCover e={engine} run={shown.id} />}
             </>
@@ -291,7 +294,9 @@ function CreateStudio({ mode }: { mode: Mode }) {
         ) : (
         <div className={cx("canvas", stageDrop.over && "drop")} {...stageDrop.props} data-drop="Drop to fill the inputs in order">
           <Canvas mode={mode} lead={lead} eff={eff} s={s} set={set} engine={engine} base={base} out={noInput ? canvas : planOf(lead)} shown={shown} job={shownJob} group={group} vlist={vlist} jobs={jobs}
-            fixes={fixes} onFocus={(id) => { set({ current: id }); setView("compare"); }} />
+            fixes={fixes} earlier={earlier}
+            action={shown && <button className="btn sm primary" type="button" onClick={() => useInputs(shown)} title="Put this run's photos, prompt and settings back on the left"><I n="undo" />Use these inputs</button>}
+            onFocus={(id) => { set({ current: id }); setView("compare"); }} />
         </div>
         )}
 
