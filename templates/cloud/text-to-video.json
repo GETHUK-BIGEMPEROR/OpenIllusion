@@ -1,0 +1,127 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "mode": "motion",
+  "label": "Text to Video",
+  "blurb": "Makes a video with sound from words alone on Veo 3.1 Fast. Runs on Comfy Router with your key.",
+  "inputs": [
+    {
+      "key": "prompt",
+      "type": "text",
+      "required": true,
+      "default": "Stylized 3D animated feature film style. Two cartoon animals singing karaoke side by side in a cozy neon-lit karaoke room, medium shot, upper bodies and faces clearly visible. Left: a chubby red panda in a yellow hoodie, holding a microphone with both paws. Right: a lanky raccoon in a purple jacket and round glasses, holding a second microphone. Both sing passionately, swaying to the beat, mouths moving with the lyrics, then turn to each other and laugh. Lyrics screen glowing behind them, colorful disco lights sweeping across the walls. Soft fluffy fur, big expressive eyes, rounded proportions, warm cinematic lighting, camera slowly pushing in. High detail 3D animation render.",
+      "bind": [
+        [
+          "instances",
+          0,
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "aspect",
+      "type": "aspect",
+      "label": "Aspect",
+      "default": "16:9",
+      "bind": [
+        [
+          "parameters",
+          "aspectRatio"
+        ]
+      ],
+      "options": [
+        "16:9",
+        "9:16"
+      ]
+    },
+    {
+      "key": "resolution",
+      "type": "segmented",
+      "label": "Resolution",
+      "default": "720p",
+      "bind": [
+        [
+          "parameters",
+          "resolution"
+        ]
+      ],
+      "options": [
+        "720p",
+        "1080p",
+        "4k"
+      ],
+      "labels": {
+        "4k": "4K"
+      }
+    },
+    {
+      "key": "duration",
+      "type": "segmented",
+      "label": "Duration",
+      "default": 6,
+      "bind": [
+        [
+          "parameters",
+          "durationSeconds"
+        ]
+      ],
+      "options": [
+        4,
+        6,
+        8
+      ],
+      "unit": "s"
+    },
+    {
+      "key": "sound",
+      "type": "bool",
+      "label": "Sound",
+      "default": true,
+      "bind": [
+        [
+          "parameters",
+          "generateAudio"
+        ]
+      ],
+      "help": "Make sound with the clip"
+    }
+  ],
+  "built": true,
+  "kind": "cloud",
+  "model": "veo/veo-3.1-fast-generate-001",
+  "provider": "veo",
+  "body": {
+    "instances": [
+      {
+        "prompt": "Stylized 3D animated feature film style. Two cartoon animals singing karaoke side by side in a cozy neon-lit karaoke room, medium shot, upper bodies and faces clearly visible. Left: a chubby red panda in a yellow hoodie, holding a microphone with both paws. Right: a lanky raccoon in a purple jacket and round glasses, holding a second microphone. Both sing passionately, swaying to the beat, mouths moving with the lyrics, then turn to each other and laugh. Lyrics screen glowing behind them, colorful disco lights sweeping across the walls. Soft fluffy fur, big expressive eyes, rounded proportions, warm cinematic lighting, camera slowly pushing in. High detail 3D animation render."
+      }
+    ],
+    "parameters": {
+      "sampleCount": 1,
+      "aspectRatio": "16:9",
+      "resolution": "720p",
+      "durationSeconds": 6,
+      "generateAudio": true
+    }
+  },
+  "result": [
+    [
+      "response",
+      "videos",
+      "*",
+      "bytesBase64Encoded"
+    ],
+    [
+      "response",
+      "videos",
+      "*",
+      "gcsUri"
+    ]
+  ],
+  "source": "Comfy Router · Veo 3.1 Fast",
+  "locked": [],
+  "id": "cloud/text-to-video",
+  "cover": "media/cover-text-to-video-veo.webp",
+  "cover_video": "media/cover-text-to-video-veo.mp4",
+  "added": 1793233556.3423898
+}

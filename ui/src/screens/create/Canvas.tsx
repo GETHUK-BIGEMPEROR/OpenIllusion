@@ -12,7 +12,7 @@ import { api, fileUrl, type EngineInfo, type Job, type Manifest, type Mode } fro
 import { clipFps, clipWindow, mediaFields } from "../../lib/fields";
 import { ago, resultName } from "../../lib/format";
 import { isActive } from "../../lib/live";
-import { clipIn, posterOf, slotOf, withClip, type RefSlot, type StudioState } from "../../lib/store";
+import { clipIn, posterOf, slotOf, useApp, withClip, type RefSlot, type StudioState } from "../../lib/store";
 import { askedAspect, aspectName, dimsText, type Crop } from "../../lib/size";
 import { FAILED, sampleRef, sampleVideo, type SetS, type View, withInput } from "./shared";
 
@@ -26,6 +26,8 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
   const { upload, busy } = useUploader();
   const [over, setOver] = useState(false);
   const qc = useQueryClient();
+  const abView = useApp((x) => x.abView);
+  const setAbView = useApp((x) => x.setAbView);
   // The stage follows the lead input: a clip plays, a photo can be cropped and marked. Results show as what they are.
   const motion = lead.startsWith("video:");
   const leadField = mediaFields(engine).find((f) => f.key === lead);
@@ -46,9 +48,10 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
     : shown && before ? fileUrl(shown.id, before) : base?.url;
 
   // Every result, the template's example included, sits over one bar: what it is on the left, how to compare on the right.
+  // The input and result open side by side until you pick the wipe; the pick stays, run to run and on a run's page.
   const player = (a: Side | null, b: Side, info: ReactNode, act?: ReactNode, tip?: string, overlay?: ReactNode) => (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-      <ABPlayer key={b.src ?? ""} a={a} b={b} overlay={overlay} info={<><div className="ab-info" title={tip}>{info}</div>{act}</>} />
+      <ABPlayer key={b.src ?? ""} a={a} b={b} view={abView} onView={setAbView} overlay={overlay} info={<><div className="ab-info" title={tip}>{info}</div>{act}</>} />
     </div>
   );
 

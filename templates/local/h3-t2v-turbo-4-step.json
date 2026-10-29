@@ -1,0 +1,255 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "mode": "motion",
+  "label": "H3 T2V Turbo",
+  "blurb": "Makes a short video with sound from words alone, fast with the turbo LoRA. Describe the scene, the action, the camera and the audio.",
+  "inputs": [
+    {
+      "key": "prompt",
+      "type": "text",
+      "required": true,
+      "default": "Realistic cinematic footage. A slow aerial drone shot glides over a Norwegian fjord at sunrise, mist on still water, a small red cabin on the rocky shore, steep green cliffs. Audio: soft wind and distant birds.",
+      "bind": [
+        [
+          "131",
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "size",
+      "type": "size",
+      "label": "Output size",
+      "aspect": "16:9",
+      "default": "0.4 MP",
+      "bind": [
+        [
+          "131",
+          "width",
+          "width"
+        ],
+        [
+          "131",
+          "height",
+          "height"
+        ]
+      ]
+    }
+  ],
+  "built": true,
+  "model_name": "Minimax H3",
+  "kind": "local",
+  "provider": "local",
+  "outputs": [
+    "92"
+  ],
+  "workflow": {
+    "92": {
+      "class_type": "SaveVideo",
+      "inputs": {
+        "filename_prefix": "video/H3_T2V_Turbo",
+        "format": "auto",
+        "format.codec": "auto",
+        "video": [
+          "130",
+          0
+        ]
+      }
+    },
+    "119": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      }
+    },
+    "120": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    "121": {
+      "class_type": "VAEDecodeAudio",
+      "inputs": {
+        "samples": [
+          "125",
+          0
+        ],
+        "vae": [
+          "120",
+          0
+        ]
+      }
+    },
+    "122": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "125",
+          0
+        ],
+        "vae": [
+          "119",
+          0
+        ]
+      }
+    },
+    "123": {
+      "class_type": "KSamplerSelect",
+      "inputs": {
+        "sampler_name": "res_multistep"
+      }
+    },
+    "124": {
+      "class_type": "BasicScheduler",
+      "inputs": {
+        "scheduler": "simple",
+        "steps": 6,
+        "denoise": 1,
+        "model": [
+          "134",
+          0
+        ]
+      }
+    },
+    "125": {
+      "class_type": "SamplerCustomAdvanced",
+      "inputs": {
+        "noise": [
+          "129",
+          0
+        ],
+        "guider": [
+          "126",
+          0
+        ],
+        "sampler": [
+          "123",
+          0
+        ],
+        "sigmas": [
+          "124",
+          0
+        ],
+        "latent_image": [
+          "131",
+          1
+        ]
+      }
+    },
+    "126": {
+      "class_type": "BasicGuider",
+      "inputs": {
+        "model": [
+          "134",
+          0
+        ],
+        "conditioning": [
+          "131",
+          0
+        ]
+      }
+    },
+    "127": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    "128": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    "129": {
+      "class_type": "RandomNoise",
+      "inputs": {
+        "noise_seed": 1
+      },
+      "_meta": {
+        "control_after_generate": {
+          "noise_seed": "fixed"
+        }
+      }
+    },
+    "130": {
+      "class_type": "CreateVideo",
+      "inputs": {
+        "fps": 24,
+        "bit_depth": 8,
+        "images": [
+          "122",
+          0
+        ],
+        "audio": [
+          "121",
+          0
+        ]
+      }
+    },
+    "131": {
+      "class_type": "MiniMaxH3ImageToVideo",
+      "inputs": {
+        "prompt": "Realistic cinematic footage. A slow aerial drone shot glides over a Norwegian fjord at sunrise, mist on still water, a small red cabin on the rocky shore, steep green cliffs. Audio: soft wind and distant birds.",
+        "width": 832,
+        "height": 480,
+        "length": [
+          "132",
+          1
+        ],
+        "clip": [
+          "128",
+          0
+        ],
+        "vae": [
+          "119",
+          0
+        ]
+      }
+    },
+    "132": {
+      "class_type": "ComfyMathExpression",
+      "inputs": {
+        "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+        "values.a": [
+          "133",
+          0
+        ]
+      }
+    },
+    "133": {
+      "class_type": "PrimitiveFloat",
+      "inputs": {
+        "value": 5.0
+      },
+      "_meta": {
+        "title": "Float (duration)"
+      }
+    },
+    "134": {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "lora_name": "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+        "strength_model": 1,
+        "model": [
+          "127",
+          0
+        ]
+      }
+    }
+  },
+  "source": "Built in OpenIllusion from a ComfyUI workflow",
+  "hints": {
+    "models": {},
+    "nodes": {}
+  },
+  "id": "local/h3-t2v-turbo-4-step",
+  "cover": "media/cover-h3-t2v-turbo.webp",
+  "cover_video": "media/cover-h3-t2v-turbo.mp4",
+  "added": 1793254226.8974066
+}

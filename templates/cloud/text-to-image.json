@@ -1,0 +1,92 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "mode": "edit",
+  "label": "Text to Image",
+  "blurb": "Makes a photo from words alone on GPT Image 2. Runs on Comfy Router with your key.",
+  "inputs": [
+    {
+      "key": "prompt",
+      "type": "text",
+      "required": true,
+      "default": "A humanoid orange cat in spacesuit standing in front of camera, full body shot",
+      "bind": [
+        [
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "aspect",
+      "type": "aspect",
+      "label": "Aspect",
+      "default": "1024x1536",
+      "bind": [
+        [
+          "size"
+        ]
+      ],
+      "options": [
+        "auto",
+        "1024x1024",
+        "1536x1024",
+        "1024x1536"
+      ],
+      "labels": {
+        "auto": "Auto",
+        "1024x1024": "1:1",
+        "1536x1024": "3:2",
+        "1024x1536": "2:3"
+      }
+    },
+    {
+      "key": "quality",
+      "type": "segmented",
+      "label": "Quality",
+      "default": "high",
+      "bind": [
+        [
+          "quality"
+        ]
+      ],
+      "options": [
+        "auto",
+        "low",
+        "medium",
+        "high"
+      ],
+      "labels": {
+        "auto": "Auto",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      }
+    }
+  ],
+  "built": true,
+  "kind": "cloud",
+  "model": "openai/gpt-image-2",
+  "provider": "openai",
+  "body": {
+    "prompt": "A humanoid orange cat in spacesuit standing in front of camera, full body shot",
+    "size": "1024x1536",
+    "quality": "high"
+  },
+  "result": [
+    [
+      "data",
+      "*",
+      "b64_json"
+    ],
+    [
+      "data",
+      "*",
+      "url"
+    ]
+  ],
+  "source": "Comfy Router · GPT Image 2",
+  "locked": [],
+  "id": "cloud/text-to-image",
+  "cover": "media/cover-text-to-image-gpt.webp",
+  "added": 1793255371.874044
+}

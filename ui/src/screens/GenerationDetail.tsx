@@ -1,10 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Popover from "@radix-ui/react-popover";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ABPlayer, typing } from "../components/ABPlayer";
+import { ABPlayer, typing, type Side } from "../components/ABPlayer";
 import { OutcomeToggle } from "../components/bits";
 import { EngineDropdown } from "../components/Engine";
-import { appRoot, Compare, cx, EmptyBox, gpuName, I, jobProgress, QUEUED, useStatus } from "../components/oi";
+import { appRoot, cx, EmptyBox, gpuName, I, jobProgress, QUEUED, useStatus } from "../components/oi";
 import { RunHud, RunVeil } from "../components/RunStatus";
 import { StageError, type Fix } from "../components/Studio";
 import { tplModel, tplName, useCoverActions } from "../components/TemplateCard";
@@ -27,6 +27,8 @@ export function GenerationDetail({ id }: { id: string }) {
   const share = useApp((s) => s.share);
   const loadGeneration = useApp((s) => s.loadGeneration);
   const setStudio = useApp((s) => s.setStudio);
+  const abView = useApp((s) => s.abView);
+  const setAbView = useApp((s) => s.setAbView);
   const libList = useApp((s) => s.libList);
   const templates = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const status = useStatus();
@@ -137,13 +139,19 @@ export function GenerationDetail({ id }: { id: string }) {
   const ar =size ? size.w / size.h : 4 / 5;
   const eff: Mode = !before || !over ? "result" : mode;
 
+  // Input against result, side by side or the wipe, as last picked here or in Create.
+  const ab = (a: Side | null, b: Side) => (
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "0 16px 16px" }}><ABPlayer a={a} b={b} view={abView} onView={setAbView} /></div>
+  );
   let stage: ReactNode;
   if (after && isVideo) {
     const src = over && video?.file ? { kind: "video" as const, src: fileUrl(m.id, video.file), poster: fileUrl(m.id, posterOf(video.file)), label: "Input" } : null;
-    stage = <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "0 16px 16px" }}><ABPlayer a={src} b={{ kind: "video", src: after, poster: r?.poster ? fileUrl(m.id, r.poster) : null, label: "Result" }} /></div>;
+    stage = ab(src, { kind: "video", src: after, poster: r?.poster ? fileUrl(m.id, r.poster) : null, label: "Result" });
+  } else if (after && eff === "compare" && before) {
+    stage = ab({ kind: "image", src: before, label: "Input" }, { kind: "image", src: after, label: "Result" });
   } else {
     let inner: ReactNode;
-    if (after) inner = eff === "compare" && before ? <Compare before={before} after={after} lb="Input" la="Result" /> : <img src={eff === "input" && before ? before : after} alt={eff === "input" ? "Input" : "Result"} className={eff === "input" && before ? undefined : "alpha"} />;
+    if (after) inner = <img src={eff === "input" && before ? before : after} alt={eff === "input" ? "Input" : "Result"} className={eff === "input" && before ? undefined : "alpha"} />;
     else if (live) {
       const qd = QUEUED.has(job!.state);
       inner = (

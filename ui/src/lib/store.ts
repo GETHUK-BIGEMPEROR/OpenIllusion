@@ -152,6 +152,9 @@ interface AppState {
   edit: StudioState;
   /** The studio last open, so Create returns to it (image or video). */
   lastStudio: Mode;
+  /** How a result is set against its input, in Create and on a run's page: side by side, or the wipe. */
+  abView: "side" | "wipe";
+  setAbView: (v: "side" | "wipe") => void;
   queueOpen: boolean;
   palette: boolean;
   /** The Library wall's order, so the viewer can step through it. */
@@ -195,6 +198,7 @@ export const useApp = create<AppState>()(
       motion: blankStudio(),
       edit: blankStudio(),
       lastStudio: "edit",
+      abView: "side",
       queueOpen: false,
       palette: false,
       libList: [],
@@ -211,6 +215,7 @@ export const useApp = create<AppState>()(
           const switched = !!prev.engine && !!p.engine && p.engine !== prev.engine;
           return { [mode]: switched ? { ...fresh(prev, p.engine!), ...p } : { ...prev, ...p } } as Partial<AppState>;
         }),
+      setAbView: (abView) => set({ abView }),
       openTemplate: (mode, engine) => set((s) => ({ [mode]: fresh(s[mode], engine) }) as Partial<AppState>),
       loadGeneration: (m, opts = {}) => {
         // Remix: every input and setting goes back into the studio.
@@ -295,7 +300,7 @@ export const useApp = create<AppState>()(
     {
       name: "openillusion.studio.v1",
       storage: safeStorage,
-      partialize: (s) => ({ motion: s.motion, edit: s.edit, lastStudio: s.lastStudio }),
+      partialize: (s) => ({ motion: s.motion, edit: s.edit, lastStudio: s.lastStudio, abView: s.abView }),
       // v2: the built-in cloud engines were removed; drafts pointing at one start without an engine.
       // v3: one clip per video input instead of a single clip.
       version: 3,

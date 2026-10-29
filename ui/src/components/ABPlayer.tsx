@@ -17,13 +17,18 @@ export const typing = (e: KeyboardEvent) => {
 };
 
 /**
- * Synced A/B player: wipe (the default, as for photos) or side by side, one transport for both.
+ * Synced A/B player: wipe (the default, as for photos) or side by side, one transport for both. With `view` and
+ * `onView` the caller holds the choice, so it outlives this player.
  * Framed like a photo on the stage: sized to the result's shape (B, else A) within its parent; an input of
  * another shape is letterboxed (object-contain) so nothing is cropped. `info` (what's shown, and an action for it)
  * sits in the bar under the frame, so a photo gets the same bar as a clip.
  */
-export function ABPlayer({ a, b, overlay, info, height, keys = true, className }: { a: Side | null; b: Side | null; overlay?: ReactNode; info?: ReactNode; height?: number | string; keys?: boolean; className?: string }) {
-  const [mode, setMode] = useState<"side" | "wipe">("wipe");
+export type AbView = "side" | "wipe";
+
+export function ABPlayer({ a, b, overlay, info, height, keys = true, className, view, onView }: { a: Side | null; b: Side | null; overlay?: ReactNode; info?: ReactNode; height?: number | string; keys?: boolean; className?: string; view?: AbView; onView?: (v: AbView) => void }) {
+  const [own, setOwn] = useState<AbView>(view ?? "wipe");
+  const mode = view ?? own;
+  const setMode = (v: AbView) => { setOwn(v); onView?.(v); };
   // The frame's shape: the result's (B), else A's, once it has loaded.
   const [ar, setAr] = useState(16 / 9);
   const shape = (w: number, h: number) => { if (w && h) setAr(w / h); };
