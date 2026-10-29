@@ -21,6 +21,14 @@
 .thero-cap p{margin:6px 0 0;font-size:11.5px;color:rgba(242,238,248,.72);display:flex;align-items:center;gap:6px}
 .thero .change{position:absolute;top:10px;right:10px;z-index:3}
 .thero-blurb{margin:12px 2px 0;font-size:12.5px;line-height:1.5;color:var(--text-2)}
+/* A draft: only in Create until a tested run publishes it. Dashed orange until tested, then solid mint. */
+.draftbar{display:grid;grid-template-columns:1fr auto;grid-template-areas:"pill go" "say go";align-items:center;column-gap:12px;row-gap:6px;margin-top:10px;padding:10px 10px 10px 12px;border-radius:12px;border:1px dashed rgba(255,162,76,.5);background:rgba(255,162,76,.07)}
+.draftbar.ok{border-style:solid;border-color:rgba(95,211,154,.42);background:rgba(95,211,154,.07)}
+.draftbar .draftp{grid-area:pill;justify-self:start;color:#FFC48F}
+.draftbar .draftp .dot{background:var(--orange)}
+.draftbar p{grid-area:say;margin:0;font-size:12px;line-height:1.45;color:var(--text-2)}
+.draftbar p b{color:var(--text);font-weight:600}
+.draftbar .btn{grid-area:go}
 .btn.glass{background:rgba(14,10,19,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-color:rgba(255,255,255,.12);color:var(--text)}
 .btn.glass:hover{background:rgba(14,10,19,.85)}
 .tmenu{position:absolute;left:0;right:0;top:48px;z-index:40;background:#1A1421;border:1px solid var(--line-2);border-radius:16px;padding:6px;box-shadow:0 30px 60px -20px rgba(0,0,0,.8);max-height:min(440px,62cqh);overflow:auto;animation:rise .2s}

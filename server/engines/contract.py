@@ -57,6 +57,7 @@ class Engine:
     body: dict | None = None  # cloud templates: the request body, with media tokens and fixed values
     result: list[list] = field(default_factory=list)  # cloud templates: where the media is in the model's output, first match wins
     built: bool = False  # made in the template builder
+    draft: bool = False  # built and not published yet: off Explore until a finished run of it publishes it
     keep_sound: str | None = None  # cloud templates: the clip whose own sound every result takes (a fixed "Keep the clip's")
 
     def __post_init__(self):
@@ -290,7 +291,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         params=[{k: v for k, v in f.items() if k != "bind"} for f in fields if f["type"] not in (*MEDIA, "size") and f["key"] != "prompt"],
         curated=True, kind="cloud" if cloud else "local",
         workflow=None if cloud else data["workflow"], bindings=bindings, outputs=[str(o) for o in data.get("outputs", [])],
-        model=data.get("model") if cloud else None, body=data.get("body") if cloud else None, built=bool(data.get("built")),
+        model=data.get("model") if cloud else None, body=data.get("body") if cloud else None, built=bool(data.get("built")), draft=bool(data.get("draft")),
         result=[list(p) for p in result] if cloud else [], keep_sound=keep,
         hints=data.get("hints", {}), source=data.get("source"),
         model_name="" if cloud else str(data.get("model_name") or "").strip(),

@@ -1,5 +1,5 @@
 // Create's left panel: the template header, the prompt, settings summary, and the Run bar.
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cx, I, useStatus, gpuName } from "../../components/oi";
 import { useLocalCheck, useRunner } from "../../components/Studio";
@@ -7,10 +7,12 @@ import { TemplateTools, tplModel, tplName, useCoverActions } from "../../compone
 import { Spinner } from "../../components/ui";
 import { api, type EngineInfo, type ParamSpec, type Spec } from "../../lib/api";
 import { mediaFields, mentions, noNames, promptField, type MediaField, type Mention } from "../../lib/fields";
+import { errMsg } from "../../lib/format";
 import { Mentions } from "../../components/Mentions";
 import { go } from "../../lib/route";
 import { clipIn, slotOf, soundIn, useApp, type StudioState } from "../../lib/store";
-import type { SetS } from "./shared";
+import { useRuns } from "./History";
+import { FAILED, type SetS } from "./shared";
 
 export function advSummary(params: ParamSpec[], s: StudioState) {
   const steps = params.find((p) => p.key === "steps");
@@ -23,7 +25,8 @@ export function advSummary(params: ParamSpec[], s: StudioState) {
 
 /* ------------------------------------------------------------------ recipe */
 
-export function Hero({ e }: { e: EngineInfo }) {
+/** `run`: the finished run of this template on the stage, if one is; a draft publishes with it. */
+export function Hero({ e, run }: { e: EngineInfo; run?: string | null }) {
   const [open, setOpen] = useState(false);
   const openTemplate = useApp((s) => s.openTemplate);
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
@@ -54,15 +57,56 @@ export function Hero({ e }: { e: EngineInfo }) {
             <button key={x.id} type="button" role="option" aria-selected={x.id === e.id} aria-current={x.id === e.id}
               onClick={() => { setOpen(false); if (x.id !== e.id) openTemplate(e.mode, x.id); }}>
               {x.cover ? <img src={x.cover} alt="" /> : <span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n={x.mode === "motion" ? "film" : "image"} /></span>}
-              {tplName(x)}<small>{tplModel(x)}</small>
+              {tplName(x)}<small>{x.draft ? `Draft · ${tplModel(x)}` : tplModel(x)}</small>
             </button>
           ))}
           <button type="button" onClick={() => { setOpen(false); openTemplate(e.mode, e.id); }}><span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="undo" /></span>Start over with the samples</button>
           <button type="button" onClick={() => { setOpen(false); go({ name: "explore", t: e.id }); }}><span className="empty-ic" style={{ width: 34, height: 34, margin: 0, borderRadius: 8 }}><I n="compass" /></span>Browse all on Explore</button>
         </div>
       )}
+      {e.draft && <DraftBar e={e} run={run} />}
       <TemplateTools e={e} />
       {e.blurb && <p className="thero-blurb">{e.blurb}</p>}
+    </div>
+  );
+}
+
+/** A template saved in the Builder and not published yet: it is only here, in Create, until a finished run of it
+ *  shows it works. Publish puts it on Explore; that run becomes its cover when it has none. */
+function DraftBar({ e, run }: { e: EngineInfo; run?: string | null }) {
+  const qc = useQueryClient();
+  const toast = useApp((s) => s.toast);
+  const runs = useRuns(e.id);
+  const [busy, setBusy] = useState(false);
+  const list = runs.data ?? [];
+  const tested = run ?? list.find((g) => g.status === "done")?.id ?? null;
+  const covered = !!(e.cover || e.cover_video);
+  const say = tested
+    ? covered ? "Tested. Publish puts it on Explore." : `Tested. Publish puts it on Explore, with ${run ? "this" : "your latest"} result as its cover.`
+    : list.some((g) => g.status === "running") ? "Testing. Publish once the run is done and looks right."
+    : list[0] && FAILED.has(list[0].status) ? "Its last run failed. Fix what went wrong and run it again."
+    : "Run it once to test it. Only a template that works goes on Explore.";
+  const publish = async () => {
+    if (!tested) return;
+    setBusy(true);
+    try {
+      const next = await api.publishTemplate(e.id, tested);
+      qc.setQueryData<EngineInfo[]>(["engines"], (l) => l?.map((x) => (x.id === next.id ? next : x)));
+      toast({ text: `${tplName(e)} is published on Explore.`, tone: "ok", action: { label: "View", run: () => go({ name: "explore", t: e.id }) } });
+    } catch (x) {
+      toast({ text: `Couldn't publish: ${errMsg(x)}`, tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={cx("draftbar", tested && "ok")} role="status">
+      <span className="pill draftp"><i className="dot" />Draft</span>
+      <p><b>Not on Explore yet.</b> {say}</p>
+      <button className="btn sm primary" type="button" disabled={!tested || busy} onClick={() => void publish()}
+        title={tested ? "Put it on Explore" : "Run it once first: only a tested template can be published"}>
+        {busy ? <Spinner size={13} /> : <I n="compass" />}<span className="lbl">Publish</span>
+      </button>
     </div>
   );
 }

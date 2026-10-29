@@ -1,0 +1,139 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "mode": "motion",
+  "label": "Reference to Video",
+  "blurb": "Makes a video with sound on Wan 3.0 from words and a photo: the prompt sets the scene and what is said, Image 1 who is in it. Runs on Comfy Router with your key.",
+  "inputs": [
+    {
+      "key": "image:1",
+      "type": "image",
+      "required": true,
+      "bind": [
+        [
+          "input",
+          "media",
+          0
+        ]
+      ],
+      "default": "media/alien-grey.webp"
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "required": true,
+      "default": "A news reporter in a floody neighbourhood as a background with head from Image 1 with mic saying \"Welcome to bizarre news\" as there is cars, branch of trees, leaves, and animals flying behind, windy environment.",
+      "bind": [
+        [
+          "input",
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "aspect",
+      "type": "aspect",
+      "label": "Aspect",
+      "default": "3:4",
+      "bind": [
+        [
+          "parameters",
+          "ratio"
+        ]
+      ],
+      "options": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:4",
+        "adaptive"
+      ],
+      "labels": {
+        "adaptive": "Auto"
+      }
+    },
+    {
+      "key": "resolution",
+      "type": "segmented",
+      "label": "Resolution",
+      "default": "480P",
+      "bind": [
+        [
+          "parameters",
+          "resolution"
+        ]
+      ],
+      "options": [
+        "480P",
+        "720P",
+        "1080P"
+      ],
+      "labels": {
+        "480P": "480p",
+        "720P": "720p",
+        "1080P": "1080p"
+      }
+    },
+    {
+      "key": "duration",
+      "type": "int",
+      "label": "Duration",
+      "default": 5,
+      "bind": [
+        [
+          "parameters",
+          "duration"
+        ]
+      ],
+      "min": 2,
+      "max": 30,
+      "unit": "s"
+    },
+    {
+      "key": "sound",
+      "type": "bool",
+      "label": "Sound",
+      "default": true,
+      "bind": [
+        [
+          "parameters",
+          "audio"
+        ]
+      ],
+      "help": "Make sound with the clip"
+    }
+  ],
+  "built": true,
+  "kind": "cloud",
+  "model": "wan/wan3.0-video",
+  "provider": "wan",
+  "body": {
+    "input": {
+      "prompt": "A news reporter in a floody neighbourhood as a background with head from Image 1 with mic saying \"Welcome to bizarre news\" as there is cars, branch of trees, leaves, and animals flying behind, windy environment.",
+      "media": [
+        {
+          "type": "reference_image",
+          "url": "{{image:1|uri}}"
+        }
+      ]
+    },
+    "parameters": {
+      "resolution": "480P",
+      "duration": 5,
+      "ratio": "3:4",
+      "audio": true
+    }
+  },
+  "result": [
+    [
+      "output",
+      "video_url"
+    ]
+  ],
+  "source": "Comfy Router · Wan 3.0",
+  "locked": [],
+  "id": "cloud/reference-to-video-wan-3-0",
+  "cover": "media/cover-reference-to-video.webp",
+  "cover_video": "media/cover-reference-to-video.mp4"
+}

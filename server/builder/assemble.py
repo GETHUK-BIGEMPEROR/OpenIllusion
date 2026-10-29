@@ -375,8 +375,8 @@ def inherit(data: dict, base: dict, base_label: str) -> None:
 def save(data: dict, samples: dict[str, Path], replace: str | None = None, taken: set[str] = frozenset()) -> str:
     """Write a built template to the user's templates folder. Returns its id.
 
-    A new template is on Explore at once, with no cover until one of its results is made its cover.
-    Rebuilding a template keeps the cover it has."""
+    A new template is a draft: off Explore until a finished run of it publishes it (that run is its cover
+    unless it has one). Rebuilding a template keeps its cover, and its draft state."""
     kind = data["kind"]
     root = paths.user_root() / "templates"
     root.mkdir(parents=True, exist_ok=True)
@@ -386,8 +386,9 @@ def save(data: dict, samples: dict[str, Path], replace: str | None = None, taken
         old = root / f"{kind}__{slug}.json"
         if old.is_file():
             prev = json.loads(old.read_text("utf-8"))
-            data.update({k: prev[k] for k in ("cover", "cover_video") if prev.get(k)})
+            data.update({k: prev[k] for k in ("cover", "cover_video", "draft") if prev.get(k)})
     else:
+        data["draft"] = True
         base = slugify(data["label"])
         slug, i = base, 2
         while (root / f"{kind}__{slug}.json").exists() or f"{kind}/{slug}" in taken:

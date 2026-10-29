@@ -1,0 +1,97 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "mode": "motion",
+  "label": "Swap character",
+  "blurb": "Puts the character from a photo into a clip on Kling 3 Omni, in place of its person. The motion, the place and the clip's sound stay. Runs on Comfy Router with your key.",
+  "inputs": [
+    {
+      "key": "image:1",
+      "type": "image",
+      "required": true,
+      "bind": [
+        [
+          "image_list",
+          0
+        ]
+      ],
+      "default": "media/alien-grey.webp"
+    },
+    {
+      "key": "video:1",
+      "type": "video",
+      "required": true,
+      "bind": [
+        [
+          "video_list",
+          0
+        ]
+      ],
+      "default": "media/swap-character-man-rose.mp4"
+    },
+    {
+      "key": "prompt",
+      "type": "text",
+      "required": true,
+      "default": "Replace the person on Video 1 with character from Image 1 and keep everything else",
+      "bind": [
+        [
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "resolution",
+      "type": "segmented",
+      "label": "Resolution",
+      "default": "std",
+      "bind": [
+        [
+          "mode"
+        ]
+      ],
+      "options": [
+        "std",
+        "pro"
+      ],
+      "labels": {
+        "std": "720p",
+        "pro": "1080p"
+      }
+    }
+  ],
+  "built": true,
+  "kind": "cloud",
+  "model": "kling/kling-v3-omni",
+  "provider": "kling",
+  "body": {
+    "prompt": "Replace the person on Video 1 with character from Image 1 and keep everything else",
+    "mode": "std",
+    "image_list": [
+      {
+        "image_url": "{{image:1|b64}}"
+      }
+    ],
+    "video_list": [
+      {
+        "video_url": "{{video:1|url}}",
+        "refer_type": "base",
+        "keep_original_sound": "yes"
+      }
+    ]
+  },
+  "result": [
+    [
+      "data",
+      "task_result",
+      "videos",
+      "*",
+      "url"
+    ]
+  ],
+  "source": "Comfy Router · Kling 3 Omni",
+  "locked": [],
+  "id": "cloud/swap-character-kling-3-omni",
+  "cover": "media/cover-swap-character.webp",
+  "cover_video": "media/cover-swap-character.mp4"
+}

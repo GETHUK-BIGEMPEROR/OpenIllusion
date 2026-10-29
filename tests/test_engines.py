@@ -38,6 +38,8 @@ TESTED = {HAT} | {f"local/qwen21-{n}" for n in (
 # Ran for real on Comfy Router with a key. Text to Image's cover is that run's result; the two Seedance edits
 # ship their samples (all generated here) and no cover, so the first run makes one.
 TESTED |= {"cloud/text-to-image-seedream-5-0-pro", "cloud/swap-two-people-seedance-2-5", "cloud/replace-character-seedance-2-5"}
+# Built and run here on Comfy Router; each cover is its run's result. Swap character's clip is Kling's own Text to Video result.
+TESTED |= {"cloud/swap-character-kling-3-omni", "cloud/reference-to-video-wan-3-0", "cloud/text-to-video-kling-3-omni", "cloud/text-to-video-wan-3-0"}
 
 
 def test_only_tested_templates_ship(fresh_templates):

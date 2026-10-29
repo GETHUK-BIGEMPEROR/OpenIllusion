@@ -109,6 +109,8 @@ export interface EngineInfo {
   defaults?: { prompt: string; inputs: (Asset & { slot: string })[] };
   /** Made in the template builder (can be deleted). */
   built?: boolean;
+  /** Saved in the Builder and not published yet: in Create, off Explore, until a finished run of it publishes it. */
+  draft?: boolean;
   /** Cloud: how the prompt names each file, by kind ("<<<image_{n}>>>"); {} when the model has no names. */
   mentions?: Record<string, string>;
   /** A shipped template taken off Explore (Settings puts it back). */
@@ -641,6 +643,7 @@ export const api = {
   builderModels: () => req<RouterAdapter[]>("GET", "/builder/models"),
   saveTemplate: (spec: BuildSpec) => req<EngineInfo>("POST", "/builder/save", spec),
   duplicateTemplate: (engine: string) => req<EngineInfo>("POST", "/templates/duplicate", { engine }),
+  publishTemplate: (engine: string, generation: string) => req<EngineInfo>("POST", "/templates/publish", { engine, generation }),
   hideTemplate: (engine: string, hidden: boolean) => req<{ ok: boolean }>("POST", "/templates/hide", { engine, hidden }),
   deleteTemplate: (engine: string) => req<{ ok: boolean }>("DELETE", `/builder/template?${qs({ engine })}`),
   upload: (file: File) => {

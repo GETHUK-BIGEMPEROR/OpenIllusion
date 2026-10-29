@@ -267,7 +267,7 @@ def test_save_writes_user_template_with_samples(tmp_path, monkeypatch):
     e = engines.ENGINES[tid]
     assert e.origin == "user" and e.built and e.default_inputs["image:1"].is_file() and e.cover is None
     d = engines.describe(e)
-    assert "draft" not in d and d["cover"] is None  # on Explore at once; no cover until a result is made one
+    assert d["draft"] and d["cover"] is None  # a draft, off Explore, until a finished run publishes it
     assert d["defaults"]["inputs"][0]["slot"] == "image:1" and d["fields"][0]["sample"]["slot"] == "image:1"
     assert "default" not in d["fields"][0] and "bind" in d["fields"][0]
     engines.set_cover(tid, sample)
@@ -275,7 +275,8 @@ def test_save_writes_user_template_with_samples(tmp_path, monkeypatch):
     builder.save(builder.assemble_local(_local_spec(), {"workflow": api}, INFO), {"image:1": sample}, replace=tid)
     engines.reload_templates()
     e = engines.ENGINES[tid]
-    assert engines.describe(e)["cover"]  # rebuilding keeps the cover
+    assert engines.describe(e)["cover"] and e.draft  # rebuilding keeps the cover, and the draft mark
+    assert not engines.publish_template(tid).draft
     engines.delete_template(tid)
     assert tid not in engines.ENGINES and not e.default_inputs["image:1"].exists()
 

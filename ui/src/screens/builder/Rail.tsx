@@ -76,7 +76,7 @@ export function Rail({ src, name, model, media, prompt, settings, checks, why, t
         {saving ? <Spinner size={15} /> : <I n="zap" />}Run
       </button>
       <p className={cx("brail-why", why && "bad")} role={tried && why ? "alert" : undefined}>
-        {why ? `${why}.` : "Runs once with these samples. The result you like becomes its cover on Explore."}
+        {why ? `${why}.` : "Saves it as a draft and runs it once with these samples. Publish it from Create when the result looks right."}
       </p>
     </aside>
   );

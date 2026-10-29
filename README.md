@@ -46,8 +46,9 @@ LoRA). The photo templates (Qwen Image 2.1) are there to make and fix the stills
 
 - **Templates as black boxes.** Any ComfyUI workflow becomes a template with only
   numbered inputs, one prompt and the output settings any generator has (shape, size,
-  length); the app detects them, runs the workflow untouched and puts it on Explore at
-  once; a result of its own becomes its cover. See [The idea](#the-idea).
+  length); the app detects them and runs the workflow untouched. A new template is a
+  draft until a run of it works; Publish then puts it on Explore with that result as
+  its cover. See [The idea](#the-idea).
 - **Files fitted to the model.** Each input card says whether the model takes the file
   as it is; one editor crops, cuts, resizes and resamples to fit before the run. See the
   Edit a file row in [The app](#the-app-screen-by-screen).
@@ -182,7 +183,11 @@ Anything else is the box's business.
 
 **3 · A template is frozen to its job.** A built template asks for exactly the
 inputs its first run used, all required, so it does the same job every time. It
-is on Explore as soon as it's saved; a result of its own becomes its cover. Every
+is saved as a **draft** (`"draft": true` in its file): Create has it, Explore doesn't.
+Create's header says so, whether it has been tested (a finished run), and has
+**Publish**, which takes a finished run (the one on the stage, else the latest), makes
+it the cover when there is none, and puts the template on Explore. Untested templates
+can't be published. Explore lists drafts in a row above the wall. Every
 shipped template ships with its cover. A cover is shown beside the input it was made
 from: setting one keeps a copy of that run's lead photo or clip (`covers/<id>.before.*`),
 and a shipped cover pairs with the shipped samples. A photo cover is made from the full
@@ -225,8 +230,8 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 
 | Screen | Route | What you do there | File |
 | --- | --- | --- | --- |
-| Explore | `#/explore` | Every published template on one wall: photos and videos, your GPU and cloud together. On top, one search field (`/` jumps to it, Esc clears; it reads the name, model, blurb and prompts, best matches first) with how many match. Under it the filters: Photo / Video, Model (each says Your GPU or Cloud; that is where it runs), Input (a photo, a clip, a sound, words only), Clear, and Sort on the right (Recently used, the default, then Featured, Most used, A to Z; used = your runs). Each filter's counts follow the others. There are no tags: search and the filters find templates. Moving the mouse over a card wipes between the cover and the input it was made from (photo or clip; a clip plays only while hovered). Under a card's name is its model: a Router template's comes from its model (Wan 3.0, Seedance 2.5), whatever you name it; a workflow's is the model its author named in Build or the inspector (`model_name`). Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt and cover (and a workflow's model) are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back); the card's hover buttons end with the same trash (right of (i)), and Create's header has it too, with Export .illusion. A bar stuck to the bottom of the wall (see-through, at most 720 px wide), **Add a template someone shared**, takes a template's `.illusion` (drop or Choose file; dropping one anywhere does the same): it lands on Explore as yours, opened in the inspector. A template without a cover yet shows its name until a result is made its cover. The inspector shows the cover beside its input as a slider you drag across, photos or clips (two clips loop in step). | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
-| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips put each filled file's name, Image 1 or Video 1, at the cursor), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. The stage has two tabs, Inputs and Result, and the header always names the template. Opening a template shows Result as after Run: your latest run of it, else the template's example (the cover beside the input it was made from, marked Example on the frame and in the bar); Inputs flips to editing. Every result, photo or clip, sits over one bar: what it is on the left (Example, Your run or Earlier run, with when, size and seed), Wipe or Side by side on the right, and for clips play and the timeline. The result is set against its lead input (Wipe, Side by side) only when it's made over that input: the photo edited, a first frame, the clip edited; a template whose files are references (photos or a clip guiding a new video) shows the result alone, and its card has no before. A run's frame has a download button at its top right: the photo or clip itself, named after the run (Export makes a `.illusion` instead). A finished run's buttons, always in this order: All N (variants), Re-run (only when the workflow re-rolls its seed), Export, Use as cover (a template with no cover yet), Open in Library. Picking an older run in the Runs column (or the strip at medium widths) puts **Use these inputs** in the bar: its files, prompt and settings go back on the left (`loadGeneration`). There is no Remix in Create; Open in Create on the Library and Generation pages does the same from there. Under the cover, one row: Build from this (every template; a cloud one opens on its model with its inputs, prompt and settings), Export .illusion, the ComfyUI workflow (local ones, an icon) and delete. Each input card has one line under its name: the file's size, then whether the model takes it or the size it runs at. The run bar says where it runs and, for a local template whose nodes and models are all there, Models found (what's missing is listed under the template). The 1–4 variants control is always there; a fixed-seed workflow shows it locked at 1. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
+| Explore | `#/explore` | Every published template on one wall: photos and videos, your GPU and cloud together. Drafts (saved in Build, not published yet) sit in a row above the wall, each marked Not tested or Tested, ready to publish; click one to open it in Create. On top, one search field (`/` jumps to it, Esc clears; it reads the name, model, blurb and prompts, best matches first) with how many match. Under it the filters: Photo / Video, Model (each says Your GPU or Cloud; that is where it runs), Input (a photo, a clip, a sound, words only), Clear, and Sort on the right (Recently used, the default, then Featured, Most used, A to Z; used = your runs). Each filter's counts follow the others. There are no tags: search and the filters find templates. Moving the mouse over a card wipes between the cover and the input it was made from (photo or clip; a clip plays only while hovered). Under a card's name is its model: a Router template's comes from its model (Wan 3.0, Seedance 2.5), whatever you name it; a workflow's is the model its author named in Build or the inspector (`model_name`). Click a card to run it in Create; (i) opens the inspector on the right, where name, blurb, prompt and cover (and a workflow's model) are edited in place. Its trash button deletes a template you built or copied, or takes a shipped one off Explore (its file stays; Settings → Templates puts it back); the card's hover buttons end with the same trash (right of (i)), and Create's header has it too, with Export .illusion. A bar stuck to the bottom of the wall (see-through, at most 720 px wide), **Add a template someone shared**, takes a template's `.illusion` (drop or Choose file; dropping one anywhere does the same): it lands on Explore as yours, opened in the inspector. A template without a cover yet shows its name until a result is made its cover. The inspector shows the cover beside its input as a slider you drag across, photos or clips (two clips loop in step). | `screens/Explore.tsx`, `components/TemplateInspector.tsx` |
+| Create | `#/create` (photo), `#/motion` (video) | One studio for both: pick a template, fill its inputs (a list of file cards, each with whether the model takes it), edit the one you pick right on the stage, edit the prompt (on cloud templates, chips put each filled file's name, Image 1 or Video 1, at the cursor), pick the result's settings (shape tiles, size steps with the pixels they make, length, resolution, sound), Run. The stage has two tabs, Inputs and Result, and the header always names the template. Opening a template shows Result as after Run: your latest run of it, else the template's example (the cover beside the input it was made from, marked Example on the frame and in the bar); Inputs flips to editing. Every result, photo or clip, sits over one bar: what it is on the left (Example, Your run or Earlier run, with when, size and seed), Wipe or Side by side on the right, and for clips play and the timeline. The result is set against its lead input (Wipe, Side by side) only when it's made over that input: the photo edited, a first frame, the clip edited; a template whose files are references (photos or a clip guiding a new video) shows the result alone, and its card has no before. A run's frame has a download button at its top right: the photo or clip itself, named after the run (Export makes a `.illusion` instead). A finished run's buttons, always in this order: All N (variants), Re-run (only when the workflow re-rolls its seed), Export, Use as cover (a template with no cover yet), Open in Library. Picking an older run in the Runs column (or the strip at medium widths) puts **Use these inputs** in the bar: its files, prompt and settings go back on the left (`loadGeneration`). There is no Remix in Create; Open in Create on the Library and Generation pages does the same from there. A draft shows a bar under the cover first: Draft, Not on Explore yet, whether it has been tested, and **Publish** (off until a run of it has finished; Use as cover is not shown for drafts, Publish sets the cover). Under the cover, one row: Build from this (every template; a cloud one opens on its model with its inputs, prompt and settings), Export .illusion, the ComfyUI workflow (local ones, an icon) and delete. Each input card has one line under its name: the file's size, then whether the model takes it or the size it runs at. The run bar says where it runs and, for a local template whose nodes and models are all there, Models found (what's missing is listed under the template). The 1–4 variants control is always there; a fixed-seed workflow shows it locked at 1. | `screens/create/`, `components/Studio.tsx`, `MediaEditor.tsx`, `Trimmer.tsx` |
 | Library | `#/library` | Every run, newest first, grouped by day. Shelves: My generations, Imported, Community. Tabs: All, Starred, Active, Failed. On phones (no rail) a link at the bottom leads to Trash. | `screens/Library.tsx` |
 | Trash | `#/trash` | Deleted generations grouped by the day they were deleted, each with days left of its 7. Restore or delete for good one at a time, or Select several; Restore all, Empty trash. | `screens/Trash.tsx` |
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, Open in Create, notes, download (the result file itself), export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
@@ -376,7 +381,7 @@ non-root user, the home folder in a volume, ComfyUI reached on the host by
 | Path | What lives there |
 | --- | --- |
 | `templates/local/` | Shipped workflow templates, plus `media/` (samples and covers) |
-| `templates/cloud/` | Shipped Router templates, each one run for real first: Text to Image (Seedream 5.0 Pro). Media in `media/` |
+| `templates/cloud/` | Shipped Router templates, each one run for real first: Text to Image (Seedream 5.0 Pro), Swap two people and Dancing Animal (Seedance 2.5), Swap character and Text to Video (Kling 3 Omni), Reference to Video and Text to Video (Wan 3.0). Samples and covers in `media/`, all generated here |
 | `tests/` | pytest suite; Router, Comfy Cloud and ComfyUI are faked with `httpx.MockTransport` |
 | `schema/` | `generation.v1.json` (`python -m server.gen_schema`) |
 | `~/.openillusion/` | The home folder; see [Storage](#storage) |
@@ -456,7 +461,7 @@ typed call for each.
 | --- | --- |
 | Status and setup | `GET status` · `POST local/check` · `POST local/proxy/start` · `POST onboarded` · `GET ws` (job updates) |
 | Settings and key | `GET/POST settings` · `POST key/test` · `POST key/forget` |
-| Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `POST templates/hide` (`{engine, hidden}`: a shipped template off Explore or back) · `GET templates/input` · `GET templates/workflow` · `GET templates/export` (a template's `.illusion`; `POST import` adds one) · `GET/PUT/DELETE cover` |
+| Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `POST templates/hide` (`{engine, hidden}`: a shipped template off Explore or back) · `POST templates/publish` (`{engine, generation}`: a draft on Explore; the run must be a finished one of it and becomes the cover when it has none) · `GET templates/input` · `GET templates/workflow` · `GET templates/export` (a template's `.illusion`; `POST import` adds one) · `GET/PUT/DELETE cover` |
 | Builder | `POST builder/workflow` · `POST builder/from-template` · `GET builder/models` (every adapter) · `POST builder/save` · `DELETE builder/template` |
 | Files | `POST upload` (photo, clip or sound; other formats converted) · `GET uploads/{asset}` · `POST frame` (a still from a clip) · `POST media/edit` (`{asset, ops: {rotate, flip, crop, width, height, start, end, fps, mute}}` → a new upload) |
 | Runs | `POST compose` (the request, without running) · `POST run` · `GET jobs` · `POST jobs/{id}/cancel` · `POST jobs/{id}/dismiss` · `POST jobs/cancel` · `POST jobs/clear` |
@@ -470,16 +475,16 @@ typed call for each.
 ```mermaid
 flowchart LR
   SRC["Workflow<br/>or Router model"] --> BU["Builder<br/>inputs + prompt"]
-  BU --> SV["Save + first run<br/>frozen to its job"]
-  SV --> EX["Explore<br/>a result = cover"]
+  BU --> SV["Save as draft + first run<br/>frozen to its job"]
+  SV --> EX["Publish to Explore<br/>a finished run = cover"]
   EX --> CR["Create<br/>your inputs + prompt"]
   CR --> RUN["Run"]
   RUN --> LIB["Library"]
   EX -. "Build from this" .-> BU
 ```
 
-The Builder's first run is a Create run (below): saving puts the template on
-Explore and opens it in Create, running once.
+The Builder's first run is a Create run (below): saving makes the template a draft
+and opens it in Create, running once; Publish there puts it on Explore.
 
 ## Making a template (Builder)
 
@@ -509,7 +514,8 @@ flowchart LR
   DE --> F["Fill<br/>samples + prompt"]
   MO --> F
   F --> ST["Settings<br/>shape · size · length…<br/>asked on Create or fixed"]
-  ST --> RU["Run<br/>saved, frozen to the inputs used;<br/>a result becomes the cover"]
+  ST --> RU["Run<br/>saved as a draft, frozen to the inputs used"]
+  RU --> PB["Publish in Create<br/>needs a finished run;<br/>it becomes the cover"]
 ```
 
 - **Detect** is `builder.analyze`: UI-format workflows are converted to API format
@@ -562,8 +568,9 @@ flowchart LR
   and the rest fill the empty inputs of their kind (that role first, then what the
   job must have), and a Router role takes more up to its cap. Files dropped anywhere
   else on the page do the same (`placeFiles`); a dropped ComfyUI workflow starts over.
-- **Run** saves the template (on Explore at once) and runs it once in Create.
-  Samples you dropped become its defaults; make the result you like its cover.
+- **Run** saves the template as a draft and runs it once in Create. Samples you
+  dropped become its defaults. When a result looks right, **Publish** (in the
+  draft bar under the cover) puts it on Explore with that result as its cover.
   With a fixed seed, Create locks variants at 1 and hides Re-run, because every run
   would give the same result.
 
@@ -1081,7 +1088,7 @@ second base URL plus the key; not planned yet.
 | 7 | Storage: safe writes, secrets off disk, one server per home, scratch that cleans itself, `.illusionbackup` back up and merge-restore | built, tested on throwaway homes |
 | 8 | Inputs fitted to each model: published per-file limits in adapters (`fit`, `media_mb`); runs crop, scale, cut, resample and re-encode to them; Create lists the changes | built, tested against fakes |
 | 9 | Dataset prep, per file: one workbench editor for every photo, clip and sound (inline on Create's stage, a sheet in the Builder), file cards that say whether the model takes each file, the model's limits as pills with Fit to spec and the Builder's Fit all; any common format converted on upload | built, tested; batch editing next |
-| 11 | Result settings: shape, size, length, resolution, sound and quality for every Router model (adapter `settings`) and the shipped create templates; Create's shape tiles and size steps; the Builder's Output size and Settings for both tabs; no drafts, a saved template is on Explore at once | built, tested; cloud values unchecked against real runs |
+| 11 | Result settings: shape, size, length, resolution, sound and quality for every Router model (adapter `settings`) and the shipped create templates; Create's shape tiles and size steps; the Builder's Output size and Settings for both tabs; a saved template is a draft until a finished run of it is published from Create | built, tested; cloud values unchecked against real runs |
 
 ## Known weak spots
 

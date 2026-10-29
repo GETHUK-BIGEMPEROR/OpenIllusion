@@ -1,0 +1,123 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "mode": "motion",
+  "label": "Text to Video",
+  "blurb": "Makes a video with sound from words alone on Kling 3 Omni. Runs on Comfy Router with your key.",
+  "inputs": [
+    {
+      "key": "prompt",
+      "type": "text",
+      "required": true,
+      "default": "A half upper body shot video of a man with hat dancing with flower on his mouth",
+      "bind": [
+        [
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "aspect",
+      "type": "aspect",
+      "label": "Aspect",
+      "default": "9:16",
+      "bind": [
+        [
+          "aspect_ratio"
+        ]
+      ],
+      "options": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ]
+    },
+    {
+      "key": "resolution",
+      "type": "segmented",
+      "label": "Resolution",
+      "default": "std",
+      "bind": [
+        [
+          "mode"
+        ]
+      ],
+      "options": [
+        "std",
+        "pro"
+      ],
+      "labels": {
+        "std": "720p",
+        "pro": "1080p"
+      }
+    },
+    {
+      "key": "duration",
+      "type": "select",
+      "label": "Duration",
+      "default": "3",
+      "bind": [
+        [
+          "duration"
+        ]
+      ],
+      "options": [
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "unit": "s"
+    },
+    {
+      "key": "sound",
+      "type": "bool",
+      "label": "Sound",
+      "default": true,
+      "bind": [
+        [
+          "sound"
+        ]
+      ],
+      "values": [
+        "off",
+        "on"
+      ],
+      "help": "Make sound with the clip"
+    }
+  ],
+  "built": true,
+  "kind": "cloud",
+  "model": "kling/kling-v3-omni",
+  "provider": "kling",
+  "body": {
+    "prompt": "A half upper body shot video of a man with hat dancing with flower on his mouth",
+    "mode": "std",
+    "duration": "3",
+    "aspect_ratio": "9:16",
+    "sound": "on"
+  },
+  "result": [
+    [
+      "data",
+      "task_result",
+      "videos",
+      "*",
+      "url"
+    ]
+  ],
+  "source": "Comfy Router · Kling 3 Omni",
+  "locked": [],
+  "id": "cloud/text-to-video-kling-3-omni",
+  "cover": "media/cover-text-to-video-kling.webp",
+  "cover_video": "media/cover-text-to-video-kling.mp4"
+}

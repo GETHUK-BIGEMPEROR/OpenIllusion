@@ -260,15 +260,12 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     try {
       const e = await api.saveTemplate(s);
       await qc.invalidateQueries({ queryKey: ["engines"] });
-      if (then === "try") {
-        openTemplate(e.mode, e.id);
-        autorun.engine = e.id;
-        go({ name: e.mode });
-        toast({ text: `${e.label} is on Explore and running once. Make the result you like its cover.`, tone: "ok" });
-      } else {
-        go({ name: "explore", t: e.id });
-        toast({ text: `${e.label} is on Explore. Run it and make a result you like its cover.`, tone: "ok" });
-      }
+      // Saved as a draft: it opens in Create, off Explore until a finished run of it is published there.
+      openTemplate(e.mode, e.id);
+      if (then === "try") autorun.engine = e.id;
+      go({ name: e.mode });
+      toast({ text: then === "try" ? `${e.label} is saved as a draft and running once. Publish it when the result looks right.`
+        : `${e.label} is saved as a draft. Run it once, then publish it.`, tone: "ok" });
     } catch (e) {
       setSaveErr(errMsg(e));
     } finally {
@@ -297,8 +294,8 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
               <div>
                 <h2>{track === "cloud" ? "Turn a Comfy Router model into a template." : "Turn a ComfyUI workflow into a template."}</h2>
                 <p>{track === "cloud"
-                  ? "Pick a model and what it does, fill its inputs, run it once. The result becomes its cover on Explore."
-                  : "Bring a workflow that already works, drop in samples, run it once. The result becomes its cover on Explore."}</p>
+                  ? "Pick a model and what it does, fill its inputs, run it once. When the result looks right, publish it to Explore."
+                  : "Bring a workflow that already works, drop in samples, run it once. When the result looks right, publish it to Explore."}</p>
               </div>
               <Tabs track={track} setTrack={(t) => { setTrack(t); setReadErr(null); }} />
             </div>
@@ -347,8 +344,8 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
 }
 
 const STEPS = {
-  cloud: [["Pick a model", "On Comfy Router"], ["Set it up", "Only what you fill is asked for"], ["Run once", "A result becomes the cover"]],
-  local: [["Bring a workflow", "Saved or exported from ComfyUI"], ["Check what it asks", "Found in the workflow"], ["Run once", "A result becomes the cover"]],
+  cloud: [["Pick a model", "On Comfy Router"], ["Set it up", "Only what you fill is asked for"], ["Run once", "Then publish it to Explore"]],
+  local: [["Bring a workflow", "Saved or exported from ComfyUI"], ["Check what it asks", "Found in the workflow"], ["Run once", "Then publish it to Explore"]],
 };
 
 /** Step 1's three steps, the first one current. */
@@ -371,7 +368,7 @@ function MiniSteps({ cloud, onBack }: { cloud: boolean; onBack: () => void }) {
     <ol className="msteps" aria-label="Steps">
       <li className="done"><button type="button" onClick={onBack} title={`Back to ${first.toLowerCase()}`}><span className="n"><I n="check" /></span>{first}</button></li>
       <li className="on" aria-current="step"><span className="n">2</span>{now}</li>
-      <li><span className="n">3</span>{last} for its cover</li>
+      <li><span className="n">3</span>{last}, then publish</li>
     </ol>
   );
 }

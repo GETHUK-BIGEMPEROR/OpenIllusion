@@ -164,6 +164,7 @@ def install(data: bytes) -> engines.Engine:
     stem = _stem(tid)
     root = paths.user_root() / "templates"
     tpl["id"], tpl["built"] = tid, True
+    tpl.pop("draft", None)  # added by choice: it goes on Explore, where adding one opens it
     for holder, key in _refs(tpl):
         holder[key] = f"media/{stem}/{PurePosixPath(holder[key]).name}"
 

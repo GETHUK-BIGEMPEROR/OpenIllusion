@@ -158,3 +158,39 @@ def test_cover_comes_only_from_a_finished_run_of_that_template():
         assert call(go)
     finally:
         engines.clear_cover(HAT)
+
+
+@pytest.mark.usefixtures("fresh_templates")
+def test_a_draft_is_published_by_a_finished_run_of_it_which_becomes_its_cover():
+    import json
+
+    e = engines.duplicate_template(HAT)
+    data = json.loads(e.path.read_text("utf-8"))
+    data["draft"] = True
+    for k in ("cover", "cover_video"):
+        data.pop(k, None)
+    e.path.write_text(json.dumps(data), "utf-8")
+    engines.reload_templates()
+    assert engines.describe(engines.ENGINES[e.id])["draft"]
+    hat_run, run = gen("Hat"), gen("Copy")
+    m = store.get(run.id)
+    m.engine.model = e.id
+    store.save(m)
+
+    async def go(c):
+        pub = lambda g: c.post("/api/templates/publish", json={"engine": e.id, "generation": g})
+        assert (await pub("")).status == 404
+        assert (await pub(hat_run.id)).status == 409  # a run of another template tests nothing
+        r = await pub(run.id)
+        d = await r.json()
+        assert r.status == 200 and not d["draft"] and d["cover_custom"]
+        assert (await pub(run.id)).status == 404  # published once
+        assert (await c.post("/api/templates/publish", json={"engine": HAT, "generation": hat_run.id})).status == 404
+        return True
+
+    try:
+        assert call(go)
+        assert "draft" not in json.loads(e.path.read_text("utf-8"))
+    finally:
+        engines.clear_cover(e.id)
+        engines.delete_template(e.id)

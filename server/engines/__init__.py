@@ -121,6 +121,18 @@ def delete_template(engine_id: str) -> None:
     reload_templates()
 
 
+def publish_template(engine_id: str) -> Engine:
+    """Put a draft on Explore: the template file loses its draft mark."""
+    e = ENGINES.get(engine_id)
+    if e is None or not e.draft or e.origin != "user" or e.path is None:
+        raise KeyError(engine_id)
+    data = json.loads(e.path.read_text("utf-8"))
+    data.pop("draft", None)
+    paths.write_atomic(e.path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    reload_templates()
+    return ENGINES[engine_id]
+
+
 def duplicate_template(engine_id: str) -> Engine:
     """Copy a template into the user's folder as a new one they own: editable, deletable,
     with its samples and cover copied alongside so it never depends on the original."""
@@ -220,7 +232,7 @@ def describe(e: Engine) -> dict:
         "video_window": e.video_window, "fps_window": e.fps_window, "url_only": e.url_only,
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
         "varies": varies(e), "inputs": e.inputs, "fields": fields, "requires": requirements(e),
-        "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "model": e.model,
+        "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "draft": e.draft, "model": e.model,
         "defaults": defaults, "mentions": mentions_of(e), "hidden": e.id in hidden_templates(), "before": lead_is_before(e), "model_name": model_name(e), "workflow_model": e.model_name if e.kind == "local" else None,
         **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),
     }

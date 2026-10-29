@@ -31,7 +31,7 @@ def register(routes: web.RouteTableDef) -> None:
 
     # A template's card image: GET serves it, PUT sets it from a finished run of
     # that template (a cover always shows what it really makes), DELETE goes back
-    # to the one it ships with. A built template's first cover publishes it.
+    # to the one it ships with.
 
     @routes.get(API + "/cover")
     async def get_cover(request):
@@ -59,14 +59,25 @@ def register(routes: web.RouteTableDef) -> None:
             return err(404, "No such template")
         if not b.get("generation"):
             return err(400, "Send the generation whose result becomes the cover")
+        run = finished_run(e, b["generation"])
+        if isinstance(run, web.Response):
+            return run
+        return await cover_from(e, run) or web.json_response(engines.describe(e))
+
+    def finished_run(e, generation: str):
+        """A finished run of this template, else the error response saying why not."""
         try:
-            m = store.get(b["generation"])
+            m = store.get(generation)
         except (FileNotFoundError, ValueError):
             return err(404, "Generation not found")
         if m.engine.model != e.id:
             return err(409, "Only a run of this template can be its cover")
         if m.status != "done" or not (m.result and m.result.poster):
             return err(409, "This run has no finished result to use yet")
+        return m
+
+    async def cover_from(e, m):
+        """Make this run's result the template's cover; an error response if it can't be."""
         # A photo's cover is the full result, not its 960 px poster: it sits beside its full-size input.
         src = store.folder(m.id) / (m.result.file if m.result.kind == "image" and m.result.file else m.result.poster)
         loop = store.folder(m.id) / m.result.file if m.result.kind == "video" and m.result.file else None
@@ -76,7 +87,23 @@ def register(routes: web.RouteTableDef) -> None:
             await asyncio.to_thread(engines.set_cover, e.id, src, loop, before)
         except Exception as ex:
             return err(422, f"Couldn't make a cover from that file: {ex}")
-        return web.json_response(engines.describe(e))
+        return None
+
+    # A template saved in the Builder is a draft: in Create, off Explore. Publishing takes a finished run
+    # of it (it has been tested), which becomes its cover when it has none yet.
+    @routes.post(API + "/templates/publish")
+    async def publish_template(request):
+        b = await body(request)
+        e = engines.ENGINES.get(str(b.get("engine", "")))
+        if e is None or not e.draft:
+            return err(404, "No draft with that id")
+        run = finished_run(e, str(b.get("generation") or ""))
+        if isinstance(run, web.Response):
+            return run
+        if not any(engines.cover_files(e)):
+            if (bad := await cover_from(e, run)) is not None:
+                return bad
+        return web.json_response(engines.describe(engines.publish_template(e.id)))
 
     @routes.delete(API + "/cover")
     async def delete_cover(request):

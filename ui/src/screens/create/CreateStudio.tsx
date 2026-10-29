@@ -219,7 +219,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
     <div className="page studio">
       <aside className="recipe" aria-label="Recipe">
         <div className="recipe-scroll">
-          {engine ? <Hero e={engine} /> : <div className="thero"><div className="thero-img" /></div>}
+          {engine ? <Hero e={engine} run={done && shown?.engine.model === engine.id ? shown.id : null} /> : <div className="thero"><div className="thero-img" /></div>}
           <HistStrip engine={s.engine} current={s.current} jobs={jobs} onPick={pickRun} />
           {engine?.kind === "local" && <div style={{ display: "grid", gap: 8 }}><LocalNeeds spec={spec} /></div>}
 
@@ -278,7 +278,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
             <>
               {varies && <button className="btn sm ghost" type="button" onClick={() => rerun(shown.id)} title="Same inputs, new seed"><I n="refresh" /><span className="lbl">Re-run</span></button>}
               <button className="btn sm" type="button" onClick={() => share(shown.id)} aria-keyshortcuts="E" title="Export (E)"><I n="share" /><span className="lbl">Export</span></button>
-              {engine && !engine.cover && !engine.cover_video && shown.engine.model === engine.id && <UseAsCover e={engine} run={shown.id} />}
+              {engine && !engine.draft && !engine.cover && !engine.cover_video && shown.engine.model === engine.id && <UseAsCover e={engine} run={shown.id} />}
             </>
           )}
           <button className="icon-btn" type="button" aria-label="Open in Library" title="Open in Library" disabled={!shown} style={shown ? undefined : { opacity: 0.35 }}
