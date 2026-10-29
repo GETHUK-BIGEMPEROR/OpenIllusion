@@ -1,0 +1,21 @@
+# docker compose up --build   →   http://127.0.0.1:7870
+services:
+  openillusion:
+    build: .
+    image: openillusion
+    ports:
+      # Only this machine can reach it. Anyone who can reach the port can spend your Comfy credits.
+      - "127.0.0.1:7870:7870"
+    volumes:
+      # Your library, templates you make, settings. Never the API key.
+      - openillusion-home:/data
+    environment:
+      # ComfyUI on this machine. Change it in Settings → Your GPU, or here, for another one.
+      OPENILLUSION_COMFYUI_URL: http://host.docker.internal:8188
+    extra_hosts:
+      # Lets Linux resolve host.docker.internal too (Docker Desktop already does).
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  openillusion-home:

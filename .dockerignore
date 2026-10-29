@@ -1,0 +1,12 @@
+.git
+.venv
+**/__pycache__
+.pytest_cache
+*.egg-info
+build
+dist
+ui/node_modules
+server/static
+tests
+.vscode
+.idea

@@ -35,13 +35,25 @@ TESTED = {HAT} | {f"local/qwen21-{n}" for n in (
 )} | {"local/minimax-h3-character-swap",  # same card, 0.4 MP x 124 frames, 4 steps, ~10 min
      "local/minimax-h3-animate",  # 0.4 MP x 124 frames, 4 steps, ~4 min
      "local/minimax-h3-create"} | {"local/qwen21-create"}  # text only: 0.4 MP x 124 frames ~3.5 min; 1 MP, 25 steps ~1.5 min
+# Ran for real on Comfy Router with a key; its cover is that run's result.
+TESTED |= {"cloud/text-to-image-seedream-5-0-pro"}
 
 
 def test_only_tested_templates_ship():
     assert {e.id for e in engines.ENGINES.values() if e.origin == "shipped"} == TESTED
 
 
-@pytest.mark.parametrize("tid", sorted(TESTED))
+def test_shipped_cloud_templates_send_their_prompt_and_have_a_cover():
+    for tid in sorted(t for t in TESTED if t.startswith("cloud/")):
+        e = engines.ENGINES[tid]
+        d = engines.describe(e)
+        prompt = next(f for f in d["fields"] if f["key"] == "prompt")
+        assert prompt["default"] == e.default_prompt and prompt["bind"]
+        assert all(f["bind"] or f.get("keep_sound") for f in d["fields"])
+        assert d["cover"] and e.cover.is_file() and e.blurb
+
+
+@pytest.mark.parametrize("tid", sorted(t for t in TESTED if t.startswith("local/")))
 def test_shipped_templates_list_every_input_and_bind_it(tid):
     e = engines.ENGINES[tid]
     raw = json.loads(e.path.read_text("utf-8"))

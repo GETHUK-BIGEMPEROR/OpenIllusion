@@ -127,3 +127,11 @@ def test_scratch_cleans_itself_after_going_unused():
     with pytest.raises(FileNotFoundError, match="Drop it again"):
         staging.resolve_asset("old.png")
 
+
+def test_comfyui_address_from_the_environment_until_one_is_saved(monkeypatch):
+    from server import settings
+
+    monkeypatch.setenv("OPENILLUSION_COMFYUI_URL", "http://host.docker.internal:8188/")
+    assert settings.load()["local_comfyui_url"] == "http://host.docker.internal:8188"
+    settings.save({"local_comfyui_url": "http://10.0.0.5:8188"})
+    assert settings.load()["local_comfyui_url"] == "http://10.0.0.5:8188"

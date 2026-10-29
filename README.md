@@ -60,21 +60,25 @@ by akatz-ai.
 
 ## Setup
 
-Windows, macOS or Linux. Commands below are PowerShell; on macOS and Linux use
-`python3` and `.venv/bin/python`.
+Windows, macOS or Linux. The app is a small Python server with a web page; ComfyUI does
+the GPU work. Install it with Python (1a) or run it in Docker (1b), then add the models
+(2) and, for cloud templates, a key (3).
 
 **You need**
 
-- Python 3.10 or newer, Node.js 18 or newer, git.
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) recent enough to have the MiniMax
-  H3 and Qwen Image 2.1 nodes, running on `http://127.0.0.1:8188` (another address can be set
-  in Settings → Your GPU). Built and tested with ComfyUI 0.42 on an RTX 4060 Ti 16 GB.
+  H3 and Qwen Image 2.1 nodes (ComfyUI Desktop works too), running on `http://127.0.0.1:8188`.
+  Another address can be set in Settings → Your GPU. Built and tested with ComfyUI 0.42 on
+  an RTX 4060 Ti 16 GB. Only for local templates: cloud ones need no GPU.
 - Disk for the models of the templates you want (below). A Comfy API key only for cloud templates.
+- For 1a: Python 3.10 or newer, Node.js 18 or newer, git. For 1b: Docker with Compose.
 
-**1 · Install and start the app**
+**1a · Install with Python**
+
+Windows (PowerShell):
 
 ```powershell
-git clone <this repo> OpenIllusion
+git clone https://github.com/<you>/OpenIllusion.git
 cd OpenIllusion
 py -m venv .venv
 .venv\Scripts\python -m pip install -e .
@@ -83,8 +87,40 @@ npm --prefix ui run build
 .venv\Scripts\python -m server --open
 ```
 
+macOS and Linux:
+
+```bash
+git clone https://github.com/<you>/OpenIllusion.git
+cd OpenIllusion
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+npm --prefix ui install
+npm --prefix ui run build
+.venv/bin/python -m server --open
+```
+
 The app opens at http://127.0.0.1:7870. On first start it checks the ComfyUI on this
-machine, then opens Explore. It starts comfy-api-proxy on `:8189` itself.
+machine, then opens Explore. It starts comfy-api-proxy (Comfy API v2) on `:8189` itself;
+`pip install` brought it in. Next time, only the last line. Options: `--port 7871`,
+`--host` (default `127.0.0.1`; anything else lets other machines spend your credits),
+`--open` (open the browser).
+
+**1b · Or run it in Docker**
+
+```bash
+git clone https://github.com/<you>/OpenIllusion.git
+cd OpenIllusion
+docker compose up --build -d
+```
+
+Open http://127.0.0.1:7870. The container holds the app only: ComfyUI and its models
+stay where they are, and the app reaches the ComfyUI on your machine at
+`host.docker.internal:8188` (set by `OPENILLUSION_COMFYUI_URL` in `docker-compose.yml`;
+Settings → Your GPU changes it later). Your library lives in the `openillusion-home` volume,
+not in the container, so `docker compose up --build -d` after a `git pull` keeps it.
+The port is published on `127.0.0.1` only. If the app says ComfyUI isn't answering, ComfyUI
+is listening on its own loopback only: start it with `--listen` (Linux needs this), and keep
+port 8188 closed to your network in the firewall. Cloud-only use needs no ComfyUI at all.
 
 **2 · Put the models in ComfyUI.** Each template lists what it's missing (with download
 links) before it runs; the app never downloads models. Into ComfyUI's `models/` folders:
@@ -106,6 +142,26 @@ Restart ComfyUI (or press Check again in the app) after adding files.
 
 **3 · Cloud templates (optional).** Paste a Comfy API key in Settings → Cloud. The
 browser keeps it; the server never saves it. A headless server can take it from `COMFY_API_KEY`.
+
+**Update.** `git pull`, then `pip install -e .` and `npm --prefix ui run build` again (or,
+with Docker, `docker compose up --build -d`). Your library is not in the repo and stays.
+
+**Where your things are.** Everything you make (results, templates you build, settings,
+uploads, the trash) is in one home folder: `~/.openillusion`, or the folder
+`OPENILLUSION_HOME` names. Settings → Storage shows its size and makes a `.illusionbackup`.
+Never the API key: that stays in the browser.
+
+**If something's off**
+
+| What you see | Do this |
+| --- | --- |
+| "another server is already using …" at start | One server per home folder. Use the running one, or start a second with its own `OPENILLUSION_HOME`. |
+| Port 7870 is taken | `python -m server --port 7871` (Docker: change the left side of `127.0.0.1:7870:7870`). |
+| "ComfyUI isn't answering" | Start ComfyUI, or set its address in Settings → Your GPU, then Check again. |
+| "Comfy API v2 isn't running" | `pip install comfy-api-proxy` into the same `.venv`; its log is `proxy.log` in the home folder. |
+| A template lists missing nodes or models | Install those into ComfyUI (Manager's Install Missing, or the links in the table above), restart ComfyUI, Check again. The app never installs anything. |
+| Cloud Run says to add a key | Settings → Cloud. |
+| A blank page after an update | `npm --prefix ui run build`, then reload. |
 
 ## The idea
 
@@ -268,6 +324,12 @@ same id, so editing in the app never changes the repo.
 
 Where to look when you change something.
 
+At the root: `server/`, `ui/`, `templates/` (shipped `local/` and `cloud/` templates),
+`schema/` (the generation format), `tests/`, and `Dockerfile` with `docker-compose.yml`
+(the app in a container: the UI built in a Node stage, served by the Python server as a
+non-root user, the home folder in a volume, ComfyUI reached on the host by
+`OPENILLUSION_COMFYUI_URL`, which `settings.load` takes as the address until one is saved).
+
 **Server** (`server/`, Python, `python -m server`):
 
 | File | What it does |
@@ -314,7 +376,7 @@ Where to look when you change something.
 | Path | What lives there |
 | --- | --- |
 | `templates/local/` | Shipped workflow templates, plus `media/` (samples and covers) |
-| `templates/cloud/` | Shipped Router templates, once one has run for real (none yet) |
+| `templates/cloud/` | Shipped Router templates, each one run for real first: Text to Image (Seedream 5.0 Pro). Media in `media/` |
 | `tests/` | pytest suite; Router, Comfy Cloud and ComfyUI are faked with `httpx.MockTransport` |
 | `schema/` | `generation.v1.json` (`python -m server.gen_schema`) |
 | `~/.openillusion/` | The home folder; see [Storage](#storage) |

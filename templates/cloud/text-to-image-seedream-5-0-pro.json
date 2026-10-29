@@ -1,0 +1,82 @@
+{
+  "format": "openillusion.template",
+  "version": 2,
+  "mode": "edit",
+  "label": "Text to Image · Seedream 5.0 Pro",
+  "blurb": "Makes a picture from words alone on Seedream 5.0 Pro, in any shape up to 4 MP. Runs on Comfy Router with your key.",
+  "inputs": [
+    {
+      "key": "prompt",
+      "type": "text",
+      "required": true,
+      "default": "full body shot of humanoid alien with plain background",
+      "bind": [
+        [
+          "prompt"
+        ]
+      ]
+    },
+    {
+      "key": "size",
+      "type": "size",
+      "label": "Size",
+      "aspect": "2:3",
+      "default": "1 MP",
+      "aspects": [
+        "1:1",
+        "4:5",
+        "3:4",
+        "2:3",
+        "9:16",
+        "16:9",
+        "3:2",
+        "4:3",
+        "21:9"
+      ],
+      "steps": [
+        1,
+        2,
+        4
+      ],
+      "multiple": 16,
+      "bind": [
+        [
+          [
+            "size"
+          ],
+          "text"
+        ]
+      ],
+      "pixels": [
+        1048576,
+        4194304
+      ]
+    }
+  ],
+  "built": true,
+  "kind": "cloud",
+  "model": "byteplus/seedream-5-0-pro-260628",
+  "provider": "byteplus",
+  "body": {
+    "prompt": "full body shot of humanoid alien with plain background",
+    "response_format": "url",
+    "watermark": false,
+    "size": "832x1248"
+  },
+  "result": [
+    [
+      "data",
+      "*",
+      "url"
+    ],
+    [
+      "data",
+      "*",
+      "b64_json"
+    ]
+  ],
+  "source": "Comfy Router · Seedream 5.0 Pro",
+  "locked": [],
+  "id": "cloud/text-to-image-seedream-5-0-pro",
+  "cover": "media/cover-text-to-image.webp"
+}

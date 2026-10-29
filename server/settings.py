@@ -53,6 +53,9 @@ def _read(f) -> dict:
 
 def load() -> dict:
     data = dict(DEFAULTS)
+    # Where ComfyUI is when nothing's been saved yet: a container sets it to the host's address.
+    if env := os.environ.get("OPENILLUSION_COMFYUI_URL", "").strip().rstrip("/"):
+        data["local_comfyui_url"] = env
     data.update({k: v for k, v in _read(paths.settings_file()).items() if k not in SECRETS})
     data.update(_session)
     return data
