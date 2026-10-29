@@ -1,18 +1,34 @@
 # OpenIllusion
 
-A template studio for ComfyUI, made one-click simple: pick a template, drop in your
-images, videos or sounds, edit the prompt, press Run, get a result.
+**OpenIllusion turns ComfyUI workflows into one-click templates.** Pick a template, drop
+in a photo, a clip or a sound, change the prompt, press Run. No nodes and no wires: behind
+each one is a ComfyUI workflow on your own GPU, or a cloud model's request, run exactly as
+its author saved it.
 
 [![OpenIllusion demo video, under 2 minutes](docs/media/demo.webp)](https://youtu.be/Pr_a42KhWn4)
 
 **[Watch the demo](https://youtu.be/Pr_a42KhWn4)** (1:53): swaps, MiniMax H3 live on a 16 GB GPU, cloud
 models, and building a template from a workflow to Explore.
 
-- **Local** runs a ComfyUI workflow on your own GPU through Comfy API v2.
-- **Cloud** runs premium models that make video or photos on
-  [Comfy Router](https://docs.comfy.org/development/comfy-router/reference.md),
-  billed to your Comfy API key. A file a model only takes as a link is first
-  uploaded to Comfy Cloud's asset store with the same key.
+**What it does**
+
+- **Makes video and photos on your GPU**, through the ComfyUI you already run. Put a
+  character from a photo into a clip, animate a photo, make video with sound from words
+  (MiniMax H3); make a photo, or edit one: add a hat, new hair, swap the background,
+  relight, restore an old photo (Qwen Image 2.1). 22 of these ship.
+- **Runs premium models in the cloud**, in the same app and the same way, on
+  [Comfy Router](https://docs.comfy.org/development/comfy-router/reference.md) with your
+  Comfy API key: Seedance 2.5, Kling 3 Omni, Veo 3.1, Wan 3.0, Seedream 5.0, GPT Image 2,
+  Grok Imagine. 12 ship, for people with no GPU or who want those models.
+- **Turns your own workflows into templates.** Drop any ComfyUI workflow and the app
+  finds its inputs, prompt and settings; run it once and it's a template on Explore. Any
+  model or custom node your ComfyUI has. See [Your own workflows](#your-own-workflows).
+- **Fits your files to the model** before a run: crop, cut, resize, change the frame
+  rate, in one editor that shows the model's limits.
+- **Keeps every result with its recipe**, so any run can be compared against its input,
+  run again, exported or backed up.
+- **Shares a template as one file** (`.illusion`) that anyone with the app drops in. See
+  [Share a template](#share-a-template-the-illusion-file).
 
 Open source under the [MIT license](LICENSE). Entered in Comfy's
 [Open Source Higgsfield](https://comfy.org/open-source-higgsfield/) contest; see
@@ -40,6 +56,118 @@ Open source under the [MIT license](LICENSE). Entered in Comfy's
 
 **Build, cloud.** Any Comfy Router model: pick what it does, and Create asks only for that.
 ![Build from a Comfy Router model](docs/media/build-cloud.webp)
+
+## Using it
+
+**Run.** Explore shows every template by a real result it made; search it, filter by
+photo or video, model and input, sort by recently or most used. A template opens in
+Create with its sample files and prompt already in, so Run works first and you change
+things after. Up to 4 variants a run, one seed each.
+
+**Fit your files to the model.** Each input card says whether the model takes the file
+as it is. One editor for photos, clips and sounds crops, turns, resizes, cuts, changes
+the frame rate and the sound, with the model's limits as pills on top (green fits,
+orange a run changes it, red can't run) and **Fit to spec** for all of it at once. The
+original always stays.
+
+**Watch it run.** A local run shows its sampler step, node and preview frames live, with
+time left from its own pace; the GPU pill shows memory and what's running. A cloud run
+shows its stage and counts against how long that template usually takes. One Queue holds
+both: Running, Up next, Needs attention. A failed run says what to fix.
+
+**Compare.** Every result sits against the input it was made from, side by side or as a
+wipe you drag across, photos and clips alike (two clips loop in step).
+
+**Keep everything.** The Library has every run with its whole recipe: files, prompt,
+settings, and the workflow or request it ran. Star, add notes, re-run, or **Open in
+Create** to load it all back. Deleted runs wait 7 days in Trash. Settings → Storage backs
+the whole library up to one `.illusionbackup`; restoring one adds what's missing and
+never overwrites what you have.
+
+**Turn a run into the template.** **Use as cover** makes any finished run the template's
+cover. If that run used other files or settings, it can make them the template's
+defaults too, written into its workflow or request, so the workflow you download makes
+what the cover shows.
+
+**Yours, on your machine.** No account, no analytics. The app talks to your ComfyUI and,
+for cloud runs, to Comfy with your key; nothing else unless you add a community index.
+The key stays in your browser; the server never saves it. Nothing is installed or
+downloaded into ComfyUI. The app listens on `127.0.0.1` unless you say otherwise. Your
+library is plain files in one folder.
+
+**Keys.** Ctrl K opens a palette for templates and results, `/` jumps to search, R runs,
+1–4 jump between Explore, Create, Library and Build.
+
+## Your own workflows
+
+The app isn't tied to the models it ships with. If a workflow runs in your ComfyUI, it can
+become a one-click template: any model, LoRA or custom node your ComfyUI has.
+
+1. **Build → Local workflow**, then drop the workflow: a `.json` saved or exported from
+   ComfyUI (UI or API format), or a PNG, WebP or MP4 that ComfyUI made, which carries it.
+2. The Builder reads it against your ComfyUI. Each file loader (photo, clip or sound)
+   becomes Image 1, Video 1, Audio 1; a text box becomes the prompt; a size or length
+   becomes a setting. You choose which settings Create asks for and which stay fixed.
+3. Run it once. That run is the test: Publish puts the template on Explore with the
+   result as its cover, and Export `.illusion` shares it (see
+   [Share a template](#share-a-template-the-illusion-file)).
+
+The workflow runs untouched: sampler, steps, LoRAs and the seed mode stay as you saved
+them. Before every run the app checks your ComfyUI and lists any missing nodes or models;
+it never installs anything. A template's result is a photo or a video, so a workflow that
+only saves audio, a 3D model or text can't be one yet. Details:
+[Making a template](docs/TEMPLATES.md#making-a-template-builder).
+
+Cloud templates are built the same way under **Build → Comfy Router**: pick a model, pick
+what it does (text to video, first frame, references…), run it once. Any Router model
+with an adapter works; [Adding a model](docs/TEMPLATES.md#adding-a-model) covers the rest.
+
+## Share a template: the `.illusion` file
+
+**Export .illusion** (in Create's header, or a template's details) puts one template in
+one file. It's a zip; this is the shipped Add a hat, exported as is:
+
+```
+add-a-hat.illusion                   530 KB
+├── illusion.json                    format, version, the template's id and name,
+│                                    and a size and sha256 for every file below
+├── template.json                    the template: its inputs, prompt, settings,
+│                                    and the whole ComfyUI workflow it runs
+└── media/
+    ├── man-park.jpg                 the sample Image 1 it opens with
+    └── cover-add-hat.webp           its cover
+```
+
+A cloud template holds the Router model and its request instead of a workflow. A cover
+you set yourself rides along in `cover/`.
+
+```mermaid
+flowchart LR
+  A["You: Export .illusion"] --> F[("one file")]
+  F --> B["Them: drop it on Explore,<br/>or anywhere in the app"]
+  B --> C{"Checked first:<br/>paths, size, every checksum,<br/>the template must load"}
+  C -- passes --> E["On their Explore,<br/>Created by you"]
+  C -- fails --> X["Refused, nothing added"]
+  E --> L["Local: runs on their ComfyUI;<br/>missing models are listed"]
+  E --> K["Cloud: runs on their own key"]
+```
+
+- **Nothing runs on import.** The file is only read and checked; it lands in their
+  templates folder as theirs, under a new id if they already have one with that id
+  (importing Add a hat next to the shipped one makes `local/qwen21-add-hat-2`).
+- **What it never carries:** your API key, your library or other runs, when it was
+  exported, how often you used it, or the Builder's working state. Every file is cleaned
+  as it leaves: a photo's EXIF date and GPS, a clip's creation time, a sound's tags.
+- **What they still need:** for a local template, the same models and nodes in their
+  ComfyUI (the app lists any missing, with links); for a cloud one, a Comfy API key.
+
+Local templates also export as a plain ComfyUI workflow `.json`, for ComfyUI itself.
+
+**Results travel the same way.** Export on any finished run makes a `.illusion` of the
+result with its recipe: Light (smaller files), Full (original files, the driving clip,
+the workflow) or Recipe only. Dropped on anyone's OpenIllusion it lands in Library →
+Imported, and Open in Create runs it again. A PNG or MP4 the app made can carry its
+recipe inside it too.
 
 ## Contest entry
 
@@ -72,6 +200,9 @@ The cloud templates (Comfy Router, your key) are there beside them for people wi
   Edit a file row in [The app](docs/APP.md#the-app-screen-by-screen).
 - **Recipes travel with results.** Every result keeps its inputs, workflow and settings;
   export, import, Open in Create and whole-library backups carry them.
+- **A template is one file.** Export `.illusion` and anyone with the app drops it in; it is
+  checked before anything is added and never runs code. See
+  [Share a template](#share-a-template-the-illusion-file).
 
 Built with ComfyUI, comfy-api-proxy (Comfy API v2), MiniMax H3 and Qwen Image 2.1 by
 Comfy-Org, the [MiniMax H3 Character Swap LoRA](https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA)
@@ -122,8 +253,8 @@ npm --prefix ui run build
 The app opens at http://127.0.0.1:7870. On first start it checks the ComfyUI on this
 machine and counts the templates whose models are in it, then opens Explore. It starts
 comfy-api-proxy (Comfy API v2) on `:8189` itself; `pip install` brought it in. Nothing goes
-into ComfyUI: the proxy runs beside it, from the app's own `.venv`. Next time, only the last line. Options: `--port 7871`,
-`--host` (default `127.0.0.1`; anything else lets other machines spend your credits),
+into ComfyUI: the proxy runs beside it, from the app's own `.venv`. Next time, only the
+last line. Options: `--port 7871`, `--host` (default `127.0.0.1`; anything else lets other machines spend your credits),
 `--open` (open the browser).
 
 **1b · Or run it in Docker**
