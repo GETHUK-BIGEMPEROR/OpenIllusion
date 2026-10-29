@@ -1,7 +1,7 @@
 // Create's left panel: the template header, the prompt, settings summary, and the Run bar.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { cx, I, useStatus, gpuName } from "../../components/oi";
+import { cx, I, useStatus, gpuName, onCpu, CPU_NOTE } from "../../components/oi";
 import { useLocalCheck, useRunner } from "../../components/Studio";
 import { OriginTag, TemplateTools, tplModel, tplName, useCoverActions } from "../../components/TemplateCard";
 import { Spinner } from "../../components/ui";
@@ -41,7 +41,7 @@ export function Hero({ e, run }: { e: EngineInfo; run?: string | null }) {
     window.addEventListener("keydown", key);
     return () => { window.removeEventListener("pointerdown", on); window.removeEventListener("keydown", key); };
   }, [open]);
-  const where = e.kind === "local" ? (gpuName(status.data?.local.gpu) ? `Your GPU` : "Local") : "Comfy Router";
+  const where = e.kind === "local" ? (onCpu(status.data?.local.gpu) ? "Your CPU" : gpuName(status.data?.local.gpu) ? `Your GPU` : "Local") : "Comfy Router";
   return (
     <div className="thero" ref={ref}>
       <div className="thero-img">
@@ -207,6 +207,8 @@ export function RunBar({ s, set, engine, spec, runner, queued, varies }: {
           <span className="warn"><I n="alert" />Add {missing.label} to run</span>
         ) : reasons.length ? (
           <span className="warn" title={reasons.join("\n")}><I n="alert" />{reasons[0]}{reasons.length > 1 ? ` · +${reasons.length - 1} more` : ""}</span>
+        ) : runner.isLocal && onCpu(status.data?.local.gpu) ? (
+          <span className="warn" title={CPU_NOTE}><I n="alert" />Your ComfyUI runs on CPU: this could take hours</span>
         ) : runner.isLocal ? (
           <span className="rdy"><i className="dot" />{gpu ?? "Your ComfyUI"}<em>{queued ? `${queued} in queue` : "free"}</em>
             {found && <span className="ok" title="Every node and model this workflow uses is in your ComfyUI"><I n="check" size={12} />Models found</span>}</span>

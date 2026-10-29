@@ -88,7 +88,8 @@ the GPU work. Install it with Python (1a) or run it in Docker (1b), then add the
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) recent enough to have the MiniMax
   H3 and Qwen Image 2.1 nodes (ComfyUI Desktop works too), running on `http://127.0.0.1:8188`.
   Another address can be set in Settings → Your GPU. Built and tested with ComfyUI 0.42 on
-  an RTX 4060 Ti 16 GB. Only for local templates: cloud ones need no GPU.
+  an RTX 4060 Ti 16 GB; both setups were also checked from a fresh clone against a stock
+  ComfyUI 0.43 with no custom nodes. Only for local templates: cloud ones need no GPU.
 - Disk for the models of the templates you want (below). A Comfy API key only for cloud templates.
 - For 1a: Python 3.10 or newer, Node.js 18 or newer, git. For 1b: Docker with Compose.
 
@@ -119,8 +120,9 @@ npm --prefix ui run build
 ```
 
 The app opens at http://127.0.0.1:7870. On first start it checks the ComfyUI on this
-machine, then opens Explore. It starts comfy-api-proxy (Comfy API v2) on `:8189` itself;
-`pip install` brought it in. Next time, only the last line. Options: `--port 7871`,
+machine and counts the templates whose models are in it, then opens Explore. It starts
+comfy-api-proxy (Comfy API v2) on `:8189` itself; `pip install` brought it in. Nothing goes
+into ComfyUI: the proxy runs beside it, from the app's own `.venv`. Next time, only the last line. Options: `--port 7871`,
 `--host` (default `127.0.0.1`; anything else lets other machines spend your credits),
 `--open` (open the browser).
 
@@ -177,6 +179,7 @@ Never the API key: that stays in the browser.
 | "another server is already using …" at start | One server per home folder. Use the running one, or start a second with its own `OPENILLUSION_HOME`. |
 | Port 7870 is taken | `python -m server --port 7871` (Docker: change the left side of `127.0.0.1:7870:7870`). |
 | "ComfyUI isn't answering" | Start ComfyUI, or set its address in Settings → Your GPU, then Check again. |
+| "Your ComfyUI runs on CPU" | ComfyUI was started with `--cpu` (or its torch has no GPU build). Runs still go, but photo and video templates would take hours: restart ComfyUI without `--cpu`. |
 | "Comfy API v2 isn't running" | `pip install comfy-api-proxy` into the same `.venv`; its log is `proxy.log` in the home folder. |
 | A template lists missing nodes or models | Install those into ComfyUI (Manager's Install Missing, or the links in the table above), restart ComfyUI, Check again. The app never installs anything. |
 | Cloud Run says to add a key | Settings → Cloud. |

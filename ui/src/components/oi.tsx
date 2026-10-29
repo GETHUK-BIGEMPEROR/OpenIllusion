@@ -155,7 +155,10 @@ export function EmptyBox({ icon, title, children, action, style }: { icon?: Icon
 }
 
 /** "cuda:0 NVIDIA GeForce RTX 4060 Ti : cudaMallocAsync" → "RTX 4060 Ti"; ComfyUI started with --cpu says "cpu" → "CPU". */
-export const gpuName = (gpu?: string | null) => (gpu ? (gpu.trim().toLowerCase() === "cpu" ? "CPU" : gpu.replace(/^cuda:\d+ /, "").replace(/ :.*$/, "").replace(/^NVIDIA (GeForce )?/, "")) : null);
+export const gpuName = (gpu?: string | null) => (gpu ? (onCpu(gpu) ? "CPU" : gpu.replace(/^cuda:\d+ /, "").replace(/ :.*$/, "").replace(/^NVIDIA (GeForce )?/, "")) : null);
+/** ComfyUI started with --cpu. Runs still go (light workflows are fine), but photo and video models would take hours. */
+export const onCpu = (gpu?: string | null) => gpu?.trim().toLowerCase() === "cpu";
+export const CPU_NOTE = "ComfyUI was started with --cpu, so photo and video templates would take hours. Start it without --cpu to use your GPU, or use cloud templates.";
 
 export function localState(l?: LocalStatus): { tone: "ok" | "warn" | "off"; text: string; title: string } {
   if (!l) return { tone: "off", text: "Checking", title: "Looking for ComfyUI" };
@@ -315,14 +318,15 @@ export function GpuStat() {
   const cur = local.find((j) => j.state === "running" || j.state === "downloading");
   const p = cur ? jobProgress(cur) : 0;
   const gpu = gpuName(l.gpu) ?? "GPU";
+  const cpu = onCpu(l.gpu);
   const ver = l.comfyui_version ? `ComfyUI ${l.comfyui_version.split(".").slice(0, 2).join(".")}` : "ComfyUI";
   const c = 2 * Math.PI * 7;
   return (
     <div className="gstat" ref={box}>
-      <button className="gchip" type="button" aria-expanded={open} aria-label={`${gpu}, ${ver}. Show GPU status`} onClick={() => setOpen(!open)}>
+      <button className="gchip" type="button" aria-expanded={open} aria-label={`${gpu}, ${ver}. Show GPU status`} title={cpu ? CPU_NOTE : undefined} onClick={() => setOpen(!open)}>
         <span className="gring">
           <svg viewBox="0 0 18 18" aria-hidden><circle cx="9" cy="9" r="7" strokeDasharray={c} strokeDashoffset={c * (1 - p)} style={{ opacity: cur ? 1 : 0 }} /></svg>
-          <i className={cx("dot", cur && "busy", !l.ok && "warn")} />
+          <i className={cx("dot", cur && "busy", (!l.ok || cpu) && "warn")} />
         </span>
         <b>{gpu}</b><span className="gv">{ver}</span>
         {cur && <span className="gp mono">{Math.round(p * 100)}%</span>}
@@ -337,15 +341,18 @@ function GpuPop({ l, cur, waiting }: { l: LocalStatus; cur?: Job; waiting: numbe
   // Memory moves while a run is going; ask more often while the card is open.
   useQuery({ queryKey: ["status"], queryFn: () => api.status(), refetchInterval: 3000 });
   const setQueue = useApp((s) => s.setQueue);
-  const total = GB(l.vram_total), used = total ? total - GB(l.vram_free) : 0;
+  // On CPU, ComfyUI's "VRAM" is the machine's RAM: not worth a GPU memory bar.
+  const cpu = onCpu(l.gpu);
+  const total = cpu ? 0 : GB(l.vram_total), used = total ? total - GB(l.vram_free) : 0;
   const host = (u: string) => u.replace(/^https?:\/\//, "");
   return (
     <div className="gpop" role="dialog" aria-label="GPU status">
       <div className="gp-h">
         <span className="ic"><I n="cpu" /></span>
-        <div><b>{gpuName(l.gpu) ?? "GPU"}</b><span>{total ? `${Math.round(total)} GB · ` : ""}local ComfyUI</span></div>
-        <span className={cx("pill", cur ? "hot" : l.ok ? "mint" : "orange")}>{cur ? "Busy" : l.ok ? "Ready" : "API v2 off"}</span>
+        <div><b>{gpuName(l.gpu) ?? "GPU"}</b><span>{cpu ? "no GPU · " : total ? `${Math.round(total)} GB · ` : ""}local ComfyUI</span></div>
+        <span className={cx("pill", cur ? "hot" : l.ok && !cpu ? "mint" : "orange")}>{cur ? "Busy" : !l.ok ? "API v2 off" : cpu ? "CPU only" : "Ready"}</span>
       </div>
+      {cpu && <p className="gp-note">{CPU_NOTE}</p>}
       {total > 0 && (
         <div className="gp-m">
           <div className="gp-l"><span>GPU memory</span><span className="mono">{used.toFixed(1)} of {total.toFixed(0)} GB</span></div>

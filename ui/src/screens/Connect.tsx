@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type CSSProperties } from "react";
-import { cx, gpuName, I } from "../components/oi";
+import { CPU_NOTE, cx, gpuName, I, onCpu } from "../components/oi";
 import { LogoMark } from "../components/Shell";
 import { UpstreamWarning } from "../components/Studio";
 import { api } from "../lib/api";
@@ -22,8 +22,21 @@ export function Connect() {
 
   const host = (u?: string) => (u ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "");
   const port = (u?: string) => { try { return new URL(u ?? "").port || "80"; } catch { return "?"; } };
-  const local = (engines.data ?? []).filter((e) => e.kind === "local").length;
+  const locals = (engines.data ?? []).filter((e) => e.kind === "local");
+  const local = locals.length;
+  // How many have their nodes and models in this ComfyUI: a fresh one has none of the models yet.
+  const runnable = useQuery({
+    queryKey: ["runnable", l?.comfyui_url, locals.map((e) => e.id).join()],
+    enabled: !!l?.comfyui && local > 0,
+    queryFn: async () => {
+      const ok = await Promise.all(locals.map((e) =>
+        api.localCheck({ engine: e.id, mode: e.mode, inputs: [], prompt: "", params: {} }).then((c) => c.ok, () => false)));
+      return ok.filter(Boolean).length;
+    },
+  });
+  const can = local ? runnable.data : 0;
   const vram = l?.vram_total ? ` · ${Math.round(l.vram_total / 1024 ** 3)} GB` : "";
+  const cpu = onCpu(l?.gpu);
 
   const steps: { name: string; st: St; note: string }[] = !l
     ? ["ComfyUI", "Comfy API v2", "GPU", "Templates"].map((name, i) => ({ name, st: i ? "todo" : "wait", note: i ? "" : "looking" }))
@@ -34,16 +47,32 @@ export function Connect() {
           st: !l.comfyui ? "todo" : l.v2 ? "ok" : l.proxy_installed ? "warn" : "bad",
           note: !l.comfyui ? "" : l.v2 ? `${l.managed ? "started" : "running"} on :${port(l.v2_url)}` : l.proxy_installed ? (l.autostart ? "starts on your first run" : "not running") : "comfy-api-proxy not installed",
         },
-        { name: "GPU", st: !l.comfyui ? "todo" : l.gpu ? "ok" : "warn", note: !l.comfyui ? "" : l.gpu ? `${gpuName(l.gpu)}${vram}` : "ComfyUI didn't say" },
-        { name: "Templates", st: !l.comfyui ? "todo" : engines.isLoading ? "wait" : local ? "ok" : "warn", note: !l.comfyui ? "" : engines.isLoading ? "" : `${local} ready to open` },
+        {
+          name: "GPU",
+          st: !l.comfyui ? "todo" : l.gpu && !cpu ? "ok" : "warn",
+          note: !l.comfyui ? "" : cpu ? "none: ComfyUI runs on CPU" : l.gpu ? `${gpuName(l.gpu)}${vram}` : "ComfyUI didn't say",
+        },
+        {
+          name: "Templates",
+          st: !l.comfyui ? "todo" : can == null ? "wait" : can ? "ok" : "warn",
+          note: !l.comfyui || can == null ? "" : `${can} of ${local} have their models`,
+        },
       ];
   const ready = !!l?.comfyui;
-  const head = !l ? "Looking for your ComfyUI" : ready ? (l.ok ? "Your GPU is ready." : "Almost there.") : "No ComfyUI found yet.";
+  const head = !l ? "Looking for your ComfyUI" : ready ? (cpu ? "Your ComfyUI runs on CPU." : l.ok ? "Your ComfyUI is ready." : "Almost there.") : "No ComfyUI found yet.";
   const sub = !l
     ? "OpenIllusion runs templates on the ComfyUI already on this machine. No account, no key."
-    : ready
-      ? `${local || "Every"} template${local === 1 ? "" : "s"} can run right now. Each one opens with a sample, so you can press Run first and change things after.`
-      : "Start ComfyUI and this page picks it up on its own. Running it on another port or machine? Put its address below.";
+    : !ready
+      ? "Start ComfyUI and this page picks it up on its own. Running it on another port or machine? Put its address below."
+      : cpu
+        ? CPU_NOTE
+      : can == null
+        ? "Checking which templates have their models in this ComfyUI."
+        : can === local
+          ? "Every template can run right now. Each one opens with a sample, so you can press Run first and change things after."
+          : can
+            ? `${can} of ${local} templates can run right now. The others list the models they still need, each with its folder and a download link.`
+            : "No template's models are in this ComfyUI yet. Open one and it lists the models it needs, each with its folder and a download link. Cloud templates need only a Comfy key.";
 
   const finish = async () => {
     await api.onboarded().catch(() => {});
