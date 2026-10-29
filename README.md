@@ -3,6 +3,11 @@
 A template studio for ComfyUI, made one-click simple: pick a template, drop in your
 images, videos or sounds, edit the prompt, press Run, get a result.
 
+[![OpenIllusion demo video, under 2 minutes](docs/media/demo.webp)](https://youtu.be/Pr_a42KhWn4)
+
+**[Watch the demo](https://youtu.be/Pr_a42KhWn4)** (1:53): swaps, MiniMax H3 live on a 16 GB GPU, cloud
+models, and building a template from a workflow to Explore.
+
 - **Local** runs a ComfyUI workflow on your own GPU through Comfy API v2.
 - **Cloud** runs premium models that make video or photos on
   [Comfy Router](https://docs.comfy.org/development/comfy-router/reference.md),
@@ -21,6 +26,20 @@ Open source under the [MIT license](LICENSE). Entered in Comfy's
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System and code map, one run end to end, storage and backups, the API, status and weak spots |
 | [docs/TEMPLATES.md](docs/TEMPLATES.md) | The template file, the Builder, Comfy Router models and their adapters, adding a model |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Running it for development, tests, conventions |
+
+## Screenshots
+
+**Explore.** Every template, each shown by a real result it made.
+![Explore](docs/media/explore.webp)
+
+**Create.** A template's inputs, prompt and settings on the left; the result against its input on the stage.
+![Create: Character Swap on Seedance 2.5](docs/media/create.webp)
+
+**Build, local.** Any ComfyUI workflow: it finds the inputs, the prompt and the output settings.
+![Build from a ComfyUI workflow](docs/media/build-local.webp)
+
+**Build, cloud.** Any Comfy Router model: pick what it does, and Create asks only for that.
+![Build from a Comfy Router model](docs/media/build-cloud.webp)
 
 ## Contest entry
 

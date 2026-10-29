@@ -107,6 +107,7 @@ non-root user, the home folder in a volume, ComfyUI reached on the host by
 | --- | --- |
 | `templates/local/` | Shipped workflow templates (Qwen 2.1 photo edits and Create a photo; MiniMax H3 Create a video, Create a video Turbo, H3 T2V Turbo, Animate a photo, Character swap), plus `media/` (samples and covers) |
 | `templates/cloud/` | Shipped Router templates, each one run for real first: Text to Image (Seedream 5.0 Pro, GPT Image 2, Grok Imagine Image 2.0), Text to Video (Veo 3.1 Fast), Swap two people, Multi character swap, Character Swap and Dancing Animal (Seedance 2.5), Swap character and Text to Video (Kling 3 Omni), Reference to Video and Text to Video (Wan 3.0). Samples and covers in `media/`, all generated here |
+| `docs/media/` | The README's demo thumbnail and screenshots, taken from the running app |
 | `tests/` | pytest suite; Router, Comfy Cloud and ComfyUI are faked with `httpx.MockTransport` |
 | `schema/` | `generation.v1.json` (`python -m server.gen_schema`) |
 | `~/.openillusion/` | The home folder; see [Storage](#storage) |
