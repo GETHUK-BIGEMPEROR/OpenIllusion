@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { Masonry } from "../components/Masonry";
 import { EmptyBox, I, PageHead, useStatus } from "../components/oi";
 import type { IconName } from "../components/sprite";
-import { TemplateCard, tplModel, tplName } from "../components/TemplateCard";
+import { TemplateCard, tplModel } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
 import { useFileDrop } from "../components/Drop";
 import { cx, Spinner } from "../components/ui";
@@ -70,18 +70,14 @@ function score(e: EngineInfo, words: string[]): number {
 /** Every template as one wall, photos and videos, local and cloud together. Search and filters on top; click runs it in Create, (i) opens its details. */
 export function Explore({ t }: { t?: string }) {
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
-  // Your runs, to tell which drafts were tested.
-  const runs = useQuery({ queryKey: ["generations", "explore-use"], queryFn: () => api.generations({ shelf: "mine", limit: 5000 }), staleTime: 60_000 });
   const status = useStatus();
   const openTemplate = useApp((s) => s.openTemplate);
   const [f, setF] = useState<Filters>(last);
   const set = (p: Partial<Filters>) => setF((x) => ({ ...x, ...p }));
   useEffect(() => { Object.assign(last, f); }, [f]);
 
-  // Explore shows what's published; a draft from the Builder waits in its own row until it's tested and published.
+  // Explore shows what's published; a draft from the Builder waits in the Queue until a tested run publishes it.
   const every = useMemo(() => (engines.data ?? []).filter((e) => !e.hidden && !e.draft), [engines.data]);
-  const drafts = useMemo(() => (engines.data ?? []).filter((e) => e.draft), [engines.data]);
-  const tested = useMemo(() => new Set((runs.data ?? []).filter((r) => r.status === "done").map((r) => r.model)), [runs.data]);
 
   const words = f.q.toLowerCase().split(/\s+/).filter(Boolean);
   const scores = useMemo(() => new Map(every.map((e) => [e.id, score(e, words)])), [every, f.q]); // words come from f.q
@@ -187,7 +183,6 @@ export function Explore({ t }: { t?: string }) {
           bar={bar}
           actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a Comfy Router model"><I n="plus" /><span className="lbl">New template</span></a>} />
         <div className="wall-wrap wtop">
-          {!!drafts.length && <Drafts list={drafts} tested={tested} onOpen={use_} />}
           {engines.isLoading ? (
             <Masonry label="Loading templates" items={SKELETON} maxCols={5} minCol={200} render={(x) => <div aria-hidden className="card"><div className="media" style={{ "--ar": x.aspect } as CSSProperties} /></div>} />
           ) : engines.isError ? (
@@ -208,24 +203,6 @@ export function Explore({ t }: { t?: string }) {
         {panel && <TemplateInspector key={panel.id} e={panel} locked={locked(panel)} onUse={() => use_(panel)} onClose={close} />}
       </aside>
     </div>
-  );
-}
-
-/** Your drafts, above the wall: saved in the Builder, not on Explore until a finished run publishes them in Create. */
-function Drafts({ list, tested, onOpen }: { list: EngineInfo[]; tested: Set<string>; onOpen: (e: EngineInfo) => void }) {
-  return (
-    <section className="drafts" aria-labelledby="drafts-h">
-      <h3 id="drafts-h">Drafts<span>Not on Explore yet. Open one, run it, and publish it from Create.</span></h3>
-      <div className="drafts-row">
-        {list.map((e) => (
-          <button key={e.id} type="button" className="draft-item" onClick={() => onOpen(e)} title={`Open ${tplName(e)} in Create`}>
-            {e.cover ? <img src={e.cover} alt="" /> : <span className="dthumb"><I n={e.mode === "motion" ? "film" : "image"} /></span>}
-            <span className="dt"><b>{tplName(e)}</b><small>{tplModel(e)}</small></span>
-            <span className={cx("pill", tested.has(e.id) ? "dok" : "dno")}>{tested.has(e.id) ? "Tested, ready to publish" : "Not tested"}</span>
-          </button>
-        ))}
-      </div>
-    </section>
   );
 }
 

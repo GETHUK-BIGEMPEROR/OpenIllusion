@@ -8,7 +8,7 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from server import engines, jobs, paths, routes, storage, store
+from server import engines, jobs, paths, routes, storage, store, usage
 from server import generation as sc
 
 from conftest import make_image
@@ -176,6 +176,7 @@ def test_a_draft_is_published_by_a_finished_run_of_it_which_becomes_its_cover():
     m = store.get(run.id)
     m.engine.model = e.id
     store.save(m)
+    usage.note(e.id)  # the test run started
 
     async def go(c):
         pub = lambda g: c.post("/api/templates/publish", json={"engine": e.id, "generation": g})
@@ -184,6 +185,7 @@ def test_a_draft_is_published_by_a_finished_run_of_it_which_becomes_its_cover():
         r = await pub(run.id)
         d = await r.json()
         assert r.status == 200 and not d["draft"] and d["cover_custom"]
+        assert d["uses"] >= 1 and d["used_at"]  # the page swaps this in: it keeps its place in Recently used
         assert (await pub(run.id)).status == 404  # published once
         assert (await c.post("/api/templates/publish", json={"engine": HAT, "generation": hat_run.id})).status == 404
         return True

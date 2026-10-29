@@ -7,7 +7,7 @@ import asyncio
 from aiohttp import web
 
 from .. import engines, store, template_pack, usage
-from .common import API, err, body
+from .common import API, err, body, template_info
 
 
 def register(routes: web.RouteTableDef) -> None:
@@ -27,10 +27,7 @@ def register(routes: web.RouteTableDef) -> None:
             engines.reload_templates()
         mode = request.query.get("mode")
         used = usage.load()
-        out = [
-            {**engines.describe(e), "used_at": used.get(e.id, {}).get("at"), "uses": used.get(e.id, {}).get("n", 0)}
-            for e in engines.ENGINES.values() if not mode or e.mode == mode
-        ]
+        out = [template_info(e, used) for e in engines.ENGINES.values() if not mode or e.mode == mode]
         return web.json_response(out)
 
     # A template's card image: GET serves it, PUT sets it from a finished run of
@@ -66,7 +63,7 @@ def register(routes: web.RouteTableDef) -> None:
         run = finished_run(e, b["generation"])
         if isinstance(run, web.Response):
             return run
-        return await cover_from(e, run) or web.json_response(engines.describe(e))
+        return await cover_from(e, run) or web.json_response(template_info(e))
 
     def finished_run(e, generation: str):
         """A finished run of this template, else the error response saying why not."""
@@ -107,7 +104,7 @@ def register(routes: web.RouteTableDef) -> None:
         if not any(engines.cover_files(e)):
             if (bad := await cover_from(e, run)) is not None:
                 return bad
-        return web.json_response(engines.describe(engines.publish_template(e.id)))
+        return web.json_response(template_info(engines.publish_template(e.id)))
 
     @routes.delete(API + "/cover")
     async def delete_cover(request):
@@ -115,7 +112,7 @@ def register(routes: web.RouteTableDef) -> None:
         if e is None:
             return err(404, "No such template")
         engines.clear_cover(e.id)
-        return web.json_response(engines.describe(e))
+        return web.json_response(template_info(e))
 
     # Editing a template's text: saved as an override in the user's templates
     # folder, so the shipped file never changes. DELETE goes back to it.
@@ -129,7 +126,7 @@ def register(routes: web.RouteTableDef) -> None:
             return err(404, "No such template")
         except ValueError as ex:
             return err(422, str(ex))
-        return web.json_response(engines.describe(e))
+        return web.json_response(template_info(e))
 
     @routes.post(API + "/templates/duplicate")
     async def duplicate_template(request):
@@ -137,7 +134,7 @@ def register(routes: web.RouteTableDef) -> None:
             e = await asyncio.to_thread(engines.duplicate_template, str((await body(request)).get("engine", "")))
         except KeyError:
             return err(404, "No such template")
-        return web.json_response(engines.describe(e))
+        return web.json_response(template_info(e))
 
     @routes.post(API + "/templates/hide")
     async def hide_template(request):
@@ -154,4 +151,4 @@ def register(routes: web.RouteTableDef) -> None:
             e = engines.reset_template(request.query.get("engine", ""))
         except KeyError:
             return err(409, "This template has no edits to undo")
-        return web.json_response(engines.describe(e))
+        return web.json_response(template_info(e))

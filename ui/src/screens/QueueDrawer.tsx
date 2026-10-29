@@ -2,7 +2,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CSSProperties } from "react";
 import { appRoot, cx, EmptyBox, I, jobProgress, QUEUED } from "../components/oi";
-import { api, type Job } from "../lib/api";
+import { useRemoveTemplate } from "../components/TemplateCard";
+import { api, type EngineInfo, type Job } from "../lib/api";
 import { confirm } from "../lib/confirm";
 import { describeFailure } from "../lib/errors";
 import { clock, elapsed, errMsg, shortModel } from "../lib/format";
@@ -23,16 +24,23 @@ export function QueueDrawer() {
   const toast = useApp((s) => s.toast);
   const { data: jobs = [] } = useJobs();
   const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings });
+  // Templates saved in Build and not published: they wait here, not on Explore, until a tested run publishes them.
+  const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
+  const drafts = (engines.data ?? []).filter((e) => e.draft);
+  const runs = useQuery({ queryKey: ["generations", "explore-use"], queryFn: () => api.generations({ shelf: "mine", limit: 5000 }), staleTime: 60_000, enabled: open && drafts.length > 0 });
+  const tested = new Set((runs.data ?? []).filter((r) => r.status === "done").map((r) => r.model));
   const running = jobs.filter((j) => isActive(j) && !QUEUED.has(j.state));
   const waiting = jobs.filter((j) => QUEUED.has(j.state));
   const attention = jobs.filter((j) => FAILED.has(j.state));
   const finished = jobs.filter((j) => !isActive(j) && !FAILED.has(j.state));
   const done = jobs.filter((j) => !isActive(j)).length;
   const openJob = (j: Job) => { setOpen(false); go({ name: "generation", id: j.id }); };
-  const sections: [string, Job[], string?][] = [
+  // Drafts come after what needs you now, before what's done.
+  const sections: [string, (Job | EngineInfo)[], string?][] = [
     ["Running", running, `${running.length} of ${settings.data?.max_parallel ?? 2} slots`],
     ["Up next", waiting],
     ["Needs attention", attention],
+    ["Drafts", drafts],
     ["Finished", finished],
   ];
   const cancelAll = async () => {
@@ -62,12 +70,13 @@ export function QueueDrawer() {
             <Dialog.Close asChild><button className="icon-btn" type="button" aria-label="Close queue"><I n="x" /></button></Dialog.Close>
           </div>
           <div className="qbody">
-            {jobs.length === 0 ? (
+            {jobs.length + drafts.length === 0 ? (
               <EmptyBox icon="layers" title="Nothing in the queue" style={{ marginTop: 40 }}>Runs show up here while they work. Finished ones stay in your Library.</EmptyBox>
             ) : sections.map(([title, list, note]) => list.length > 0 && (
               <section className="qsec" key={title}>
                 <h5>{title}<span>{note ?? list.length}</span></h5>
-                {list.map((j) => <JobRow key={j.id} j={j} onOpen={() => openJob(j)} />)}
+                {title === "Drafts" ? drafts.map((e) => <DraftRow key={e.id} e={e} tested={tested.has(e.id)} onOpen={() => setOpen(false)} />)
+                  : (list as Job[]).map((j) => <JobRow key={j.id} j={j} onOpen={() => openJob(j)} />)}
               </section>
             ))}
           </div>
@@ -81,6 +90,28 @@ export function QueueDrawer() {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/** A draft: opens in Create, where a finished run of it lets you publish it to Explore. The trash deletes it. */
+function DraftRow({ e, tested, onOpen }: { e: EngineInfo; tested: boolean; onOpen: () => void }) {
+  const openTemplate = useApp((s) => s.openTemplate);
+  const del = useRemoveTemplate(e, () => {});
+  const open = () => { onOpen(); openTemplate(e.mode, e.id); go({ name: e.mode }); };
+  return (
+    <div className={cx("qitem qdraft", tested && "ok")}>
+      <button type="button" className="th" onClick={open} aria-label={`Open ${e.label} in Create`} style={{ padding: 0, border: 0, background: "var(--field)", display: "grid", placeItems: "center", color: "var(--text-3)" }}>
+        {e.cover ? <img src={e.cover} alt="" /> : <I n={e.mode === "motion" ? "film" : "image"} />}
+      </button>
+      <button type="button" onClick={open} style={{ display: "block", width: "100%", minWidth: 0, textAlign: "left", background: "none", border: 0, padding: 0, color: "inherit", cursor: "pointer" }}>
+        <b>{e.label.trim() || "Untitled"}<span className="qprompt"> · {e.model_name || e.provider}</span></b>
+        <div className="sub">{tested ? "Tested · publish it in Create" : "Not tested · run it once"}</div>
+      </button>
+      <span className="qend">
+        <span className="pill draftp"><i className="dot" />{tested ? "Ready" : "Draft"}</span>
+        {del && <button className="icon-btn" type="button" aria-label={`${del.label}: ${e.label}`} title={del.label} disabled={del.busy} onClick={() => void del.run()}><I n="trash" /></button>}
+      </span>
+    </div>
   );
 }
 
@@ -163,7 +194,12 @@ function JobRow({ j, onOpen }: { j: Job; onOpen: () => void }) {
       </div>
       {active ? (
         <button className="icon-btn" type="button" aria-label={`Cancel ${name}`} title="Cancel" onClick={cancel}><I n="x" /></button>
-      ) : j.state === "done" ? <I n="check" style={{ color: "var(--mint)", marginRight: 8 }} />
+      ) : j.state === "done" ? (
+        // Done shows a check; pointed at, it's the button that takes the row off the queue.
+        <button className="icon-btn qdone" type="button" aria-label={`Remove ${name} from the queue`} title="Remove from the queue; the result stays in your Library" onClick={dismiss}>
+          <I n="check" className="ok" /><I n="x" className="rm" />
+        </button>
+      )
         : <button className="icon-btn" type="button" aria-label={`Dismiss ${name}`} title="Dismiss; the run stays in your Library" onClick={dismiss}><I n="x" /></button>}
     </div>
   );

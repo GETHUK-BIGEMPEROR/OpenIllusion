@@ -154,8 +154,8 @@ export function fromAdapter(a: RouterAdapter) {
   }));
   const media = toJob(routerJobs(a)[0], rows);
   const prompt: PromptState = { pick: "prompt", label: "Prompt", hint: "", def: "", required: true };
-  // Labels read "Name · Model": the model half is set, the name is yours to write.
-  const details: Details = { label: ` · ${a.name}`, blurb: "", mode: a.mode };
+  // The name starts empty: the model is shown beside it, not written into it.
+  const details: Details = { label: "", blurb: "", mode: a.mode };
   return { media, prompt, params: [] as ParamRow[], details, output: { result: "", size: "" } as OutputState };
 }
 

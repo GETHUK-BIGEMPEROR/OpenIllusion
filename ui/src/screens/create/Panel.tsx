@@ -111,11 +111,13 @@ function DraftBar({ e, run }: { e: EngineInfo; run?: string | null }) {
   );
 }
 
-/** For a template with no cover yet: this run's result becomes it. */
+/** Any finished run of this template, a draft's too: its result becomes the cover. Loud while there's none. */
 export function UseAsCover({ e, run }: { e: EngineInfo; run: string }) {
   const { busy, fromRun } = useCoverActions(e);
+  const none = !e.cover && !e.cover_video;
   return (
-    <button className="btn sm primary" type="button" disabled={busy} onClick={() => void fromRun(run)} title="This result becomes the template's cover on Explore">
+    <button className={cx("btn sm", none ? "primary" : "ghost")} type="button" disabled={busy} onClick={() => void fromRun(run)}
+      title={none ? "This result becomes the template's cover" : "This result replaces the template's cover"}>
       {busy ? <Spinner size={13} /> : <I n="image" />}<span className="lbl">Use as cover</span>
     </button>
   );

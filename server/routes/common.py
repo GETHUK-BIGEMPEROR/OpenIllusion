@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from .. import bundle, edit, media, paths, store
+from .. import bundle, edit, engines, media, paths, store, usage
 from .. import generation as sc
 
 
@@ -134,3 +134,10 @@ def spec_from_generation(m: sc.Manifest) -> dict:
         "engine": m.engine.model, "mode": m.mode, "title": m.title, "inputs": inputs, "prompt": m.prompt,
         "params": dict(m.params), "forked_from": m.id, "tags": m.tags,
     }
+
+
+def template_info(e: engines.Engine, used: dict | None = None) -> dict:
+    """A template as the app shows it, with when it last ran and how often. Every route that hands one
+    back sends this, so the page's copy never loses its place in Recently used."""
+    u = (usage.load() if used is None else used).get(e.id, {})
+    return {**engines.describe(e), "used_at": u.get("at"), "uses": u.get("n", 0)}

@@ -417,7 +417,7 @@ export function TitleField({ d, setD, invalid, from, model }: { d: Details; setD
       <label htmlFor="bd-label">Template name, as Explore, Create and your Library show it</label>
       <div className="bname-in">
         <span className="bname-f">
-          <input id="bd-label" value={d.label} maxLength={60} placeholder="Name your template" spellCheck={false} aria-invalid={invalid || undefined}
+          <input id="bd-label" value={d.label} maxLength={60} placeholder="Name it by what it makes, like Rainy street at night" spellCheck={false} aria-invalid={invalid || undefined}
           onChange={(e) => { const v = e.target.value; setD((x) => ({ ...x, label: v })); }} />
           <I n="pencil" />
         </span>

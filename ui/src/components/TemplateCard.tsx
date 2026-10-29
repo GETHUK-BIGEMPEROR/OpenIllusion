@@ -158,8 +158,10 @@ export function useCoverActions(e: EngineInfo) {
       setBusy(false);
     }
   };
+  // A draft isn't on Explore yet: nothing there to view.
   const fromRun = (generation: string) => apply(() => api.setCover(e.id, generation), () =>
-    toast({ text: "Template cover updated.", tone: "ok", action: { label: "View", run: () => go({ name: "explore", t: e.id }) } }));
+    toast(e.draft ? { text: "Cover set. Publish puts it on Explore with this cover.", tone: "ok" }
+      : { text: "Template cover updated.", tone: "ok", action: { label: "View", run: () => go({ name: "explore", t: e.id }) } }));
   const reset = () => apply(() => api.resetCover(e.id), () => toast({ text: "Cover reset.", tone: "ok" }));
   return { busy, fromRun, reset };
 }

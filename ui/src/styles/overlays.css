@@ -225,3 +225,13 @@
   .fp-sep{width:1px;height:auto;margin:4px 2px}
   .fpick .dlg-f .note{flex-basis:100%;order:-1}
 }
+/* A draft in the Queue: orange until a run of it finishes, then mint. */
+.qdraft .pill.draftp{flex:none;color:#FFC48F}
+.qdraft .pill.draftp .dot{background:var(--orange)}
+.qdraft.ok .pill.draftp{color:#9BE8C0}
+.qdraft.ok .pill.draftp .dot{background:var(--mint)}
+.qitem .qend{display:flex;align-items:center;gap:4px}
+/* A finished run: its check turns into the remove button under the pointer or keyboard focus. */
+.qdone .ok{color:var(--mint)}
+.qdone .rm,.qdone:hover .ok,.qdone:focus-visible .ok{display:none}
+.qdone:hover .rm,.qdone:focus-visible .rm{display:block}

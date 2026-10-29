@@ -11,7 +11,7 @@ import httpx
 from aiohttp import web
 
 from .. import adapters, builder, engines, local, paths, staging
-from .common import API, UPLOAD_EXT, err, body, asset_info
+from .common import API, UPLOAD_EXT, err, body, asset_info, template_info
 
 
 def register(routes: web.RouteTableDef) -> None:
@@ -172,7 +172,7 @@ def register(routes: web.RouteTableDef) -> None:
         except (builder.BuildError, KeyError, ValueError) as e:
             return err(422, str(e))
         engines.reload_templates()
-        return web.json_response(engines.describe(engines.ENGINES[tid]))
+        return web.json_response(template_info(engines.ENGINES[tid]))
 
     @routes.delete(API + "/builder/template")
     async def builder_delete(request):

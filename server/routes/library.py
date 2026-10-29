@@ -12,7 +12,7 @@ from aiohttp import web
 
 from .. import bundle, engines, jobs, paths, storage, store, template_pack
 from .. import generation as sc
-from .common import API, library_changed, err, body, _safe_file, _fetch_remote, spec_from_generation
+from .common import API, library_changed, err, body, _safe_file, _fetch_remote, spec_from_generation, template_info
 
 
 def register(routes: web.RouteTableDef) -> None:
@@ -296,7 +296,7 @@ def register(routes: web.RouteTableDef) -> None:
                 e = await asyncio.to_thread(template_pack.install, data)
             except template_pack.archive.Refused as ex:
                 return err(422, str(ex))
-            return web.json_response({"template": engines.describe(e)})
+            return web.json_response({"template": template_info(e)})
         try:
             review = await asyncio.to_thread(bundle.inspect, data, name)
         except bundle.ImportRefused as e:
