@@ -96,8 +96,8 @@ They are ordinary inputs after the prompt, drawn by Create under **Settings**:
   A setting fixed in the Builder at that option leaves no input; the template says
   `"keep_sound": "video:1"` at the top instead. Seedance's Sound is Make new / Keep the clip's
   / None, the middle one only when it edits a clip (Kling keeps the clip's sound itself).
-  The local MiniMax H3 swaps say it the same way, by hand in the template: Sound is Make
-  new (H3's own) / Keep the clip's (Video 1's).
+  The local MiniMax H3 Character swap says it the same way, by hand in the template: Sound
+  is Make new (H3's own) / Keep the clip's (Video 1's).
 
 ```jsonc
 { "key": "size", "type": "size", "label": "Output size", "aspect": "16:9", "default": "0.4 MP",
@@ -107,8 +107,9 @@ They are ordinary inputs after the prompt, drawn by Create under **Settings**:
   "default": 5, "unit": "s", "bind": [["140:133", "value", "float"]] }
 ```
 
-The shipped templates made from words alone (Create a photo, Create a video and its Turbo) ask for
-size; the MiniMax H3 ones ask for a length. A cloud template saved before
+The shipped templates made from words alone (Create a photo, Create a video and its Turbo,
+H3 T2V Turbo) ask for size; Create a video, its Turbo and Animate a photo ask for a length;
+Character swap takes its size and length from the clip. A cloud template saved before
 models had settings gets its job's settings at their defaults when it loads
 (`contract._model_settings`).
 

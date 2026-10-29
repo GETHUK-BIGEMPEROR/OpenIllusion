@@ -119,8 +119,10 @@ only saves audio, a 3D model or text can't be one yet. Details:
 [Making a template](docs/TEMPLATES.md#making-a-template-builder).
 
 Cloud templates are built the same way under **Build → Comfy Router**: pick a model, pick
-what it does (text to video, first frame, references…), run it once. Any Router model
-with an adapter works; [Adding a model](docs/TEMPLATES.md#adding-a-model) covers the rest.
+what it does (text to video, first frame, references…), run it once. Nine Router models
+have adapters: Seedance 2.5, Kling 3 Omni, Veo 3.1 Fast and Wan 3.0 for video; Seedream 5.0
+Pro, GPT Image 2, Grok Imagine Image 2.0, Nano Banana 2.1 and FLUX 2 Max for photos (the
+last two ship no template yet). [Adding a model](docs/TEMPLATES.md#adding-a-model) covers the rest.
 
 ## Share a template: the `.illusion` file
 
@@ -174,10 +176,13 @@ recipe inside it too.
 | | |
 | --- | --- |
 | Contest | [Open Source Higgsfield](https://comfy.org/open-source-higgsfield/) by Comfy, build period 10/15 to 10/30/2026 |
+| Categories | Best Overall, Most Innovative |
 | What it is | A working app on top of ComfyUI that lets anyone run, and make, their own one-click templates: pick one, drop in photos, clips or sounds, press Run |
 | License | MIT ([LICENSE](LICENSE)) |
 | Setup | [Setup](#setup) below: install, the models each template needs, start |
 | Model bonus | **Built with MiniMax H3** |
+| Comfy Developer Platform | Comfy API (local runs through comfy-api-proxy) and Comfy Router (cloud runs) |
+| Workflow files | Every local template in [templates/local/](templates/local/) carries its full ComfyUI workflow (API format) under `workflow`; the app also exports any of them as a plain workflow `.json` for ComfyUI |
 | Demo video | [youtu.be/Pr_a42KhWn4](https://youtu.be/Pr_a42KhWn4) (under 2 min) |
 
 **MiniMax H3 is the core model.** Every video template that runs on your own GPU runs

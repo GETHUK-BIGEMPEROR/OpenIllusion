@@ -91,6 +91,7 @@ non-root user, the home folder in a volume, ComfyUI reached on the host by
 | `lib/store.ts` | App state (zustand): the open studio's inputs, prompt and sounds, one unsent draft per template, Open in Create and Use these inputs (`loadGeneration`). |
 | `lib/spec.ts` · `fields.ts` | Studio state → the run spec the server composes (`toSpec`); which inputs a template shows; a prompt as the model gets it, names swapped for tokens (`sentAs`). |
 | `lib/route.ts` · `live.ts` · `query.ts` | Hash routes; the WebSocket feed of job updates; React Query setup. |
+| `lib/errors.ts` · `imports.ts` | Failures in one vocabulary (`describeFailure`: a title, what to do, the raw text for Show details), for the stage, queue and generation page; where an import lands (`landImport`: a template goes straight to Explore, a generation is reviewed first). |
 | `App.tsx` · `components/Shell.tsx` · `Palette.tsx` | Layout, rail and tab bar, drops anywhere on the page (files from outside only: a drag that starts on the page, like selected text, is ignored; a page with inputs of its own takes media through `usePageDrop`), Ctrl K palette. |
 | `screens/*` | One file per screen; see [The app](docs/APP.md#the-app-screen-by-screen). |
 | `screens/builder/` | Builder: Local workflow and Comfy Router tabs, three steps with Back, the checklist, save and first run (`Builder.tsx`); the start step and model cards (`Start.tsx`), the template's numbered sections and the workflow's missing nodes and models (`Sections.tsx`, `SourceCheck`), output size and settings with Ask/Lock (`Settings.tsx`), the side panel: Create's view, the checklist, Run (`Rail.tsx`), row state from a workflow or preset (`model.ts`). On Router: job cards built from the adapter's sets or `models` (`modes.ts`), inputs grouped by role (each role's limits as pills counted across its files, **Fit all to spec**, a card per sample with Edit, Replace, Remove), a sentence on what the run makes, and the same `set`/`needs`/`models` checks as the server. |
@@ -99,6 +100,7 @@ non-root user, the home folder in a volume, ComfyUI reached on the host by
 | `components/MediaEditor.tsx` | The one editor for photos, clips and sounds: `Editor` (inline on Create's stage), `MediaSheet` (the Builder's sheet, saves a new file), `MediaThumb` (a file as its edits leave it), `FitLine` ("Fits Kling", "Run crops it to 5:2"). |
 | `lib/edits.ts` | The editor's logic, no UI: the `Edits` a file carries, what they make (`outOf`), the model's limits as checks and a file's one-line status, Fit to spec (a port of `fit.plan`), and the ops sent to `/api/media/edit`. |
 | `components/ui.tsx` · `oi.tsx` · `bits.tsx` · `sprite.ts` | Shared pieces: buttons, segmented tabs, fields, spinners; page head, header chips (`KeyStat`, `GpuStat`), sideways-scrolling rows, media; the icon sprite (`<I n>`). |
+| `components/Confirm.tsx` · `Mentions.tsx` | The one confirm dialog (`confirm()`; deleting for good takes a press-and-hold); the file-name chips under a cloud prompt. |
 | `styles/` | The only styling: `base.css` tokens and reset, `common.css`/`fields.css` shared pieces, one stylesheet per area, `responsive.css` for phones. |
 
 **Folders:**
@@ -302,6 +304,7 @@ into the Builder shows its `mod_N` slots as plain settings.
 | 8 | Inputs fitted to each model: published per-file limits in adapters (`fit`, `media_mb`); runs crop, scale, cut, resample and re-encode to them; Create lists the changes | built, tested against fakes |
 | 9 | Dataset prep, per file: one workbench editor for every photo, clip and sound (inline on Create's stage, a sheet in the Builder), file cards that say whether the model takes each file, the model's limits as pills with Fit to spec and the Builder's Fit all; any common format converted on upload | built, tested; batch editing next |
 | 11 | Result settings: shape, size, length, resolution, sound and quality for every Router model (adapter `settings`) and the shipped create templates; Create's shape tiles and size steps; the Builder's Output size and Settings for both tabs; a saved template is a draft until a finished run of it is published from Create | built, tested; cloud values unchecked against real runs |
+| — | Fresh install, from a clone, as the README says: plain Python and Docker, against a stock ComfyUI 0.43 on CPU with no models. The proxy starts on its own (beside the app, or inside the container); all 22 local templates pass the node check; missing models are listed and block the run; a Builder template runs on both with the same pixels; shipped Create a photo runs from the fresh app on a GPU ComfyUI | done on Windows |
 
 ## Known weak spots
 
@@ -314,3 +317,6 @@ into the Builder shows its `mod_N` slots as plain settings.
 | low | Proxy | The proxy token is passed to comfy-api-proxy on the command line (`--token`), so it shows in the process list to anyone on the machine. | Pass it by environment or a private file |
 | med | Settings | Settings values come from Router's schemas and docs; only the ones the shipped templates use have met a real run. Veo's aspect still applies with a first frame. A Builder's size readout uses a 16 px grid, so a template based on a 32 px one can open a few pixels off. | Phase 6 |
 | med | Limits | Fits are read from docs, never from a refusal. Seedance's per-file numbers come second-hand; Kling's "720–2160 px" for clips is read as both sides. | Phase 6: correct any fit a real refusal disagrees with |
+| med | ComfyUI versions | Every local template has generated on ComfyUI 0.42. On 0.43 their nodes all check out and Create a photo has run; the MiniMax H3 and Qwen edit templates haven't generated there yet. | Run each on the newest ComfyUI before a release |
+| med | Platforms | Install and runs are checked on Windows (plain Python and Docker Desktop) only. | Run the README's setup on Linux and macOS |
+| low | Explore | Explore's cards don't say which local templates are missing models; Connect counts them, and a template lists them once opened. | Mark cards from the same check |
