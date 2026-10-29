@@ -31,7 +31,7 @@ Open source under the [MIT license](LICENSE). Entered in Comfy's
 | License | MIT ([LICENSE](LICENSE)) |
 | Setup | [Setup](#setup) below: install, the models each template needs, start |
 | Model bonus | **Built with MiniMax H3** |
-| Demo video | _link added at submission_ |
+| Demo video | [youtu.be/Pr_a42KhWn4](https://youtu.be/Pr_a42KhWn4) (under 2 min) |
 
 **MiniMax H3 is the core model.** Every video template that runs on your own GPU runs
 MiniMax H3 through ComfyUI's built-in H3 nodes: Create a video (the full model, 20 steps),
