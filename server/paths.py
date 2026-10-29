@@ -28,6 +28,7 @@ TIERS = {
     "secrets.json": "machine",
     "index.sqlite": "machine",
     "jobs.json": "machine",
+    "usage.json": "machine",
     "proxy-state": "machine",
     "proxy.log": "machine",
     "server.lock": "machine",

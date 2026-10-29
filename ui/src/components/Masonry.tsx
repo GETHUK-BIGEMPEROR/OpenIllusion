@@ -4,10 +4,10 @@ import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Re
 export const clampAspect = (a?: number | null) => Math.min(16 / 9, Math.max(9 / 16, a || 4 / 5));
 
 /**
- * Equal-width columns. Each tile takes the leftmost column that is within half a
- * tile of the shortest, so the wall reads left to right like rows, yet columns
- * still even out when heights differ a lot. Heights come from each item's
- * aspect, so nothing jumps while media loads.
+ * Equal-width columns. Each tile takes the shortest column (the leftmost when they
+ * nearly tie), so every tile starts no higher than the one before it: a sorted wall
+ * reads in its order, top to bottom and left to right. Heights come from each
+ * item's aspect, so nothing jumps while media loads.
  */
 export function Masonry<T extends { key: string; aspect?: number | null }>({ items, render, label, minCol = 232, maxCols = 5 }: {
   items: T[]; render: (item: T) => ReactNode; label: string; minCol?: number; maxCols?: number;
@@ -32,7 +32,7 @@ export function Masonry<T extends { key: string; aspect?: number | null }>({ ite
     const heights = new Array<number>(cols).fill(0);
     const out: T[][] = Array.from({ length: cols }, () => []);
     for (const it of items) {
-      const low = Math.min(...heights) + colW / 2;
+      const low = Math.min(...heights) + 1;
       const c = heights.findIndex((h) => h <= low);
       out[c].push(it);
       heights[c] += colW / clampAspect(it.aspect) + gap;

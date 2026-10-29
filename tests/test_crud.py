@@ -211,3 +211,23 @@ def test_typical_is_the_median_of_finished_runs_of_that_template():
     run(500, status="failed")
     run(7, model="cloud/other")
     assert store.typical(HAT) == 50
+
+
+def test_template_use_outlives_its_runs():
+    from server import usage
+
+    a = gen("A")
+    b = gen("B")
+    store.update(b.id, created=a.created + 60)
+    u = usage.load()[HAT]  # no file yet: counted from the library
+    assert u == {"n": 2, "at": a.created + 60}
+    store.delete_many([a.id, b.id])
+    store.empty_trash()
+    usage.note(HAT, at=a.created + 120)
+    usage.note("cloud/other", at=a.created + 30)
+    assert usage.load()[HAT] == {"n": 3, "at": a.created + 120}
+
+    async def go(c):
+        return await (await c.get("/api/engines")).json()
+    e = next(x for x in call(go) if x["id"] == HAT)
+    assert e["used_at"] == a.created + 120 and e["uses"] == 3

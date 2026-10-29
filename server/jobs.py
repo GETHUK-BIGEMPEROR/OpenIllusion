@@ -24,7 +24,7 @@ from typing import Any, Callable
 
 import httpx
 
-from . import engines, local, media, paths, proxy, settings, staging, store
+from . import engines, local, media, paths, proxy, settings, staging, store, usage
 from . import generation as sc
 from .router import Router, RouterError
 
@@ -180,6 +180,10 @@ class Manager:
             self.emit(job)
             self.tasks[job.id] = asyncio.ensure_future(self._run(job))
             ids.append(m.id)
+        try:
+            usage.note(m.engine.model)
+        except OSError:
+            pass  # a lost tally never stops a run
         return ids
 
     async def cancel(self, job_id: str) -> bool:

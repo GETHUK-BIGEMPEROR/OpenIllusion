@@ -115,6 +115,9 @@ export interface EngineInfo {
   mentions?: Record<string, string>;
   /** A shipped template taken off Explore (Settings puts it back). */
   hidden?: boolean;
+  /** When a run of it last started, and how many runs (server/usage.py): kept when the runs are deleted. */
+  used_at?: number | null;
+  uses?: number;
   /** Cloud templates: the Router model they send to. */
   model?: string | null;
 }

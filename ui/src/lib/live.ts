@@ -6,10 +6,14 @@ const TERMINAL = new Set(["done", "failed", "moderated", "cancelled"]);
 export const isActive = (j: Job) => !TERMINAL.has(j.state);
 
 function upsert(qc: QueryClient, job: Job) {
+  let fresh = false;
   qc.setQueryData<Job[]>(["jobs"], (old = []) => {
     const rest = old.filter((j) => j.id !== job.id);
+    fresh = rest.length === old.length;
     return [job, ...rest].sort((a, b) => b.created - a.created);
   });
+  // A new run moves its template up Recently used.
+  if (fresh) qc.invalidateQueries({ queryKey: ["engines"] });
   if (TERMINAL.has(job.state)) {
     qc.invalidateQueries({ queryKey: ["generations"] });
     qc.invalidateQueries({ queryKey: ["generation", job.id] });

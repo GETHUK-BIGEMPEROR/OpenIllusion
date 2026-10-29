@@ -6,7 +6,7 @@ import asyncio
 
 from aiohttp import web
 
-from .. import engines, store, template_pack
+from .. import engines, store, template_pack, usage
 from .common import API, err, body
 
 
@@ -26,7 +26,11 @@ def register(routes: web.RouteTableDef) -> None:
         if request.query.get("reload"):
             engines.reload_templates()
         mode = request.query.get("mode")
-        out = [engines.describe(e) for e in engines.ENGINES.values() if not mode or e.mode == mode]
+        used = usage.load()
+        out = [
+            {**engines.describe(e), "used_at": used.get(e.id, {}).get("at"), "uses": used.get(e.id, {}).get("n", 0)}
+            for e in engines.ENGINES.values() if not mode or e.mode == mode
+        ]
         return web.json_response(out)
 
     # A template's card image: GET serves it, PUT sets it from a finished run of

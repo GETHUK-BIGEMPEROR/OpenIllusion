@@ -69,7 +69,7 @@ function score(e: EngineInfo, words: string[]): number {
 /** Every template as one wall, photos and videos, local and cloud together. Search and filters on top; click runs it in Create, (i) opens its details. */
 export function Explore({ t }: { t?: string }) {
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
-  // Your runs, for Recently used and Most used.
+  // Your runs, to tell which drafts were tested.
   const runs = useQuery({ queryKey: ["generations", "explore-use"], queryFn: () => api.generations({ shelf: "mine", limit: 5000 }), staleTime: 60_000 });
   const status = useStatus();
   const openTemplate = useApp((s) => s.openTemplate);
@@ -81,14 +81,6 @@ export function Explore({ t }: { t?: string }) {
   const every = useMemo(() => (engines.data ?? []).filter((e) => !e.hidden && !e.draft), [engines.data]);
   const drafts = useMemo(() => (engines.data ?? []).filter((e) => e.draft), [engines.data]);
   const tested = useMemo(() => new Set((runs.data ?? []).filter((r) => r.status === "done").map((r) => r.model)), [runs.data]);
-  const usage = useMemo(() => {
-    const m = new Map<string, { n: number; at: number }>();
-    for (const r of runs.data ?? []) {
-      const u = m.get(r.model) ?? { n: 0, at: 0 };
-      m.set(r.model, { n: u.n + 1, at: Math.max(u.at, r.created) });
-    }
-    return m;
-  }, [runs.data]);
 
   const words = f.q.toLowerCase().split(/\s+/).filter(Boolean);
   const scores = useMemo(() => new Map(every.map((e) => [e.id, score(e, words)])), [every, f.q]); // words come from f.q
@@ -114,8 +106,8 @@ export function Explore({ t }: { t?: string }) {
   const featured = (a: EngineInfo, b: EngineInfo) => Number(b.curated) - Number(a.curated) || Number(b.kind === "local") - Number(a.kind === "local");
   const order: Record<Sort, (a: EngineInfo, b: EngineInfo) => number> = {
     featured: (a, b) => (words.length ? (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) : 0) || featured(a, b),
-    recent: (a, b) => (usage.get(b.id)?.at ?? 0) - (usage.get(a.id)?.at ?? 0) || featured(a, b),
-    most: (a, b) => (usage.get(b.id)?.n ?? 0) - (usage.get(a.id)?.n ?? 0) || featured(a, b),
+    recent: (a, b) => (b.used_at ?? 0) - (a.used_at ?? 0) || featured(a, b),
+    most: (a, b) => (b.uses ?? 0) - (a.uses ?? 0) || featured(a, b),
     az: (a, b) => a.label.localeCompare(b.label),
   };
   const shown = every.filter((e) => pass(e)).sort(order[f.sort]);
