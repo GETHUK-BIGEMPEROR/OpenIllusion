@@ -1,7 +1,7 @@
 # OpenIllusion
 
-A template studio for ComfyUI, made as simple as Higgsfield: pick a template, drop
-in your images, videos or sounds, edit the prompt, press Run, get a result.
+A template studio for ComfyUI, made one-click simple: pick a template, drop in your
+images, videos or sounds, edit the prompt, press Run, get a result.
 
 - **Local** runs a ComfyUI workflow on your own GPU through Comfy API v2.
 - **Cloud** runs premium models that make video or photos on
@@ -27,7 +27,7 @@ Open source under the [MIT license](LICENSE). Entered in Comfy's
 | | |
 | --- | --- |
 | Contest | [Open Source Higgsfield](https://comfy.org/open-source-higgsfield/) by Comfy, build period 10/15 to 10/30/2026 |
-| What it is | A working app on top of ComfyUI that lets anyone run, and make, their own Higgsfield-style templates: pick one, drop in photos, clips or sounds, press Run |
+| What it is | A working app on top of ComfyUI that lets anyone run, and make, their own one-click templates: pick one, drop in photos, clips or sounds, press Run |
 | License | MIT ([LICENSE](LICENSE)) |
 | Setup | [Setup](#setup) below: install, the models each template needs, start |
 | Model bonus | **Built with MiniMax H3** |

@@ -40,7 +40,7 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 The current design is the settled one. Change it on purpose, and write the change
 here in the same commit.
 
-- **Higgsfield-simple.** Each screen has one main action (Use, Run, Save), in
+- **One-click simple.** Each screen has one main action (Use, Run, Save), in
   the neon gradient. The box's own settings (sampler, steps, model flags) never show.
 - **Say what it is, not how it's built.** Inputs read Image 1, Video 1, Audio 1;
   modes read Text to video, Image to video, Video edit. Node ids, field paths and
