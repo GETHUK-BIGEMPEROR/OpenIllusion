@@ -22,7 +22,7 @@
 .fav[aria-pressed="true"] .i{fill:var(--rose)}
 .check{width:24px;height:24px;border-radius:8px;border:1.5px solid rgba(255,255,255,.7);background:rgba(7,6,13,.4);display:grid;place-items:center;color:transparent;flex:none}
 .check .i{width:14px;height:14px;stroke-width:3}
-.card.picked .check{background:var(--neon);border-color:transparent;color:var(--on-accent)}
+.card.picked .check{background:var(--neon) border-box;border-color:transparent;color:var(--on-accent)}
 .card.picked{transform:scale(.97)}
 .bulk{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:6px;padding:6px 6px 6px 16px;border-radius:14px;border:1px solid transparent;background:linear-gradient(rgba(22,19,37,.94),rgba(22,19,37,.94)) padding-box,var(--neon) border-box;backdrop-filter:blur(14px);box-shadow:0 30px 60px -20px rgba(0,0,0,.9),0 0 30px -8px rgba(157,107,255,.6);animation:rise .25s;white-space:nowrap}
 .bulk b{font-size:13px;font-weight:500;margin-right:8px}
