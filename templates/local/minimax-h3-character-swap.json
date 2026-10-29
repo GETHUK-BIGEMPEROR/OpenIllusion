@@ -2,7 +2,8 @@
   "format": "openillusion.template",
   "version": 2,
   "mode": "motion",
-  "label": "Character swap · MiniMax H3",
+  "label": "Character swap",
+  "model_name": "MiniMax H3",
   "blurb": "Puts the character from Image 1 into Video 1 in place of one person. Their pose, timing, camera and scene stay; face, hair and outfit come from the photo.",
   "size": {
     "multiple": 32

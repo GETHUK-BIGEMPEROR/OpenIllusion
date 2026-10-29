@@ -91,16 +91,30 @@ def source(e: Any, f: dict) -> tuple[dict, str] | None:
     Found from the request itself, so templates built before an adapter gained a limit get it too."""
     if f.get("fit"):
         return f["fit"], f["key"]
+    hit = adapter_input(e, f)
+    return (hit[1]["fit"], f"role:{hit[0]}") if hit and hit[1].get("fit") else None
+
+
+def adapter_input(e: Any, f: dict) -> tuple[int, dict] | None:
+    """The Router adapter input (its index and entry) a template's media input fills, found from where its
+    request puts the file. Two roles can put a file in the same place (Seedance's Reference video and Video to
+    edit); then it's the one whose ``with`` the request carries."""
     if e.kind == "local" or not e.model or not e.body or not f.get("bind"):
         return None
     a = adapters.for_model(e.model)
     if a is None:
         return None
     here = _at(e.body, list(f["bind"][0]))
-    for n, i in enumerate(a.inputs):
-        if i["type"] == f["type"] and i.get("fit") and adapters.fill(i["value"], f["key"]) == here:
-            return i["fit"], f"role:{n}"
-    return None
+    hits = [(n, i) for n, i in enumerate(a.inputs) if i["type"] == f["type"] and adapters.fill(i["value"], f["key"]) == here]
+    carried = [h for h in hits if h[1].get("with") and all(_at(e.body, list(p)) == v for p, v in h[1]["with"])]
+    return (carried or hits or [None])[0]
+
+
+def role(e: Any, slot: str) -> str | None:
+    """The adapter role a media input fills ("First frame", "Reference image"...), or None when not known."""
+    f = next((f for f in e.fields if f["key"] == slot), None)
+    hit = adapter_input(e, f) if f else None
+    return hit[1]["role"] if hit else None
 
 
 def of(e: Any, slot: str) -> dict:

@@ -319,6 +319,9 @@ select.bld-val{height:32px}
 .bname-in{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
 .bname-f{position:relative;flex:1 1 300px;min-width:0;display:flex;align-items:center}
 .bname-m{flex:none;background:var(--raised);color:var(--text-2)}
+.bname-in input.bname-model{flex:0 1 200px;width:auto;height:30px;margin:0;padding:0 12px;border-radius:999px;background:var(--raised);border:1px solid var(--line);color:var(--text-2);font:500 13px/1 var(--body)}
+.bname-in input.bname-model:hover{border-color:var(--line-2)}
+.bname-in input.bname-model:focus{border-color:var(--violet);color:var(--text)}
 .bname-in input{width:100%;min-width:0;height:58px;padding:0 40px 0 12px;margin-left:-12px;border-radius:14px;background:transparent;border:1px solid transparent;color:var(--text);font:600 32px/1.1 var(--display);letter-spacing:-.02em;outline:none;transition:background .15s,border-color .15s,box-shadow .15s}
 .bname-in input::placeholder{color:var(--text-3)}
 .bname-in input:hover{background:var(--panel)}

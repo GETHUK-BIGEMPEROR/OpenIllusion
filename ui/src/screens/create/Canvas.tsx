@@ -9,7 +9,7 @@ import { StageError, type Fix } from "../../components/Studio";
 import { Spinner } from "../../components/ui";
 import { api, fileUrl, type EngineInfo, type Job, type Manifest, type Mode } from "../../lib/api";
 import { clipFps, clipWindow, mediaFields } from "../../lib/fields";
-import { ago } from "../../lib/format";
+import { ago, resultName } from "../../lib/format";
 import { isActive } from "../../lib/live";
 import { clipIn, posterOf, slotOf, withClip, type RefSlot, type StudioState } from "../../lib/store";
 import { aspectName, dimsText, type Crop } from "../../lib/size";
@@ -43,9 +43,9 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
     : shown && before ? fileUrl(shown.id, before) : base?.url;
 
   // Every result, the template's example included, sits over one bar: what it is on the left, how to compare on the right.
-  const player = (a: Side | null, b: Side, info: ReactNode, act?: ReactNode, tip?: string) => (
+  const player = (a: Side | null, b: Side, info: ReactNode, act?: ReactNode, tip?: string, overlay?: ReactNode) => (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-      <ABPlayer key={b.src ?? ""} a={a} b={b} info={<><div className="ab-info" title={tip}>{info}</div>{act}</>} />
+      <ABPlayer key={b.src ?? ""} a={a} b={b} overlay={overlay} info={<><div className="ab-info" title={tip}>{info}</div>{act}</>} />
     </div>
   );
 
@@ -105,7 +105,12 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
     const res: Side = { kind: shown.result?.kind ?? (moving ? "video" : "image"), src: result, poster: shown.result?.poster ? fileUrl(shown.id, shown.result.poster) : null, label: "Result" };
     const seed = shown.result?.seed;
     const meta = [ago(shown.created), size && `${size.w}×${size.h}`, seed != null && `seed ${seed}`].filter(Boolean).join(" · ");
-    return player(eff === "compare" ? src : null, res, <><b>{earlier ? "Earlier run" : "Your run"}</b><span className="mono">{meta}</span></>, earlier ? action : null);
+    // The result's file as it is, top right on the frame (Export makes a .illusion; this is just the photo or clip).
+    const dl = (
+      <a className="icon-btn sm glass ab-dl" href={result} download={resultName(shown.title, shown.id, shown.result!.file!)}
+        aria-label="Download result" title="Download result" onPointerDown={(e) => e.stopPropagation()}><I n="download" /></a>
+    );
+    return player(eff === "compare" && engine?.before !== false ? src : null, res, <><b>{earlier ? "Earlier run" : "Your run"}</b><span className="mono">{meta}</span></>, earlier ? action : null, undefined, dl);
   }
 
   if (motion && eff === "input" && clip) {

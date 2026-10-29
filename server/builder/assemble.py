@@ -43,7 +43,7 @@ def get_draft(token: str) -> dict:
 
 # ---- assembling a template ----------------------------------------------------
 
-TEXT_MAX = {"label": 80, "blurb": 400, "default_prompt": 4000}
+TEXT_MAX = {"label": 80, "blurb": 400, "default_prompt": 4000, "model_name": 40}
 PARAM_TYPES = {"int", "number", "bool", "seed", "select", "segmented", "string"}
 CASTS = {"int": "int", "seed": "int", "number": "float", "bool": "bool", "string": "str"}
 
@@ -103,8 +103,8 @@ def media_rows(rows: list[dict]) -> list[dict]:
 def _common(spec: dict, media: list[dict]) -> dict:
     """The template file without its bindings: details, then one input per media row and the prompt.
     The assemblers add where each input goes (``bind``) and the settings."""
-    label = _txt(spec.get("label"), TEXT_MAX["label"], "the name")
-    if not label or not label.split(" · ")[0].strip():
+    label = _txt(spec.get("label"), TEXT_MAX["label"], "the name").replace(" · ", " ")
+    if not label.strip():
         raise BuildError("Give the template a name")
     videos = [m for m in media if m["kind"] == "video"]
     mode = spec.get("mode") if spec.get("mode") in ("edit", "motion") else ("motion" if videos else "edit")
@@ -152,6 +152,9 @@ def assemble_local(spec: dict, draft: dict, info: dict) -> dict:
     api = copy.deepcopy(draft["workflow"])
     media = media_rows(spec.get("media") or [])
     data = _common(spec, media)
+    # The model the workflow runs, as its author names it; Explore shows it under the name.
+    if model := _txt(spec.get("model_name"), TEXT_MAX["model_name"], "the model"):
+        data["model_name"] = model
     for m in media:
         n = api.get(str(m.get("node")))
         if n is None or m.get("input") not in n["inputs"]:
@@ -292,8 +295,7 @@ def preset(e) -> dict:
               for f in e.fields if f["type"] not in ("image", "video", "audio", "size") and f["key"] != "prompt" and f.get("bind")]
     out = next((f for f in e.fields if f["type"] == "size"), None)
     size = {"node": str(out["bind"][0][0]), **{k: out[k] for k in ("label", "aspect", "default") if k in out}} if out else None
-    name, _, rest = e.label.partition(" · ")
-    return {"base": e.id, "label": f"{name} (copy)" + (f" · {rest}" if rest else ""), "blurb": e.blurb,
+    return {"base": e.id, "label": f"{e.label} (copy)", "model_name": e.model_name, "blurb": e.blurb,
             "mode": e.mode, "media": media, "prompt": prompt, "params": params, "size": size, "outputs": list(e.outputs)}
 
 
@@ -343,8 +345,7 @@ def cloud_preset(e) -> dict:
             if [at(out, p) for p in adapters.setting_paths(s)] == want:
                 values[s["key"]] = v
                 break
-    name, _, rest = e.label.partition(" · ")
-    return {"kind": "cloud", "base": e.id, "model": a.model, "label": f"{name} (copy)" + (f" · {rest}" if rest else ""),
+    return {"kind": "cloud", "base": e.id, "model": a.model, "label": f"{e.label} (copy)",
             "blurb": e.blurb, "mode": e.mode, "media": media,
             "prompt": {"default": e.default_prompt},
             "settings": {s["key"]: {"value": values[s["key"]], "locked": s in locked} for s in on}}

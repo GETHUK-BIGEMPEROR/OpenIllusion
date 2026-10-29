@@ -118,7 +118,7 @@ export async function dropIntoStudio(mode: Mode, files: File[]) {
 export async function openWithFiles(e: EngineInfo, files: File[]) {
   const st = useApp.getState();
   const media = files.filter(isMediaFile);
-  const name = e.label.split(" · ")[0];
+  const name = e.label;
   const takes = (k: string) => !!e.inputs?.some((i) => i.slot.startsWith(`${k}:`));
   if (media.some(isVideo) && !takes("video")) return st.toast({ text: `${name} takes photos, not video.`, tone: "warn" });
   if (media.some(isImage) && !takes("image")) return st.toast({ text: `${name} takes a video, not photos.`, tone: "warn" });

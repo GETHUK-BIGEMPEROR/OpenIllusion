@@ -568,3 +568,27 @@ def test_a_silent_clip_has_no_sound_to_keep(tmp_path):
     v = make_video(tmp_path / "v.mp4", seconds=1)
     before = v.read_bytes()
     assert media.put_sound(v, make_video(tmp_path / "s.mp4", seconds=1)) is False and v.read_bytes() == before
+
+
+def _engine(data):
+    return engines.load_template({"format": "openillusion.template", "id": "fox", **data})
+
+
+def test_a_clip_is_compared_with_the_result_only_when_the_result_is_made_over_it():
+    # Seedance's Reference video and Video to edit put the clip in the same place; the edit is the one whose
+    # `with` (duration -1) the request carries, and it takes its own limits.
+    edit = _engine(builder.assemble_cloud(_spec(model=SEEDANCE, media=[(5, "video"), 2])))
+    ref = _engine(builder.assemble_cloud(_spec(model=SEEDANCE, media=[(3, "video"), 2])))
+    assert engines.fit.role(edit, "video:1") == "Video to edit" and engines.fit.role(ref, "video:1") == "Reference video"
+    assert engines.fit.of(edit, "video:1")["seconds"][0] == 4 and engines.fit.of(ref, "video:1")["seconds"][0] == 2
+    assert engines.lead_is_before(edit) and not engines.lead_is_before(ref)
+    # Photos guiding a clip aren't a before; a first frame is.
+    assert not engines.lead_is_before(_engine(builder.assemble_cloud(_spec(model=SEEDANCE, media=[2]))))
+    assert engines.lead_is_before(_engine(builder.assemble_cloud(_spec(media=[0]))))
+    assert not engines.lead_is_before(_engine(builder.assemble_cloud(_spec())))  # words only
+
+
+def test_the_model_under_a_cloud_template_is_the_models_own_name():
+    e = _engine({**builder.assemble_cloud(_spec(model=SEEDANCE, media=[2])), "label": "Reference to video"})
+    assert engines.model_name(e) == adapters.get(SEEDANCE).name
+    assert engines.describe(e)["model_name"] == adapters.get(SEEDANCE).name

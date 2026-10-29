@@ -26,7 +26,7 @@ from typing import Any
 from .. import fit, media, paths
 from .build import TOKEN, MEDIA, _images, _videos, SEED_TOKEN, build_local, reroll, defaults_workflow, fill_media, build_cloud, prune, materialize, tokens_in, file_resolver, run_size
 from .contract import Engine, FIELD_TYPES, upgrade, lift_computed, load_template, media_path, shipped_ref, template_dirs, load_templates
-from .covers import COVER_SIDE, COVER_LOOP_SECONDS, CACHE_ERA, BEFORE_EXT, user_cover, cover_files, cover_file, cover_before, lead_slot, defaults_info, _cover_info, set_cover, clear_cover, clip_limits, clip_file, poster_file
+from .covers import COVER_SIDE, COVER_LOOP_SECONDS, CACHE_ERA, BEFORE_EXT, user_cover, cover_files, cover_file, cover_before, lead_slot, lead_is_before, defaults_info, _cover_info, set_cover, clear_cover, clip_limits, clip_file, poster_file
 from .results import VIDEO_EXT, IMAGE_EXT, classify_failure, find_assets, result_media, decode_media, slim, result_seed
 
 __all__ = [
@@ -47,7 +47,7 @@ __all__ = [
 # Edits never touch the shipped file: the whole template is written to the user's
 # templates folder, which overrides it by id. Resetting deletes that copy.
 
-_TEXT_LIMIT = {"label": 80, "blurb": 400, "text": 4000}
+_TEXT_LIMIT = {"label": 80, "blurb": 400, "text": 4000, "model_name": 40}
 
 
 def _clean(v: Any, limit: int) -> str:
@@ -79,6 +79,8 @@ def edit_template(engine_id: str, patch: dict) -> Engine:
         data["label"] = _clean(patch["label"], _TEXT_LIMIT["label"]) or data["label"]
     if "blurb" in patch:
         data["blurb"] = _clean(patch["blurb"], _TEXT_LIMIT["blurb"])
+    if "model_name" in patch and e.kind == "local":
+        data["model_name"] = _clean(patch["model_name"], _TEXT_LIMIT["model_name"])
     data.pop("tips", None)
     data.pop("tags", None)  # templates had tags once; Explore no longer shows them
     if "inputs" in patch:
@@ -147,7 +149,7 @@ def duplicate_template(engine_id: str) -> Engine:
         return f"media/{stem}/{src.name}"
 
     data["id"], data["built"] = tid, True
-    data["label"] = (e.label.split(" · ")[0] + " (copy)" + (" · " + e.label.split(" · ", 1)[1] if " · " in e.label else ""))[:_TEXT_LIMIT["label"]]
+    data["label"] = (e.label + " (copy)")[:_TEXT_LIMIT["label"]]
     for k in ("cover", "cover_video"):
         if data.get(k):
             data[k] = take(data[k])
@@ -219,9 +221,19 @@ def describe(e: Engine) -> dict:
         "params": e.params, "curated": e.curated, "kind": e.kind, "source": e.source, "prompt": e.prompt,
         "varies": varies(e), "inputs": e.inputs, "fields": fields, "requires": requirements(e),
         "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "model": e.model,
-        "defaults": defaults, "mentions": mentions_of(e), "hidden": e.id in hidden_templates(),
+        "defaults": defaults, "mentions": mentions_of(e), "hidden": e.id in hidden_templates(), "before": lead_is_before(e), "model_name": model_name(e), "workflow_model": e.model_name if e.kind == "local" else None,
         **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),
     }
+
+
+def model_name(e: Engine) -> str:
+    """The model under a template's name: a Router model's own name; a workflow's as its author named it
+    (only they know it), else "ComfyUI workflow"."""
+    from .. import adapters
+
+    a = adapters.for_model(e.model or "") if e.kind == "cloud" else None
+    m = a.name if a else e.model_name
+    return m or ("ComfyUI workflow" if e.kind == "local" else e.provider or "")
 
 
 def mentions_of(e: Engine) -> dict:

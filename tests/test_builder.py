@@ -237,6 +237,9 @@ def test_local_template_round_trip():
     e = engines.load_template(data)
     assert e.id == "local/red-hat" and e.built and e.min_images == 1 and "tags" not in data
     assert e.default_prompt == "Add a red hat to the person."
+    assert "model_name" not in data and engines.model_name(e) == "ComfyUI workflow"
+    named = builder.assemble_local(_local_spec(model_name=" Qwen Image 2.1 "), {"workflow": api}, INFO)
+    assert named["model_name"] == "Qwen Image 2.1" and engines.model_name(engines.load_template({**named, "id": "red-hat"})) == "Qwen Image 2.1"
     wf = e.build({"inputs": [{"slot": "image:1"}], "prompt": "Add a blue cap.", "params": {"steps": 12, "seed": 5, "sampler_name": "dpmpp_2m"}})
     assert wf["12:2"]["inputs"]["text"] == "Add a blue cap."
     assert wf["12:5"]["inputs"]["steps"] == 12 and wf["12:5"]["inputs"]["sampler_name"] == "dpmpp_2m"

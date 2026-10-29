@@ -201,7 +201,7 @@ export function DropOverlay() {
           const st = useApp.getState();
           const last = cachedEngine(st[st.lastStudio].engine);
           toast(isMediaFile(f) && last
-            ? { text: `${f.name} isn't an OpenIllusion file. Use it as an input?`, tone: "warn", action: { label: `Use in ${last.label.split(" · ")[0]}`, run: () => void openWithFiles(last, files) } }
+            ? { text: `${f.name} isn't an OpenIllusion file. Use it as an input?`, tone: "warn", action: { label: `Use in ${last.label}`, run: () => void openWithFiles(last, files) } }
             : { text: errMsg(err), tone: "error", action: buildAction(f) });
         }
       } catch (err) {

@@ -54,7 +54,8 @@ export interface PromptState {
   required: boolean;
 }
 
-export interface Details { label: string; blurb: string; mode: Mode }
+/** `model_name`: a workflow's model as its author names it (a Router model names itself). */
+export interface Details { label: string; blurb: string; mode: Mode; model_name?: string }
 
 /** Local: the node a run's result comes from, and where a declared output size goes ("" when the workflow sizes itself). */
 export interface OutputState { result: string; size: string; keep?: { label?: string; aspect?: string; default?: string } }
@@ -139,6 +140,6 @@ function withPreset(p: BuildPreset, init: { media: MediaRow[]; prompt: PromptSta
       const own = x ? Object.fromEntries((["type", "options", "unit", "min", "max", "step"] as const).filter((k) => x[k] !== undefined).map((k) => [k, x[k]])) : {};
       return x ? { ...r, ...own, on: true, label: x.label, key: x.key, value: x.default ?? r.value, help: x.help ?? r.help } : { ...r, on: false };
     }),
-    details: { label: p.label, blurb: p.blurb, mode: p.mode },
+    details: { label: p.label, blurb: p.blurb, mode: p.mode, model_name: p.model_name ?? "" },
   };
 }

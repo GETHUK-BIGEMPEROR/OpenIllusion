@@ -35,26 +35,29 @@ TESTED = {HAT} | {f"local/qwen21-{n}" for n in (
 )} | {"local/minimax-h3-character-swap",  # same card, 0.4 MP x 124 frames, 4 steps, ~10 min
      "local/minimax-h3-animate",  # 0.4 MP x 124 frames, 4 steps, ~4 min
      "local/minimax-h3-create"} | {"local/qwen21-create"}  # text only: 0.4 MP x 124 frames ~3.5 min; 1 MP, 25 steps ~1.5 min
-# Ran for real on Comfy Router with a key; its cover is that run's result.
-TESTED |= {"cloud/text-to-image-seedream-5-0-pro"}
+# Ran for real on Comfy Router with a key. Text to Image's cover is that run's result; the two Seedance edits
+# ship their samples (all generated here) and no cover, so the first run makes one.
+TESTED |= {"cloud/text-to-image-seedream-5-0-pro", "cloud/swap-two-people-seedance-2-5", "cloud/replace-character-seedance-2-5"}
 
 
-def test_only_tested_templates_ship():
+def test_only_tested_templates_ship(fresh_templates):
     assert {e.id for e in engines.ENGINES.values() if e.origin == "shipped"} == TESTED
 
 
-def test_shipped_cloud_templates_send_their_prompt_and_have_a_cover():
+def test_shipped_cloud_templates_send_their_prompt_and_ship_their_files(fresh_templates):
     for tid in sorted(t for t in TESTED if t.startswith("cloud/")):
         e = engines.ENGINES[tid]
         d = engines.describe(e)
         prompt = next(f for f in d["fields"] if f["key"] == "prompt")
         assert prompt["default"] == e.default_prompt and prompt["bind"]
         assert all(f["bind"] or f.get("keep_sound") for f in d["fields"])
-        assert d["cover"] and e.cover.is_file() and e.blurb
+        assert e.blurb and all(p.is_file() for p in e.default_inputs.values())
+        assert len(d["defaults"]["inputs"]) == len(d["inputs"])
+        assert not e.cover or (d["cover"] and e.cover.is_file())
 
 
 @pytest.mark.parametrize("tid", sorted(t for t in TESTED if t.startswith("local/")))
-def test_shipped_templates_list_every_input_and_bind_it(tid):
+def test_shipped_templates_list_every_input_and_bind_it(tid, fresh_templates):
     e = engines.ENGINES[tid]
     raw = json.loads(e.path.read_text("utf-8"))
     assert raw["version"] == 2 and "bindings" not in raw and "instruction" not in raw and "defaults" not in raw
@@ -427,3 +430,31 @@ def test_a_local_swap_can_keep_the_clips_own_sound(tmp_path, tid):
     assert engines.sound_from(e, {"sound": "clip"}) == "video:1"
     m = NS(engine=NS(model=tid), params={"sound": "clip"}, inputs=[NS(slot="image:1", file="in/a.png"), NS(slot="video:1", file="in/v.mp4")])
     assert jobs._kept_sound(m, tmp_path) == tmp_path / "in/v.mp4"
+
+
+def test_a_title_that_carries_its_model_keeps_the_name():
+    # Files once wrote "Name · Model": a workflow keeps the model as model_name, a Router template's is its model's own.
+    raw = json.loads(engines.ENGINES[HAT].path.read_text("utf-8"))
+    raw.pop("model_name", None)
+    e = engines.load_template({**raw, "label": "Add a hat · Qwen Image 2.1"}, engines.ENGINES[HAT].path.parent)
+    assert e.label == "Add a hat" and engines.model_name(e) == "Qwen Image 2.1"
+    e = engines.load_template({**raw, "label": "Add a hat"}, engines.ENGINES[HAT].path.parent)
+    assert engines.model_name(e) == "ComfyUI workflow"
+    tti = engines.ENGINES["cloud/text-to-image-seedream-5-0-pro"]
+    c = engines.load_template({**json.loads(tti.path.read_text("utf-8")), "label": "Text to Image · Something else"}, tti.path.parent)
+    assert c.label == "Text to Image" and engines.model_name(c) == "Seedream 5.0 Pro" and not c.model_name
+
+
+def test_shipped_titles_are_names_only(fresh_templates):
+    for e in engines.ENGINES.values():
+        if e.origin == "shipped":
+            assert " · " not in json.loads(e.path.read_text("utf-8"))["label"], e.id
+            assert engines.model_name(e) not in ("", "ComfyUI workflow"), e.id
+
+
+def test_a_workflows_model_is_edited_like_its_name(fresh_templates):
+    e = engines.edit_template(HAT, {"model_name": "  Qwen Image 2.1 Edit  "})
+    assert engines.model_name(e) == "Qwen Image 2.1 Edit" and e.label == "Add a hat" and e.edited
+    assert engines.describe(e)["workflow_model"] == "Qwen Image 2.1 Edit"
+    tti = engines.edit_template("cloud/text-to-image-seedream-5-0-pro", {"model_name": "Mine"})
+    assert engines.model_name(tti) == "Seedream 5.0 Pro"  # a Router model names itself

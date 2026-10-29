@@ -8,7 +8,7 @@ import { appRoot, Compare, cx, EmptyBox, gpuName, I, jobProgress, QUEUED, Ring, 
 import { StageError, type Fix } from "../components/Studio";
 import { tplModel, tplName, useCoverActions } from "../components/TemplateCard";
 import { api, fileUrl, workflowUrl, type EngineInfo, type Manifest } from "../lib/api";
-import { ago, elapsed, errMsg, roleLabel, shortModel, stamp, LICENSES } from "../lib/format";
+import { ago, elapsed, errMsg, resultName, roleLabel, shortModel, stamp, LICENSES } from "../lib/format";
 import { isActive, useJobs } from "../lib/live";
 import { go, href } from "../lib/route";
 import { runName } from "../lib/runs";
@@ -118,6 +118,8 @@ export function GenerationDetail({ id }: { id: string }) {
 
   const r = m.result;
   const tpl = templates.data?.find((e) => e.id === m.engine.model);
+  // The input is shown against the result only when the result is made over it (not when it's a reference).
+  const over = tpl?.before !== false;
   const { name } = runName({ title: m.title, model: m.engine.model, prompt: m.prompt }, templates.data);
   const video = m.inputs.find((i) => i.slot.startsWith("video:"));
   const isVideo = !!after && (r?.kind ?? "image") === "video";
@@ -132,11 +134,11 @@ export function GenerationDetail({ id }: { id: string }) {
   const params = Object.entries(m.params).filter(([k]) => !["seed", "motion_mode"].includes(k));
   const local = m.engine.kind === "local";
   const ar =size ? size.w / size.h : 4 / 5;
-  const eff: Mode = !before ? "result" : mode;
+  const eff: Mode = !before || !over ? "result" : mode;
 
   let stage: ReactNode;
   if (after && isVideo) {
-    const src = video?.file ? { kind: "video" as const, src: fileUrl(m.id, video.file), poster: fileUrl(m.id, posterOf(video.file)), label: "Input" } : null;
+    const src = over && video?.file ? { kind: "video" as const, src: fileUrl(m.id, video.file), poster: fileUrl(m.id, posterOf(video.file)), label: "Input" } : null;
     stage = <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "0 16px 16px" }}><ABPlayer a={src} b={{ kind: "video", src: after, poster: r?.poster ? fileUrl(m.id, r.poster) : null, label: "Result" }} /></div>;
   } else {
     let inner: ReactNode;
@@ -187,7 +189,7 @@ export function GenerationDetail({ id }: { id: string }) {
         </div>
         {stage}
         <div className="v-modes">
-          {after && !isVideo && before && (
+          {after && !isVideo && before && over && (
             <div className="seg" role="group" aria-label="View">
               <button type="button" aria-pressed={eff === "input"} onClick={() => setMode("input")}>Input</button>
               <button type="button" aria-pressed={eff === "result"} onClick={() => setMode("result")}>Result</button>
@@ -275,6 +277,7 @@ export function GenerationDetail({ id }: { id: string }) {
           <button className="btn primary" type="button" onClick={() => remix()} title="Put every input and setting back in Create"><I n="remix" />Open in Create</button>
           <button className="btn" type="button" onClick={rerun} disabled={missingMedia || live} title={missingMedia ? "Some media isn't in this generation. Open it in Create and add your own." : "Same settings, new seed"}><I n="refresh" />Re-run</button>
           <button className="icon-btn" type="button" aria-label="Export" title="Export (E)" onClick={() => share(m.id)} disabled={m.status !== "done"}><I n="share" /></button>
+          {after && m.result?.file && <a className="icon-btn" href={after} download={resultName(m.title, m.id, m.result.file)} aria-label="Download result" title="Download result"><I n="download" /></a>}
           <Popover.Root open={swap} onOpenChange={setSwap}>
             <Popover.Trigger asChild><button className="icon-btn" type="button" aria-label="Swap engine" title="Same inputs on another engine"><I n="cpu" /></button></Popover.Trigger>
             <Popover.Portal container={appRoot()}>

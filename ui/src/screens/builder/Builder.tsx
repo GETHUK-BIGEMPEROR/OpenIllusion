@@ -180,7 +180,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
   // What the first run needs, met or not: the side panel lists them, Run waits for all.
   const checks = useMemo(() => {
     const c: Check[] = [];
-    const named = !!details.label.split(" · ")[0].trim();
+    const named = !!details.label.trim();
     c.push({ ok: named, text: named ? "Named" : "Give the template a name" });
     if (!src) return c;
     if (!media.some((m) => m.on) && !prompt.pick) c.push({ ok: false, text: "Ask for at least one input or a prompt" });
@@ -228,7 +228,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     if (src.kind === "local") {
       const fixed = params.filter((r) => !r.on && !sizeOwns(r) && JSON.stringify(r.value) !== JSON.stringify(r.orig)).map((r) => ({ node: r.node!, input: r.input!, value: r.value }));
       const size = output.size ? { node: output.size, ...(output.keep ?? {}) } : null;
-      return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...shared, fixed, outputs: [output.result], size };
+      return { kind: "local", token: src.a.token, base: src.a.preset?.base, ...shared, model_name: details.model_name?.trim() ?? "", fixed, outputs: [output.result], size };
     }
     // The adapter writes the request: the files go where it says, the settings at the values picked here.
     const settings = settingsFor(src.a, on).map((x) => ({ key: x.key, value: settingValue(x, csets[x.key]?.value), locked: !!csets[x.key]?.locked }));
@@ -278,7 +278,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
 
   // Back to step 1. Asks first only when there's something of yours to lose.
   const reset = async () => {
-    if (src && (details.label.split(" · ")[0].trim() || media.some((m) => m.own))) {
+    if (src && (details.label.trim() || media.some((m) => m.own))) {
       const res = await confirm({ tone: "neutral", icon: "undo", view: () => ({ title: "Start over?", body: "What you set up for this template is lost. Nothing is saved yet.", action: "Start over" }) });
       if (!res.ok) return;
     }
@@ -316,7 +316,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
                 <SourceBar src={src} />
               </div>
               <SourceCheck src={src} />
-              <TitleField d={details} setD={setDetails} invalid={tried && !details.label.split(" · ")[0].trim()} from={fromTpl && tplName(fromTpl)} />
+              <TitleField d={details} setD={setDetails} invalid={tried && !details.label.trim()} from={fromTpl && tplName(fromTpl)} model={src.kind === "cloud" ? src.a.name : null} />
               <div className="bld-main">
               {src.kind === "cloud" ? (
                 <div className="bform">
@@ -335,7 +335,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
                   {src.a.results.length !== 1 && <ResultSection a={src.a} o={output} setO={setOutput} />}
                 </div>
               )}
-              <Rail src={src} name={details.label.split(" · ")[0].trim()} model={src.kind === "cloud" ? src.a.name : "Your GPU"} media={media} prompt={prompt}
+              <Rail src={src} name={details.label.trim()} model={src.kind === "cloud" ? src.a.name : details.model_name?.trim() || "Your GPU"} media={media} prompt={prompt}
                 settings={railSets} checks={[...checks, ...sampleCheck]} why={why} tried={tried} saving={!!saving} saveErr={saveErr} onRun={() => void save("try")} />
               </div>
             </>

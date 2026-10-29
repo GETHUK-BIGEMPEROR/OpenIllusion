@@ -39,6 +39,7 @@ class Engine:
     outputs: list[str] = field(default_factory=list)
     hints: dict = field(default_factory=dict)
     source: str | None = None
+    model_name: str = ""  # a workflow's model, as its author names it ("Qwen Image 2.1"); Router templates use the model's own
     prompt: dict | None = None  # {label, hint, required} of the template's prompt input, if it has one
     tips: list[str] = field(default_factory=list)
     inputs: list[dict] = field(default_factory=list)  # the media inputs: {slot, label, hint, size, role}
@@ -76,8 +77,21 @@ FIELD_TYPES = {*MEDIA, "text", "string", "int", "number", "bool", "seed", "selec
 _PARAM_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 
+def model_out_of_label(d: dict) -> dict:
+    """Files once put the model in the title ("New hair · Qwen Image 2.1"). The title keeps the name; a workflow
+    keeps the model as ``model_name``; a Router template's model names itself, so its part goes."""
+    label = d.get("label")
+    if not isinstance(label, str) or " · " not in label:
+        return d
+    name, _, rest = label.partition(" · ")
+    d = {**d, "label": name.strip()}
+    if d.get("kind") != "cloud" and rest.strip() and not d.get("model_name"):
+        d["model_name"] = rest.strip()
+    return d
+
+
 def upgrade(data: dict) -> dict:
-    """A template file in the current format (version 2).
+    """A template file in the current format (version 2), its model out of its title.
 
     Version 1 kept media slots, the prompt and settings apart, bindings in their own map,
     and could hide fixed text around the prompt (``instruction`` nodes or ``prompt_wrap``).
@@ -85,8 +99,8 @@ def upgrade(data: dict) -> dict:
     and editable; the hidden copy in the workflow is emptied.
     """
     if int(data.get("version") or 1) >= 2:
-        return data
-    d = copy.deepcopy(data)
+        return model_out_of_label(data)
+    d = copy.deepcopy(model_out_of_label(data))
     binds = d.pop("bindings", None) or {}
     defaults = d.pop("defaults", None) or {}
     samples = defaults.get("inputs") or {}
@@ -246,7 +260,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
     if not isinstance(result, list) or not all(isinstance(p, list) and p and all(isinstance(k, (str, int)) for k in p) for p in result):
         raise ValueError("result: a list of paths into the model's output")
     # Every template has a title: Explore, Create and the Library show it.
-    if not isinstance(data.get("label"), str) or not data["label"].split(" · ")[0].strip():
+    if not isinstance(data.get("label"), str) or not data["label"].strip():
         raise ValueError("a template needs a label (its title)")
     fields = [_field(f) for f in data.get("inputs") or []]
     # Saved before models had settings: no setting asked and none fixed ("locked" is newer).
@@ -279,6 +293,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         model=data.get("model") if cloud else None, body=data.get("body") if cloud else None, built=bool(data.get("built")),
         result=[list(p) for p in result] if cloud else [], keep_sound=keep,
         hints=data.get("hints", {}), source=data.get("source"),
+        model_name="" if cloud else str(data.get("model_name") or "").strip(),
         prompt={k: text[k] for k in ("label", "required") if k in text} if text else None,
         inputs=slots, fields=fields,
         cover=media_path(base, data["cover"]) if base and data.get("cover") else None,

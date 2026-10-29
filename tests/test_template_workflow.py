@@ -53,7 +53,7 @@ def test_download_still_works_when_comfyui_is_down(monkeypatch):
 
 def test_preset_mirrors_the_template():
     p = builder.preset(engines.ENGINES[HAT])
-    assert p["base"] == HAT and p["label"].startswith("Add a hat (copy) · ")
+    assert p["base"] == HAT and p["label"] == "Add a hat (copy)" and p["model_name"] == "Qwen Image 2.1"
     assert p["media"] == [{"node": "11", "input": "image", "slot": "image:1", **{k: v for k, v in p["media"][0].items() if k in ("label", "hint", "required")}}]
     assert p["prompt"]["node"] == "5" and p["prompt"]["input"] == "prompt" and p["prompt"]["default"] == engines.ENGINES[HAT].default_prompt
     assert p["params"] == [] and p["size"] is None

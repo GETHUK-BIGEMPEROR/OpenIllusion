@@ -96,6 +96,12 @@ export interface EngineInfo {
   cover_custom?: boolean;
   /** The input the cover was made from (its lead photo or clip), shown beside it; null when unknown. */
   cover_before?: { url: string; kind: "image" | "video" } | null;
+  /** Whether the result is made over the lead input (an edit, a first frame), so the two compare; false for references. */
+  before?: boolean;
+  /** The model, shown under the name: a Router model's own name, a workflow's as its author gave it. */
+  model_name?: string;
+  /** A workflow's model as its author typed it ("" when not given); null on Router templates. */
+  workflow_model?: string | null;
   /** Built but not published: no cover until one of its own results becomes it. Hidden from the wall. */
   /** How the app crops and sizes images before the run (server/prep.py). */
   size?: SizeSpec | null;
@@ -148,7 +154,7 @@ export interface WorkflowAnalysis {
 }
 type At = { node: string; input: string };
 export interface BuildPreset {
-  base: string; label: string; blurb: string; mode: Mode;
+  base: string; label: string; model_name?: string; blurb: string; mode: Mode;
   media: (At & { slot: string; label?: string; hint?: string; required?: boolean; window?: [number, number]; fps?: [number, number] })[];
   prompt: (At & { label?: string; hint?: string; required?: boolean; default: string }) | null;
   params: (At & { key: string; label: string; default?: unknown; help?: string | null; type?: BuildParamType; options?: (string | number)[]; unit?: string; min?: number; max?: number; step?: number })[];
@@ -200,6 +206,8 @@ export interface BuildSpec {
   /** The template this one was built from: it keeps that one's sizing, tips and model hints. */
   base?: string;
   label: string; blurb: string; mode: Mode;
+  /** A workflow's model, as its author names it; Router templates show their model's own name. */
+  model_name?: string;
   media: {
     /** Local: the loader's node and input. Cloud: the adapter input the file goes to, by index. */
     node?: string; input?: string | number; kind: MediaKind; label: string; hint: string; required: boolean; sample?: string | null;
@@ -246,6 +254,8 @@ export interface PrepPlan {
 
 export interface TemplatePatch {
   label?: string;
+  /** A workflow's model, shown under the name. */
+  model_name?: string;
   blurb?: string;
   /** The prompt's default, by input key. */
   inputs?: Record<string, { default?: string }>;

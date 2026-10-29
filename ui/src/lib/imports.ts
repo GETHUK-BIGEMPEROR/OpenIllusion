@@ -11,5 +11,5 @@ export function landImport(r: Imported) {
   queryClient.setQueryData<EngineInfo[]>(["engines"], (list) => (list ? [...list.filter((x) => x.id !== e.id), e] : list));
   void queryClient.invalidateQueries({ queryKey: ["engines"] });
   go({ name: "explore", t: e.id });
-  st.toast({ text: `${e.label.split(" · ")[0]} added to Explore.`, tone: "ok" });
+  st.toast({ text: `${e.label} added to Explore.`, tone: "ok" });
 }

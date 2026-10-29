@@ -281,7 +281,7 @@ def recipe_manifest(m: sc.Manifest, res: sc.Result | None = None) -> dict:
 
 def _auto_title(spec: dict) -> str:
     """A run is named after its template; the prompt shows beside it."""
-    return engines.get(spec["engine"]).label.split(" · ")[0].strip() or "Untitled run"
+    return engines.get(spec["engine"]).label.strip() or "Untitled run"
 
 
 def poster_url(m: sc.Manifest) -> str | None:

@@ -410,20 +410,20 @@ export function ResultSection({ a, o, setO }: { a: WorkflowAnalysis; o: OutputSt
 }
 
 /** The template's name, up top: it's what Explore, Create and the Library show. */
-export function TitleField({ d, setD, invalid, from }: { d: Details; setD: (f: (d: Details) => Details) => void; invalid: boolean; from?: string }) {
-  // Labels read "Name · Model"; the model half rides along untouched.
-  const [name, ...rest] = d.label.split(" · ");
-  const model = rest.join(" · ");
+/** The name, and beside it the model Explore shows under it: a Router model's own name, or what a workflow's author types. */
+export function TitleField({ d, setD, invalid, from, model }: { d: Details; setD: (f: (d: Details) => Details) => void; invalid: boolean; from?: string; model: string | null }) {
   return (
     <div className={cx("bname", invalid && "bad")}>
       <label htmlFor="bd-label">Template name, as Explore, Create and your Library show it</label>
       <div className="bname-in">
         <span className="bname-f">
-          <input id="bd-label" value={name} maxLength={60} placeholder="Name your template" spellCheck={false} aria-invalid={invalid || undefined}
-          onChange={(e) => { const v = e.target.value.replace(/ · /g, " "); setD((x) => ({ ...x, label: model ? `${v} · ${model}` : v })); }} />
+          <input id="bd-label" value={d.label} maxLength={60} placeholder="Name your template" spellCheck={false} aria-invalid={invalid || undefined}
+          onChange={(e) => { const v = e.target.value; setD((x) => ({ ...x, label: v })); }} />
           <I n="pencil" />
         </span>
-        {model && <span className="pill bname-m" title="The model, shown under the name on Explore">{model}</span>}
+        {model ? <span className="pill bname-m" title="The model, shown under the name on Explore">{model}</span>
+          : <input className="bname-model" aria-label="Model" value={d.model_name ?? ""} maxLength={40} placeholder="Model, like Wan 2.2" spellCheck={false}
+            title="The model this workflow runs, shown under the name on Explore" onChange={(e) => { const v = e.target.value; setD((x) => ({ ...x, model_name: v })); }} />}
       </div>
       {invalid && <span className="bname-err" role="alert">Give it a name. Explore, Create and your Library show it.</span>}
       {from && <p className="bname-from">Built from <b>{from}</b>.</p>}

@@ -93,7 +93,7 @@ def export(engine_id: str) -> tuple[bytes, str]:
         z.writestr("illusion.json", json.dumps(head, indent=1, ensure_ascii=False))
         for k, v in files.items():
             z.writestr(k, v, zipfile.ZIP_STORED if k.startswith(("media/", "cover/")) else zipfile.ZIP_DEFLATED)
-    title = re.sub(r"[^A-Za-z0-9 _-]+", " ", e.label.split(" · ")[0]).strip() or e.id.split("/")[-1]
+    title = re.sub(r"[^A-Za-z0-9 _-]+", " ", e.label).strip() or e.id.split("/")[-1]
     return buf.getvalue(), f"{'-'.join(title.lower().split())[:60]}{EXT}"
 
 

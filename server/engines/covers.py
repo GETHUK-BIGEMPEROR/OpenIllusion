@@ -54,9 +54,26 @@ def lead_slot(e: Engine) -> str | None:
     return next((f["key"] for f in media if f["type"] == "video"), None) or next((f["key"] for f in media), None)
 
 
+# Router roles whose file a result is made over, so a wipe between the two shows the change. A reference
+# (photo, clip or style) only guides the result: shown beside it, it isn't a before.
+OVER_ROLES = {"Photo", "First frame", "Video to edit"}
+
+
+def lead_is_before(e: Engine) -> bool:
+    """Whether the lead input is what the result is made over: every local workflow takes its lead that way;
+    on Router it's the role the request puts it in (a model we know nothing about keeps the comparison)."""
+    slot = lead_slot(e)
+    if slot is None:
+        return False
+    r = fit.role(e, slot) if e.kind != "local" else None
+    return r is None or r in OVER_ROLES
+
+
 def cover_before(e: Engine) -> Path | None:
     """The input the cover was made from, or None when that isn't known (no cover, a template
-    without photos or clips, or a cover set before covers kept their input)."""
+    without photos or clips, or a cover set before covers kept their input) or isn't a before (a reference)."""
+    if not lead_is_before(e):
+        return None
     if user_cover(e.id).is_file():
         return next((p for p in (user_cover(e.id, x) for x in BEFORE_EXT) if p.is_file()), None)
     if cover_files(e)[0] is None:

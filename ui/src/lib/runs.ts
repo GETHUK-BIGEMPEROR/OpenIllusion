@@ -17,7 +17,7 @@ type Named = { title: string; model?: string; engine?: string; prompt?: string |
 export function runName(r: Named, engines?: EngineInfo[]) {
   const id = r.engine || r.model || "";
   const e = engines?.find((x) => x.id === id);
-  const tpl = e ? e.label.split(" · ")[0] : id ? human(id) : "";
+  const tpl = e ? e.label : id ? human(id) : "";
   const v = / · (v\d+)$/.exec(r.title)?.[1];
   const t = r.title.replace(/ · v\d+$/, "").trim();
   const prompt = (r.prompt ?? "").replace(/\s+/g, " ").trim();

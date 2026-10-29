@@ -74,6 +74,10 @@ export function ago(ts: number): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** A result's name when downloaded: the run's title (else its id) with the file's own extension. */
+export const resultName = (title: string, id: string, file: string) =>
+  `${(title.replace(/[\\/:*?"<>|]+/g, " ").trim() || id)}.${file.split(".").pop()}`;
+
 /** The Library's day sections: Today, Yesterday, Earlier this week, then one per month. */
 export function dayGroup(ts: number): string {
   const d = new Date(ts * 1000);

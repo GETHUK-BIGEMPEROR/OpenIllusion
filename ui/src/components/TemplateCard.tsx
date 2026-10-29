@@ -10,9 +10,9 @@ import { clampAspect } from "./Masonry";
 import { cx, I, Media } from "./oi";
 import type { IconName } from "./sprite";
 
-/** "New hair · Qwen Image 2.1" → the task; the model goes on the second line. */
-export const tplName = (e: Pick<EngineInfo, "label">) => e.label.split(" · ")[0];
-export const tplModel = (e: Pick<EngineInfo, "label" | "provider">) => e.label.split(" · ")[1] ?? e.provider;
+/** A template's name, and the model under it (a Router model's own name, a workflow's as its author gave it). */
+export const tplName = (e: Pick<EngineInfo, "label">) => e.label;
+export const tplModel = (e: Pick<EngineInfo, "provider" | "model_name">) => e.model_name || e.provider;
 
 /** A template on the Explore wall. Click opens it in Create; the (i) button opens its details. */
 export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: EngineInfo; selected?: boolean; locked?: string | null; onUse: () => void; onInspect: () => void }) {

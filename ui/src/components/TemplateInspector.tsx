@@ -19,6 +19,7 @@ interface InputDraft { text?: string }
 
 interface Draft {
   label: string;
+  model: string;
   blurb: string;
   inputs: Record<string, InputDraft>;
 }
@@ -37,6 +38,7 @@ const textOf = (f: InputField) => (isText(f) && "default" in f && typeof f.defau
 
 const draftOf = (e: EngineInfo): Draft => ({
   label: e.label,
+  model: e.workflow_model ?? "",
   blurb: e.blurb ?? "",
   inputs: Object.fromEntries(fieldsOf(e).filter(isText).map((f) => [f.key, { text: textOf(f) }])),
 });
@@ -48,6 +50,7 @@ function patchOf(e: EngineInfo, d: Draft): TemplatePatch {
   const base = draftOf(e);
   const p: TemplatePatch = {};
   if (d.label !== base.label) p.label = d.label;
+  if (e.kind === "local" && d.model !== base.model) p.model_name = d.model;
   if (d.blurb !== base.blurb) p.blurb = d.blurb;
   for (const [key, x] of Object.entries(d.inputs)) {
     const b = base.inputs[key];
@@ -86,7 +89,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
     else drafts.delete(e.id);
   }, [e.id, d, dirty]);
 
-  const set = <K extends "label" | "blurb">(k: K) => (ev: { target: { value: string } }) => setD((x) => ({ ...x, [k]: ev.target.value }));
+  const set = <K extends "label" | "model" | "blurb">(k: K) => (ev: { target: { value: string } }) => setD((x) => ({ ...x, [k]: ev.target.value }));
   const setIn = (key: string, ch: Partial<InputDraft>) => setD((x) => ({ ...x, inputs: { ...x.inputs, [key]: { ...x.inputs[key], ...ch } } }));
   const land = (next: EngineInfo) => {
     qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.map((x) => (x.id === next.id ? next : x)));
@@ -192,6 +195,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
         {editing ? (
           <>
             <Field id="ti-label" label="Name"><input className="input" id="ti-label" value={d.label} onChange={set("label")} maxLength={80} /></Field>
+            {e.kind === "local" && <Field id="ti-model" label="Model" help="Shown under the name on Explore and in Create."><input className="input" id="ti-model" value={d.model} onChange={set("model")} maxLength={40} placeholder="Like Wan 2.2" /></Field>}
             <Field id="ti-blurb" label="What it does"><textarea className="textarea" id="ti-blurb" rows={3} value={d.blurb} onChange={set("blurb")} maxLength={400} /></Field>
           </>
         ) : (
