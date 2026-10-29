@@ -74,7 +74,7 @@ def test_a_sound_input_survives_export_and_import(tmp_path, monkeypatch):
     out = bundle.export(m.id, "full", False, {"sfw": True, "rights": True}, dest_dir=tmp_path / "x")
     assert "refs/audio-1.mp3" in zipfile.ZipFile(out).namelist()
     m2 = bundle.commit(bundle.inspect(out.read_bytes(), out.name)["token"])
-    assert (store.folder(m2.id) / "refs" / "audio-1.mp3").read_bytes() == sound.read_bytes()
+    assert (store.folder(m2.id) / "refs" / "audio-1.mp3").read_bytes() == sound.read_bytes()[10:]  # its ID3 tag stays behind
 
 
 def test_light_downsizes_and_strips_video(tmp_path):
@@ -148,10 +148,10 @@ def test_png_and_mp4_carry_their_recipe(tmp_path):
 
     recipe = recipe_manifest(store.get(m.id))
     png = media.png_with_recipe(media.open_image(store.folder(m.id) / "refs" / "ref-01.png"), tmp_path / "o.png", recipe)
-    assert media.read_png_recipe(png)["id"] == m.id
+    assert media.read_png_recipe(png)["id"] == sc.share_id(m.id)
     mp4 = tmp_path / "o.mp4"
     media.write_mp4_recipe(store.folder(m.id) / "result" / "preview.mp4", mp4, recipe)
-    assert media.read_mp4_recipe(mp4)["id"] == m.id
+    assert media.read_mp4_recipe(mp4)["id"] == sc.share_id(m.id)
     review = bundle.inspect(mp4.read_bytes(), "o.mp4")
     assert review["source"]["kind"] == "mp4"
     m2 = bundle.commit(review["token"])

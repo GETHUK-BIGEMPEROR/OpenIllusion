@@ -1,15 +1,17 @@
 """Whole-library backups: one ``.illusionbackup`` file, restored by merging.
 
 A backup is a zip of the library tier of the home folder (``paths.TIERS``): generations,
-the user's templates and covers, settings without secrets, and the trash if asked.
+the user's templates and covers, settings without secrets, when each template was last run
+(``usage.json``), and the trash if asked.
 Nothing machine-bound goes in: no key, no queue, no index (restore rebuilds it).
 
     backup.json                     format, version, counts, a sha256 per file
-    library/settings.json
+    library/settings.json  library/usage.json
     library/generations/<id>/...    each folder as it is
     library/templates/...  library/covers/...  library/trash/<id>/...
 
-Restoring merges: what's already here stays as it is, what's missing is added. Into a
+Restoring merges: what's already here stays as it is, what's missing is added; a template's
+last run is the later of the two, its count the higher. Into a
 fresh install that's a full restore; run twice, the second adds nothing. A backup is
 treated like any file from outside (``archive``): checked before anything is read,
 every file's checksum verified, every manifest and template validated before it's
@@ -28,7 +30,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
-from . import archive, engines, paths, settings, storage, store
+from . import archive, engines, paths, settings, storage, store, usage
 from . import generation as sc
 
 FORMAT = "openillusion.backup"
@@ -38,6 +40,7 @@ LIBRARY = [name for name, tier in paths.TIERS.items() if tier == "library"]
 GONE = {"characters", "refmods"}  # Character Lab's shelves in older backups: left out on restore
 ALLOWED = archive.GENERATION_EXT | {".m4v"}  # template samples keep the type they were dropped as
 MARKERS = frozenset({".shelf", ".deleted"})
+SINGLE = {"settings.json", "usage.json"}  # one file each, right under library/
 STORED = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mov", ".m4v", ".mp3", ".m4a", ".aac", ".ogg", ".flac"}
 MAX_ENTRIES = 500_000
 CHUNK = 1 << 20
@@ -110,8 +113,10 @@ def create(trash: bool = False, skip_ids: set[str] = frozenset(), dest_dir: Path
         with zipfile.ZipFile(part, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as z:
             plain = {k: v for k, v in settings.load().items() if k not in settings.SECRETS}
             data = json.dumps(plain, indent=2).encode()
-            z.writestr("library/settings.json", data)
-            sums["library/settings.json"] = {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+            used = json.dumps(usage.load(), indent=1).encode()
+            for name, b in (("library/settings.json", data), ("library/usage.json", used)):
+                z.writestr(name, b)
+                sums[name] = {"size": len(b), "sha256": hashlib.sha256(b).hexdigest()}
             for arc, p in files:
                 info = zipfile.ZipInfo.from_file(p, arc)
                 info.compress_type = zipfile.ZIP_STORED if p.suffix.lower() in STORED else zipfile.ZIP_DEFLATED
@@ -160,7 +165,7 @@ def _open(path: Path) -> tuple[zipfile.ZipFile, dict, list[zipfile.ZipInfo]]:
     sums = man.get("files") if isinstance(man.get("files"), dict) else {}
     for i in infos:
         parts = PurePosixPath(i.filename).parts
-        if parts[0] != "library" or len(parts) < 2 or parts[1] not in LIBRARY or (parts[1] == "settings.json") != (len(parts) == 2):
+        if parts[0] != "library" or len(parts) < 2 or parts[1] not in LIBRARY or (parts[1] in SINGLE) != (len(parts) == 2):
             z.close()
             raise archive.Refused(f"Not part of a library: {i.filename}")
         if parts[1] in ("generations", "trash"):
@@ -308,6 +313,16 @@ def restore(path: Path, stage: Path, progress: Progress | None = None) -> dict:
                     res["covers"] += 1
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(tmp, dst)
+        # Template use: the later last run and the higher count of the two.
+        for i in g.get("usage.json", {}).get("", []):
+            tick(i)
+            b = z.read(i)
+            if (sums.get(i.filename) or {}).get("sha256") != hashlib.sha256(b).hexdigest():
+                continue
+            try:
+                usage.merge(json.loads(b))
+            except ValueError:
+                continue
         # Settings: a value still at its default here takes the backup's; one you've changed stays.
         for i in g.get("settings.json", {}).get("", []):
             tick(i)

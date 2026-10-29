@@ -30,14 +30,23 @@ OUTCOMES = ("worked", "partly", "didnt")
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 
-def new_id() -> str:
-    """A ULID: 48-bit millisecond time + 80 random bits, Crockford base32."""
-    n = (int(time.time() * 1000) << 80) | secrets.randbits(80)
+def _crockford(n: int) -> str:
     out = []
     for _ in range(26):
         out.append(_CROCKFORD[n & 31])
         n >>= 5
     return "".join(reversed(out))
+
+
+def new_id() -> str:
+    """A ULID: 48-bit millisecond time + 80 random bits, Crockford base32."""
+    return _crockford((int(time.time() * 1000) << 80) | secrets.randbits(80))
+
+
+def share_id(generation_id: str) -> str:
+    """The id a generation goes out under. A ULID starts with the time it was made; this is a hash
+    of it instead, the same every time, so adding your own share back is still spotted."""
+    return _crockford(int.from_bytes(hashlib.sha256(b"openillusion.share:" + generation_id.encode()).digest()[:16], "big"))
 
 
 class _Open(BaseModel):
@@ -144,6 +153,22 @@ def parse(data: dict | str | bytes) -> tuple[Manifest, list[str]]:
 
 def dump(m: Manifest) -> dict:
     return m.model_dump(mode="json", exclude_none=False)
+
+
+# What a generation leaves behind when it goes out (an export, a link, the recipe in a result
+# file): when it was made, what it came from, and your star and verdict on it.
+PRIVATE = ("created", "lineage", "starred", "outcome")
+
+
+def shareable(m: Manifest) -> dict:
+    """``m`` as it leaves the library: as it is, without its history (``PRIVATE``) or a dated id."""
+    d = dump(m)
+    for k in PRIVATE:
+        d.pop(k, None)
+    d["id"] = share_id(m.id)
+    if d.get("result"):
+        d["result"].pop("output_file", None)
+    return d
 
 
 def read(folder: Path) -> Manifest:

@@ -1,6 +1,7 @@
 {
   "format": "openillusion.template",
   "version": 2,
+  "added": 1792885358,
   "id": "local/qwen21-background-swap",
   "mode": "edit",
   "label": "Background swap",

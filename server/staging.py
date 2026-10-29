@@ -267,7 +267,7 @@ def workflow_file(m: sc.Manifest) -> dict:
 
 def recipe_manifest(m: sc.Manifest, res: sc.Result | None = None) -> dict:
     """The Recipe-only manifest that rides inside output files."""
-    d = sc.dump(m)
+    d = sc.shareable(m)
     d["variant"] = "recipe"
     if res is not None:
         r = res.model_dump(mode="json")
@@ -275,7 +275,6 @@ def recipe_manifest(m: sc.Manifest, res: sc.Result | None = None) -> dict:
         d["result"] = r
     for i in d["inputs"]:
         i["file"] = None
-    d.pop("starred", None)
     return d
 
 

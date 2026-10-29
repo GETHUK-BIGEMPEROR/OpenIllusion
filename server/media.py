@@ -295,8 +295,7 @@ def write_mp4_recipe(src: str | Path, dst: str | Path, manifest: dict) -> None:
     """Remux without re-encoding and set the container comment to the recipe."""
     payload = MP4_PREFIX + b64url(json.dumps(manifest, separators=(",", ":")).encode())
     with av.open(str(src)) as inp, av.open(str(dst), "w", format="mp4") as out:
-        out.metadata.update({k: v for k, v in inp.metadata.items() if k not in ("comment",)})
-        out.metadata["comment"] = payload
+        out.metadata["comment"] = payload  # the source's other tags (its dates among them) stay behind
         mapping = {}
         for s in inp.streams:
             if s.type in ("video", "audio"):

@@ -1,6 +1,7 @@
 {
   "format": "openillusion.template",
   "version": 2,
+  "added": 1793240665,
   "mode": "motion",
   "label": "Swap two people",
   "blurb": "Puts the people from two photos into a clip on Seedance 2.5: Image 1 takes the one on the left, Image 2 the one on the right. The motion and the place stay. Runs on Comfy Router with your key.",

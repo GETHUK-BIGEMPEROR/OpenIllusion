@@ -20,6 +20,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -160,7 +161,7 @@ def duplicate_template(engine_id: str) -> Engine:
         shutil.copyfile(src, media_dir / src.name)
         return f"media/{stem}/{src.name}"
 
-    data["id"], data["built"] = tid, True
+    data["id"], data["built"], data["added"] = tid, True, time.time()
     data["label"] = (e.label + " (copy)")[:_TEXT_LIMIT["label"]]
     for k in ("cover", "cover_video"):
         if data.get(k):
@@ -181,6 +182,12 @@ def reset_template(engine_id: str) -> Engine:
     e = ENGINES.get(engine_id)
     if e is None or not e.edited or e.path is None:
         raise KeyError(engine_id)
+    import shutil
+
+    # The edited copy's own media goes with it: nothing else points there.
+    media_dir = e.path.parent / "media" / e.path.stem
+    if media_dir.is_dir() and media_dir.parent == e.path.parent / "media":
+        shutil.rmtree(media_dir, ignore_errors=True)
     e.path.unlink(missing_ok=True)
     reload_templates()
     return ENGINES[engine_id]
@@ -234,8 +241,22 @@ def describe(e: Engine) -> dict:
         "varies": varies(e), "inputs": e.inputs, "fields": fields, "requires": requirements(e),
         "origin": e.origin, "edited": e.edited, "size": run_size(e), "built": e.built, "draft": e.draft, "model": e.model,
         "defaults": defaults, "mentions": mentions_of(e), "hidden": e.id in hidden_templates(), "before": lead_is_before(e), "model_name": model_name(e), "workflow_model": e.model_name if e.kind == "local" else None,
-        **_cover_info(e), "cover_custom": user_cover(e.id).is_file(),
+        **_cover_info(e), "cover_custom": user_cover(e.id).is_file(), "added": added(e),
     }
+
+
+def added(e: Engine) -> float | None:
+    """When a template joined this app, for Explore's Newest: a shipped one the day it shipped, one of
+    yours when you made, copied or added it. An older file of yours without a stamp: its file's time."""
+    stamp = (e.data or {}).get("added")
+    if isinstance(stamp, (int, float)):
+        return float(stamp)
+    if e.origin != "user" or not e.built:
+        return None
+    try:
+        return e.path.stat().st_mtime if e.path else None
+    except OSError:
+        return None
 
 
 def model_name(e: Engine) -> str:

@@ -17,6 +17,18 @@ from . import media
 GENERATION_EXT = {".json", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mov", ".md", ".safetensors", *media.AUDIO_EXT}
 
 
+# Entries are written undated: an export says nothing about when it was made.
+UNDATED = (1980, 1, 1, 0, 0, 0)
+
+
+def put(z: zipfile.ZipFile, name: str, data: bytes, stored: bool = False) -> None:
+    """Add ``data`` as ``name``, undated; ``stored`` for media that's already compressed."""
+    i = zipfile.ZipInfo(name, UNDATED)
+    i.compress_type = zipfile.ZIP_STORED if stored else zipfile.ZIP_DEFLATED
+    i.external_attr = 0o644 << 16
+    z.writestr(i, data)
+
+
 class Refused(ValueError):
     """The archive breaks a rule. The message says which, in words for the user."""
 

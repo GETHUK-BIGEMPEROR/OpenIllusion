@@ -31,6 +31,19 @@ export function Ring({ p, sm }: { p: number; sm?: boolean }) {
   );
 }
 
+/** Every tile loop on screen plays; one scrolled away pauses, so only the screenful decodes. The clips are
+ *  small (720p at most), so a screenful is cheap; what made the page stutter was blur drawn over them. */
+const loops = new Map<HTMLVideoElement, number>(); // each mounted loop, by how much of it shows
+const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function settle() {
+  const on = new Set(calm ? [] : [...loops].filter(([, r]) => r > 0).map(([v]) => v));
+  for (const v of loops.keys()) {
+    if (on.has(v)) { if (v.paused) v.play().catch(() => {}); }
+    else if (!v.paused) v.pause();
+  }
+}
+
 /** Tile media: a shimmer at the right shape until the picture arrives, then a fade in.
  *  A loop is only mounted near the viewport (its poster stands in elsewhere): every <video>
  *  holds a connection, and a wall of them starves the API calls the page makes. */
@@ -50,13 +63,14 @@ export function Media({ src, video, poster, ar, children, imgStyle }: {
     return () => io.disconnect();
   }, [video]);
   const live = !!video && near;
-  // Loops play while on screen only.
+  // Loops play while on screen (see settle).
   useEffect(() => {
     const v = vid.current;
     if (!v) return;
-    const io = new IntersectionObserver(([en]) => (en.isIntersecting ? v.play().catch(() => {}) : v.pause()), { threshold: 0.35 });
+    loops.set(v, 0);
+    const io = new IntersectionObserver(([en]) => { loops.set(v, en.intersectionRatio); settle(); }, { threshold: 0 });
     io.observe(v);
-    return () => io.disconnect();
+    return () => { io.disconnect(); loops.delete(v); settle(); };
   }, [live]);
   const done = () => setLoaded(true);
   const still = video ? poster : src;

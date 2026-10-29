@@ -118,6 +118,8 @@ export interface EngineInfo {
   /** When a run of it last started, and how many runs (server/usage.py): kept when the runs are deleted. */
   used_at?: number | null;
   uses?: number;
+  /** When a template of yours landed here (made, copied or added); null for shipped ones. */
+  added?: number | null;
   /** Cloud templates: the Router model they send to. */
   model?: string | null;
 }

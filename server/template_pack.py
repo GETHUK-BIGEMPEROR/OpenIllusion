@@ -24,7 +24,7 @@ import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from . import archive, engines, media, paths
+from . import archive, engines, media, paths, scrub
 
 FORMAT = "openillusion.template-package"
 VERSION = 1
@@ -82,17 +82,20 @@ def export(engine_id: str) -> tuple[bytes, str]:
         f = engines.user_cover(e.id, name[len("cover"):])
         if f.is_file():
             files[f"cover/{name}"] = f.read_bytes()
+    data.pop("draft", None)  # where it stands in your Builder, not part of the template
+    data.pop("added", None)  # when it landed here: yours, not the template's
+    files = {k: scrub.clean(v, k) for k, v in files.items()}
     files["template.json"] = (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode()
     head = {
-        "format": FORMAT, "version": VERSION, "app": __version__, "created": time.time(),
+        "format": FORMAT, "version": VERSION, "app": __version__,
         "id": e.id, "label": e.label, "kind": e.kind,
         "files": {k: {"size": len(v), "sha256": hashlib.sha256(v).hexdigest()} for k, v in files.items()},
     }
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("illusion.json", json.dumps(head, indent=1, ensure_ascii=False))
+        archive.put(z, "illusion.json", json.dumps(head, indent=1, ensure_ascii=False).encode())
         for k, v in files.items():
-            z.writestr(k, v, zipfile.ZIP_STORED if k.startswith(("media/", "cover/")) else zipfile.ZIP_DEFLATED)
+            archive.put(z, k, v, stored=k.startswith(("media/", "cover/")))
     title = re.sub(r"[^A-Za-z0-9 _-]+", " ", e.label).strip() or e.id.split("/")[-1]
     return buf.getvalue(), f"{'-'.join(title.lower().split())[:60]}{EXT}"
 
@@ -163,7 +166,7 @@ def install(data: bytes) -> engines.Engine:
         tid, n = f"{prefix}{base}-{n}", n + 1
     stem = _stem(tid)
     root = paths.user_root() / "templates"
-    tpl["id"], tpl["built"] = tid, True
+    tpl["id"], tpl["built"], tpl["added"] = tid, True, time.time()
     tpl.pop("draft", None)  # added by choice: it goes on Explore, where adding one opens it
     for holder, key in _refs(tpl):
         holder[key] = f"media/{stem}/{PurePosixPath(holder[key]).name}"

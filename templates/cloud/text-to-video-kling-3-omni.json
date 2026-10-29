@@ -1,6 +1,7 @@
 {
   "format": "openillusion.template",
   "version": 2,
+  "added": 1793246720,
   "mode": "motion",
   "label": "Text to Video",
   "blurb": "Makes a video with sound from words alone on Kling 3 Omni. Runs on Comfy Router with your key.",

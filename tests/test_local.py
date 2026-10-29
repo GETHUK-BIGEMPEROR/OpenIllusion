@@ -6,6 +6,7 @@ import json
 import httpx
 import pytest
 
+from server import generation as sc
 from server import engines, jobs, local, media, paths, store
 
 from conftest import make_video
@@ -216,7 +217,7 @@ def test_local_video_output(uploads, monkeypatch, tmp_path):
     mgr, ids = run_local(fake, monkeypatch, spec)
     assert mgr.jobs[ids[0]].state == "done", mgr.jobs[ids[0]].detail
     m = store.get(ids[0])
-    assert m.result.kind == "video" and media.read_mp4_recipe(m.result.output_file)["id"] == m.id
+    assert m.result.kind == "video" and media.read_mp4_recipe(m.result.output_file)["id"] == sc.share_id(m.id)
 
 
 def test_local_precheck_blocks_submit(uploads, monkeypatch):

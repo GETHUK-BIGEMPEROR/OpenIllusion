@@ -14,7 +14,7 @@ import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from . import archive, media, paths, store
+from . import archive, media, paths, scrub, store
 from . import generation as sc
 
 MAX_TOTAL = 300 * 1024 * 1024
@@ -53,13 +53,12 @@ def estimate_sizes(generation_id: str) -> dict:
 
 
 def recipe_only(m: sc.Manifest) -> dict:
-    d = sc.dump(m)
+    d = sc.shareable(m)
     d["variant"] = "recipe"
     for i in d["inputs"]:
         i["file"] = None
     if d.get("result"):
-        d["result"] = {k: v for k, v in d["result"].items() if k not in ("output_file", "file", "poster")}
-    d.pop("starred", None)
+        d["result"] = {k: v for k, v in d["result"].items() if k not in ("file", "poster")}
     return d
 
 
@@ -113,9 +112,16 @@ def export(generation_id: str, variant: str, strip_driving: bool, attest: dict, 
         return out
 
     out = dest_dir / f"{stem}.illusion"
-    d = sc.dump(m)
+    d = sc.shareable(m)
     d["variant"] = variant
     light = variant == "light"
+
+    def put(z: zipfile.ZipFile, rel: str, data: bytes, keep_tags: bool = False) -> bytes:
+        """A file as it goes out: undated, its own dates and tags cut out (``scrub``)."""
+        data = scrub.clean(data, rel, keep_tags=keep_tags)
+        archive.put(z, rel, data, stored=not rel.endswith((".json", ".md")))
+        return data
+
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for item in d["inputs"]:
             if not item.get("file"):
@@ -132,14 +138,13 @@ def export(generation_id: str, variant: str, strip_driving: bool, attest: dict, 
                 img = media.strip_exif(media.fit(media.open_image(src), max_side=768))
                 img.save(buf, "WEBP", quality=86)
                 rel = str(PurePosixPath(item["file"]).with_suffix(".webp"))
-                data = buf.getvalue()
-                z.writestr(rel, data)
                 item["file"] = rel
-                item["sha256"] = _sha(data)
+                item["sha256"] = _sha(put(z, rel, buf.getvalue()))
             else:
-                z.write(src, item["file"])
+                data = put(z, item["file"], src.read_bytes())
+                if item.get("sha256"):
+                    item["sha256"] = _sha(data)
         if d.get("result"):
-            d["result"].pop("output_file", None)
             for key in ("file", "poster"):
                 rel = d["result"].get(key)
                 if rel and (f / rel).exists():
@@ -153,20 +158,20 @@ def export(generation_id: str, variant: str, strip_driving: bool, attest: dict, 
                             tagged = f / "result" / "_tagged.mp4"
                             media.write_mp4_recipe(src, tagged, recipe_only(m))
                             src = tagged
-                        z.write(src, rel)
+                        put(z, rel, src.read_bytes(), keep_tags=embed_recipe)
                         for t in ("_export.mp4", "_tagged.mp4"):
                             (f / "result" / t).unlink(missing_ok=True)
                     else:
-                        z.write(f / rel, rel)
+                        put(z, rel, (f / rel).read_bytes())
         if (f / "comfy" / "workflow.json").exists():
-            z.write(f / "comfy" / "workflow.json", "comfy/workflow.json")
+            put(z, "comfy/workflow.json", (f / "comfy" / "workflow.json").read_bytes())
         if not (light or strip_driving):
             for item in d["inputs"]:
                 poster = engines.poster_file(item["file"]) if item.get("file") and item["slot"].startswith("video:") else None
                 if poster and (f / poster).exists():
-                    z.write(f / poster, poster)
-        z.writestr("LICENSES.md", sc.licenses_md(sc.parse(d)[0]))
-        z.writestr("generation.json", json.dumps(d, indent=2, ensure_ascii=False))
+                    put(z, poster, (f / poster).read_bytes())
+        put(z, "LICENSES.md", sc.licenses_md(sc.parse(d)[0]).encode())
+        put(z, "generation.json", json.dumps(d, indent=2, ensure_ascii=False).encode())
     return out
 
 
@@ -356,7 +361,7 @@ def _review(recipe: dict, source: dict, files: dict[str, bytes], poster: tuple[s
         "size": size,
         "poster": f"/api/import/{token}/file/{poster[0]}" if poster else None,
         "has_driving": not missing_video and any(i.slot.startswith("video:") for i in m.inputs),
-        "exists": store.folder(m.id).exists(),
+        "exists": store.mine(m.id) is not None,
     }
 
 
@@ -367,9 +372,10 @@ def commit(token: str) -> sc.Manifest:
     if not (stage / "generation.json").exists():
         raise FileNotFoundError("This import has expired. Drop the file again.")
     m, _ = sc.parse((stage / "generation.json").read_text("utf-8"))
-    if store.folder(m.id).exists():
+    own = store.mine(m.id)
+    if own:
         # Already in the library: keep both, the import becomes a fork.
-        m.lineage.forked_from = m.id
+        m.lineage.forked_from = own
         m.id = sc.new_id()
     dst = store.folder(m.id)
     shutil.move(str(stage), str(dst))

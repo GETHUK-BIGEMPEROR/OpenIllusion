@@ -1,6 +1,7 @@
 {
   "format": "openillusion.template",
   "version": 2,
+  "added": 1792925762,
   "mode": "motion",
   "label": "Character swap",
   "model_name": "MiniMax H3",

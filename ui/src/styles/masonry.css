@@ -1,11 +1,15 @@
 /* ---------- masonry ---------- */
 .wall-wrap{padding:12px 18px 48px;position:relative;z-index:1}
-.wall{display:flex;gap:var(--gap,10px);max-width:var(--wall-max);margin:0 auto;align-items:flex-start;min-height:200px}
-.col{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--gap,10px)}
+.wall{position:relative;max-width:var(--wall-max);margin:0 auto;min-height:200px}
+/* One parent, each tile placed by Masonry; a filter or sort slides tiles to their new place. */
+.wall>.tile{position:absolute;top:0;left:0;transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+.wall>.tile:hover,.wall>.tile:focus-within{z-index:1}
+@media (prefers-reduced-motion:reduce){.wall>.tile{transition:none}}
 .card{position:relative;border-radius:var(--r);overflow:hidden;background:var(--raised);cursor:pointer;isolation:isolate;transition:transform .3s cubic-bezier(.2,.7,.2,1),box-shadow .3s;animation:rise .45s cubic-bezier(.2,.7,.2,1) both;outline-offset:3px}
 .card:hover{transform:translateY(-2px);box-shadow:0 0 28px -6px rgba(157,107,255,.65),0 18px 40px -20px rgba(0,0,0,.8)}
-.card::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:var(--neon);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .3s;pointer-events:none;z-index:4}
-.card:hover::after,.card.sel::after{opacity:1}
+.card::after{position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:var(--neon);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .3s;pointer-events:none;z-index:4}
+/* The neon edge is a masked layer: it only exists on the card under the cursor or picked, never on the whole wall. */
+.card:hover::after,.card.sel::after,.card:focus-visible::after{content:"";opacity:1}
 .card.sel::after{padding:2px}
 .card.sel{box-shadow:0 0 30px -4px rgba(255,79,163,.6)}
 .media{position:relative;aspect-ratio:var(--ar,1);background:linear-gradient(105deg,var(--raised) 35%,#2a2333 50%,var(--raised) 65%) 0 0/300% 100%;animation:shimmer 1.3s linear infinite;overflow:hidden}
@@ -17,6 +21,8 @@
 .cap-t{flex:1;min-width:0}
 .cap h3{margin:0;font:600 13px/1.25 var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cap p{margin:2px 0 0;font:400 10.5px/1.3 var(--mono);color:rgba(238,237,255,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cap p .when{margin-left:8px;padding-left:8px;border-left:1px solid rgba(238,237,255,.25);font-family:var(--body);color:rgba(238,237,255,.92)}
+.cap p .when.off{color:rgba(238,237,255,.45);font-style:italic}
 .ctop{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:5px;align-items:center;z-index:3}
 .ctop .fspacer{flex:1}
 .go{width:32px;height:32px;border-radius:50%;background:var(--neon);box-shadow:0 0 16px -2px rgba(255,79,163,.7);color:var(--on-accent);display:grid;place-items:center;flex:none;opacity:0;transform:translateY(6px) scale(.9);transition:all .25s cubic-bezier(.2,.7,.2,1)}
@@ -26,16 +32,6 @@
 .card:hover .reveal,.card:focus-within .reveal,.card.sel .reveal{opacity:1}
 @media (hover:none){.go,.reveal{opacity:1;transform:none}}
 /* template cards: the cover's input left of the cursor, the cover right of it */
-.media .before{position:absolute;inset:0;z-index:2;clip-path:inset(0 calc(100% - var(--x)) 0 0);transition:--x .45s var(--ease)}
-.media .before img,.media .before video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1}
-.card:hover .media .before img,.card:hover .media .before video{transform:scale(1.04)}
-.scrub.scrubbing .before{transition:none}
-.media .seam{position:absolute;top:0;bottom:0;left:var(--x);width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 10px var(--pink),0 0 18px var(--cyan);z-index:3;opacity:0;transition:opacity .2s}
-.scrub.scrubbing .seam{opacity:1}
-.media .tagb,.media .taga{position:absolute;top:50%;z-index:3;transform:translateY(-50%);opacity:0;transition:opacity .2s}
-.media .tagb{right:calc(100% - var(--x) + 8px)}
-.media .taga{left:calc(var(--x) + 8px)}
-.scrub.scrubbing .tagb,.scrub.scrubbing .taga{opacity:1}
 
 /* A card without a cover: the model's maker set in type, tinted per provider. */
 .nocover{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:48px 18px 70px;overflow:hidden;align-items:center;text-align:center;

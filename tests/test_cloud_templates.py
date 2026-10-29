@@ -8,6 +8,7 @@ import json
 import httpx
 import pytest
 
+from server import generation as sc
 from server import adapters, builder, engines, jobs, local, media, settings, store
 from server.router import Router
 
@@ -366,7 +367,7 @@ def test_built_template_runs_on_router(tmp_path, monkeypatch):
     assert inst["prompt"] == "a fox in the snow" and inst["image"]["mimeType"] == "image/jpeg"
     assert base64.b64decode(inst["image"]["bytesBase64Encoded"])[:3] == b"\xff\xd8\xff"
     m = store.get(job.id)
-    assert m.result.kind == "video" and media.read_mp4_recipe(m.result.output_file)["id"] == m.id
+    assert m.result.kind == "video" and media.read_mp4_recipe(m.result.output_file)["id"] == sc.share_id(m.id)
 
 
 def _cloud(seen, status=201):
@@ -561,7 +562,7 @@ def test_the_result_keeps_the_clips_own_sound(tmp_path, monkeypatch, pick, keeps
     m = store.get(job.id)
     got = media.probe(m.result.output_file)
     assert got["has_audio"] is keeps and abs(got["duration"] - 3.0) < 0.15  # cut to the result's length
-    assert media.read_mp4_recipe(m.result.output_file)["id"] == m.id
+    assert media.read_mp4_recipe(m.result.output_file)["id"] == sc.share_id(m.id)
 
 
 def test_a_silent_clip_has_no_sound_to_keep(tmp_path):

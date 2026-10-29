@@ -8,6 +8,7 @@ import json
 import math
 import re
 import shutil
+import time
 from pathlib import Path
 from typing import Any
 
@@ -386,9 +387,9 @@ def save(data: dict, samples: dict[str, Path], replace: str | None = None, taken
         old = root / f"{kind}__{slug}.json"
         if old.is_file():
             prev = json.loads(old.read_text("utf-8"))
-            data.update({k: prev[k] for k in ("cover", "cover_video", "draft") if prev.get(k)})
+            data.update({k: prev[k] for k in ("cover", "cover_video", "draft", "added") if prev.get(k)})
     else:
-        data["draft"] = True
+        data["draft"], data["added"] = True, time.time()
         base = slugify(data["label"])
         slug, i = base, 2
         while (root / f"{kind}__{slug}.json").exists() or f"{kind}/{slug}" in taken:

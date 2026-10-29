@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type CSSProperties, type PointerEvent, type SyntheticEvent } from "react";
+import { useState, type CSSProperties } from "react";
 import { api, templateExportUrl, templateWorkflowUrl, type EngineInfo } from "../lib/api";
 import { confirm } from "../lib/confirm";
 import { errMsg } from "../lib/format";
@@ -15,45 +15,19 @@ export const tplName = (e: Pick<EngineInfo, "label">) => e.label;
 export const tplModel = (e: Pick<EngineInfo, "provider" | "model_name">) => e.model_name || e.provider;
 
 /** A template on the Explore wall. Click opens it in Create; the (i) button opens its details. */
-export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: EngineInfo; selected?: boolean; locked?: string | null; onUse: () => void; onInspect: () => void }) {
+export function TemplateCard({ e, hint, selected, locked, onUse, onInspect }: { e: EngineInfo; hint?: { text: string; off?: boolean }; selected?: boolean; locked?: string | null; onUse: () => void; onInspect: () => void }) {
   const n = e.inputs?.length ?? 0;
   const del = useRemoveTemplate(e, () => {});
   const local = e.kind === "local";
   const video = e.mode === "motion";
-  // The cover's input under the cursor, photo or clip: left of it is what goes in, right is what comes out.
-  const before = e.cover ? e.cover_before : null;
-  // A clip only plays while the cursor is on the card.
-  const [over, setOver] = useState(false);
-  const scrub = (ev: PointerEvent<HTMLElement>) => {
-    if (!before || ev.pointerType === "touch") return;
-    const el = ev.currentTarget, r = el.getBoundingClientRect();
-    el.style.setProperty("--x", `${Math.max(0, Math.min(100, ((ev.clientX - r.left) / r.width) * 100))}%`);
-    if (!el.classList.contains("scrubbing")) { el.classList.add("scrubbing"); setOver(true); }
-  };
-  const unscrub = (ev: PointerEvent<HTMLElement>) => { ev.currentTarget.classList.remove("scrubbing"); ev.currentTarget.style.setProperty("--x", "0%"); setOver(false); };
-  // The input's clip starts where the cover's loop is, so the two move together.
-  const follow = (ev: SyntheticEvent<HTMLVideoElement>) => {
-    const v = ev.currentTarget, loop = v.closest(".media")?.querySelector<HTMLVideoElement>(":scope > video");
-    if (loop && v.duration) v.currentTime = loop.currentTime % v.duration;
-  };
   // Drop a photo or clip on a card: the template opens in Create with it in place of the sample.
   const drop = useFileDrop((files) => void openWithFiles(e, files), { accept: isMediaFile, disabled: !n });
   return (
-    <article className={cx("card tcard", selected && "sel", drop.over && "drop", before && "scrub")} {...drop.props} data-drop="Drop to run it on your file"
-      onPointerMove={scrub} onPointerLeave={unscrub}
+    <article className={cx("card tcard", selected && "sel", drop.over && "drop")} {...drop.props} data-drop="Drop to run it on your file"
       tabIndex={0} role="button" aria-label={`Open ${tplName(e)}`}
       onClick={onUse} onKeyDown={(ev) => { if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); onUse(); } }}>
       <Media src={e.cover} video={e.cover_video} poster={e.cover} ar={clampAspect(e.cover ? e.cover_aspect : 1)}>
         {!e.cover && !e.cover_video && <NoCover e={e} />}
-        {before && (
-          <>
-            <div className="before" aria-hidden>
-              {before.kind === "image" ? <img src={before.url} alt="" loading="lazy" draggable={false} />
-                : over && <video src={before.url} muted loop playsInline autoPlay onLoadedMetadata={follow} />}
-            </div>
-            <span className="seam" aria-hidden /><span className="pill tagb">Before</span><span className="pill taga">After</span>
-          </>
-        )}
       </Media>
       <div className="ctop">
         <div className="ctags">
@@ -78,7 +52,7 @@ export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: Eng
             onClick={(ev) => { ev.stopPropagation(); void del.run(); }}><I n="trash" /></button>
         )}
       </div>
-      <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)}</p></div><span className="go"><I n="arrow" /></span></div>
+      <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)}{hint && <span className={cx("when", hint.off && "off")}>{hint.text}</span>}</p></div><span className="go"><I n="arrow" /></span></div>
     </article>
   );
 }

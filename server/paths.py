@@ -21,6 +21,7 @@ from pathlib import Path
 # it's the default export folder, the user's files.
 TIERS = {
     "settings.json": "library",
+    "usage.json": "library",
     "generations": "library",
     "templates": "library",
     "covers": "library",
@@ -28,7 +29,6 @@ TIERS = {
     "secrets.json": "machine",
     "index.sqlite": "machine",
     "jobs.json": "machine",
-    "usage.json": "machine",
     "proxy-state": "machine",
     "proxy.log": "machine",
     "server.lock": "machine",

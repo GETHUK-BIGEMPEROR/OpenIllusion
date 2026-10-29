@@ -9,14 +9,14 @@ import { TemplateInspector } from "../components/TemplateInspector";
 import { useFileDrop } from "../components/Drop";
 import { cx, Spinner } from "../components/ui";
 import { api, type EngineInfo } from "../lib/api";
-import { errMsg } from "../lib/format";
+import { ago, errMsg } from "../lib/format";
 import { landImport } from "../lib/imports";
 import { go, href } from "../lib/route";
 import { useApp } from "../lib/store";
 
 type Kind = "all" | "edit" | "motion";
 type Takes = "" | "image" | "video" | "audio" | "words";
-type Sort = "featured" | "recent" | "most" | "az";
+type Sort = "featured" | "recent" | "newest" | "most" | "az";
 type Filters = { q: string; kind: Kind; model: string; takes: Takes; sort: Sort };
 // Search, filters and order outlive a trip to Create and back. Recently used first: what you ran last, then the rest as featured.
 const last: Filters = { q: "", kind: "all", model: "", takes: "", sort: "recent" };
@@ -33,6 +33,7 @@ const TAKES: { v: Takes; label: string; icon: IconName }[] = [
 const SORTS: { v: Sort; label: string; say: string }[] = [
   { v: "featured", label: "Featured", say: "Shipped ones first" },
   { v: "recent", label: "Recently used", say: "What you ran last" },
+  { v: "newest", label: "Newest", say: "Newest to this app: yours, or shipped" },
   { v: "most", label: "Most used", say: "What you run most" },
   { v: "az", label: "A to Z", say: "By name" },
 ];
@@ -107,11 +108,17 @@ export function Explore({ t }: { t?: string }) {
   const order: Record<Sort, (a: EngineInfo, b: EngineInfo) => number> = {
     featured: (a, b) => (words.length ? (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) : 0) || featured(a, b),
     recent: (a, b) => (b.used_at ?? 0) - (a.used_at ?? 0) || featured(a, b),
+    newest: (a, b) => (b.added ?? 0) - (a.added ?? 0) || featured(a, b),
     most: (a, b) => (b.uses ?? 0) - (a.uses ?? 0) || featured(a, b),
     az: (a, b) => a.label.localeCompare(b.label),
   };
   const shown = every.filter((e) => pass(e)).sort(order[f.sort]);
   const tiles = shown.map((e) => ({ key: e.id, aspect: e.cover ? e.cover_aspect : undefined, e }));
+  // Each card says the thing it's sorted by, so the order explains itself.
+  const hint = (e: EngineInfo): { text: string; off?: boolean } | undefined =>
+    f.sort === "recent" ? (e.used_at ? { text: ago(e.used_at) } : { text: "Not run yet", off: true })
+      : f.sort === "most" ? (e.uses ? { text: e.uses === 1 ? "1 run" : `${e.uses} runs` } : { text: "Not run yet", off: true })
+        : f.sort === "newest" && e.added ? { text: ago(e.added) } : undefined;
   const narrowed = !!(f.q || f.kind !== "all" || f.model || f.takes);
   const clear = () => set({ q: "", kind: "all", model: "", takes: "" });
 
@@ -187,7 +194,7 @@ export function Explore({ t }: { t?: string }) {
             <EmptyBox icon="alert" title="Couldn't load templates" action={<button className="btn" type="button" onClick={() => engines.refetch()}>Try again</button>}>{errMsg(engines.error)}</EmptyBox>
           ) : tiles.length ? (
             <Masonry label="Templates" items={tiles} maxCols={5} minCol={200}
-              render={({ e }) => <TemplateCard e={e} locked={locked(e)} selected={e.id === t} onUse={() => use_(e)} onInspect={() => inspect(e.id === t ? undefined : e.id)} />} />
+              render={({ e }) => <TemplateCard e={e} hint={hint(e)} locked={locked(e)} selected={e.id === t} onUse={() => use_(e)} onInspect={() => inspect(e.id === t ? undefined : e.id)} />} />
           ) : (
             <EmptyBox icon="search" title={f.q ? `Nothing matches “${f.q.trim()}”` : "No templates match"} action={<button className="btn" type="button" onClick={clear}>Show all</button>}>
               {f.q ? "Try another word: what it does (hat, swap, relight), or the model." : "Clear the filters to see all of them."}

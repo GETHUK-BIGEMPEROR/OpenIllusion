@@ -275,9 +275,12 @@ def test_edit_writes_a_user_copy_and_reset_removes_it():
     again = engines.edit_template(HAT, {"blurb": "Second edit"})
     assert again.path == e.path and again.label == "Hat me"
 
+    own = e.path.parent / "media" / e.path.stem  # media of its own, as a Builder copy over a shipped id has
+    own.mkdir(parents=True)
+    (own / "sample.webp").write_bytes(b"x")
     back = engines.reset_template(HAT)
     assert back.origin == "shipped" and not back.edited and back.label != "Hat me"
-    assert not e.path.exists()
+    assert not e.path.exists() and not own.exists() and shipped.exists()
 
 
 @pytest.mark.usefixtures("fresh_templates")

@@ -1,6 +1,7 @@
 {
   "format": "openillusion.template",
   "version": 2,
+  "added": 1792846151,
   "id": "local/qwen21-add-hat",
   "mode": "edit",
   "label": "Add a hat",

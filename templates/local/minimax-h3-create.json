@@ -1,6 +1,7 @@
 {
   "format": "openillusion.template",
   "version": 2,
+  "added": 1792999234,
   "id": "local/minimax-h3-create",
   "mode": "motion",
   "label": "Create a video",

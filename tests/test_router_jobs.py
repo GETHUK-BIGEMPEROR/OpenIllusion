@@ -6,6 +6,7 @@ import json
 import httpx
 import pytest
 
+from server import generation as sc
 from server import jobs, media, paths, settings, store
 from server.router import Router
 
@@ -107,7 +108,7 @@ def test_full_run_writes_generation_and_output(tmp_path, uploads, monkeypatch):
     assert m.result.kind == "video" and m.result.seed == 7
     trimmed = media.probe(store.folder(m.id) / "driving" / "driving.mp4")
     assert 2.7 <= trimmed["duration"] <= 3.3
-    assert media.read_mp4_recipe(m.result.output_file)["id"] == m.id
+    assert media.read_mp4_recipe(m.result.output_file)["id"] == sc.share_id(m.id)
     assert not (store.folder(m.id) / "comfy" / "workflow.json").exists()  # cloud generations carry no workflow
 
 

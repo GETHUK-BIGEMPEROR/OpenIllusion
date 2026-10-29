@@ -102,7 +102,7 @@
 }
 
 /* Stuck to the bottom of the wall, see-through: add a template someone shared. */
-.xadd{position:sticky;bottom:16px;z-index:4;max-width:720px;margin-inline:auto;display:flex;align-items:center;gap:14px;margin-top:22px;padding:10px 12px 10px 14px;border-radius:16px;border:1.5px dashed rgba(255,255,255,.18);background:rgba(15,13,24,.55);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);box-shadow:0 10px 30px rgba(0,0,0,.35);transition:border-color .15s,background .15s}
+.xadd{position:sticky;bottom:16px;z-index:4;max-width:720px;margin-inline:auto;display:flex;align-items:center;gap:14px;margin-top:22px;padding:10px 12px 10px 14px;border-radius:16px;border:1.5px dashed rgba(255,255,255,.18);background:rgba(15,13,24,.94);box-shadow:0 10px 30px rgba(0,0,0,.35);transition:border-color .15s,background .15s}
 .xadd.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,rgba(15,13,24,.7))}
 .xadd-ic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--text-2)}
 .xadd-ic .i{width:18px;height:18px}

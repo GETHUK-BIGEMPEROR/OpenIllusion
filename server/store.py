@@ -127,6 +127,15 @@ def save(m: sc.Manifest, shelf: str | None = None) -> sc.Manifest:
     return m
 
 
+def mine(generation_id: str) -> str | None:
+    """The generation here that ``generation_id`` names: itself, or the one shared under it (``sc.share_id``)."""
+    if folder(generation_id).exists():
+        return generation_id
+    with _lock:
+        ids = [r[0] for r in db().execute("SELECT id FROM generations")]
+    return next((i for i in ids if sc.share_id(i) == generation_id), None)
+
+
 def get(generation_id: str) -> sc.Manifest:
     return sc.read(folder(generation_id))
 
