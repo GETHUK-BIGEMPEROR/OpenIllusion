@@ -262,7 +262,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
       await qc.invalidateQueries({ queryKey: ["engines"] });
       // Saved as a draft: it opens in Create, off Explore until a finished run of it is published there.
       openTemplate(e.mode, e.id);
-      if (then === "try") autorun.engine = e.id;
+      if (then === "try") Object.assign(autorun, { engine: e.id, until: Date.now() + 30_000 });
       go({ name: e.mode });
       toast({ text: then === "try" ? `${e.label} is saved as a draft and running once. Publish it when the result looks right.`
         : `${e.label} is saved as a draft. Run it once, then publish it.`, tone: "ok" });

@@ -201,8 +201,9 @@ flowchart LR
   and the rest fill the empty inputs of their kind (that role first, then what the
   job must have), and a Router role takes more up to its cap. Files dropped anywhere
   else on the page do the same (`placeFiles`); a dropped ComfyUI workflow starts over.
-- **Run** saves the template as a draft and runs it once in Create. Samples you
-  dropped become its defaults. When a result looks right, **Publish** (in the
+- **Run** saves the template as a draft and runs it once in Create, as soon as
+  Create can run it (`autorun` waits for Run to unblock; after 30 s it gives up and
+  a toast says why). Samples you dropped become its defaults. When a result looks right, **Publish** (in the
   draft bar under the cover) puts it on Explore with that result as its cover.
   With a fixed seed, Create locks variants at 1 and hides Re-run, because every run
   would give the same result.

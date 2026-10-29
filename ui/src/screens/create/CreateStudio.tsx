@@ -133,12 +133,24 @@ function CreateStudio({ mode }: { mode: Mode }) {
     onRan: (ids) => { set({ group: ids }); setView(ids.length > 1 ? "grid" : "compare"); },
   });
 
-  // Fresh from the Builder: run the draft once with its samples.
+  // Fresh from the Builder: run the draft once with its samples, as soon as Run is unblocked. The first check
+  // can still be of the state before the samples arrived, so wait for one that passes instead of giving up on it.
+  const why = useRef(runner.reasons);
+  why.current = runner.reasons;
   useEffect(() => {
-    if (!compose || !s.engine || autorun.engine !== s.engine || runner.busy) return;
+    if (!compose || !s.engine || autorun.engine !== s.engine || runner.busy || runner.blocked) return;
     autorun.engine = null;
     void runner.run();
   }, [compose, s.engine, runner]);
+  useEffect(() => {
+    if (!s.engine || autorun.engine !== s.engine) return;
+    const t = window.setTimeout(() => {
+      if (autorun.engine !== s.engine) return;
+      autorun.engine = null;
+      toast({ text: `The test run didn't start${why.current.length ? `: ${why.current.join(". ")}` : ""}. Press Run when it's ready.`, tone: "error" });
+    }, Math.max(0, autorun.until - Date.now()));
+    return () => window.clearTimeout(t);
+  }, [s.engine]);
 
   const rerun = async (id: string) => {
     try {
