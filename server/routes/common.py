@@ -109,8 +109,9 @@ def _norm_spec(spec: dict) -> dict:
     spec.setdefault("inputs", [])
     spec.setdefault("params", {})
     spec.setdefault("prompt", "")
-    if "engine" not in spec:
-        raise KeyError("engine")
+    if not isinstance(spec.get("engine"), str):
+        # A request without a template is the caller's mistake: 400, not a crash.
+        raise web.HTTPBadRequest(text=json.dumps({"error": "Say which template: engine is missing"}), content_type="application/json")
     for i in spec["inputs"]:
         if i.get("trim") and i.get("duration"):
             a, b = float(i["trim"][0] or 0), float(i["trim"][1] or 0) or float(i["duration"])

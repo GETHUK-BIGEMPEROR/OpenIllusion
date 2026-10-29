@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import logging
 import webbrowser
+from pathlib import Path
 from urllib.parse import urlparse
 
 from aiohttp import web
@@ -134,7 +135,11 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per poll otherwise
-    if a.host not in ("127.0.0.1", "localhost", "::1"):
+    if Path("/.dockerenv").exists():
+        # Inside a container 0.0.0.0 is the norm; who reaches it is decided by the published port.
+        log.info("OpenIllusion: in a container. Anyone who can reach the published port can spend your Comfy credits;"
+                 " docker-compose.yml publishes it on the host's 127.0.0.1 only.")
+    elif a.host not in ("127.0.0.1", "localhost", "::1"):
         log.warning("OpenIllusion: listening on %s. Anyone who can reach it can spend your Comfy credits.", a.host)
     url = f"http://{'127.0.0.1' if a.host in ('0.0.0.0', '::') else a.host}:{a.port}/"
     try:

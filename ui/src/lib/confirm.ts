@@ -13,6 +13,8 @@ export interface ConfirmView {
   /** Small facts under the text, like "214 MB" or "2 still running are kept". */
   facts?: string[];
   action: string;
+  /** A second way through, beside the action: "Cover only" next to "Set as cover and reuse its inputs". */
+  alt?: string;
   /** Nothing to do: the action button is disabled. */
   empty?: boolean;
 }
@@ -27,7 +29,7 @@ export interface ConfirmOpts {
   option?: { label: (on: boolean) => ReactNode; on?: boolean };
 }
 
-export interface ConfirmResult { ok: boolean; option: boolean }
+export interface ConfirmResult { ok: boolean; option: boolean; /** The second way (``alt``) was picked. */ alt?: boolean }
 
 interface State {
   open: (ConfirmOpts & { resolve: (r: ConfirmResult) => void }) | null;

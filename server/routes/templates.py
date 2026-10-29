@@ -63,6 +63,16 @@ def register(routes: web.RouteTableDef) -> None:
         run = finished_run(e, b["generation"])
         if isinstance(run, web.Response):
             return run
+        # A run made with other inputs than the template opens with: say which, and let the caller choose
+        # between keeping them as the template's own (reuse) and taking only the result (reuse: false).
+        reuse = b.get("reuse")
+        if reuse is None and (differs := await asyncio.to_thread(engines.run_differs, e, run, store.folder(run.id))):
+            return err(409, "This run used other inputs than the template", differs=differs)
+        if reuse:
+            try:
+                e = await asyncio.to_thread(engines.adopt_run, e.id, run, store.folder(run.id))
+            except (OSError, ValueError) as ex:
+                return err(422, f"Couldn't keep this run's inputs: {ex}")
         return await cover_from(e, run) or web.json_response(template_info(e))
 
     def finished_run(e, generation: str):

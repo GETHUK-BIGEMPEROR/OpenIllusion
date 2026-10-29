@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type CSSProperties } from "react";
-import { api, templateExportUrl, templateWorkflowUrl, type EngineInfo } from "../lib/api";
+import { api, HttpError, templateExportUrl, templateWorkflowUrl, type EngineInfo } from "../lib/api";
 import { confirm } from "../lib/confirm";
 import { errMsg } from "../lib/format";
 import { go } from "../lib/route";
@@ -145,16 +145,22 @@ export function TemplateTools({ e }: { e: EngineInfo }) {
   );
 }
 
-/** Covers come from results: a finished run of the template becomes its cover. The engines list updates in place. */
+/** "a", "a and b", "a, b and c". */
+const listed = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0] ?? "");
+
+/** Covers come from results: a finished run of the template becomes its cover. The engines list updates in place.
+ *  A run made with other inputs than the template opens with asks first: keep them as the template's own
+ *  (prompt, settings and files, written into its workflow too), or take only the result. */
 export function useCoverActions(e: EngineInfo) {
   const qc = useQueryClient();
   const toast = useApp((s) => s.toast);
   const [busy, setBusy] = useState(false);
 
-  const apply = async (run: () => Promise<EngineInfo>, done: (next: EngineInfo) => void) => {
+  const apply = async <T extends EngineInfo>(run: () => Promise<T | null>, done: (next: T) => void) => {
     setBusy(true);
     try {
       const next = await run();
+      if (!next) return false; // cancelled
       qc.setQueryData<EngineInfo[]>(["engines"], (list) => list?.map((x) => (x.id === next.id ? next : x)));
       done(next);
       return true;
@@ -166,8 +172,24 @@ export function useCoverActions(e: EngineInfo) {
     }
   };
   // A draft isn't on Explore yet: nothing there to view.
-  const fromRun = (generation: string) => apply(() => api.setCover(e.id, generation), () =>
-    toast(e.draft ? { text: "Cover set. Publish puts it on Explore with this cover.", tone: "ok" }
+  const set = async (generation: string) => {
+    try {
+      return { ...(await api.setCover(e.id, generation)), reused: false };
+    } catch (err) {
+      const differs: unknown = err instanceof HttpError && err.status === 409 ? err.body?.differs : null;
+      if (!Array.isArray(differs)) throw err;
+      const r = await confirm({ tone: "neutral", icon: "image", view: () => ({
+        title: "Keep what this run used?",
+        body: `This run's ${listed(differs.map((d) => String(d).toLowerCase()))} ${differs.length > 1 ? "aren't" : "isn't"} what ${tplName(e)} opens with. Reuse them and Create opens with what made the cover${e.kind === "local" ? ", and so does its downloaded workflow" : ""}.`,
+        facts: e.origin === "user" ? [] : ["Reset in the template's details brings back the shipped defaults"],
+        action: "Set as cover and reuse its inputs", alt: "Cover only" }) });
+      if (!r.ok && !r.alt) return null;
+      return { ...(await api.setCover(e.id, generation, r.ok)), reused: r.ok };
+    }
+  };
+  const fromRun = (generation: string) => apply(() => set(generation), (next) =>
+    toast(next.reused ? { text: "Cover set. Create now opens with this run's inputs.", tone: "ok" }
+      : e.draft ? { text: "Cover set. Publish puts it on Explore with this cover.", tone: "ok" }
       : { text: "Template cover updated.", tone: "ok", action: { label: "View", run: () => go({ name: "explore", t: e.id }) } }));
   const reset = () => apply(() => api.resetCover(e.id), () => toast({ text: "Cover reset.", tone: "ok" }));
   return { busy, fromRun, reset };

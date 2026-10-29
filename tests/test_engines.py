@@ -81,6 +81,16 @@ def test_shipped_templates_list_every_input_and_bind_it(tid, fresh_templates):
     assert all(f["type"] in ("image", "video", "audio", "size") or f["key"] in ("prompt", "duration", "sound") for f in d["fields"])
 
 
+@pytest.mark.parametrize("tid", sorted(t for t in TESTED if t.startswith("local/")))
+def test_shipped_templates_say_where_each_model_goes(tid, fresh_templates):
+    # A fresh ComfyUI lacks them all: each missing model is listed with its folder and a download link.
+    raw = json.loads(engines.ENGINES[tid].path.read_text("utf-8"))
+    files = {v for n in raw["workflow"].values() for v in n.get("inputs", {}).values()
+             if isinstance(v, str) and v.endswith((".safetensors", ".ckpt", ".pt", ".pth", ".gguf"))}
+    hints = raw.get("hints", {}).get("models", {})
+    assert files and all(hints.get(f, {}).get("folder") and hints[f].get("url", "").startswith("https://") for f in files), files - set(hints)
+
+
 def test_hat_template_writes_every_binding():
     spec = {
         "engine": HAT,
@@ -466,3 +476,39 @@ def test_a_workflows_model_is_edited_like_its_name(fresh_templates):
     assert engines.describe(e)["workflow_model"] == "Qwen Image 2.1 Edit"
     tti = engines.edit_template("cloud/text-to-image-seedream-5-0-pro", {"model_name": "Mine"})
     assert engines.model_name(tti) == "Seedream 5.0 Pro"  # a Router model names itself
+
+
+def test_a_runs_settings_and_size_go_into_the_template_and_its_workflow(fresh_templates, tmp_path):
+    from types import SimpleNamespace
+
+    from conftest import make_image
+
+    tid = "local/h3-t2v-turbo-4-step"
+    e = engines.ENGINES[tid]
+    run = SimpleNamespace(id="abcdef1234", prompt=e.default_prompt, inputs=[], params={"aspect": "9:16", "out_size": "0.75 MP", "steps": 30})
+    assert engines.run_differs(e, run, tmp_path) == ["Output size"]  # a setting it doesn't have is left out
+    e = engines.adopt_run(tid, run, tmp_path)
+    size = next(f for f in e.fields if f["key"] == "size")
+    assert (size["aspect"], size["default"]) == ("9:16", "0.75 MP") and e.edited
+    w, h = e.workflow["131"]["inputs"]["width"], e.workflow["131"]["inputs"]["height"]
+    assert h > w and engines.run_differs(e, run, tmp_path) == []
+    # A template of yours: the sample it no longer opens with goes, the new one is kept beside it.
+    mine = engines.duplicate_template("local/qwen21-add-hat")
+    for name in ("a.png", "b.png"):
+        make_image(tmp_path / name, size=(64 + ord(name[0]), 64))
+        first = mine.default_inputs["image:1"]
+        mine = engines.adopt_run(mine.id, SimpleNamespace(id=name[0], prompt="", params={}, inputs=[SimpleNamespace(slot="image:1", file=name, sha256=None)]), tmp_path)
+        assert not first.exists() and mine.default_inputs["image:1"].read_bytes() == (tmp_path / name).read_bytes()
+
+
+def test_a_runs_settings_go_into_a_cloud_templates_request_body(fresh_templates, tmp_path):
+    from types import SimpleNamespace
+
+    tid = "cloud/reference-to-video-wan-3-0"
+    e = engines.ENGINES[tid]
+    run = SimpleNamespace(id="r1", prompt="A reporter from Image 1 in the rain.", inputs=[], params={"resolution": "720P", "aspect": "16:9", "sound": True})
+    assert engines.run_differs(e, run, tmp_path) == ["Prompt", "Aspect", "Resolution"]  # sound is already on
+    e = engines.adopt_run(tid, run, tmp_path)
+    assert e.body["input"]["prompt"] == run.prompt  # as written, not with the model's names for the files
+    assert (e.body["parameters"]["resolution"], e.body["parameters"]["ratio"]) == ("720P", "16:9")
+    assert engines.run_differs(e, run, tmp_path) == []

@@ -53,6 +53,7 @@ export function ConfirmHost() {
           )}
           <div className="cf-actions">
             <button className="btn cf-cancel" type="button" onClick={() => settle({ ok: false, option })}>Cancel</button>
+            {v.alt && <button className="btn" type="button" onClick={() => settle({ ok: false, option, alt: true })}>{v.alt}</button>}
             {open.hold
               ? <HoldButton label={v.action} disabled={v.empty} onDone={() => settle({ ok: true, option })} />
               : <button className={cx("btn", tone === "danger" ? "cf-go" : "primary")} type="button" disabled={v.empty} onClick={() => settle({ ok: true, option })}>{v.action}</button>}

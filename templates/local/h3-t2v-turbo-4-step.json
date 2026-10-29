@@ -245,7 +245,28 @@
   },
   "source": "Built in OpenIllusion from a ComfyUI workflow",
   "hints": {
-    "models": {},
+    "models": {
+      "minimax_h3_audio_vae_fp32.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors"
+      },
+      "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors": {
+        "folder": "loras",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors"
+      },
+      "minimax_h3_fl2va_pruned_int8_convrot.safetensors": {
+        "folder": "diffusion_models",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors"
+      },
+      "minimax_h3_video_vae_int8_convrot.safetensors": {
+        "folder": "vae",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors"
+      },
+      "qwen3vl_32b_minimax_h3_int8_convrot.safetensors": {
+        "folder": "text_encoders",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
+      }
+    },
     "nodes": {}
   },
   "id": "local/h3-t2v-turbo-4-step",

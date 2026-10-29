@@ -38,7 +38,7 @@ __all__ = [
     "cover_files", "cover_file", "cover_before", "lead_slot", "defaults_info", "set_cover", "clear_cover", "clip_limits",
     "clip_file", "poster_file", "VIDEO_EXT", "IMAGE_EXT", "classify_failure", "find_assets",
     "result_media", "decode_media", "slim", "result_seed", "edit_template", "delete_template",
-    "duplicate_template", "reset_template", "ENGINES", "reload_templates",
+    "duplicate_template", "reset_template", "run_changes", "run_differs", "adopt_run", "ENGINES", "reload_templates",
     "router_model", "get", "describe", "varies", "requirements", "default_input",
     "default_poster", "compose",
 ]
@@ -93,15 +93,171 @@ def edit_template(engine_id: str, patch: dict) -> Engine:
                 raise ValueError(f"this template has no input {key!r}")
             _edit_input(by_key[key], ch)
     # Media the template ships with stays where it is, named so any install finds it; a user file is rewritten in place.
-    if e.origin != "user":
-        for k in ("cover", "cover_video"):
-            if data.get(k):
-                data[k] = shipped_ref(e.path.parent, data[k])
-        for f in data["inputs"]:
-            if f.get("type") in MEDIA and f.get("default"):
-                f["default"] = shipped_ref(e.path.parent, f["default"])
-    dst = e.path if e.origin == "user" else paths.user_root() / "templates" / (re.sub(r"[^A-Za-z0-9._-]+", "__", e.id) + ".json")
+    dst = _edit_target(e, data)
     paths.write_atomic(dst, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    reload_templates()
+    return ENGINES[e.id]
+
+
+def _edit_target(e: Engine, data: dict) -> Path:
+    """Where an edit of this template is written: its own file when it's yours, else a copy in your
+    templates folder that overrides it by id. That copy names the shipped media so any install finds it."""
+    if e.origin == "user":
+        return e.path
+    for k in ("cover", "cover_video"):
+        if data.get(k):
+            data[k] = shipped_ref(e.path.parent, data[k])
+    for f in data["inputs"]:
+        if f.get("type") in MEDIA and f.get("default"):
+            f["default"] = shipped_ref(e.path.parent, f["default"])
+    return paths.user_root() / "templates" / (re.sub(r"[^A-Za-z0-9._-]+", "__", e.id) + ".json")
+
+
+# ---- a run as a template's starting point --------------------------------------
+# "Use as cover" can also keep what the run used: its prompt, settings and files become what
+# Create opens with, and they're written into the workflow (or request body) itself, so the
+# workflow you download makes what the cover shows.
+
+def _sha256(p: Path | None) -> str | None:
+    if p is None or not p.is_file():
+        return None
+    import hashlib
+
+    h = hashlib.sha256()
+    with p.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _keepable(f: dict, v: Any) -> Any:
+    """A run's value for a setting in the form the template keeps as its default; None when it can't be one."""
+    t = f.get("type")
+    if v is None or t == "seed":
+        return None
+    if f.get("options"):
+        return next((o for o in f["options"] if str(o) == str(v)), None)
+    if t == "bool":
+        return v if isinstance(v, bool) else None
+    if t in ("int", "number"):
+        try:
+            n = int(float(v)) if t == "int" else float(v)
+        except (TypeError, ValueError):
+            return None
+        return n if f.get("min", n) <= n <= f.get("max", n) else None
+    return v if isinstance(v, str) else None
+
+
+def run_changes(e: Engine, m: Any, folder: Path) -> list[tuple[str, str, Any]]:
+    """What a run used that the template doesn't open with: (what, input key, value), where what is
+    "default" (the prompt or a setting), "aspect" (the output shape) or "file" (a photo or clip)."""
+    out: list[tuple[str, str, Any]] = []
+    for f in e.fields:
+        k, t = f["key"], f.get("type")
+        if t in MEDIA:
+            item = next((i for i in m.inputs if i.slot == k and i.file), None)
+            src = folder / item.file if item else None
+            if src and src.is_file() and (item.sha256 or _sha256(src)) != _sha256(e.default_inputs.get(k)):
+                out.append(("file", k, src))
+        elif t == "text":
+            if k == "prompt" and m.prompt.strip() and m.prompt != e.default_prompt:
+                out.append(("default", k, m.prompt))
+        elif t == "size":
+            canvas = (e.size or {}).get("canvas") or {}
+            steps = {o["label"] for o in [*e.size.get("options", []), *e.size.get("more", [])] if o.get("px")} if e.size else set()
+            steps |= {f"{x:g} MP" for x in canvas.get("steps") or []}
+            aspect, step = m.params.get("aspect"), m.params.get("out_size")
+            if aspect in (canvas.get("aspects") or []) and aspect != f.get("aspect", canvas.get("aspect")):
+                out.append(("aspect", k, aspect))
+            if step in steps and step != f.get("default", canvas.get("size")):
+                out.append(("default", k, step))
+        elif k in m.params:
+            v = _keepable(f, m.params[k])
+            if v is not None and v != f.get("default"):
+                out.append(("default", k, v))
+    return out
+
+
+def run_differs(e: Engine, m: Any, folder: Path) -> list[str]:
+    """The inputs a run changed, by the names Create shows them under, in the template's order."""
+    labels = {f["key"]: f.get("label") or f["key"] for f in e.fields}
+    return list(dict.fromkeys(labels[k] for _, k, _ in run_changes(e, m, folder)))
+
+
+def _bake(e: Engine, data: dict) -> None:
+    """Write a template's defaults where its inputs are bound in ``data``'s workflow or request body.
+    Seeds keep whatever the file says; media slots keep their tokens."""
+    params = {f["key"]: f["default"] for f in e.params if f.get("default") is not None and f.get("type") != "seed"}
+    size = next((f for f in e.fields if f.get("type") == "size"), None)
+    if size:
+        params.setdefault("aspect", size.get("aspect"))
+        params.setdefault("out_size", size.get("default"))
+    spec = {"inputs": [{"slot": i["slot"]} for i in e.inputs], "prompt": e.default_prompt, "params": params}
+    keys = [k for k in e.bindings if k in ("prompt", "size") or (k.startswith("params.") and k[len("params."):] in params)]
+    if e.kind == "local" and data.get("workflow"):
+        wf, own = build_local(e, spec), data["workflow"]
+        for k in keys:
+            for t in e.bindings[k]:
+                n, inp = str(t[0]), t[1]
+                if n in own and inp in wf.get(n, {}).get("inputs", {}):
+                    own[n]["inputs"][inp] = wf[n]["inputs"][inp]
+    elif e.kind == "cloud" and data.get("body"):
+        from .build import _set
+
+        body = build_cloud(e, spec)
+        for k in keys:
+            for t in e.bindings[k]:
+                path = list(t[0] if k == "size" else t)
+                try:
+                    if k == "prompt":  # as written: the model's names for the files are put in per run
+                        v = e.default_prompt
+                    else:
+                        v = body
+                        for p in path:
+                            v = v[p]
+                    _set(data["body"], path, v)
+                except (KeyError, IndexError, TypeError):
+                    continue  # left out of the request ("Auto"): the file keeps what it has
+
+
+def adopt_run(engine_id: str, m: Any, folder: Path) -> Engine:
+    """Make a run the template's starting point (see ``run_changes``). Files are copied in beside the
+    template; a sample of yours the template no longer opens with is removed."""
+    import shutil
+
+    e = ENGINES.get(engine_id)
+    if e is None or e.data is None or e.path is None:
+        raise KeyError(engine_id)
+    changes = run_changes(e, m, folder)
+    if not changes:
+        return e
+    data = lift_computed(upgrade(copy.deepcopy(e.data)))
+    data.pop("tips", None)
+    data.pop("tags", None)
+    dst = _edit_target(e, data)
+    media_dir = dst.parent / "media" / dst.stem
+    by_key = {f["key"]: f for f in data["inputs"]}
+    dropped: list[Path] = []
+    for what, k, v in changes:
+        f = by_key[k]
+        if what == "file":
+            media_dir.mkdir(parents=True, exist_ok=True)
+            name = f"{re.sub(r'[^A-Za-z0-9._-]+', '-', k)}-{m.id[:8]}{v.suffix.lower()}"
+            shutil.copyfile(v, media_dir / name)
+            if f.get("default"):
+                dropped.append(media_path(dst.parent, f["default"]).resolve())
+            f["default"] = f"media/{dst.stem}/{name}"
+        elif what == "aspect":
+            f["aspect"] = v
+        else:
+            f["default"] = v
+    _bake(load_template(copy.deepcopy(data), dst.parent), data)
+    paths.write_atomic(dst, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    kept = {media_path(dst.parent, f["default"]).resolve() for f in data["inputs"] if f.get("type") in MEDIA and f.get("default")}
+    kept |= {media_path(dst.parent, data[k]).resolve() for k in ("cover", "cover_video") if data.get(k)}
+    for old in dropped:
+        if old.parent == media_dir.resolve() and old not in kept:
+            old.unlink(missing_ok=True)
     reload_templates()
     return ENGINES[e.id]
 

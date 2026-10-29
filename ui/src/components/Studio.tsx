@@ -363,7 +363,8 @@ export function useRunner({ set, spec, compose, onRan, prepare }: {
       qc.invalidateQueries({ queryKey: ["generations"] });
       onRan?.(ids);
     } catch (e) {
-      toast({ text: e instanceof HttpError && e.status === 401 ? "Comfy Router refused your API key. Check it in Settings, or pick a local engine." : errMsg(e), tone: "error" });
+      // The server says why (no key yet, or the key it was sent); a bare 401 is a key Comfy refused.
+      toast({ text: e instanceof HttpError && e.status === 401 && !e.body?.error ? "Comfy Router refused your API key. Check it in Settings, or pick a local engine." : errMsg(e), tone: "error" });
     } finally {
       setBusy(false);
     }

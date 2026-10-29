@@ -113,7 +113,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
   const resetAll = async () => {
     const res = await confirm({
       tone: "neutral", icon: "undo",
-      view: () => ({ title: "Reset to the shipped version?", body: "Your edits to the name, description and prompt are dropped. The cover you set stays.", action: "Reset" }),
+      view: () => ({ title: "Reset to the shipped version?", body: "Your edits to its name, description, prompt, settings and samples are dropped. The cover you set stays.", action: "Reset" }),
     });
     if (!res.ok) return;
     setSaving(true);

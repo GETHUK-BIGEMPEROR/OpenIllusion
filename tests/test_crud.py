@@ -138,7 +138,7 @@ def test_cover_comes_only_from_a_finished_run_of_that_template():
         assert (await put(asset="x.png")).status == 400  # no uploads: a cover is a real result
         assert (await put(generation=other.id)).status == 409
         assert (await put(generation=running.id)).status == 409
-        r = await put(generation=mine.id)
+        r = await put(generation=mine.id, reuse=False)  # its prompt isn't the template's: take only the result
         d = await r.json()
         assert r.status == 200 and d["cover_custom"]
         assert d["cover_before"] is None  # the run kept no input file: nothing to show beside it
@@ -148,7 +148,7 @@ def test_cover_comes_only_from_a_finished_run_of_that_template():
         make_image(store.folder(mine.id) / "refs" / "in.png", size=(320, 400))
         m.inputs = [sc.InputItem(slot="image:1", file="refs/in.png")]
         store.save(m)
-        d = await (await put(generation=mine.id)).json()
+        d = await (await put(generation=mine.id, reuse=False)).json()
         assert d["cover_before"] == {"url": d["cover"] + "&before=1", "kind": "image"}
         got = await c.get(d["cover_before"]["url"])
         assert got.status == 200 and (await got.read())[8:12] == b"WEBP"
@@ -156,6 +156,39 @@ def test_cover_comes_only_from_a_finished_run_of_that_template():
 
     try:
         assert call(go)
+    finally:
+        engines.clear_cover(HAT)
+
+
+@pytest.mark.usefixtures("fresh_templates")
+def test_use_as_cover_asks_when_the_run_used_other_inputs_and_can_keep_them():
+    shipped = engines.ENGINES[HAT]
+    run = gen("Red hat")
+    m = store.get(run.id)
+    m.prompt = "Put a red beret on the person in <image1>."
+    (store.folder(run.id) / "refs").mkdir()
+    make_image(store.folder(run.id) / "refs" / "in.png", size=(320, 400))
+    m.inputs = [sc.InputItem(slot="image:1", file="refs/in.png")]
+    store.save(m)
+
+    async def go(c):
+        put = lambda **b: c.put("/api/cover", json={"engine": HAT, "generation": run.id, **b})
+        r = await put()
+        assert r.status == 409 and (await r.json())["differs"] == ["Image 1", "Prompt"]
+        r = await put(reuse=True)
+        d = await r.json()
+        assert r.status == 200 and d["cover_custom"] and d["edited"]
+        assert (await put()).status == 200  # the template opens with what the run used now: nothing to ask
+        return True
+
+    try:
+        assert call(go)
+        e = engines.ENGINES[HAT]
+        assert e.default_prompt == m.prompt and e.workflow["5"]["inputs"]["prompt"] == m.prompt
+        assert e.default_inputs["image:1"].read_bytes() == (store.folder(run.id) / "refs" / "in.png").read_bytes()
+        assert engines.defaults_workflow(e)["5"]["inputs"]["prompt"] == m.prompt  # the downloaded workflow too
+        back = engines.reset_template(HAT)
+        assert back.default_prompt == shipped.default_prompt and back.default_inputs == shipped.default_inputs
     finally:
         engines.clear_cover(HAT)
 
@@ -233,3 +266,9 @@ def test_template_use_outlives_its_runs():
         return await (await c.get("/api/engines")).json()
     e = next(x for x in call(go) if x["id"] == HAT)
     assert e["used_at"] == a.created + 120 and e["uses"] == 3
+
+
+def test_a_run_without_its_template_is_refused_not_crashed():
+    async def go(c):
+        return [(await c.post(f"/api{p}", json={"prompt": "x"})).status for p in ("/compose", "/run", "/local/check")]
+    assert call(go) == [400, 400, 400]

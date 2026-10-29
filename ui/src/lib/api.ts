@@ -654,7 +654,8 @@ export const api = {
   },
   engines: (mode?: Mode, reload = false) => req<EngineInfo[]>("GET", `/engines?${qs({ mode, reload: reload ? 1 : undefined })}`),
   /** A finished run of the template becomes its cover; a draft's first one publishes it. */
-  setCover: (engine: string, generation: string) => req<EngineInfo>("PUT", "/cover", { engine, generation }),
+  /** Without ``reuse``, a run with other inputs than the template is refused (409, ``differs``) so you can choose. */
+  setCover: (engine: string, generation: string, reuse?: boolean) => req<EngineInfo>("PUT", "/cover", { engine, generation, reuse }),
   resetCover: (engine: string) => req<EngineInfo>("DELETE", `/cover?${qs({ engine })}`),
   editTemplate: (engine: string, patch: TemplatePatch) => req<EngineInfo>("PATCH", "/templates", { engine, ...patch }),
   resetTemplate: (engine: string) => req<EngineInfo>("DELETE", `/templates?${qs({ engine })}`),

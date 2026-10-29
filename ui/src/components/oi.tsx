@@ -154,7 +154,8 @@ export function EmptyBox({ icon, title, children, action, style }: { icon?: Icon
   );
 }
 
-export const gpuName = (gpu?: string | null) => (gpu ? gpu.replace(/^cuda:\d+ /, "").replace(/ :.*$/, "").replace(/^NVIDIA (GeForce )?/, "") : null);
+/** "cuda:0 NVIDIA GeForce RTX 4060 Ti : cudaMallocAsync" → "RTX 4060 Ti"; ComfyUI started with --cpu says "cpu" → "CPU". */
+export const gpuName = (gpu?: string | null) => (gpu ? (gpu.trim().toLowerCase() === "cpu" ? "CPU" : gpu.replace(/^cuda:\d+ /, "").replace(/ :.*$/, "").replace(/^NVIDIA (GeForce )?/, "")) : null);
 
 export function localState(l?: LocalStatus): { tone: "ok" | "warn" | "off"; text: string; title: string } {
   if (!l) return { tone: "off", text: "Checking", title: "Looking for ComfyUI" };
