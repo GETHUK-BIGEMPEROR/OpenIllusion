@@ -147,7 +147,7 @@ export function Trimmer({
         )}
         <div aria-hidden className="trim-out" style={{ left: 0, width: `${pct(a)}%` }} />
         <div aria-hidden className="trim-out" style={{ right: 0, width: `${100 - pct(b)}%` }} />
-        <div aria-hidden className="trim-win" style={{ left: `${pct(a)}%`, right: `${100 - pct(b)}%`, boxShadow: `inset 0 0 0 2px ${fits ? "#F2FF59" : "#FF6B7E"}` }} />
+        <div aria-hidden className="trim-win" style={{ left: `${pct(a)}%`, right: `${100 - pct(b)}%`, boxShadow: `inset 0 0 0 2px ${fits ? "#FF4FA3" : "#FF5C78"}` }} />
         {long && window && (
           <div aria-hidden className="trim-cap" style={{ left: `${pct(a + window[1])}%`, width: `${pct(b - a - window[1])}%` }}>
             <span>{model ? `Not sent: ${model} takes ${window[1]} s` : `Not sent: past ${window[1]} s`}</span>
@@ -156,12 +156,12 @@ export function Trimmer({
         <div
           role="slider" tabIndex={0} aria-label="In point" aria-valuemin={0} aria-valuemax={duration} aria-valuenow={a} aria-valuetext={clock(a)}
           onPointerDown={drag("in")} onKeyDown={key("in")}
-          className="trim-h in" style={{ left: `${pct(a)}%`, background: fits ? "#F2FF59" : "#FF6B7E" }}
+          className="trim-h in" style={{ left: `${pct(a)}%`, background: fits ? "#FF4FA3" : "#FF5C78" }}
         ><span aria-hidden /></div>
         <div
           role="slider" tabIndex={0} aria-label="Out point" aria-valuemin={0} aria-valuemax={duration} aria-valuenow={b} aria-valuetext={clock(b)}
           onPointerDown={drag("out")} onKeyDown={key("out")}
-          className="trim-h out" style={{ left: `calc(${pct(b)}% - 12px)`, background: fits ? "#F2FF59" : "#FF6B7E" }}
+          className="trim-h out" style={{ left: `calc(${pct(b)}% - 12px)`, background: fits ? "#FF4FA3" : "#FF5C78" }}
         ><span aria-hidden /></div>
       </div>
       <div className="trim-t mono">

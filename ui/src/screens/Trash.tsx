@@ -41,8 +41,8 @@ export function Trash() {
   return (
     <div className="page library">
       <div className="scroll">
-        <PageHead title="Trash" count={q.data ? items.length : null}
-          filters={items.length ? <span className="trash-sum">{bytes(size)} · each goes for good 7 days after it was deleted</span> : undefined}
+        <PageHead title="Trash"
+          filters={items.length ? <span className="trash-sum"><b className="mono">{items.length}</b> in the trash · {bytes(size)} · each goes for good 7 days after it was deleted</span> : undefined}
           actions={items.length ? (
             <>
               {!picking && <TrashActions items={items} />}
@@ -62,7 +62,7 @@ export function Trash() {
             : groups.map(([g, v]) => (
               <section key={g} className="lgroup" aria-label={g}>
                 <div className="ghead"><h3>Deleted {/^(Today|Yesterday|Earlier)/.test(g) ? g.toLowerCase() : `in ${g}`}</h3><span>{v.length}</span></div>
-                <Masonry label={g} maxCols={5} minCol={220} items={v.map((t) => ({ key: t.id, aspect: aspect(t), t }))}
+                <Masonry label={g} maxCols={6} minCol={180} items={v.map((t) => ({ key: t.id, aspect: aspect(t), t }))}
                   render={({ t }) => <TrashCard t={t} picking={picking} picked={picked.has(t.id)} onPick={() => pick(t.id)} />} />
               </section>
             ))}
@@ -210,7 +210,7 @@ function TrashCard({ t, picking, picked, onPick }: { t: TrashItem; picking: bool
         onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(); } },
       } : {})}>
       <Media src={img} poster={img} ar={aspect(t)}>
-        {!img && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#30233a,#1c1622)" }} />}
+        {!img && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#261F3A,#141120)" }} />}
       </Media>
       <div className="ctop">
         {picking && <span className="check"><I n="check" /></span>}

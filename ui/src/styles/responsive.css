@@ -37,26 +37,24 @@
   .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
   .rail{display:none}
   .trashlink{display:inline-flex}  /* no rail on phones: the way into the trash */
-  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;padding:6px 6px 10px;border-top:1px solid var(--line);background:rgba(21,16,27,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);z-index:20}
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;padding:6px 6px 10px;border-top:1px solid var(--line);background:rgba(15,13,24,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);z-index:20}
   .tab{display:grid;justify-items:center;gap:3px;padding:6px 0 2px;color:var(--text-3);font-size:10px;font-weight:500;text-decoration:none;position:relative}
   .tab .i{width:21px;height:21px}
   .tab[aria-current="page"]{color:var(--text)}
   .tab .badge{right:calc(50% - 22px);top:0}
-  .tab.create{color:var(--on-yellow)}
-  .tab.create .fab{width:46px;height:46px;border-radius:16px;background:var(--yellow);display:grid;place-items:center;margin-top:-18px;box-shadow:0 10px 26px -8px rgba(242,255,89,.6),0 0 0 5px var(--bg)}
+  .tab.create{color:var(--on-accent)}
+  .tab.create .fab{width:46px;height:46px;border-radius:16px;background:var(--neon);display:grid;place-items:center;margin-top:-18px;box-shadow:0 10px 26px -8px rgba(255,79,163,.6),0 0 0 5px var(--bg)}
   .tab.create .fab .i{stroke-width:2.2}
   .tab.create span{color:var(--text-3)}
   .tab.create[aria-current="page"] span{color:var(--text)}
   .tabbar{position:relative}
   .tabmore-scrim{position:absolute;left:0;right:0;bottom:100%;height:100vh;border:0;padding:0;background:rgba(6,4,9,.45);animation:fade .2s}
-  .tabmore{position:absolute;right:8px;bottom:calc(100% + 8px);min-width:210px;display:grid;padding:6px;border-radius:16px;background:#1A1421;border:1px solid var(--line-2);box-shadow:0 30px 70px -24px #000;transform-origin:bottom right;animation:drop .22s var(--spring)}
+  .tabmore{position:absolute;right:8px;bottom:calc(100% + 8px);min-width:210px;display:grid;padding:6px;border-radius:16px;background:#13101F;border:1px solid var(--line-2);box-shadow:0 30px 70px -24px #000;transform-origin:bottom right;animation:drop .22s var(--spring)}
   .tabmore a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:var(--text-2);font-size:14px;text-decoration:none}
   .tabmore a:hover,.tabmore a[aria-current="page"]{background:var(--raised);color:var(--text)}
   .tabmore .i{width:19px;height:19px;color:var(--text-3)}
   .phead-row{padding:12px 14px 10px;gap:8px}
   .phead-sub{padding:0 14px 10px}
-  .ptitle h1{font-size:18px}
-  .ptitle .count{display:none}
   .phead-row.hrow{padding:10px 12px 10px 14px;gap:8px}
   .hfilters .chip,.hfilters .vsep,.hfilters .seg .n,.hfilters .seg .i{display:none}
   .hactions .btn{width:34px;padding:0}
@@ -117,7 +115,7 @@
   .set-wrap{grid-template-columns:1fr;padding:14px 12px 40px;gap:20px}
   .set-nav{position:static;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:-4px 0 -6px}
   .set-nav button{flex:none;padding:7px 12px}
-  .set-nav button[aria-current="true"]{box-shadow:inset 0 -2px 0 var(--yellow)}
+  .set-nav button[aria-current="true"]{box-shadow:inset 0 -2px 0 var(--accent)}
   .caps{gap:8px}
   .cap-tile b{font-size:22px}
 }

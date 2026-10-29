@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { cx, EmptyBox, gpuName, I, PageHead } from "../components/oi";
+import { FolderPicker } from "../components/FolderPicker";
 import { UpstreamWarning } from "../components/Studio";
 import { Button, IconButton, Spinner, Toggle as Switch } from "../components/ui";
 import { api, type BackupResult, type EngineInfo, type Settings as S, type Status, type StorageBucket } from "../lib/api";
@@ -146,7 +147,7 @@ const BUCKETS: { id: StorageBucket; label: string; desc: string; color: string }
   { id: "trash", label: "Trash", desc: "Deleted generations, kept 7 days.", color: "var(--rose)" },
   { id: "uploads", label: "Uploads", desc: "Files dropped into forms. Runs copy what they use, so these are working copies. Cleaned on their own after 30 days unused.", color: "var(--orange)" },
   { id: "exports", label: "Exports", desc: ".illusion packages you exported, in your output folder.", color: "var(--mint)" },
-  { id: "backups", label: "Backups", desc: "Backups you made, in your output folder. Copy them somewhere safe; they're yours to keep or delete.", color: "var(--yellow)" },
+  { id: "backups", label: "Backups", desc: "Backups you made, in your output folder. Copy them somewhere safe; they're yours to keep or delete.", color: "var(--accent)" },
   { id: "cache", label: "Cache", desc: "Thumbnails and schemas. Rebuilt when needed; cleaned on their own after 30 days unused.", color: "var(--text-3)" },
 ];
 
@@ -221,7 +222,7 @@ function StorageSection({ s, save }: { s: S; save: Save }) {
       </div>
       <BackupCard />
       <div className="set-card">
-        <TextSetting id="out" label="Output folder" help="Leave empty for the default." value={s.output_folder} placeholder="~/.openillusion/outputs" mono onSave={(v) => save({ output_folder: v })} />
+        <TextSetting id="out" label="Output folder" help="Leave empty for the default. Choose walks the folders on the machine OpenIllusion runs on." value={s.output_folder} placeholder="~/.openillusion/outputs" mono folder onSave={(v) => save({ output_folder: v })} />
         <Toggle title="Strip EXIF and GPS" desc="From your photos and from everything you export."
           checked={s.strip_exif} onChange={(v) => save({ strip_exif: v })} />
       </div>
@@ -446,8 +447,10 @@ function Toggle({ title, desc, checked, onChange, children }: { title: string; d
 }
 
 /** A text field that saves on Save or Enter, validates first, and confirms with a check. */
-function TextSetting({ id, label, help, value, placeholder, mono, validate, onSave, action }: {
+function TextSetting({ id, label, help, value, placeholder, mono, validate, onSave, action, folder }: {
   id: string; label: string; help?: ReactNode; value: string; placeholder?: string; mono?: boolean; validate?: (v: string) => string | null; onSave: (v: string) => Promise<boolean>;
+  /** A folder path: a Choose button opens the folder picker, and a pick saves at once. */
+  folder?: boolean;
   /** A label other than Save. The button then works on an unchanged value too. */
   action?: string;
 }) {
@@ -455,8 +458,18 @@ function TextSetting({ id, label, help, value, placeholder, mono, validate, onSa
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
   useEffect(() => setV(value), [value]);
   const dirty = v.trim() !== value;
+  const pick = async (path: string) => {
+    setPicking(false);
+    setV(path);
+    setErr(null);
+    setBusy(true);
+    const ok = await onSave(path);
+    setBusy(false);
+    if (ok) { setSaved(true); setTimeout(() => setSaved(false), 1600); }
+  };
   const submit = async () => {
     const e = v.trim() && validate ? validate(v) : null;
     setErr(e);
@@ -473,9 +486,11 @@ function TextSetting({ id, label, help, value, placeholder, mono, validate, onSa
         <input id={id} className={cx("input", mono && "mono")} style={mono ? { fontSize: 12 } : undefined} value={v} placeholder={placeholder} spellCheck={false}
           aria-invalid={!!err || undefined} aria-describedby={`${id}-help`}
           onChange={(e) => { setV(e.target.value); setErr(null); }} onKeyDown={(e) => { if (e.key === "Escape") { setV(value); setErr(null); } }} />
+        {folder && <button className="btn" type="button" onClick={() => setPicking(true)}><I n="folder" />Choose…</button>}
         <button className="btn" type="submit" disabled={(!dirty && !action) || busy} style={{ minWidth: 72 }}>{busy ? (action ? "Testing…" : "Saving…") : saved ? <><I n="check" style={{ color: "var(--mint)" }} />{action ? "OK" : "Saved"}</> : action ?? "Save"}</button>
       </div>
       <p id={`${id}-help`} role={err ? "alert" : undefined} className="help" style={err ? { color: "#FFB3BD" } : undefined}>{err ?? help}</p>
+      {folder && <FolderPicker open={picking} start={v.trim() || undefined} title={`Choose the ${label.toLowerCase()}`} onPick={(p) => void pick(p)} onClose={() => setPicking(false)} />}
     </form>
   );
 }

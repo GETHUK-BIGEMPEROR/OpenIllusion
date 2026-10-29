@@ -2,6 +2,7 @@ import { useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstac
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Masonry } from "../components/Masonry";
 import { cx, EmptyBox, I, jobProgress, Media, PageHead, QUEUED, Ring } from "../components/oi";
+import { RunHud, RunVeil } from "../components/RunStatus";
 import { tplModel, tplName } from "../components/TemplateCard";
 import { Spinner } from "../components/ui";
 import { api, fileUrl, type GenerationRow, type Job } from "../lib/api";
@@ -146,7 +147,7 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
   const filters = !community && (
     <>
       <div className="seg" role="group" aria-label="Show">
-        <button type="button" aria-pressed={tab === "all"} onClick={() => setTab("all")}>All<span className="n">{all.length}</span></button>
+        <button type="button" aria-pressed={tab === "all"} onClick={() => setTab("all")}>All<span className="n">{model ? all.length : total ?? all.length}</span></button>
         <button type="button" aria-pressed={tab === "starred"} onClick={() => setTab("starred")}><I n="star" />Starred<span className="n">{n("starred")}</span></button>
         <button type="button" aria-pressed={tab === "active"} onClick={() => setTab("active")}>Running<span className="n">{n("active")}</span></button>
         <button type="button" aria-pressed={tab === "failed"} onClick={() => setTab("failed")}>Failed<span className="n">{n("failed")}</span></button>
@@ -188,13 +189,13 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
   );
   const back = (
     <><button className="icon-btn" type="button" aria-label="Back to Library" onClick={() => go({ name: "library" })} style={{ marginRight: 4 }}><I n="left" /></button>
-      Community</>
+      <b className="plead-t">Community</b></>
   );
 
   return (
     <div className="page library">
       <div className="scroll">
-        <PageHead title={community ? back : "Library"} count={community ? null : total ?? all.length} filters={filters || undefined} actions={actions} />
+        <PageHead title={community ? "Community" : "Library"} lead={community ? back : undefined} filters={filters || undefined} actions={actions} />
         <div className="wall-wrap lib">
           {community ? <Community />
             : rows.isLoading ? <Skeleton />
@@ -206,7 +207,7 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
                     <button className="gclear" type="button" onClick={() => clearDay(g)} aria-label={`Clear ${dayWords(g)}`}><I n="trash" />Clear</button>
                   )}
                 </div>
-                <Masonry label={g} maxCols={5} minCol={220} items={v.map((r) => ({ key: r.id, aspect: r.width && r.height ? r.width / r.height : undefined, r }))}
+                <Masonry label={g} maxCols={6} minCol={180} items={v.map((r) => ({ key: r.id, aspect: r.width && r.height ? r.width / r.height : undefined, r }))}
                   render={({ r }) => <GenCard g={r} job={jobOf.get(r.id)} cap={capOf(r)} picking={picking} picked={picked.has(r.id)} onPick={() => pick(r.id)} />} />
               </section>
             ))
@@ -234,7 +235,7 @@ export function Skeleton() {
   const items = [0.8, 1, 0.75, 1.33, 0.8, 0.66, 1, 0.8, 0.75, 1.2].map((aspect, i) => ({ key: String(i), aspect }));
   return (
     <section className="lgroup" aria-busy="true" aria-label="Loading">
-      <Masonry label="Loading" items={items} maxCols={5} minCol={220} render={(x) => <div aria-hidden className="card"><div className="media" style={{ "--ar": x.aspect } as CSSProperties} /></div>} />
+      <Masonry label="Loading" items={items} maxCols={6} minCol={180} render={(x) => <div aria-hidden className="card"><div className="media" style={{ "--ar": x.aspect } as CSSProperties} /></div>} />
     </section>
   );
 }
@@ -251,8 +252,6 @@ function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; j
   const img = (st === "running" && job?.preview) || (g.poster ? fileUrl(g.id, g.poster) : null);
   const video = st === "done" && g.result_kind === "video" && g.preview ? fileUrl(g.id, g.preview) : null;
   const ar = g.width && g.height ? g.width / g.height : 4 / 5;
-  const steps = job?.progress?.steps;
-  const step = job?.progress?.step;
 
   const open = () => (picking ? onPick() : go({ name: "generation", id: g.id }));
   const star = async () => {
@@ -290,15 +289,11 @@ function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; j
       aria-label={`${g.prompt || g.title}, ${st}`} aria-pressed={picking ? picked : undefined}
       onClick={open} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(); } }}>
       <Media src={img} video={video} poster={img} ar={ar}>
-        {!img && !video && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#30233a,#1c1622)" }} />}
+        {!img && !video && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#261F3A,#141120)" }} />}
         {(st === "running" || st === "queued") && (
           <>
-            <div className="noise" />
-            <div className="hud"><div className="hud-in">
-              <Ring p={p} sm />
-              <b>{queued ? "Waiting" : "Sampling"}</b>
-              <span>{queued ? (job?.queue_position ? `#${job.queue_position} in queue` : "in queue") : step && steps ? `${step}/${steps}` : job?.detail || "starting"}</span>
-            </div></div>
+            <RunVeil job={job} preview={!!job?.preview && !queued} />
+            {job ? <RunHud job={job} small /> : <div className="hud"><div className="hud-in"><Ring p={0} sm /><b>Starting</b></div></div>}
           </>
         )}
         {st === "failed" && (
@@ -313,7 +308,7 @@ function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; j
       <div className="ctop">
         {picking && <span className="check"><I n="check" /></span>}
         {st === "failed" ? <span className="pill rose">{g.status === "moderated" ? "Moderated" : g.status === "cancelled" ? "Cancelled" : "Failed"}</span>
-          : st !== "done" ? <span className="pill"><i className="dot" style={{ background: "var(--yellow)", animation: "pulse 1.2s infinite" }} />{queued ? "Queued" : "Running"}</span>
+          : st !== "done" ? <span className="pill"><i className="dot" style={{ background: "var(--accent)", animation: "pulse 1.2s infinite" }} />{queued ? "Queued" : "Running"}</span>
           : g.variant ? <span className="pill" title={`Imported from a ${g.variant} .illusion package`}>Imported</span> : null}
         <span className="fspacer" />
         {st === "done" && !picking && (
@@ -445,7 +440,7 @@ function Community() {
             {q.isError && <EmptyBox icon="alert" title="Couldn't read this index" action={<button className="btn" type="button" onClick={() => q.refetch()}>Try again</button>}>{errMsg(q.error)}</EmptyBox>}
             {q.data && !items.length && <p className="help" style={{ textAlign: "center" }}>This index lists no generations.</p>}
             {!!items.length && (
-              <Masonry label={q.data?.name ?? "Index"} items={items} maxCols={5} minCol={220} render={({ s }) => (
+              <Masonry label={q.data?.name ?? "Index"} items={items} maxCols={6} minCol={180} render={({ s }) => (
                 <article className="card gcard st-done" tabIndex={0} role="button" aria-label={`Review ${s.title ?? s.url}`} onClick={() => !busy && void open(s.url)}
                   onKeyDown={(e) => { if (e.key === "Enter") void open(s.url); }}>
                   <Media src={s.poster} ar={4 / 5}>{busy === s.url && <div className="hud"><div className="hud-in"><Spinner size={16} /></div></div>}</Media>

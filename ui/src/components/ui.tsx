@@ -7,7 +7,7 @@ export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Bool
 
 // React faces of the shared classes in styles/common.css and styles/fields.css.
 
-/** primary: the one action per view (yellow). secondary: default. ghost: toolbar/quiet. contrast: white. danger. */
+/** primary: the one action per view (neon gradient). secondary: default. ghost: toolbar/quiet. contrast: white. danger. */
 type BtnTone = "primary" | "secondary" | "ghost" | "contrast" | "danger";
 const SIZES = { xs: "xs", sm: "sm", md: "", lg: "" };
 

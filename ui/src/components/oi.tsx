@@ -8,9 +8,12 @@ import { cx, Spinner } from "./ui";
 
 export { cx };
 
+/** The neon gradient, for strokes: ``stroke:url(#ng)`` in CSS. */
+const NEON = '<defs><linearGradient id="ng" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF4FA3"/><stop offset=".5" stop-color="#9D6BFF"/><stop offset="1" stop-color="#2FD8FF"/></linearGradient></defs>';
+
 /** The icon sprite, once per page. */
 export function Sprite() {
-  return <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden dangerouslySetInnerHTML={{ __html: SPRITE }} />;
+  return <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden dangerouslySetInnerHTML={{ __html: SPRITE + NEON }} />;
 }
 
 export function I({ n, size, className, style }: { n: IconName; size?: number; className?: string; style?: CSSProperties }) {
@@ -152,37 +155,27 @@ export function useStatus() {
   return useQuery({ queryKey: ["status"], queryFn: () => api.status(), refetchInterval: 30_000 });
 }
 
-/** Sticky page header. With a title: title, actions, search, Comfy API, GPU. Without one (Explore): the filters take the
- *  title's place, and `sub` is a second row under them. */
-/** A page's header. ``search={false}``: the page has its own search field, so no search button. ``bar``: a row of
- *  filters between the header line and ``sub`` (a row that scrolls sideways). */
-export function PageHead({ title, count, filters, actions, sub, bar, search = true }: { title?: ReactNode; count?: number | null; filters?: ReactNode; actions?: ReactNode; sub?: ReactNode; bar?: ReactNode; search?: boolean }) {
+/** A page's header: no visible title, since the rail already names the page; ``title`` is a hidden heading for screen
+ *  readers. ``lead``: a visible start, like a back button. ``search={false}``: the page has its own search field.
+ *  ``bar``: a row of filters under the header line; ``sub``: a row under that, which scrolls sideways. */
+export function PageHead({ title, lead, filters, actions, sub, bar, search = true }: { title: string; lead?: ReactNode; filters?: ReactNode; actions?: ReactNode; sub?: ReactNode; bar?: ReactNode; search?: boolean }) {
   const setPalette = useApp((s) => s.setPalette);
   const mac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
-  const right = (
-    <div className="hactions">
-      {actions}
-      {search && <button className="icon-btn" type="button" aria-label="Search templates and results" title={`Search (${mac ? "⌘K" : "Ctrl K"})`} onClick={() => setPalette(true)}><I n="search" /></button>}
-      <KeyStat />
-      <GpuStat />
-    </div>
-  );
-  if (!title) {
-    return (
-      <header className="phead">
-        <div className="phead-row hrow"><div className={bar ? "hfilters open" : "hfilters"}>{filters}</div>{right}</div>
-        {bar && <div className="phead-bar">{bar}</div>}
-        {sub && <div className="phead-sub"><SideScroll className="hsub">{sub}</SideScroll></div>}
-      </header>
-    );
-  }
   return (
     <header className="phead">
-      <div className="phead-row">
-        <div className="ptitle"><h1>{title}</h1>{count != null && <span className="count">{count}</span>}</div>
-        {right}
+      <h1 className="sr">{title}</h1>
+      <div className="phead-row hrow">
+        {lead && <div className="plead">{lead}</div>}
+        <div className={bar ? "hfilters open" : "hfilters"}>{filters}</div>
+        <div className="hactions">
+          {actions}
+          {search && <button className="icon-btn" type="button" aria-label="Search templates and results" title={`Search (${mac ? "⌘K" : "Ctrl K"})`} onClick={() => setPalette(true)}><I n="search" /></button>}
+          <KeyStat />
+          <GpuStat />
+        </div>
       </div>
-      {filters && <div className="filters">{filters}</div>}
+      {bar && <div className="phead-bar">{bar}</div>}
+      {sub && <div className="phead-sub"><SideScroll className="hsub">{sub}</SideScroll></div>}
     </header>
   );
 }
@@ -336,7 +329,7 @@ function GpuPop({ l, cur, waiting }: { l: LocalStatus; cur?: Job; waiting: numbe
       <div className="gp-h">
         <span className="ic"><I n="cpu" /></span>
         <div><b>{gpuName(l.gpu) ?? "GPU"}</b><span>{total ? `${Math.round(total)} GB · ` : ""}local ComfyUI</span></div>
-        <span className={cx("pill", cur ? "yellow" : l.ok ? "mint" : "orange")}>{cur ? "Busy" : l.ok ? "Ready" : "API v2 off"}</span>
+        <span className={cx("pill", cur ? "hot" : l.ok ? "mint" : "orange")}>{cur ? "Busy" : l.ok ? "Ready" : "API v2 off"}</span>
       </div>
       {total > 0 && (
         <div className="gp-m">

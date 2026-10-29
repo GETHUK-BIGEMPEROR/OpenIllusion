@@ -424,6 +424,8 @@ export interface Job {
   kind: "cloud" | "local";
   progress: { value?: number | null; nodes_done?: number | null; nodes_total?: number | null; step?: number | null; steps?: number | null; current_node_class?: string | null } | null;
   preview: string | null;
+  /** Seconds a finished run of this template usually took: the estimate where no progress comes (Comfy Router). */
+  typical?: number | null;
 }
 
 export interface LocalStatus {
@@ -454,6 +456,22 @@ export interface Status {
   router: { ok: boolean | null; reason: string | null; message?: string; status?: number };
   local: LocalStatus;
   onboarded: boolean;
+}
+
+/** A folder on the server's machine and the folders in it, for the folder picker (server/folders.py). */
+export interface FolderListing {
+  path: string;
+  parent: string | null;
+  dirs: { name: string; path: string }[];
+  /** The folder couldn't be read. */
+  denied: boolean;
+  /** The path asked for isn't there; this is its nearest parent that is. */
+  missing: boolean;
+  writable: boolean;
+  sep: string;
+  roots: string[];
+  places: { label: string; path: string }[];
+  made?: string;
 }
 
 export interface Settings {
@@ -621,6 +639,8 @@ export const api = {
     return req<Settings>("POST", "/key/forget");
   },
   onboarded: () => req("POST", "/onboarded"),
+  folders: (path?: string) => req<FolderListing>("GET", `/folders${path ? `?path=${encodeURIComponent(path)}` : ""}`),
+  makeFolder: (parent: string, name: string) => req<FolderListing>("POST", "/folders", { parent, name }),
   settings: () => req<Settings>("GET", "/settings"),
   saveSettings: (s: Partial<Settings> & { local_token?: string; clear_local_token?: boolean }) => {
     if (s.local_token) hold({ token: s.local_token });

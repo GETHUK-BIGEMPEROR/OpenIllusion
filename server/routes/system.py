@@ -8,7 +8,7 @@ import time
 import httpx
 from aiohttp import web
 
-from .. import __version__, engines, jobs, local, proxy, settings
+from .. import __version__, engines, folders, jobs, local, proxy, settings
 from ..router import Router
 from .common import API, APP_DIR, _sockets, err, body, _safe_file, _norm_spec
 
@@ -125,6 +125,24 @@ def register(routes: web.RouteTableDef) -> None:
                 settings.save({"local_comfyui_url": local.upstream_seen_from_here(upstream, s["local_v2_url"])})
                 out = {**settings.public(), "comfyui_from_upstream": True}
         return web.json_response(out)
+
+    @routes.get(API + "/folders")
+    async def folders_list(request):
+        # Folder names are private: only the app's own page may read them, never another site.
+        if request.headers.get("Sec-Fetch-Site") == "cross-site":
+            return err(403, "Cross-origin request refused")
+        try:
+            return web.json_response(folders.listing(request.query.get("path")))
+        except folders.FolderError as e:
+            return err(400, str(e))
+
+    @routes.post(API + "/folders")
+    async def folders_make(request):
+        b = await body(request)
+        try:
+            return web.json_response(folders.make(str(b.get("parent") or ""), str(b.get("name") or "")))
+        except folders.FolderError as e:
+            return err(400, str(e))
 
     @routes.post(API + "/key/forget")
     async def key_forget(request):

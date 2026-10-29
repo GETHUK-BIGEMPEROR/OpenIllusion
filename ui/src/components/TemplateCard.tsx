@@ -60,6 +60,7 @@ export function TemplateCard({ e, selected, locked, onUse, onInspect }: { e: Eng
           {!local && <span className="pill" title={locked ?? "Runs on Comfy Router"} style={locked ? { color: "#FFC48F" } : undefined}><i className="dot violet" />Cloud</span>}
           {n > 1 ? <span className="pill minor">{n} inputs</span> : n === 0 ? <span className="pill minor">Words only</span> : null}
           {locked && local && <span className="pill" title={locked} style={{ color: "#FFC48F" }}>Needs setup</span>}
+          {e.origin === "user" && <span className="pill mine" title="Yours: built or imported here, not shipped with OpenIllusion">Yours</span>}
         </div>
         <span className="pill kindb" title={video ? "Makes a video" : "Makes a photo"}><I n={video ? "film" : "image"} />{video ? "Video" : "Photo"}</span>
       </div>

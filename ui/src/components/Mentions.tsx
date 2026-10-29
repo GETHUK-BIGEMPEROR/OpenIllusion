@@ -2,7 +2,7 @@
 // for it. A click puts the name in the prompt at the cursor; the run sends the model's form.
 import type { RefObject } from "react";
 import { sentAs, type Mention } from "../lib/fields";
-import { I } from "./oi";
+import { cx, I } from "./oi";
 
 export function Mentions({ list, none, model, ta, value, onChange, preview }: {
   list: Mention[]; none?: string | null; model: string; ta: RefObject<HTMLTextAreaElement | null>; value: string; onChange: (v: string) => void;
@@ -19,17 +19,21 @@ export function Mentions({ list, none, model, ta, value, onChange, preview }: {
     requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(head.length, head.length); });
   };
   const own = list.some((m) => m.token !== m.name);
+  // When every token is just "@" + its name, say so once instead of on each chip.
+  const at = own && list.every((m) => m.token === `@${m.name}`);
   const parts = preview && own && value.trim() ? sentAs(value, list) : [];
   return (
     <div className="mn-wrap">
-      <div className="mentions" role="group" aria-label="Name a file in the prompt">
+      <div className="mn-h">
         <span className="mn-l">Name in prompt</span>
+        {at && <span className="mn-as">{model} reads <code>@</code> + name</span>}
+      </div>
+      <div className={cx("mentions", own && !at && "two")} role="group" aria-label="Name a file in the prompt">
         {list.map((m) => (
           <button key={m.key} className="mn" type="button" onClick={() => put(m.name)}
             title={m.token === m.name ? `Put ${m.name} in the prompt` : `Put ${m.name} in the prompt. ${model} gets it as ${m.token}.`}>
             {m.thumb ? <img src={m.thumb} alt="" /> : <I n={m.kind === "video" ? "film" : m.kind === "audio" ? "sound" : "image"} />}
-            <span>{m.name}</span>
-            {m.token !== m.name && <code className="mn-t"><I n="arrow" />{m.token}</code>}
+            <span className="mn-n"><b>{m.name}</b>{m.token !== m.name && !at && <code className="mn-t">{m.token}</code>}</span>
           </button>
         ))}
       </div>

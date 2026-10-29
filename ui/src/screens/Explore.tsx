@@ -184,17 +184,17 @@ export function Explore({ t }: { t?: string }) {
   return (
     <div className="page explore">
       <div className="scroll">
-        <PageHead search={false} filters={<Search value={f.q} onChange={(q) => set({ q })} found={engines.data ? shown.length : null} total={every.length} />}
+        <PageHead title="Explore" search={false} filters={<Search value={f.q} onChange={(q) => set({ q })} found={engines.data ? shown.length : null} total={every.length} />}
           bar={bar}
           actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a Comfy Router model"><I n="plus" /><span className="lbl">New template</span></a>} />
         <div className="wall-wrap wtop">
           {!!drafts.length && <Drafts list={drafts} tested={tested} onOpen={use_} />}
           {engines.isLoading ? (
-            <Masonry label="Loading templates" items={SKELETON} maxCols={4} minCol={250} render={(x) => <div aria-hidden className="card"><div className="media" style={{ "--ar": x.aspect } as CSSProperties} /></div>} />
+            <Masonry label="Loading templates" items={SKELETON} maxCols={5} minCol={200} render={(x) => <div aria-hidden className="card"><div className="media" style={{ "--ar": x.aspect } as CSSProperties} /></div>} />
           ) : engines.isError ? (
             <EmptyBox icon="alert" title="Couldn't load templates" action={<button className="btn" type="button" onClick={() => engines.refetch()}>Try again</button>}>{errMsg(engines.error)}</EmptyBox>
           ) : tiles.length ? (
-            <Masonry label="Templates" items={tiles} maxCols={4} minCol={250}
+            <Masonry label="Templates" items={tiles} maxCols={5} minCol={200}
               render={({ e }) => <TemplateCard e={e} locked={locked(e)} selected={e.id === t} onUse={() => use_(e)} onInspect={() => inspect(e.id === t ? undefined : e.id)} />} />
           ) : (
             <EmptyBox icon="search" title={f.q ? `Nothing matches “${f.q.trim()}”` : "No templates match"} action={<button className="btn" type="button" onClick={clear}>Show all</button>}>

@@ -266,7 +266,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
               <button type="button" aria-pressed={inputView} onClick={() => setView("input")} title="Edit the inputs"><I n="pencil" /><span className="lbl">Inputs</span></button>
               <button type="button" aria-pressed={!inputView} onClick={() => setView(shown ? (group.length > 1 ? "grid" : "compare") : "example")}
                 title={shown ? "See the run" : "What this template makes. Run it to make your own."}>
-                <I n="image" /><span className="lbl">Result</span>{live && <span className="mono pct">{Math.round(jobProgress(shownJob) * 100)}%</span>}
+                <I n="image" /><span className="lbl">Result</span>{live && (shownJob?.kind === "cloud" || !jobProgress(shownJob) ? <span className="pct dotpulse" aria-label="Running" /> : <span className="mono pct">{Math.round(jobProgress(shownJob) * 100)}%</span>)}
               </button>
             </div>
           )}

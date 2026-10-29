@@ -56,6 +56,7 @@ class Job:
     kind: str = "cloud"
     progress: dict | None = None  # local: v2 progress snapshot
     preview: str | None = None  # local: latest in-progress frame, data URI
+    typical: float | None = None  # seconds a finished run of this template usually took; the estimate where no progress comes
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -173,6 +174,7 @@ class Manager:
             job = Job(
                 id=m.id, title=m.title, mode=m.mode, model=engines.router_model(m.engine.model), provider=e.provider,
                 engine=m.engine.model, prompt=m.prompt, parent=parent, poster=staging.poster_url(m), kind=e.kind,
+                typical=store.typical(m.engine.model),
             )
             self.jobs[job.id] = job
             self.emit(job)

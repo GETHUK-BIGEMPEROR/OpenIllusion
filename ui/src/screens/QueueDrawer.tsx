@@ -58,7 +58,7 @@ export function QueueDrawer() {
         <Dialog.Content aria-describedby={undefined} className="qpanel" style={{ outline: "none" }}>
           <div className="qhead">
             <Dialog.Title asChild><h2>Queue</h2></Dialog.Title>
-            {running.length + waiting.length > 0 && <span className="pill"><i className="dot" style={{ background: "var(--yellow)" }} />{running.length + waiting.length} active</span>}
+            {running.length + waiting.length > 0 && <span className="pill"><i className="dot" style={{ background: "var(--accent)" }} />{running.length + waiting.length} active</span>}
             <Dialog.Close asChild><button className="icon-btn" type="button" aria-label="Close queue"><I n="x" /></button></Dialog.Close>
           </div>
           <div className="qbody">

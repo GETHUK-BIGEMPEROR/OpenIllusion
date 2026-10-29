@@ -194,3 +194,20 @@ def test_a_draft_is_published_by_a_finished_run_of_it_which_becomes_its_cover():
     finally:
         engines.clear_cover(e.id)
         engines.delete_template(e.id)
+
+
+def test_typical_is_the_median_of_finished_runs_of_that_template():
+    def run(elapsed, status="done", model=HAT):
+        m = sc.Manifest(id=sc.new_id(), title="t", mode="edit", engine=sc.Engine(model=model), prompt="p", status=status,
+                        result=sc.Result(file="result/x.webp", kind="image", elapsed=elapsed))
+        store.save(m, shelf="mine")
+
+    assert store.typical(HAT) is None
+    run(30)
+    assert store.typical(HAT) is None  # one run is no pattern
+    run(50)
+    assert store.typical(HAT) == 40
+    run(90)
+    run(500, status="failed")
+    run(7, model="cloud/other")
+    assert store.typical(HAT) == 50

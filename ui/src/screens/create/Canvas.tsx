@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNod
 import { ABPlayer, type Side } from "../../components/ABPlayer";
 import { clipSlot as asClip, dropIntoStudio } from "../../components/Drop";
 import { cx, I, jobProgress, QUEUED, Ring } from "../../components/oi";
+import { RunHud, RunVeil } from "../../components/RunStatus";
 import { bySlot, useUploader } from "../../components/Refs";
 import { StageError, type Fix } from "../../components/Studio";
 import { Spinner } from "../../components/ui";
@@ -158,20 +159,13 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
   if (eff === "live" && shown) {
     const q = !!job && QUEUED.has(job.state);
     const p = jobProgress(job);
-    const steps = job?.progress?.steps;
-    const step = job?.progress?.step;
     const img = job?.preview ?? beforeUrl;
     return (
-      <div className="frame live" style={{ "--ar": ar, "--p": p } as CSSProperties}>
+      <div className={cx("frame live", job?.kind === "cloud" && "cloud")} style={{ "--ar": ar, "--p": p } as CSSProperties}>
         {img && <img src={img} alt="" style={q || !job?.preview ? { filter: "blur(8px) saturate(.3) brightness(.55)" } : undefined} />}
-        <div className="noise" style={q ? { opacity: 0.18 } : undefined} />
-        <div className="hud"><div className="hud-in">
-          <Ring p={p} />
-          <b>{q ? "Waiting in queue" : job?.state === "downloading" ? "Saving result" : "Sampling"}</b>
-          <span>{q ? (job?.queue_position ? `#${job.queue_position} in queue` : "starts after the current run")
-            : step && steps ? `step ${step}/${steps}` : job?.progress?.nodes_total ? `node ${job.progress.nodes_done ?? 0}/${job.progress.nodes_total}` : job?.detail || "starting"}</span>
-        </div></div>
-        {job && <div className="corner r"><button className="btn sm glass" type="button" onClick={async () => { await api.cancel(job.id); qc.invalidateQueries({ queryKey: ["jobs"] }); }}>Cancel</button></div>}
+        <RunVeil job={job} preview={!!job?.preview && !q} />
+        {job ? <RunHud job={job} onCancel={async () => { await api.cancel(job.id); qc.invalidateQueries({ queryKey: ["jobs"] }); }} />
+          : <div className="hud"><div className="hud-in"><Ring p={0} /><b>Starting</b></div></div>}
       </div>
     );
   }
@@ -180,7 +174,7 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
     return (
       <div className="frame" style={{ "--ar": ar } as CSSProperties}>
         {beforeUrl && <img src={beforeUrl} alt="" style={{ filter: "saturate(.3) brightness(.4)" }} />}
-        <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "grid", placeItems: "center", padding: 16, background: "linear-gradient(rgba(255,107,126,.06),rgba(255,107,126,.14))", overflow: "auto" }}>
+        <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "grid", placeItems: "center", padding: 16, background: "linear-gradient(rgba(255,92,120,.06),rgba(255,92,120,.14))", overflow: "auto" }}>
           <StageError state={shown.status} error={job?.error ?? shown.result?.error} detail={job?.detail} fixes={fixes} compact />
         </div>
       </div>
@@ -279,8 +273,8 @@ function VCell({ n, v, job, fallback, onOpen }: { n: number; v?: Manifest; job?:
       {img && <img src={img} alt="" style={!done ? { filter: "blur(8px) saturate(.3) brightness(.55)" } : undefined} />}
       {live && (
         <>
-          <div className="noise" style={q ? { opacity: 0.18 } : undefined} />
-          <div className="hud"><div className="hud-in"><Ring p={p} sm /><span>{q ? "waiting" : job?.progress?.step && job.progress.steps ? `${job.progress.step}/${job.progress.steps}` : "starting"}</span></div></div>
+          <RunVeil job={job} preview={!!job?.preview && !q} />
+          <RunHud job={job!} small />
         </>
       )}
       {failed && <div className="gfail"><span className="ic"><I n="alert" /></span><b>{v!.status === "cancelled" ? "Cancelled" : "Failed"}</b></div>}

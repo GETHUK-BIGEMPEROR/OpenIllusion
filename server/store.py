@@ -200,6 +200,19 @@ def variants(parent: str) -> list[dict]:
     return [_row(r) for r in rows]
 
 
+def typical(model: str, n: int = 12) -> float | None:
+    """How long a run of this template usually takes: the median of its last ``n`` finished runs, once there are two."""
+    with _lock:
+        rows = db().execute(
+            "SELECT elapsed FROM generations WHERE model = ? AND status = 'done' AND elapsed > 0 ORDER BY created DESC LIMIT ?", (model, n)
+        ).fetchall()
+    xs = sorted(r[0] for r in rows)
+    if len(xs) < 2:
+        return None
+    mid = len(xs) // 2
+    return round(xs[mid] if len(xs) % 2 else (xs[mid - 1] + xs[mid]) / 2, 1)
+
+
 def facets() -> dict:
     with _lock:
         c = db()

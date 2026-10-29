@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { ABPlayer, typing } from "../components/ABPlayer";
 import { OutcomeToggle } from "../components/bits";
 import { EngineDropdown } from "../components/Engine";
-import { appRoot, Compare, cx, EmptyBox, gpuName, I, jobProgress, QUEUED, Ring, useStatus } from "../components/oi";
+import { appRoot, Compare, cx, EmptyBox, gpuName, I, jobProgress, QUEUED, useStatus } from "../components/oi";
+import { RunHud, RunVeil } from "../components/RunStatus";
 import { StageError, type Fix } from "../components/Studio";
 import { tplModel, tplName, useCoverActions } from "../components/TemplateCard";
 import { api, fileUrl, workflowUrl, type EngineInfo, type Manifest } from "../lib/api";
@@ -145,13 +146,11 @@ export function GenerationDetail({ id }: { id: string }) {
     if (after) inner = eff === "compare" && before ? <Compare before={before} after={after} lb="Input" la="Result" /> : <img src={eff === "input" && before ? before : after} alt={eff === "input" ? "Input" : "Result"} className={eff === "input" && before ? undefined : "alpha"} />;
     else if (live) {
       const qd = QUEUED.has(job!.state);
-      const p = jobProgress(job);
       inner = (
         <>
           {(job!.preview ?? before) && <img src={job!.preview ?? before!} alt="" style={qd || !job!.preview ? { filter: "blur(8px) saturate(.3) brightness(.55)" } : undefined} />}
-          <div className="noise" />
-          <div className="hud"><div className="hud-in"><Ring p={p} /><b>{qd ? "Waiting in queue" : "Sampling"}</b>
-            <span>{qd ? "starts after the current run" : job!.progress?.step && job!.progress.steps ? `step ${job!.progress.step}/${job!.progress.steps}` : job!.detail || "starting"}</span></div></div>
+          <RunVeil job={job} preview={!!job!.preview && !qd} />
+          <RunHud job={job!} />
         </>
       );
     } else if (failed) {
@@ -173,9 +172,9 @@ export function GenerationDetail({ id }: { id: string }) {
     stage = <div className="canvas"><div className={cx("frame", live && "live")} style={{ "--ar": ar, "--p": jobProgress(job) } as CSSProperties}>{inner}</div></div>;
   }
 
-  const statusLine = live ? <span className="pill"><i className="dot" style={{ background: "var(--yellow)", animation: "pulse 1.2s infinite" }} />{QUEUED.has(job!.state) ? "Queued" : "Running"}</span>
+  const statusLine = live ? <span className="pill"><i className="dot" style={{ background: "var(--accent)", animation: "pulse 1.2s infinite" }} />{QUEUED.has(job!.state) ? "Queued" : "Running"}</span>
     : failed ? <span className="pill rose">{m.status === "moderated" ? "Moderated" : m.status === "cancelled" ? "Cancelled" : "Failed"}</span>
-    : m.status === "done" ? <span className="pill" style={{ background: "rgba(95,211,154,.14)", color: "var(--mint)" }}><I n="check" />Done</span> : null;
+    : m.status === "done" ? <span className="pill" style={{ background: "rgba(61,245,168,.14)", color: "var(--mint)" }}><I n="check" />Done</span> : null;
 
   return (
     <div className="viewer" role="region" aria-label={name}>
@@ -275,7 +274,7 @@ export function GenerationDetail({ id }: { id: string }) {
 
         <div className="v-actions">
           <button className="btn primary" type="button" onClick={() => remix()} title="Put every input and setting back in Create"><I n="remix" />Open in Create</button>
-          <button className="btn" type="button" onClick={rerun} disabled={missingMedia || live} title={missingMedia ? "Some media isn't in this generation. Open it in Create and add your own." : "Same settings, new seed"}><I n="refresh" />Re-run</button>
+          <button className="icon-btn" type="button" aria-label="Re-run" onClick={rerun} disabled={missingMedia || live} title={missingMedia ? "Some media isn't in this generation. Open it in Create and add your own." : "Re-run: same settings, new seed"}><I n="refresh" /></button>
           <button className="icon-btn" type="button" aria-label="Export" title="Export (E)" onClick={() => share(m.id)} disabled={m.status !== "done"}><I n="share" /></button>
           {after && m.result?.file && <a className="icon-btn" href={after} download={resultName(m.title, m.id, m.result.file)} aria-label="Download result" title="Download result"><I n="download" /></a>}
           <Popover.Root open={swap} onOpenChange={setSwap}>

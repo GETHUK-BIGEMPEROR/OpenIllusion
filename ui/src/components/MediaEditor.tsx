@@ -257,7 +257,7 @@ export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, o
           <div className="ed-stat"><span>Starts</span><b className="mono">{clock(trim[0])}</b></div>
           <div className="ed-stat"><span>Ends</span><b className="mono">{clock(trim[1])}</b></div>
           <div className="ed-stat"><span>Keeps</span><b className="mono">{o.len.toFixed(1)} s</b></div>
-          <p className="ed-hint">Drag the yellow ends, or use the arrow keys on them (Shift for whole seconds).</p>
+          <p className="ed-hint">Drag the bright ends, or use the arrow keys on them (Shift for whole seconds).</p>
           {m.kind === "audio" && <p className="ed-hint">Saved as MP3.</p>}
         </section>
       );

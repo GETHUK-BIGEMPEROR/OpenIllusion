@@ -204,7 +204,7 @@ The two kinds differ only in where the box comes from and who knows its inputs:
 | Freeze | Built in: the workflow's loaders are fixed and each needs a file | At save: the template keeps the mode its run used |
 | Runs through | `local.py` → comfy-api-proxy `:8189` → your ComfyUI | `router.py` → `api.comfy.org/v2/models/{provider}/{model}`; files by link via `cloud.comfy.org/api/v2/assets` |
 | Cost | Free, on your GPU | Paid per run; usage is in your Comfy dashboard (OpenIllusion shows no prices) |
-| Progress | Live percentage | Queue position only |
+| Progress | Live: sampler step, node, preview frames, time left from the pace so far | Stage and queue position; time counted against how long this template usually takes (never a made-up percent) |
 | When it fails | Missing nodes and models are listed, never installed; ComfyUI's errors pass through | Router's errors pass through |
 
 Detection works for workflows because ComfyUI's node types are one shared
@@ -237,7 +237,7 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Generation | `#/generation/{id}` | One result full screen: before/after player, variants, re-run, Open in Create, notes, download (the result file itself), export and share. Arrows step through the Library. | `screens/GenerationDetail.tsx`, `ShareSheet.tsx` |
 | Build | `#/build`, `#/build?from={template}`, `#/build?track=cloud` (opens on Comfy Router) | Make a template in three steps; see [Builder](#making-a-template-builder). | `screens/builder/` |
 | Queue | drawer | Every run from both studios, grouped by what it needs from you. | `screens/QueueDrawer.tsx` |
-| Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Templates (shipped ones taken off Explore, each with Put back), Storage (disk use, clean working copies, back up and restore), Cloud (API key). | `screens/Settings.tsx` |
+| Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Templates (shipped ones taken off Explore, each with Put back), Storage (disk use, clean working copies, back up and restore, the output folder: typed, or **Choose…** for the folder picker), Cloud (API key). | `screens/Settings.tsx` |
 | Connect | `#/connect` | First run only: check the ComfyUI on this machine, then open Explore. No account. | `screens/Connect.tsx` |
 | Export template | Create's header, the inspector | **Export .illusion**: one template with its samples and the cover you set, to share. The other OpenIllusion drops it on Explore's Add a template (or anywhere) and it's theirs: deletable, under a new id if theirs is taken. Local templates also keep **ComfyUI workflow**, a `.json` for ComfyUI itself (dropped back here it starts a new template in Build). | `server/template_pack.py`, `components/TemplateCard.tsx` |
 | Export | sheet | Export on a finished run (Create, the Generation page): a `.illusion` file (Light, Full, or Recipe only), the recipe as JSON, or a link. It says what the file is for: drop it on any OpenIllusion page or press Library → Import; it opens under Imported, and Open in Create loads it to run again. | `screens/ShareSheet.tsx` |
@@ -251,7 +251,7 @@ The current design is the settled one. Change it on purpose, and write the chang
 here in the same commit.
 
 - **Higgsfield-simple.** Each screen has one main action (Use, Run, Save), in
-  yellow. The box's own settings (sampler, steps, model flags) never show.
+  the neon gradient. The box's own settings (sampler, steps, model flags) never show.
 - **Say what it is, not how it's built.** Inputs read Image 1, Video 1, Audio 1;
   modes read Text to video, Image to video, Video edit. Node ids, field paths and
   model ids appear only as small mono text.
@@ -273,9 +273,25 @@ here in the same commit.
   confirm dialog is for losing work that can't come back.
 - **Live, never polled by you.** Job progress arrives over the WebSocket into the
   Queue drawer and the Library card.
-- **Look.** Dark and violet-tinted; one accent, `--yellow`, for the main action
-  and the current step; `--mint` done, `--violet` cloud, `--orange` warning,
-  `--rose` error. Unbounded for headings, Sora for text, Geist Mono for numbers and
+- **A run says what it's doing.** `components/RunStatus.tsx` draws every live run
+  (Create's stage, the Library card, the detail page): a stage track (Getting
+  ready, In line, Sampling or Generating, Saving), what it's on in words, time
+  spent and time left. A local run shows its sampler step, node and the sampler's
+  own preview frames (ComfyUI sends them when started with `--preview-method auto`),
+  and its time left comes from its pace. Comfy Router sends no progress, so a cloud
+  run shows an indeterminate bar and counts against `typical`: the median time of
+  the template's last finished runs (`store.typical`, set on the job at start;
+  none until two have finished).
+- **No page titles.** The rail already names the section, so a page never repeats
+  it; each keeps a hidden `<h1>` for screen readers. The top row is filters,
+  actions, search and the status chips.
+- **Look ("Afterglow").** Compact and near-black (`--bg #07060D`) with faint
+  pink, violet and cyan glows. The accent is one neon gradient, `--neon`
+  (pink `#FF4FA3` → violet `#9D6BFF` → cyan `#2FD8FF`), for the main action, the
+  current rail item, focus rings and progress; icon strokes take it through the
+  shared SVG gradient `#ng` in the sprite. `--accent` is the pink alone where a
+  flat colour is needed; `--mint` done, `--violet` cloud, `--orange` warning,
+  `--rose` error. Buttons are 32px, the rail 64px, cards 10px apart. Unbounded for headings, Sora for text, Geist Mono for numbers and
   ids. All styling is plain CSS in `ui/src/styles/` (no utility framework):
   tokens and the reset in `base.css`, shared pieces (buttons, pills, fields,
   notices) in `common.css` and `fields.css`, one stylesheet per area beside them
@@ -356,6 +372,7 @@ non-root user, the home folder in a volume, ComfyUI reached on the host by
 | `bundle.py` · `archive.py` | Export a generation as a zip, import one back; the checks every zip from outside passes first (`archive.files`: paths stay inside, allowed types, count and size caps). |
 | `template_pack.py` | One template as a `.illusion` (`illusion.json` with a sha256 per file, `template.json`, `media/`, `cover/`): `export`, `is_pack` (a template's, not a generation's), `install` (checked like any zip from outside, every media name must be in the package, the template must load before anything moves in). |
 | `backup.py` | Whole-library backups (`.illusionbackup`): `create`, `inspect` (what a restore would add), `restore` (merge). See [Backups](#backups). |
+| `folders.py` | The folder picker's side: a folder's folders (no files, hidden ones out), Home and its media folders, the drives (Windows) or `/`, and making a new folder. A browser can't hand a page a folder's path, so `components/FolderPicker.tsx` walks the server's disk through it; in Docker that is the container's. |
 | `settings.py` · `storage.py` · `paths.py` | Settings (on disk) and the secrets (in memory, `remember`); disk usage and cleanup; home folder paths, what each entry is (`TIERS`), and `write_atomic`. See [Storage](#storage). |
 
 **UI** (`ui/src/`, React + Vite):
@@ -461,6 +478,7 @@ typed call for each.
 | --- | --- |
 | Status and setup | `GET status` · `POST local/check` · `POST local/proxy/start` · `POST onboarded` · `GET ws` (job updates) |
 | Settings and key | `GET/POST settings` · `POST key/test` · `POST key/forget` |
+| Folder picker | `GET folders?path=` (a folder's folders, the places and drives) · `POST folders` (`{parent, name}`: a new folder) |
 | Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `POST templates/hide` (`{engine, hidden}`: a shipped template off Explore or back) · `POST templates/publish` (`{engine, generation}`: a draft on Explore; the run must be a finished one of it and becomes the cover when it has none) · `GET templates/input` · `GET templates/workflow` · `GET templates/export` (a template's `.illusion`; `POST import` adds one) · `GET/PUT/DELETE cover` |
 | Builder | `POST builder/workflow` · `POST builder/from-template` · `GET builder/models` (every adapter) · `POST builder/save` · `DELETE builder/template` |
 | Files | `POST upload` (photo, clip or sound; other formats converted) · `GET uploads/{asset}` · `POST frame` (a still from a clip) · `POST media/edit` (`{asset, ops: {rotate, flip, crop, width, height, start, end, fps, mute}}` → a new upload) |

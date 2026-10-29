@@ -111,9 +111,10 @@ export function TabBar({ route }: { route: Route }) {
 export function LogoMark({ size = 40 }: { size?: number }) {
   return (
     <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden>
-      <rect width="40" height="40" rx="12" fill="#F2FF59" />
-      <circle cx="20" cy="20" r="10.5" fill="none" stroke="#16101C" strokeWidth="4.5" />
-      <circle cx="23.6" cy="16.4" r="3.3" fill="#16101C" />
+      <defs><linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#FF4FA3" /><stop offset=".5" stopColor="#9D6BFF" /><stop offset="1" stopColor="#2FD8FF" /></linearGradient></defs>
+      <rect width="40" height="40" rx="12" fill="url(#logo-g)" />
+      <circle cx="20" cy="20" r="10.5" fill="none" stroke="#0A0714" strokeWidth="4.5" />
+      <circle cx="23.6" cy="16.4" r="3.3" fill="#0A0714" />
     </svg>
   );
 }
