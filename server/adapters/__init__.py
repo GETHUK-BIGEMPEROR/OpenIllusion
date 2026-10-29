@@ -6,7 +6,7 @@ an adapter says which inputs a model takes, by role, where each goes in the requ
 and in what form, which go together, what else changes when one is used, where the
 prompt goes, the request it starts from, and where the result comes back. A template
 built from one carries its own copy of the request, cut down to the inputs its run
-used. README.md, "Adapters", is the full guide.
+used. docs/TEMPLATES.md, "Adapters", is the full guide.
 
 Adapter file::
 

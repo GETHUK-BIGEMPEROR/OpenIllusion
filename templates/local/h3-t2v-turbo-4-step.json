@@ -38,7 +38,7 @@
     }
   ],
   "built": true,
-  "model_name": "Minimax H3",
+  "model_name": "MiniMax H3",
   "kind": "local",
   "provider": "local",
   "outputs": [
