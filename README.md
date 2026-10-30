@@ -231,36 +231,30 @@ the GPU work. Install it with Python (1a) or run it in Docker (1b), then add the
 
 **1a · Install with Python**
 
-Windows (PowerShell):
+Get the code (or download the ZIP from GitHub and unzip it), then start it:
 
 ```powershell
 git clone https://github.com/GETHUK-BIGEMPEROR/OpenIllusion.git
 cd OpenIllusion
-py -m venv .venv
-.venv\Scripts\python -m pip install -e .
-npm --prefix ui install
-npm --prefix ui run build
-.venv\Scripts\python -m server --open
+.\start.bat        # Windows; or double-click start.bat
+./start.sh         # macOS and Linux
 ```
 
-macOS and Linux:
+That's the install and the start, and it's the same every time. The first start makes a
+Python environment in `.venv`, installs into it, builds the app's page, and opens
+http://127.0.0.1:7870; it takes a few minutes. Later starts skip what's already done and
+open in seconds. Keep the window open while you use the app; close it to stop. Starting
+again while it runs just opens the browser on it.
 
-```bash
-git clone https://github.com/GETHUK-BIGEMPEROR/OpenIllusion.git
-cd OpenIllusion
-python3 -m venv .venv
-.venv/bin/python -m pip install -e .
-npm --prefix ui install
-npm --prefix ui run build
-.venv/bin/python -m server --open
-```
+On first start the app checks the ComfyUI on this machine and counts the templates whose
+models are in it, then opens Explore. It starts comfy-api-proxy (Comfy API v2) on `:8189`
+itself, from the app's own `.venv`; nothing goes into ComfyUI. Options, after `start.bat`
+or `start.sh`: `--update` (get the latest version first), `--port 7871`, `--no-open`,
+`--host` (default `127.0.0.1`; anything else lets other machines spend your credits).
 
-The app opens at http://127.0.0.1:7870. On first start it checks the ComfyUI on this
-machine and counts the templates whose models are in it, then opens Explore. It starts
-comfy-api-proxy (Comfy API v2) on `:8189` itself; `pip install` brought it in. Nothing goes
-into ComfyUI: the proxy runs beside it, from the app's own `.venv`. Next time, only the
-last line. Options: `--port 7871`, `--host` (default `127.0.0.1`; anything else lets other machines spend your credits),
-`--open` (open the browser).
+By hand, the same steps are `python -m venv .venv`, `.venv\Scripts\python -m pip install -e .`
+(`.venv/bin/python` on macOS and Linux), `npm --prefix ui ci`, `npm --prefix ui run build`,
+then `.venv\Scripts\python -m server --open`.
 
 **1b · Or run it in Docker**
 
@@ -300,8 +294,9 @@ Restart ComfyUI (or press Check again in the app) after adding files.
 **3 · Cloud templates (optional).** Paste a Comfy API key in Settings → Cloud. The
 browser keeps it; the server never saves it. A headless server can take it from `COMFY_API_KEY`.
 
-**Update.** `git pull`, then `pip install -e .` and `npm --prefix ui run build` again (or,
-with Docker, `docker compose up --build -d`). Your library is not in the repo and stays.
+**Update.** `start.bat --update` (or `./start.sh --update`): it pulls the latest version,
+reinstalls what changed and starts. With Docker, `git pull` then `docker compose up --build -d`.
+Your library is not in the repo and stays.
 
 **Where your things are.** Everything you make (results, templates you build, settings,
 uploads, the trash) is in one home folder: `~/.openillusion`, or the folder
@@ -313,13 +308,14 @@ Never the API key: that stays in the browser.
 | What you see | Do this |
 | --- | --- |
 | "another server is already using …" at start | One server per home folder. Use the running one, or start a second with its own `OPENILLUSION_HOME`. |
-| Port 7870 is taken | `python -m server --port 7871` (Docker: change the left side of `127.0.0.1:7870:7870`). |
+| start says Python or Node.js is needed | Install the one it names (it prints the link, and on Windows the `winget` line), open a new window, start again. |
+| Port 7870 is taken | `start.bat --port 7871` (Docker: change the left side of `127.0.0.1:7870:7870`). |
 | "ComfyUI isn't answering" | Start ComfyUI, or set its address in Settings → Your GPU, then Check again. |
 | "Your ComfyUI runs on CPU" | ComfyUI was started with `--cpu` (or its torch has no GPU build). Runs still go, but photo and video templates would take hours: restart ComfyUI without `--cpu`. |
 | "Comfy API v2 isn't running" | `pip install comfy-api-proxy` into the same `.venv`; its log is `proxy.log` in the home folder. |
 | A template lists missing nodes or models | Install those into ComfyUI (Manager's Install Missing, or the links in the table above), restart ComfyUI, Check again. The app never installs anything. |
 | Cloud Run says to add a key | Settings → Cloud. |
-| A blank page after an update | `npm --prefix ui run build`, then reload. |
+| A blank page after an update | Start with `start.bat` (it rebuilds the page), or `npm --prefix ui run build`, then reload. |
 
 ## The idea
 

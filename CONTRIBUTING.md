@@ -7,6 +7,10 @@ adapters).
 
 ## Develop
 
+`start.bat` (or `./start.sh`) sets everything up and runs the built app; it calls
+`scripts/launch.py`, which reinstalls only what changed (hashes in
+`.venv/openillusion-stamps.json`). For working on the code:
+
 ```powershell
 .venv\Scripts\python -m server --port 7870      # backend
 npm --prefix ui run dev                          # Vite on :5178, HMR, proxies /api to :7870

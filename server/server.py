@@ -145,6 +145,11 @@ def main(argv: list[str] | None = None) -> None:
     try:
         paths.claim_home(url)
     except paths.HomeInUse as e:
+        if a.open and str(e).startswith("http"):
+            # Started again (start.bat twice): bring up the one that's running.
+            log.info("OpenIllusion is already running at %s; opening it.", e)
+            webbrowser.open(str(e))
+            raise SystemExit(0) from None
         log.error("OpenIllusion: another server is already using %s%s. Use that one, or give this one "
                   "its own home folder with OPENILLUSION_HOME.", paths.user_root(), f" ({e})" if str(e) else "")
         raise SystemExit(1) from None

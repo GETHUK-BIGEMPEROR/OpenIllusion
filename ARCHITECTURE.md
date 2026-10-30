@@ -52,7 +52,10 @@ same id, so editing in the app never changes the repo.
 Where to look when you change something.
 
 At the root: `server/`, `ui/`, `templates/` (shipped `local/` and `cloud/` templates),
-`schema/` (the generation format), `tests/`, and `Dockerfile` with `docker-compose.yml`
+`schema/` (the generation format), `tests/`, `start.bat`/`start.sh` (one-step install,
+update and start through `scripts/launch.py`: makes `.venv`, reruns `pip install` or
+`npm ci` and the UI build only when their inputs' hash changed, then `python -m server --open`;
+a second start finds the home folder held and opens the running one), and `Dockerfile` with `docker-compose.yml`
 (the app in a container: the UI built in a Node stage, served by the Python server as a
 non-root user, the home folder in a volume, ComfyUI reached on the host by
 `OPENILLUSION_COMFYUI_URL`, which `settings.load` takes as the address until one is saved).
