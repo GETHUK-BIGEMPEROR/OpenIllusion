@@ -9,7 +9,7 @@
       "key": "prompt",
       "type": "text",
       "required": true,
-      "default": "Stylized 3D animated feature film style. Two cartoon animals singing karaoke side by side in a cozy neon-lit karaoke room, medium shot, upper bodies and faces clearly visible. Left: a chubby red panda in a yellow hoodie, holding a microphone with both paws. Right: a lanky raccoon in a purple jacket and round glasses, holding a second microphone. Both sing passionately, swaying to the beat, mouths moving with the lyrics, then turn to each other and laugh. Lyrics screen glowing behind them, colorful disco lights sweeping across the walls. Soft fluffy fur, big expressive eyes, rounded proportions, warm cinematic lighting, camera slowly pushing in. High detail 3D animation render.",
+      "default": "Realistic phone video, vertical, static camera on a tripod. A fluffy golden retriever stands on its hind legs in the middle of a bright, sunny living room and dances happily: it sways side to side, bounces, waves its front paws and turns in a small circle. The whole dog stays fully in frame from head to tail for the entire clip, nothing passes in front of it. Plain cream walls, a wooden floor, a green plant in the corner, soft daylight from a window. Audio: an original upbeat ukulele tune with hand claps, no lyrics, paws tapping on the wooden floor, one cheerful bark near the end.",
       "bind": [
         [
           "instances",
@@ -22,7 +22,7 @@
       "key": "aspect",
       "type": "aspect",
       "label": "Aspect",
-      "default": "16:9",
+      "default": "9:16",
       "bind": [
         [
           "parameters",
@@ -93,12 +93,12 @@
   "body": {
     "instances": [
       {
-        "prompt": "Stylized 3D animated feature film style. Two cartoon animals singing karaoke side by side in a cozy neon-lit karaoke room, medium shot, upper bodies and faces clearly visible. Left: a chubby red panda in a yellow hoodie, holding a microphone with both paws. Right: a lanky raccoon in a purple jacket and round glasses, holding a second microphone. Both sing passionately, swaying to the beat, mouths moving with the lyrics, then turn to each other and laugh. Lyrics screen glowing behind them, colorful disco lights sweeping across the walls. Soft fluffy fur, big expressive eyes, rounded proportions, warm cinematic lighting, camera slowly pushing in. High detail 3D animation render."
+        "prompt": "Realistic phone video, vertical, static camera on a tripod. A fluffy golden retriever stands on its hind legs in the middle of a bright, sunny living room and dances happily: it sways side to side, bounces, waves its front paws and turns in a small circle. The whole dog stays fully in frame from head to tail for the entire clip, nothing passes in front of it. Plain cream walls, a wooden floor, a green plant in the corner, soft daylight from a window. Audio: an original upbeat ukulele tune with hand claps, no lyrics, paws tapping on the wooden floor, one cheerful bark near the end."
       }
     ],
     "parameters": {
       "sampleCount": 1,
-      "aspectRatio": "16:9",
+      "aspectRatio": "9:16",
       "resolution": "720p",
       "durationSeconds": 6,
       "generateAudio": true
