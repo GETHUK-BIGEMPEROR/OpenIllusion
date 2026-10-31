@@ -12,7 +12,7 @@ from server import generation as sc
 from server import adapters, builder, engines, jobs, local, media, settings, store
 from server.router import Router
 
-from conftest import make_image, make_video
+from conftest import make_image, make_video, with_sound
 
 VEO = "veo/veo-3.1-fast-generate-001"
 SEEDANCE = "byteplus/dreamina-seedance-2-5-260628"
@@ -492,34 +492,6 @@ def test_an_unknown_engine_doesnt_run():
 
 # ---- keeping the edited clip's own sound -------------------------------------------
 
-def _with_sound(path, seconds=4.0, size=(854, 480)):
-    """A clip with a tone on it."""
-    from fractions import Fraction
-
-    import av
-    import numpy as np
-
-    silent = make_video(path.with_name(path.stem + "-silent.mp4"), seconds=seconds, size=size)
-    with av.open(str(silent)) as inp, av.open(str(path), "w", format="mp4") as out:
-        vin = inp.streams.video[0]
-        vout = out.add_stream_from_template(vin)
-        a = out.add_stream("aac", rate=48000)
-        for pkt in inp.demux(vin):
-            if pkt.dts is not None:
-                pkt.stream = vout
-                out.mux(pkt)
-        t = np.arange(int(seconds * 48000)) / 48000
-        tone = (np.sin(2 * np.pi * 440 * t) * 0.3).astype(np.float32)
-        for k in range(0, len(tone), 1024):
-            f = av.AudioFrame.from_ndarray(np.stack([tone[k:k + 1024]] * 2), format="fltp", layout="stereo")
-            f.sample_rate, f.pts, f.time_base = 48000, k, Fraction(1, 48000)
-            for p in a.encode(f):
-                out.mux(p)
-        for p in a.encode():
-            out.mux(p)
-    return path
-
-
 def test_keep_the_clips_sound_is_offered_only_with_a_clip_to_edit():
     a = adapters.get(SEEDANCE)
     sound = lambda *roles: next(s for s in adapters.settings_for(a, list(roles)) if s["key"] == "sound")
@@ -550,7 +522,7 @@ def test_a_template_names_the_clip_whose_sound_it_keeps():
 
 @pytest.mark.parametrize("pick,keeps", [("clip", True), ("new", False)])
 def test_the_result_keeps_the_clips_own_sound(tmp_path, monkeypatch, pick, keeps):
-    clip = _with_sound(tmp_path / "clip.mp4")
+    clip = with_sound(tmp_path / "clip.mp4")
     out = make_video(tmp_path / "out.mp4", seconds=3).read_bytes()  # the model's answer, silent
     tid = builder.save(builder.assemble_cloud(_spec(model=SEEDANCE, media=[(5, "video")], prompt="make it snow")), {})
     engines.reload_templates()

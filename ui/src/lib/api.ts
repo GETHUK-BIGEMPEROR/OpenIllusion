@@ -88,7 +88,7 @@ export interface EngineInfo {
   edited?: boolean;
   /** Tile poster URL: the user's pick, else the one the template ships with. */
   cover?: string | null;
-  /** Optional short muted loop played over the poster. */
+  /** Optional short loop over the poster, with the example's sound (cards play it muted). */
   cover_video?: string | null;
   /** Poster width / height, so the wall lays out before images load. */
   cover_aspect?: number | null;

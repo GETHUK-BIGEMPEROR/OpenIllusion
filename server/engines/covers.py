@@ -126,9 +126,10 @@ def _cover_info(e: Engine) -> dict:
     poster, loop = cover_files(e)
     if poster is None:
         return {"cover": None, "cover_video": None, "cover_aspect": None, "cover_before": None}
-    v = poster.stat().st_mtime_ns // 1_000_000
-    url = f"/api/cover?engine={quote(e.id, safe='')}&v={v}{CACHE_ERA}"
     before = cover_before(e)
+    # Served immutable: the version moves when any of the three files does, not just the poster.
+    v = max(p.stat().st_mtime_ns for p in (poster, loop, before) if p is not None) // 1_000_000
+    url = f"/api/cover?engine={quote(e.id, safe='')}&v={v}{CACHE_ERA}"
     return {
         "cover": url,
         "cover_video": f"{url}&video=1" if loop else None,
@@ -138,8 +139,9 @@ def _cover_info(e: Engine) -> dict:
 
 
 def set_cover(engine_id: str, src: Path, loop: Path | None = None, before: Path | None = None) -> Path:
-    """Make ``src`` this template's cover. A video becomes a short muted loop
+    """Make ``src`` this template's cover. A video becomes a short loop, with its sound,
     plus its first frame as the poster; ``loop`` adds a loop to an image poster.
+    Cards play the loop muted; Create's example plays its sound.
     ``before``: the input it was made from, kept beside it the same way."""
     dst = user_cover(engine_id)
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -150,8 +152,7 @@ def set_cover(engine_id: str, src: Path, loop: Path | None = None, before: Path 
         mp4.unlink(missing_ok=True)
     else:
         tmp = mp4.with_suffix(".tmp.mp4")
-        media.transcode(clip, tmp, end=COVER_LOOP_SECONDS, max_height=720, max_bytes=4 * 1024 * 1024,
-                        min_fps=1, keep_audio=False)
+        media.transcode(clip, tmp, end=COVER_LOOP_SECONDS, max_height=720, max_bytes=4 * 1024 * 1024, min_fps=1)
         tmp.replace(mp4)
     for x in BEFORE_EXT:
         user_cover(engine_id, x).unlink(missing_ok=True)

@@ -5,7 +5,7 @@ import pytest
 
 from server import engines
 
-from conftest import make_image, make_video
+from conftest import make_image, make_video, with_sound
 
 HAT = "local/qwen21-add-hat"
 
@@ -196,13 +196,14 @@ def test_cover_from_image_then_reset(tmp_path):
     assert engines.describe(e)["cover"] == shipped and not engines.describe(e)["cover_custom"]
 
 
-def test_cover_from_video_is_a_muted_loop_with_poster(tmp_path):
-    engines.set_cover(HAT, make_video(tmp_path / "clip.mp4", seconds=12, size=(240, 320)))
+def test_cover_from_video_is_a_loop_with_its_sound_and_a_poster(tmp_path):
+    # The loop is the template's example on Create: it keeps the result's sound (cards play it muted).
+    engines.set_cover(HAT, with_sound(tmp_path / "clip.mp4", seconds=12, size=(240, 320)))
     e = engines.get(HAT)
     d = engines.describe(e)
     assert d["cover_video"] == d["cover"] + "&video=1" and d["cover_aspect"] == 0.75
     info = engines.media.probe(engines.cover_file(e, video=True))
-    assert info["duration"] <= engines.COVER_LOOP_SECONDS + 0.2 and not info["has_audio"]
+    assert info["duration"] <= engines.COVER_LOOP_SECONDS + 0.2 and info["has_audio"]
     engines.set_cover(HAT, make_image(tmp_path / "still.png"))  # an image replaces the loop
     assert engines.cover_file(e, video=True) is None
     engines.set_cover(HAT, make_video(tmp_path / "clip2.mp4", seconds=2))

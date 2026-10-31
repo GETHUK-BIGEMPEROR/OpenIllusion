@@ -111,3 +111,31 @@ def clip_template(monkeypatch):
     e.data = data
     monkeypatch.setitem(engines.ENGINES, e.id, e)
     return e
+
+
+def with_sound(path, seconds=4.0, size=(854, 480)):
+    """A clip with a tone on it."""
+    from fractions import Fraction
+
+    import av
+    import numpy as np
+
+    silent = make_video(path.with_name(path.stem + "-silent.mp4"), seconds=seconds, size=size)
+    with av.open(str(silent)) as inp, av.open(str(path), "w", format="mp4") as out:
+        vin = inp.streams.video[0]
+        vout = out.add_stream_from_template(vin)
+        a = out.add_stream("aac", rate=48000)
+        for pkt in inp.demux(vin):
+            if pkt.dts is not None:
+                pkt.stream = vout
+                out.mux(pkt)
+        t = np.arange(int(seconds * 48000)) / 48000
+        tone = (np.sin(2 * np.pi * 440 * t) * 0.3).astype(np.float32)
+        for k in range(0, len(tone), 1024):
+            f = av.AudioFrame.from_ndarray(np.stack([tone[k:k + 1024]] * 2), format="fltp", layout="stereo")
+            f.sample_rate, f.pts, f.time_base = 48000, k, Fraction(1, 48000)
+            for p in a.encode(f):
+                out.mux(p)
+        for p in a.encode():
+            out.mux(p)
+    return path
