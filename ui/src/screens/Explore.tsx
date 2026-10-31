@@ -122,14 +122,70 @@ export function Explore({ t }: { t?: string }) {
     e.kind === "cloud" ? (status.data?.router.ok ? null : "Add a Comfy API key in Settings")
       : status.data?.local.comfyui ? null : "Start ComfyUI or set its address in Settings";
   const use_ = (e: EngineInfo) => { openTemplate(e.mode, e.id); go({ name: e.mode }); };
-  const inspect = (id?: string) => go({ name: "explore", t: id });
 
   // The panel keeps showing the last template while it slides shut.
   const open = every.find((e) => e.id === t);
   const shownInPanel = useRef<EngineInfo | undefined>(undefined);
+  const inspector = useRef<HTMLElement>(null);
+  const exploreScroll = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  const [phoneInspector, setPhoneInspector] = useState(() => window.matchMedia("(max-width: 760px)").matches);
   if (open) shownInPanel.current = open;
   const panel = open ?? shownInPanel.current;
-  const close = useMemo(() => () => inspect(), []);
+  const isOpen = !!open;
+  const inspect = (id?: string) => {
+    if (id && !open) returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    go({ name: "explore", t: id });
+  };
+  const close = () => inspect();
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+    const sync = () => setPhoneInspector(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+  useEffect(() => {
+    const el = inspector.current;
+    if (!el) return;
+    const tabbar = document.querySelector<HTMLElement>(".tabbar");
+    const focusable = () => [...el.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+      .filter((node) => node.getClientRects().length > 0 && !node.closest('[inert],[aria-hidden="true"]'));
+    const focusFirst = () => focusable()[0]?.focus();
+    el.toggleAttribute("inert", !isOpen);
+    if (isOpen && phoneInspector) el.setAttribute("aria-modal", "true");
+    else el.removeAttribute("aria-modal");
+    exploreScroll.current?.toggleAttribute("inert", isOpen && phoneInspector);
+    tabbar?.toggleAttribute("inert", isOpen && phoneInspector);
+    if (isOpen && (!wasOpen.current || (phoneInspector && !el.contains(document.activeElement)))) {
+      requestAnimationFrame(focusFirst);
+    } else if (!isOpen && wasOpen.current) {
+      const target = returnFocus.current?.isConnected ? returnFocus.current : exploreScroll.current?.querySelector<HTMLElement>(".xsearch input,.card-use,a[href],button");
+      returnFocus.current = null;
+      requestAnimationFrame(() => target?.focus());
+    }
+    const contain = (event: KeyboardEvent) => {
+      if (!isOpen || !phoneInspector || event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !el.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !el.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    if (isOpen) el.addEventListener("keydown", contain);
+    wasOpen.current = isOpen;
+    return () => {
+      el.removeEventListener("keydown", contain);
+      exploreScroll.current?.removeAttribute("inert");
+      tabbar?.removeAttribute("inert");
+    };
+  }, [isOpen, phoneInspector]);
 
   const kindN = (k: Kind) => byKind.filter((e) => k === "all" || e.mode === k).length;
   const bar = (
@@ -178,7 +234,7 @@ export function Explore({ t }: { t?: string }) {
 
   return (
     <div className="page explore">
-      <div className="scroll">
+      <div ref={exploreScroll} className="scroll">
         <PageHead title="Explore" search={false} filters={<Search value={f.q} onChange={(q) => set({ q })} found={engines.data ? shown.length : null} total={every.length} />}
           bar={bar}
           actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a Comfy Router model"><I n="plus" /><span className="lbl">New template</span></a>} />
@@ -199,7 +255,7 @@ export function Explore({ t }: { t?: string }) {
         </div>
       </div>
       <div className={open ? "scrim on" : "scrim"} onClick={close} />
-      <aside className={open ? "inspector open" : "inspector"} aria-label="Template details" aria-hidden={!open}>
+      <aside ref={inspector} className={open ? "inspector open" : "inspector"} role="dialog" aria-label="Template details" aria-hidden={!open}>
         {panel && <TemplateInspector key={panel.id} e={panel} locked={locked(panel)} onUse={() => use_(panel)} onClose={close} />}
       </aside>
     </div>
@@ -242,7 +298,7 @@ function Facet({ label, value, icon, end, quiet, children }: { label: string; va
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button type="button" className={["xfacet", value && !quiet && "on", end && "end"].filter(Boolean).join(" ")} aria-haspopup="listbox"
+        <button type="button" className={["xfacet", value && !quiet && "on", end && "end"].filter(Boolean).join(" ")} aria-haspopup="dialog"
           aria-label={value ? `${label}: ${value}` : label}>
           {icon && <I n={icon} size={14} />}
           <span className="xf-l">{label}</span>
@@ -251,7 +307,7 @@ function Facet({ label, value, icon, end, quiet, children }: { label: string; va
         </button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align={end ? "end" : "start"} sideOffset={8} className="pop xpop" role="listbox" aria-label={label}>
+        <Popover.Content align={end ? "end" : "start"} sideOffset={8} className="pop xpop" role="dialog" aria-label={`${label} filter`}>
           {children(() => setOpen(false))}
         </Popover.Content>
       </Popover.Portal>
@@ -261,7 +317,7 @@ function Facet({ label, value, icon, end, quiet, children }: { label: string; va
 
 function Opt({ on, n, dim, say, icon, onPick, children }: { on: boolean; n?: number; dim?: boolean; say?: string; icon?: IconName; onPick: () => void; children: ReactNode }) {
   return (
-    <button type="button" role="option" aria-selected={on} className={dim ? "xopt dim" : "xopt"} onClick={onPick}>
+    <button type="button" aria-pressed={on} className={dim ? "xopt dim" : "xopt"} onClick={onPick}>
       {icon && <I n={icon} size={15} />}
       <span className="xo-t"><b>{children}</b>{say && <span>{say}</span>}</span>
       {n != null && <span className="xo-n mono">{n}</span>}
@@ -275,6 +331,12 @@ function AddTemplate() {
   const toast = useApp((s) => s.toast);
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [compact] = useState(() => {
+    try { return localStorage.getItem("openillusion.seen-template-import") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("openillusion.seen-template-import", "1"); } catch { /* storage can be disabled */ }
+  }, []);
   const add = async (files: File[]) => {
     const f = files[0];
     if (!f || busy) return;
@@ -289,12 +351,12 @@ function AddTemplate() {
   };
   const drop = useFileDrop((files) => void add(files));
   return (
-    <section {...drop.props} className={cx("xadd", drop.over && "over")} aria-label="Add a shared template">
+    <section {...drop.props} className={cx("xadd", compact && "compact", drop.over && "over")} aria-label="Add a shared template">
       <input ref={input} type="file" accept=".illusion" hidden onChange={(ev) => { void add([...(ev.target.files ?? [])]); ev.target.value = ""; }} />
       <span className="xadd-ic">{busy ? <Spinner size={18} /> : <I n="import" />}</span>
       <div className="xadd-t">
-        <b>Add a template someone shared</b>
-        <p>Drop its .illusion here. It brings its samples and cover, and lands on Explore as yours. Export one from any template in Create.</p>
+        <b>{compact ? "Import a shared template" : "Add a template someone shared"}</b>
+        <p>{compact ? "Drop an .illusion file here, or choose one." : "Drop its .illusion here. It brings its samples and cover, and lands on Explore as yours. Export one from any template in Create."}</p>
       </div>
       <button className="btn" type="button" disabled={busy} onClick={() => input.current?.click()}><I n="upload" />Choose file</button>
     </section>

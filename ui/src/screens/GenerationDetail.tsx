@@ -52,7 +52,7 @@ export function GenerationDetail({ id }: { id: string }) {
   back_.current = back;
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      if (typing(e) || e.metaKey || e.ctrlKey || document.querySelector("[role=dialog]")) return;
+      if (typing(e) || e.metaKey || e.ctrlKey || document.querySelector('[role="dialog"]:not([aria-hidden="true"]):not([inert]):not([hidden])')) return;
       if (e.key.toLowerCase() === "e" && m) { e.preventDefault(); share(m.id); }
       if (e.key === "ArrowLeft" && !(e.target as HTMLElement)?.closest?.("[role=slider]")) step_.current(-1);
       if (e.key === "ArrowRight" && !(e.target as HTMLElement)?.closest?.("[role=slider]")) step_.current(1);
@@ -121,6 +121,8 @@ export function GenerationDetail({ id }: { id: string }) {
 
   const r = m.result;
   const tpl = templates.data?.find((e) => e.id === m.engine.model);
+  const missingTemplate = templates.isSuccess && !tpl;
+  const templateBlocked = !tpl;
   // The input is shown against the result only when the result is made over it (not when it's a reference).
   const over = tpl?.before !== false;
   const { name } = runName({ title: m.title, model: m.engine.model, prompt: m.prompt }, templates.data);
@@ -129,7 +131,7 @@ export function GenerationDetail({ id }: { id: string }) {
   const live = !!job && isActive(job);
   const failed = !live && ["failed", "moderated", "cancelled"].includes(m.status);
   const missingMedia = m.inputs.some((i) => !i.file && !i.url);
-  const fixes: Fix[] = failed ? [
+  const fixes: Fix[] = failed && !!tpl ? [
     { label: "Open in Create", run: () => remix(), primary: true },
     ...(!missingMedia && m.status !== "moderated" ? [{ label: "Try again", run: rerun }] : []),
   ] : [];
@@ -173,7 +175,10 @@ export function GenerationDetail({ id }: { id: string }) {
     } else {
       inner = (
         <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
-          <EmptyBox icon="layers" title="Recipe only" action={<button className="btn primary" type="button" onClick={() => remix()}>Open in Create</button>}>This generation carries its recipe but no result. Run it yourself.</EmptyBox>
+          <EmptyBox icon="layers" title="Recipe only" action={<button className="btn primary" type="button" disabled={templateBlocked} onClick={() => remix()}
+            title={templates.isError ? "Couldn't load installed templates. Try again from Library." : missingTemplate ? "Install the matching .illusion template or choose another template below" : undefined}>
+            {templates.isLoading ? "Checking template…" : templates.isError ? "Couldn't check template" : missingTemplate ? "Template not installed" : "Open in Create"}
+          </button>}>This generation carries its recipe but no result. {templates.isError ? "Installed templates couldn't be checked; return to Library and try again." : missingTemplate ? "Install its template or swap to an installed one before running it." : "Run it yourself."}</EmptyBox>
         </div>
       );
     }
@@ -235,7 +240,8 @@ export function GenerationDetail({ id }: { id: string }) {
                 {tpl.cover ? <img src={tpl.cover} alt="" /> : <span className="empty-ic" style={{ width: 40, height: 40, margin: 0, borderRadius: 9 }}><I n="image" /></span>}
                 <div><b>{tplName(tpl)}</b><span>{tplModel(tpl)} · {tpl.kind === "local" ? "Local" : "Cloud"}</span></div><I n="right" />
               </a>
-            ) : <div className="tplrow"><div><b className="mono" style={{ fontSize: 12 }}>{shortModel(m.engine.model)}</b><span>{local ? "Local" : "Cloud"} · not installed here</span></div></div>}
+            ) : <div className="tplrow"><div><b className="mono" style={{ fontSize: 12 }}>{shortModel(m.engine.model)}</b><span>{templates.isLoading ? "Checking installed templates…" : templates.isError ? "Couldn't load installed templates" : `${local ? "Local" : "Cloud"} · not installed here`}</span></div></div>}
+            {missingTemplate && <p className="help" style={{ margin: "8px 0 0", color: "var(--amber)" }}>Import the matching .illusion template, or use Swap template below to remap this recipe explicitly.</p>}
           </div>
 
           {m.inputs.length > 0 && (
@@ -281,8 +287,12 @@ export function GenerationDetail({ id }: { id: string }) {
         </div>
 
         <div className="v-actions">
-          <button className="btn primary" type="button" onClick={() => remix()} title="Put every input and setting back in Create"><I n="remix" />Open in Create</button>
-          <button className="icon-btn" type="button" aria-label="Re-run" onClick={rerun} disabled={missingMedia || live} title={missingMedia ? "Some media isn't in this generation. Open it in Create and add your own." : "Re-run: same settings, new seed"}><I n="refresh" /></button>
+          <button className="btn primary" type="button" onClick={() => remix()} disabled={templateBlocked}
+            title={templates.isError ? "Couldn't load installed templates. Try again from Library." : missingTemplate ? "Install the matching .illusion template, or use Swap template" : "Put every input and setting back in Create"}><I n="remix" />
+            {templates.isLoading ? "Checking template…" : templates.isError ? "Couldn't check template" : missingTemplate ? "Template not installed" : "Open in Create"}
+          </button>
+          <button className="icon-btn" type="button" aria-label="Re-run" onClick={rerun} disabled={missingMedia || live || templateBlocked}
+            title={templates.isError ? "Couldn't load installed templates" : missingTemplate ? "Install the matching .illusion template, or swap to another template" : missingMedia ? "Some media isn't in this generation. Open it in Create and add your own." : "Re-run: same settings, new seed"}><I n="refresh" /></button>
           <button className="icon-btn" type="button" aria-label="Export" title="Export (E)" onClick={() => share(m.id)} disabled={m.status !== "done"}><I n="share" /></button>
           {after && m.result?.file && <a className="icon-btn" href={after} download={resultName(m.title, m.id, m.result.file)} aria-label="Download result" title="Download result"><I n="download" /></a>}
           <Popover.Root open={swap} onOpenChange={setSwap}>
@@ -297,7 +307,7 @@ export function GenerationDetail({ id }: { id: string }) {
           <button className="icon-btn" type="button" aria-label="More actions" aria-expanded={more} onClick={() => setMore(!more)}><I n="more" /></button>
           {more && <MoreMenu close={() => setMore(false)}>
             <button role="menuitem" type="button" onClick={() => { setMore(false); void save({ starred: !m.starred }); }}><I n="star" />{m.starred ? "Unstar" : "Star"}</button>
-            {m.mode === "motion" && <button role="menuitem" type="button" onClick={() => { setMore(false); remix({ dropVideo: true }); }}><I n="film" />Open in Create with my own video</button>}
+            {m.mode === "motion" && tpl && <button role="menuitem" type="button" onClick={() => { setMore(false); remix({ dropVideo: true }); }}><I n="film" />Open in Create with my own video</button>}
             {local && <a role="menuitem" className="mitem" href={workflowUrl(m.id)} download={`${m.id}.workflow.json`} onClick={() => setMore(false)}><I n="graph" />Download ComfyUI workflow</a>}
             {tpl && m.status === "done" && <CoverItem e={tpl} run={m.id} close={() => setMore(false)} />}
             <button role="menuitem" type="button" onClick={() => { navigator.clipboard?.writeText(m.id); setMore(false); toast({ text: "Generation ID copied.", tone: "ok" }); }}><I n="copy" />Copy generation ID</button>

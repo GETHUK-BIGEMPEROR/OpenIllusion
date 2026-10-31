@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { cx, EmptyBox, gpuName, I, PageHead } from "../components/oi";
+import { cx, EmptyBox, gpuName, I, PageHead, useReducedMotion } from "../components/oi";
 import { FolderPicker } from "../components/FolderPicker";
 import { UpstreamWarning } from "../components/Studio";
 import { Button, IconButton, Spinner, Toggle as Switch } from "../components/ui";
@@ -25,12 +25,14 @@ const isUrl = (v: string) => /^https?:\/\/[^\s/]+/i.test(v.trim());
 type Save = (p: Partial<S> & { local_token?: string; clear_local_token?: boolean }) => Promise<boolean>;
 
 export function Settings() {
+  const reduced = useReducedMotion();
   const qc = useQueryClient();
   const toast = useApp((s) => s.toast);
   const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings });
   const status = useQuery({ queryKey: ["status"], queryFn: () => api.status() });
   const [active, setActive] = useState<string>("gpu");
   const scroller = useRef<HTMLDivElement>(null);
+  const sectionNav = useRef<HTMLElement>(null);
 
   // Highlight the section in view; the last one wins once the page bottoms out.
   useEffect(() => {
@@ -50,6 +52,13 @@ export function Settings() {
     root.addEventListener("scroll", on, { passive: true });
     return () => root.removeEventListener("scroll", on);
   }, [settings.data]);
+
+  // Keep the current section visible in the phone's horizontally scrolling nav.
+  useEffect(() => {
+    const nav = sectionNav.current;
+    if (!nav || nav.scrollWidth <= nav.clientWidth) return;
+    nav.querySelector<HTMLElement>("[aria-current='true']")?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [active]);
 
   const save: Save = async (p) => {
     try {
@@ -73,10 +82,10 @@ export function Settings() {
           <div className="set-wrap" aria-busy="true"><div /><div className="set-body"><div className="media" style={{ height: 300, borderRadius: 18 }} /><div className="media" style={{ height: 160, borderRadius: 18 }} /></div></div>
         ) : (
           <div className="set-wrap">
-            <nav className="set-nav" aria-label="Settings sections">
+            <nav ref={sectionNav} className="set-nav" aria-label="Settings sections">
               {NAV.map((n) => (
                 <button key={n.id} type="button" aria-current={active === n.id ? "true" : undefined}
-                  onClick={() => { document.getElementById(`set-${n.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); setActive(n.id); }}>{n.label}</button>
+                  onClick={() => { document.getElementById(`set-${n.id}`)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }); setActive(n.id); }}>{n.label}</button>
               ))}
             </nav>
             <div className="set-body">

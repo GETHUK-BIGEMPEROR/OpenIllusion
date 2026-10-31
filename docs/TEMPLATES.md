@@ -5,6 +5,17 @@ described to the app (adapters). The rest of the system is in [ARCHITECTURE.md](
 
 ## The template contract
 
+The supported contract is version 2. Versionless and version-1 templates migrate
+through the legacy conversion; non-positive, malformed and future versions are
+refused. Loading, Builder save and `.illusion` installation validate executable
+bindings before registration: local target nodes/inputs and declared outputs must
+exist, cloud paths must be writable, and media bindings must hold their declared
+tokens. Version-2 cloud templates must declare result paths.
+
+Build from this uses the request's role discriminators as well as its media token
+shape. In particular, Seedance's `duration: -1` preserves Video to edit when the
+same token representation is also used by Reference video.
+
 One contract for both kinds: `inputs` (Image N / Video N / Audio N, one prompt,
 each with a `bind`), a `mode` (`edit` makes a photo, `motion` makes a video), a
 required `label`, and a cover. Then the box.

@@ -1,0 +1,8 @@
+# Reproducible direct runtime dependencies for the launcher and container.
+# Refresh deliberately after running the full suite on every supported Python version.
+aiohttp==3.14.5
+httpx==0.28.1
+av==19.0.2
+pillow==13.0.0
+pydantic==2.14.1
+comfy-api-proxy==0.1.6

@@ -23,7 +23,7 @@
 .slider-track{position:relative;flex:1;height:4px;border-radius:2px;background:#41384F}
 .slider-range{position:absolute;height:100%;border-radius:inherit;background:var(--violet)}
 .slider-thumb{display:block;width:14px;height:14px;border-radius:50%;background:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.5);transition:transform .12s}
-.slider-thumb:hover{transform:scale(1.1)}
+@media (hover:hover) and (pointer:fine){.slider-thumb:hover{transform:scale(1.1)}}
 /* template settings (ParamFields) */
 .prm{display:flex;flex-direction:column;gap:6px}
 .prm-h{display:flex;justify-content:space-between;align-items:baseline}

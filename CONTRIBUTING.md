@@ -37,3 +37,13 @@ Conventions:
   installed.
 - **Tests fake the network.** Router, Comfy Cloud and ComfyUI are `httpx`
   mock transports; no test needs a key or a GPU.
+
+## Build a distributable wheel
+
+Run `python -m pip wheel --no-deps .` with Node.js 18+ and npm installed. The PEP
+517 backend runs `npm ci` and the production UI build, then includes static assets,
+adapters, shipped templates/media and schemas. Editable installs skip that extra
+frontend build; use the launcher or the development commands above.
+
+The launcher and Docker install with `constraints.txt`. Refresh its direct runtime
+pins deliberately and run the full Python suite and UI build before shipping.

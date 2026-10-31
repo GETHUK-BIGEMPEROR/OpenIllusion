@@ -9,7 +9,7 @@ import { defaults } from "../lib/spec";
 import { useApp } from "../lib/store";
 import { optionText } from "./Engine";
 import { clampAspect } from "./Masonry";
-import { Compare, gpuName, I, useStatus } from "./oi";
+import { Compare, gpuName, I, useReducedMotion, useStatus } from "./oi";
 import { useLocalCheck } from "./Studio";
 import { mine, tplModel, tplName, useCoverActions, useRemoveTemplate } from "./TemplateCard";
 import { Spinner } from "./ui";
@@ -79,6 +79,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
   const [d, setD] = useState<Draft>(() => drafts.get(e.id) ?? draftOf(e));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const reduced = useReducedMotion();
   const editable = !!e.origin && (e.kind === "local" || !!e.built);
   const [editing, setEditing] = useState(() => drafts.has(e.id));
   const patch = patchOf(e, d);
@@ -187,7 +188,7 @@ export function TemplateInspector({ e, locked, onUse, onClose }: { e: EngineInfo
       <div className="insp-body">
         <div className="insp-hero" style={{ "--ar": ar } as CSSProperties}>
           {e.cover && before ? <Compare before={before} after={e.cover_video ? { url: e.cover_video, kind: "video", poster: e.cover } : e.cover} lb="Input" la="Result" />
-            : e.cover_video ? <video key={e.cover_video} src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={fill} />
+            : e.cover_video && !reduced ? <video key={e.cover_video} src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={fill} />
             : e.cover ? <img src={e.cover} alt="" style={fill} />
             : <div className="empty" style={{ padding: 30 }}><div className="empty-ic"><I n="image" /></div><h3>No cover yet</h3><p>Run it, then make a result you like its cover.</p></div>}
         </div>

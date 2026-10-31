@@ -29,3 +29,8 @@ def test_fingerprint_ignores_what_it_is_not_given(tmp_path):
     (tmp_path / "node_modules").mkdir()
     (tmp_path / "node_modules" / "x.js").write_text("x")
     assert launch.fingerprint(tmp_path, ["package-lock.json"]) == before
+
+
+def test_every_build_input_that_changes_the_output_is_stamped():
+    assert {"package.json", "package-lock.json", "src", "public"} <= set(launch.UI_INPUTS)
+    assert {"pyproject.toml", "constraints.txt", "build_backend.py", "server/__init__.py"} <= set(launch.PYTHON_INPUTS)

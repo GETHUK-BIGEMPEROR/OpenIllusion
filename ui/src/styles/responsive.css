@@ -1,7 +1,5 @@
 /* ---------- medium widths ---------- */
 @container app (max-width:1180px){
-  .inspector{position:absolute;top:0;right:0;bottom:0;width:404px;transform:translateX(105%);transition:transform .32s cubic-bezier(.2,.7,.2,1);border-left:1px solid var(--line);box-shadow:-30px 0 80px -30px rgba(0,0,0,.9)}
-  .inspector.open{width:404px;transform:none}
   .explore .scrim.on{display:block;position:absolute;inset:0;z-index:25;background:rgba(6,4,9,.45);animation:fade .2s}
   .studio{grid-template-columns:316px minmax(0,1fr)}
   .ttools{gap:6px}
@@ -26,7 +24,10 @@
 }
 @container (max-width:880px){
   .hactions .btn{width:34px;padding:0}
-  .hactions .btn .lbl{display:none}
+  .hactions .btn .lbl{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+}
+@container (max-width:700px){
+  .stage-top .btn .lbl,.stage-top .vseg .lbl{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 }
 @container (max-width:520px){
   .gchip b{display:none}
@@ -38,7 +39,8 @@
   .rail{display:none}
   .trashlink{display:inline-flex}  /* no rail on phones: the way into the trash */
   .tabbar{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;padding:6px 6px 10px;border-top:1px solid var(--line);background:rgba(15,13,24,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);z-index:20}
-  .tab{display:grid;justify-items:center;gap:3px;padding:6px 0 2px;color:var(--text-3);font-size:10px;font-weight:500;text-decoration:none;position:relative}
+  .tab{display:grid;justify-items:center;gap:3px;padding:6px 0 2px;color:var(--text-3);font-size:10px;font-weight:500;text-decoration:none;position:relative;scale:1;transition:scale var(--motion-press) var(--ease-out),color var(--motion-fast)}
+  .tab:active{scale:.97}
   .tab .i{width:21px;height:21px}
   .tab[aria-current="page"]{color:var(--text)}
   .tab .badge{right:calc(50% - 22px);top:0}
@@ -58,8 +60,9 @@
   .phead-row.hrow{padding:10px 12px 10px 14px;gap:8px}
   .hfilters .chip,.hfilters .vsep,.hfilters .seg .n,.hfilters .seg .i{display:none}
   .hactions .btn{width:34px;padding:0}
-  .hactions .btn .lbl{display:none}
+  .hactions .btn .lbl{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .gchip b,.gchip .gv,.gchip .gp{display:none}
+  .gchip.attention .gmob,.gchip.active .gmob{display:inline}
   .gchip{padding:0 7px;gap:6px}
   .gchip .gcv{display:none}
   .kchip .kic{display:block}
@@ -90,7 +93,8 @@
   .studio{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 38cqh minmax(0,1fr)}
   .stage{display:contents}
   .stage-top{order:0;padding:6px 10px;min-height:46px;background:var(--bg)}
-  .stage-top .crumb,.stage-top .lbl{display:none}
+  .stage-top .crumb{display:none}
+  .stage-top .lbl{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .stage .canvas{order:1;padding:0 12px 10px;background:var(--bg)}
   .corner.l{display:none}
   .recipe{order:2;border-right:0;border-top:1px solid var(--line)}
@@ -109,13 +113,19 @@
   .v-actions{padding:10px 14px 12px}
   .bulk{bottom:12px;padding-left:12px}
   .bulk b{margin-right:2px}
-  .bulk .btn .lbl{display:none}
+  .bulk .btn .lbl{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .toasts{bottom:86px}
   .app:has(.studio) .toasts{top:54px}
   .set-wrap{grid-template-columns:1fr;padding:14px 12px 40px;gap:20px}
-  .set-nav{position:static;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:-4px 0 -6px}
-  .set-nav button{flex:none;padding:7px 12px}
+  .set-nav{position:static;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:-4px 0 -6px;padding-right:28px;scroll-padding-inline:12px;scroll-snap-type:x proximity;-webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 28px),transparent)}
+  .set-nav button{flex:none;padding:7px 12px;scroll-snap-align:center}
   .set-nav button[aria-current="true"]{box-shadow:inset 0 -2px 0 var(--accent)}
   .caps{gap:8px}
   .cap-tile b{font-size:22px}
+}
+
+/* Pointer precision, not viewport width, determines whether compact controls are easy to hit. */
+@media (pointer:coarse){
+  .icon-btn,.icon-btn.sm,.xs-x{min-width:44px;min-height:44px}
+  .btn,.btn.sm,.gchip,.xfacet,.xclear,.xopt,.chip,.seg button,.set-nav button,.tabmore a,.ttools .ttool{min-height:44px}
 }

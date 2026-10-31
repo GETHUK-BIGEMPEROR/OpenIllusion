@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from server import builder, engines
+from server import builder, engines, paths
 
 # A slice of /object_info: enough node types to build a small edit graph.
 INFO = {
@@ -279,6 +279,15 @@ def test_save_writes_user_template_with_samples(tmp_path, monkeypatch):
     assert not engines.publish_template(tid).draft
     engines.delete_template(tid)
     assert tid not in engines.ENGINES and not e.default_inputs["image:1"].exists()
+
+
+def test_save_validates_the_executable_contract_before_writing():
+    api, _ = builder.ui_to_api(ui_graph(), INFO)
+    data = builder.assemble_local(_local_spec(), {"workflow": api}, INFO)
+    data["outputs"] = ["missing"]
+    with pytest.raises(ValueError, match="result node"):
+        builder.save(data, {})
+    assert not list((paths.user_root() / "templates").glob("*.json"))
 
 
 def test_fixed_settings_change_the_workflow_only():

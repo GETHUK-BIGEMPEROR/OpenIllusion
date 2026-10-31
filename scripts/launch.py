@@ -1,7 +1,7 @@
 """Install, update and start OpenIllusion in one step: what start.bat and start.sh run.
 
 Each start does only what changed since the last one: makes ``.venv`` if it's missing,
-reinstalls the Python side when ``pyproject.toml`` changed, reinstalls the UI's packages
+reinstalls the Python side when its metadata, constraints or version changed, reinstalls the UI's packages
 when ``ui/package-lock.json`` changed, rebuilds the UI when anything under ``ui/``
 changed, then runs the server and opens the browser. What was done is remembered in
 ``.venv/openillusion-stamps.json``, so a second start goes straight to the server.
@@ -32,7 +32,8 @@ VENV_PY = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 STAMPS = VENV / "openillusion-stamps.json"
 UI = ROOT / "ui"
 BUILT = ROOT / "server" / "static" / "index.html"
-UI_INPUTS = ["src", "index.html", "package-lock.json", "tsconfig.json", "vite.config.ts"]
+UI_INPUTS = ["src", "public", "index.html", "package.json", "package-lock.json", "tsconfig.json", "vite.config.ts"]
+PYTHON_INPUTS = ["pyproject.toml", "constraints.txt", "build_backend.py", "server/__init__.py"]
 NODE_HINT = ("Node.js 18 or newer builds the app's page: https://nodejs.org"
              + (" (or: winget install OpenJS.NodeJS.LTS)" if os.name == "nt" else "")
              + ". Install it, open a new terminal, and run start again.")
@@ -89,11 +90,12 @@ def python_side() -> None:
         say("Making the Python environment in .venv...")
         if subprocess.run([sys.executable, "-m", "venv", str(VENV)]).returncode != 0:
             fail("Couldn't make .venv." + (" On Debian or Ubuntu: sudo apt install python3-venv" if os.name != "nt" else ""))
-    want = fingerprint(ROOT, ["pyproject.toml"])
+    want = fingerprint(ROOT, PYTHON_INPUTS)
     if load_stamps().get("python") == want:
         return
     say("Installing the Python packages (the first time takes a minute or two)...")
-    run([str(VENV_PY), "-m", "pip", "install", "-q", "--disable-pip-version-check", "-e", "."], "pip install")
+    run([str(VENV_PY), "-m", "pip", "install", "-q", "--disable-pip-version-check",
+         "-c", "constraints.txt", "-e", "."], "pip install")
     save_stamp("python", want)
 
 

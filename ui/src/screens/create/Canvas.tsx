@@ -1,9 +1,9 @@
 // Create's canvas: the input or result in the middle, crop box, compare, variant grid.
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ABPlayer, type Side } from "../../components/ABPlayer";
 import { clipSlot as asClip, dropIntoStudio } from "../../components/Drop";
-import { cx, I, jobProgress, QUEUED, Ring } from "../../components/oi";
+import { cx, I, jobProgress, QUEUED, Ring, useReducedMotion } from "../../components/oi";
 import { RunHud, RunVeil } from "../../components/RunStatus";
 import { bySlot, useUploader } from "../../components/Refs";
 import { StageError, type Fix } from "../../components/Studio";
@@ -28,6 +28,8 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
   const qc = useQueryClient();
   const abView = useApp((x) => x.abView);
   const setAbView = useApp((x) => x.setAbView);
+  const reduced = useReducedMotion();
+  const clipVideo = useRef<HTMLVideoElement>(null);
   // The stage follows the lead input: a clip plays, a photo can be cropped and marked. Results show as what they are.
   const motion = lead.startsWith("video:");
   const leadField = mediaFields(engine).find((f) => f.key === lead);
@@ -46,6 +48,12 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
   const beforeUrl = motion
     ? (shown && drove ? fileUrl(shown.id, posterOf(drove.file!)) : clip?.poster ?? undefined)
     : shown && before ? fileUrl(shown.id, before) : base?.url;
+  useEffect(() => {
+    const video = clipVideo.current;
+    if (!video) return;
+    if (reduced) video.pause();
+    else void video.play().catch(() => {});
+  }, [clip?.url, reduced]);
 
   // Every result, the template's example included, sits over one bar: what it is on the left, how to compare on the right.
   // The input and result open side by side until you pick the wipe; the pick stays, run to run and on a run's page.
@@ -123,7 +131,7 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
     const leadFps = clipFps(engine, clip.slot);
     return (
       <div className="frame" style={{ "--ar": ar } as CSSProperties}>
-        <video key={clip.url} src={clip.url} poster={clip.poster ?? undefined} muted loop playsInline autoPlay controls={!clip.crop} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        <video ref={clipVideo} key={clip.url} src={clip.url} poster={clip.poster ?? undefined} muted loop playsInline autoPlay={!reduced} controls={!clip.crop} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
         {clip.crop && <CropBox crop={clip.crop} onChange={(crop) => set(withInput(clip.slot, { crop }))} />}
         {clip.width && clip.height ? <div className="corner l"><span className="pill mono">Source {clip.width}×{clip.height}</span></div> : null}
         <div className="corner r"><span className="pill mono" title="OpenIllusion crops and sizes every frame to this before the run. What the workflow makes of it is up to the workflow.">

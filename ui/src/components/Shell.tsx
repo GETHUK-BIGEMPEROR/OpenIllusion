@@ -42,7 +42,7 @@ export function Rail({ route }: { route: Route }) {
       const t = e.target as HTMLElement;
       if (e.metaKey || e.ctrlKey || e.altKey || t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
       const n = NAV.find((x) => x.key === e.key);
-      if (n && !document.querySelector("[role=dialog]")) go({ name: n.name === "edit" ? useApp.getState().lastStudio : n.name });
+      if (n && !document.querySelector('[role="dialog"]:not([aria-hidden="true"]):not([inert]):not([hidden])')) go({ name: n.name === "edit" ? useApp.getState().lastStudio : n.name });
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
@@ -81,21 +81,48 @@ export function TabBar({ route }: { route: Route }) {
   const cur = (n: string) => (current === n ? "page" : undefined);
   const lastStudio = useApp((s) => s.lastStudio);
   const [more, setMore] = useState(false);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const moreMenu = useRef<HTMLDivElement>(null);
   useEffect(() => setMore(false), [current]);
   useEffect(() => {
     if (!more) return;
-    const on = (e: KeyboardEvent) => { if (e.key === "Escape") setMore(false); };
+    const frame = requestAnimationFrame(() => moreMenu.current?.querySelector<HTMLAnchorElement>("a")?.focus());
+    const on = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMore(false);
+        moreButton.current?.focus();
+      }
+    };
     window.addEventListener("keydown", on);
-    return () => window.removeEventListener("keydown", on);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("keydown", on); };
   }, [more]);
   const inMore = MORE.some((m) => m.name === current);
+  const moreLabel = current === "build" ? "Builder" : MORE.find((m) => m.name === current)?.label ?? "More";
+  const moveInMore = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!moreMenu.current) return;
+    const items = [...moreMenu.current.querySelectorAll<HTMLAnchorElement>("a")];
+    const at = items.indexOf(document.activeElement as HTMLAnchorElement);
+    if (e.key === "Tab") {
+      const leaving = (e.shiftKey && at === 0) || (!e.shiftKey && at === items.length - 1);
+      if (leaving) {
+        e.preventDefault();
+        setMore(false);
+        requestAnimationFrame(() => moreButton.current?.focus());
+      }
+      return;
+    }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+    const next = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : e.key === "ArrowDown" ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
+    e.preventDefault();
+    items[next]?.focus();
+  };
   return (
     <nav className="tabbar" aria-label="Main">
-      {more && <button className="tabmore-scrim" type="button" aria-label="Close" onClick={() => setMore(false)} />}
+      {more && <button className="tabmore-scrim" type="button" aria-label="Close" onClick={() => { setMore(false); requestAnimationFrame(() => moreButton.current?.focus()); }} />}
       {more && (
-        <div className="tabmore" id="tabmore">
+        <div className="tabmore" id="tabmore" role="menu" ref={moreMenu} onKeyDown={moveInMore}>
           {MORE.map((m) => (
-            <a key={m.name} href={href({ name: m.name })} aria-current={cur(m.name)} onClick={() => setMore(false)}><I n={m.icon} />{m.label}</a>
+            <a key={m.name} role="menuitem" href={href({ name: m.name })} aria-current={cur(m.name)} onClick={() => setMore(false)}><I n={m.icon} />{m.label}</a>
           ))}
         </div>
       )}
@@ -103,7 +130,7 @@ export function TabBar({ route }: { route: Route }) {
       <a className="tab" href={href({ name: "library" })} aria-current={cur("library")}><I n="library" />Library</a>
       <a className="tab create" href={href({ name: lastStudio })} aria-current={cur("edit")}><span className="fab"><I n="plus" /></span><span>Create</span></a>
       <button className="tab" type="button" onClick={() => setQueue(true)}><I n="layers" />Queue<span className="badge">{badge}</span></button>
-      <button className="tab" type="button" aria-expanded={more} aria-controls="tabmore" aria-current={inMore ? "page" : undefined} onClick={() => setMore(!more)}><I n="more" />More</button>
+      <button ref={moreButton} className="tab" type="button" aria-haspopup="menu" aria-expanded={more} aria-controls="tabmore" aria-current={inMore ? "page" : undefined} onClick={() => setMore(!more)}><I n="more" />{moreLabel}</button>
     </nav>
   );
 }
@@ -125,7 +152,7 @@ export function Toasts() {
   return (
     <div className="toasts" aria-live="polite">
       {toasts.map((t) => (
-        <div key={t.id} role={t.tone === "error" ? "alert" : "status"} className={cx("toast", t.tone === "error" ? "err" : t.tone === "ok" ? "ok" : "")}>
+        <div key={t.id} role={t.tone === "error" ? "alert" : "status"} className={cx("toast", t.tone === "error" ? "err" : t.tone === "ok" ? "ok" : "", t.closing && "closing")}>
           <I n={t.tone === "error" ? "alert" : t.tone === "warn" ? "alert" : t.tone === "ok" ? "check" : "info"} style={t.tone === "warn" ? { color: "var(--orange)" } : undefined} />
           <span>{t.text}</span>
           {t.action && <button className="btn sm" type="button" onClick={() => { t.action!.run(); dismiss(t.id); }}>{t.action.label}</button>}

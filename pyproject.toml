@@ -1,6 +1,7 @@
 [build-system]
 requires = ["setuptools>=69"]
-build-backend = "setuptools.build_meta"
+build-backend = "build_backend"
+backend-path = ["."]
 
 [project]
 name = "openillusion"
@@ -28,7 +29,9 @@ openillusion = "server.server:main"
 version = { attr = "server.__version__" }
 
 [tool.setuptools.packages.find]
-include = ["server*"]
+include = ["server*", "templates*", "schema*"]
 
 [tool.setuptools.package-data]
 server = ["static/**/*", "adapters/*.json"]
+templates = ["local/*.json", "local/media/*", "cloud/*.json", "cloud/media/*"]
+schema = ["*.json"]

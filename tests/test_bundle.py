@@ -100,6 +100,17 @@ def test_recipe_only_is_small_and_linkable(tmp_path):
     assert review["manifest"]["prompt"] == m.prompt
 
 
+def test_repeated_exports_never_replace_one_another_or_leave_output_scratch(tmp_path):
+    m = library_generation(tmp_path)
+    dest = tmp_path / "exports"
+    first = bundle.export(m.id, "recipe", False, OK, dest_dir=dest)
+    second = bundle.export(m.id, "recipe", False, OK, dest_dir=dest)
+    assert first.name == "hallway-take.illusion.json"
+    assert second.name == "hallway-take-2.illusion.json"
+    assert first.read_bytes() == second.read_bytes()
+    assert not list(dest.glob(".openillusion-export-*"))
+
+
 def zip_with(entries):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:

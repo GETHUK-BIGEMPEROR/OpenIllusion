@@ -210,7 +210,7 @@ async def _probe_router(r: Router) -> dict:
             resp = await c.get("/v2/models", params={"limit": 1})
         if resp.status_code == 200:
             return {"ok": True, "reason": None}
-        from .router import read_error
+        from ..router import read_error
 
         e = read_error(resp)
         return {"ok": False, "reason": e.error_type, "message": e.message, "status": e.status}

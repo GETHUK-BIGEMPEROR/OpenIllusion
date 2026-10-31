@@ -121,6 +121,8 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.post(API + "/run")
     async def run(request):
+        if jobs.MANAGER.maintenance:
+            return err(409, f"{jobs.MANAGER.maintenance.capitalize()} is in progress; wait for it to finish")
         spec = _norm_spec(await body(request))
         try:
             e = engines.get(spec["engine"])
@@ -128,7 +130,10 @@ def register(routes: web.RouteTableDef) -> None:
             return err(404, str(ex))
         if e.kind == "cloud" and not settings.api_key():
             return err(401, "Add your Comfy API key in Settings to run cloud models")
-        comp = engines.compose(spec)
+        try:
+            comp = engines.compose(spec)
+        except (KeyError, TypeError, ValueError) as ex:
+            return err(400, str(ex))
         errors = [w for w in comp["warnings"] if w["level"] == "error"]
         if not errors:
             try:  # what can't be fitted to the model (a clip too short for it)
@@ -139,6 +144,8 @@ def register(routes: web.RouteTableDef) -> None:
             return err(422, errors[0]["text"], warnings=errors)
         try:
             ids = await jobs.MANAGER.start(spec)
+        except jobs.MaintenanceError as e:
+            return err(409, str(e))
         except (FileNotFoundError, ValueError) as e:
             return err(400, str(e))
         return web.json_response({"ids": ids})

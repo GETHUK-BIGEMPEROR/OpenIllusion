@@ -7,9 +7,13 @@ anything reaches the library.
 
 from __future__ import annotations
 
+import errno
 import io
 import json
+import os
+import secrets
 import shutil
+import tempfile
 import time
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -107,11 +111,14 @@ def export(generation_id: str, variant: str, strip_driving: bool, attest: dict, 
     stem = _safe_name(m.title) or m.id
 
     if variant == "recipe":
-        out = dest_dir / f"{stem}.illusion.json"
-        out.write_text(json.dumps(recipe_only(m), indent=2, ensure_ascii=False), "utf-8")
-        return out
+        tmp = _output_temp(dest_dir, ".illusion.json")
+        try:
+            tmp.write_text(json.dumps(recipe_only(m), indent=2, ensure_ascii=False), "utf-8")
+            return _publish_unique(tmp, dest_dir, stem, ".illusion.json")
+        finally:
+            tmp.unlink(missing_ok=True)
 
-    out = dest_dir / f"{stem}.illusion"
+    tmp = _output_temp(dest_dir, ".illusion")
     d = sc.shareable(m)
     d["variant"] = variant
     light = variant == "light"
@@ -122,57 +129,62 @@ def export(generation_id: str, variant: str, strip_driving: bool, attest: dict, 
         archive.put(z, rel, data, stored=not rel.endswith((".json", ".md")))
         return data
 
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        for item in d["inputs"]:
-            if not item.get("file"):
-                continue
-            src = f / item["file"]
-            if item["slot"].startswith("video:") and (light or strip_driving):
-                item["file"] = None
-                continue
-            if not src.exists():
-                item["file"] = None
-                continue
-            if light and item["slot"].startswith("image:"):
-                buf = io.BytesIO()
-                img = media.strip_exif(media.fit(media.open_image(src), max_side=768))
-                img.save(buf, "WEBP", quality=86)
-                rel = str(PurePosixPath(item["file"]).with_suffix(".webp"))
-                item["file"] = rel
-                item["sha256"] = _sha(put(z, rel, buf.getvalue()))
-            else:
-                data = put(z, item["file"], src.read_bytes())
-                if item.get("sha256"):
-                    item["sha256"] = _sha(data)
-        if d.get("result"):
-            for key in ("file", "poster"):
-                rel = d["result"].get(key)
-                if rel and (f / rel).exists():
-                    if rel.endswith(".mp4") and (light or embed_recipe):
-                        tmp = f / "result" / "_export.mp4"
-                        src = f / rel
-                        if light:
-                            media.preview(src, tmp, max_height=480, max_bytes=2_500_000)
-                            src = tmp
-                        if embed_recipe:
-                            tagged = f / "result" / "_tagged.mp4"
-                            media.write_mp4_recipe(src, tagged, recipe_only(m))
-                            src = tagged
-                        put(z, rel, src.read_bytes(), keep_tags=embed_recipe)
-                        for t in ("_export.mp4", "_tagged.mp4"):
-                            (f / "result" / t).unlink(missing_ok=True)
+    try:
+        # Preview/tagging intermediates are unique to this export. Concurrent shares of
+        # the same generation must never overwrite one another's scratch files.
+        with tempfile.TemporaryDirectory(prefix="generation-export-", dir=paths.cache_dir()) as scratch_name:
+            scratch = Path(scratch_name)
+            with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+                for item in d["inputs"]:
+                    if not item.get("file"):
+                        continue
+                    src = f / item["file"]
+                    if item["slot"].startswith("video:") and (light or strip_driving):
+                        item["file"] = None
+                        continue
+                    if not src.exists():
+                        item["file"] = None
+                        continue
+                    if light and item["slot"].startswith("image:"):
+                        buf = io.BytesIO()
+                        img = media.strip_exif(media.fit(media.open_image(src), max_side=768))
+                        img.save(buf, "WEBP", quality=86)
+                        rel = str(PurePosixPath(item["file"]).with_suffix(".webp"))
+                        item["file"] = rel
+                        item["sha256"] = _sha(put(z, rel, buf.getvalue()))
                     else:
-                        put(z, rel, (f / rel).read_bytes())
-        if (f / "comfy" / "workflow.json").exists():
-            put(z, "comfy/workflow.json", (f / "comfy" / "workflow.json").read_bytes())
-        if not (light or strip_driving):
-            for item in d["inputs"]:
-                poster = engines.poster_file(item["file"]) if item.get("file") and item["slot"].startswith("video:") else None
-                if poster and (f / poster).exists():
-                    put(z, poster, (f / poster).read_bytes())
-        put(z, "LICENSES.md", sc.licenses_md(sc.parse(d)[0]).encode())
-        put(z, "generation.json", json.dumps(d, indent=2, ensure_ascii=False).encode())
-    return out
+                        data = put(z, item["file"], src.read_bytes())
+                        if item.get("sha256"):
+                            item["sha256"] = _sha(data)
+                if d.get("result"):
+                    for key in ("file", "poster"):
+                        rel = d["result"].get(key)
+                        if rel and (f / rel).exists():
+                            if rel.endswith(".mp4") and (light or embed_recipe):
+                                preview = scratch / "preview.mp4"
+                                src = f / rel
+                                if light:
+                                    media.preview(src, preview, max_height=480, max_bytes=2_500_000)
+                                    src = preview
+                                if embed_recipe:
+                                    tagged = scratch / "tagged.mp4"
+                                    media.write_mp4_recipe(src, tagged, recipe_only(m))
+                                    src = tagged
+                                put(z, rel, src.read_bytes(), keep_tags=embed_recipe)
+                            else:
+                                put(z, rel, (f / rel).read_bytes())
+                if (f / "comfy" / "workflow.json").exists():
+                    put(z, "comfy/workflow.json", (f / "comfy" / "workflow.json").read_bytes())
+                if not (light or strip_driving):
+                    for item in d["inputs"]:
+                        poster = engines.poster_file(item["file"]) if item.get("file") and item["slot"].startswith("video:") else None
+                        if poster and (f / poster).exists():
+                            put(z, poster, (f / poster).read_bytes())
+                put(z, "LICENSES.md", sc.licenses_md(sc.parse(d)[0]).encode())
+                put(z, "generation.json", json.dumps(d, indent=2, ensure_ascii=False).encode())
+        return _publish_unique(tmp, dest_dir, stem, ".illusion")
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _sha(data: bytes) -> str:
@@ -184,6 +196,35 @@ def _sha(data: bytes) -> str:
 def _safe_name(s: str) -> str:
     keep = "".join(c if c.isalnum() or c in " -_" else " " for c in s)
     return "-".join(keep.lower().split())[:60]
+
+
+def _output_temp(dest_dir: Path, suffix: str) -> Path:
+    fd, name = tempfile.mkstemp(prefix=".openillusion-export-", suffix=suffix + ".tmp", dir=dest_dir)
+    os.close(fd)
+    return Path(name)
+
+
+def _publish_unique(tmp: Path, dest_dir: Path, stem: str, suffix: str) -> Path:
+    """Publish a complete export atomically, without replacing an earlier same-name export."""
+    n = 1
+    while True:
+        label = stem if n == 1 else f"{stem}-{n}"
+        out = dest_dir / f"{label}{suffix}"
+        try:
+            # A hard link is an atomic no-clobber publication of the already-complete file.
+            os.link(tmp, out)
+        except FileExistsError:
+            n += 1
+            continue
+        except OSError as ex:
+            if ex.errno not in (errno.EPERM, errno.EACCES, errno.ENOTSUP, errno.EOPNOTSUPP):
+                raise
+            # Filesystems without hard links still get an atomic, collision-resistant name.
+            out = dest_dir / f"{stem}-{time.time_ns()}-{secrets.token_hex(4)}{suffix}"
+            os.replace(tmp, out)
+            return out
+        tmp.unlink()
+        return out
 
 
 # ---- import ----------------------------------------------------------------

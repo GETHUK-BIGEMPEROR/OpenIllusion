@@ -146,6 +146,7 @@ export interface Toast {
   text: string;
   tone?: "ok" | "warn" | "error";
   action?: { label: string; run: () => void };
+  closing?: boolean;
 }
 
 interface AppState {
@@ -293,10 +294,17 @@ export const useApp = create<AppState>()(
       setSearch: (search) => set({ search }),
       toast: (t) => {
         const id = newKey();
-        set((s) => ({ toasts: [...s.toasts.slice(-3), { ...t, id }] }));
+        const visible = get().toasts.filter((item) => !item.closing);
+        if (visible.length >= 4) get().dismiss(visible[0].id);
+        set((s) => ({ toasts: [...s.toasts, { ...t, id }] }));
         setTimeout(() => get().dismiss(id), t.action ? 9000 : 4500);
       },
-      dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+      dismiss: (id) => {
+        const toast = get().toasts.find((t) => t.id === id);
+        if (!toast || toast.closing) return;
+        set((s) => ({ toasts: s.toasts.map((t) => (t.id === id ? { ...t, closing: true } : t)) }));
+        setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 140);
+      },
     }),
     {
       name: "openillusion.studio.v1",

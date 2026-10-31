@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type CSSProperties } from "react";
 import { ValidationRow } from "../components/bits";
 import { Badge, Button, IconButton, Spinner } from "../components/ui";
@@ -18,6 +18,7 @@ export function ImportReview() {
   const setStudio = useApp((s) => s.setStudio);
   const toast = useApp((s) => s.toast);
   const qc = useQueryClient();
+  const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const [busy, setBusy] = useState<"add" | "remix" | null>(null);
 
   const commit = async (then: "add" | "remix") => {
@@ -47,6 +48,8 @@ export function ImportReview() {
   const thumb = review?.poster ?? m?.inputs.find((i) => i.thumb)?.thumb ?? null;
   const pkg = !m ? "" : m.variant === "recipe" || !review?.size ? "Recipe only" : m.variant === "full" ? "Full" : m.variant === "light" ? "Light" : "Generation";
   const bad = review?.checks.filter((c) => c.level === "warn").length ?? 0;
+  const missingTemplate = !!m && engines.isSuccess && !engines.data.some((e) => e.id === m.engine.model);
+  const checkingTemplate = engines.isLoading || engines.isError;
   return (
     <Dialog.Root open={!!review} onOpenChange={(o) => !o && setReview(null)}>
       <Dialog.Portal>
@@ -92,12 +95,16 @@ export function ImportReview() {
                   </ul>
                 </section>
                 <p className="dlg-note"><I n="lock" size={12} />Nothing runs on import. Missing nodes and models are listed, never installed.</p>
+                {missingTemplate && <p className="dlg-note warn"><I n="alert" size={12} />The template <b>{shortModel(m.engine.model)}</b> is not installed. Add this generation to Library, then import its .illusion template before opening the recipe in Create.</p>}
               </div>
 
               <div className="dlg-f">
                 <span className="note">Saved to the Imported shelf.</span>
                 <Button disabled={!!busy} onClick={() => commit("add")}>{busy === "add" ? <Spinner size={12} /> : null}Add to library</Button>
-                <Button tone="primary" disabled={!!busy} onClick={() => commit("remix")}>{busy === "remix" ? <Spinner size={12} /> : null}{review.has_driving ? "Open in Create" : "Open in Create with my video"}</Button>
+                <Button tone="primary" disabled={!!busy || checkingTemplate || missingTemplate} onClick={() => commit("remix")}
+                  title={engines.isError ? "Couldn't load the installed templates. Close this review and try again." : missingTemplate ? "Install the matching .illusion template first" : undefined}>
+                  {busy === "remix" ? <Spinner size={12} /> : null}{engines.isLoading ? "Checking template…" : engines.isError ? "Couldn't check template" : missingTemplate ? "Template not installed" : review.has_driving ? "Open in Create" : "Open in Create with my video"}
+                </Button>
               </div>
             </>
           )}

@@ -222,6 +222,20 @@ def test_template_carries_its_own_copy_of_the_request():
     assert adapters.get(VEO).body["instances"][0]["prompt"] == ""
 
 
+def test_every_shipped_cloud_template_reopens_with_the_roles_it_was_built_for():
+    """Build from this must use the request's discriminators, not the first equal token.
+
+    Seedance deliberately represents Reference video and Video to edit with the same
+    content item; ``duration=-1`` is what distinguishes the edit job.
+    """
+    for e in [x for x in engines.ENGINES.values() if x.kind == "cloud" and x.origin == "shipped"]:
+        a = adapters.for_model(e.model)
+        preset = builder.cloud_preset(e)
+        got = [a.inputs[m["input"]]["role"] for m in preset["media"]]
+        want = [engines.fit.role(e, f["key"]) for f in e.fields if f["type"] in engines.MEDIA]
+        assert got == want, e.id
+
+
 @pytest.mark.parametrize("spec,match", [
     (_spec(model="acme/edit-1"), "has no adapter"),
     (_spec(media=[1]), "needs a First frame"),

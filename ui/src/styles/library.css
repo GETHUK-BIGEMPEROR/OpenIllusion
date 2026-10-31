@@ -4,17 +4,19 @@
 .ghead h3{margin:0;font:600 13px/1 var(--body)}
 .ghead span{font:500 11px var(--mono);color:var(--text-3)}
 .wall-wrap.lib{display:grid;gap:22px}
-.gcard .media img{transition:opacity .45s,transform .7s cubic-bezier(.2,.7,.2,1),filter .25s linear}
-.gcard.st-running .media img,.gcard.st-queued .media img{filter:blur(calc((1 - var(--p,0)) * 20px)) saturate(calc(.3 + var(--p,0) * .7));transform:scale(1.08)}
-.gcard.st-queued .media img{filter:blur(14px) saturate(.2) brightness(.6)}
+.gcard .media img{transition:opacity .25s linear,transform var(--motion-enter) var(--ease-out),filter var(--motion-fast)}
+.gcard.st-running .media img{opacity:calc(.5 + var(--p,0) * .5);transform:scale(calc(1.025 - var(--p,0) * .025))}
+.gcard.st-queued .media img{opacity:.42;transform:scale(1.025)}
 .gcard.st-queued .noise{opacity:.3}
 .gcard.st-failed .media img{filter:saturate(.25) brightness(.5)}
 .gcard .hud-in{padding:12px 14px;gap:8px;border-radius:14px}
-.gfail{position:absolute;inset:0;display:grid;align-content:center;justify-items:center;gap:8px;padding:16px;text-align:center;z-index:3;background:linear-gradient(rgba(255,92,120,.08),rgba(255,92,120,.18))}
+.gfail{position:absolute;inset:0;display:grid;align-content:center;justify-items:center;gap:8px;padding:16px;text-align:center;z-index:3;background:linear-gradient(rgba(255,92,120,.08),rgba(255,92,120,.18));pointer-events:none}
+.gfail .btn{pointer-events:auto}
 .gfail .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:rgba(255,92,120,.18);color:var(--rose)}
 .gfail b{font-size:13px}
 .gfail p{margin:0;font-size:11.5px;color:#E8C5CB;line-height:1.4;max-width:240px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.gprompt{position:absolute;left:0;right:0;bottom:0;padding:50px 14px 13px;background:linear-gradient(transparent,rgba(7,6,13,.6) 35%,rgba(7,6,13,.94));z-index:2}
+.gprompt{position:absolute;left:0;right:0;bottom:0;padding:50px 14px 13px;background:linear-gradient(transparent,rgba(7,6,13,.6) 35%,rgba(7,6,13,.94));z-index:2;pointer-events:none}
+.gprompt a,.gprompt button,.gprompt [tabindex]{pointer-events:auto}
 .gprompt p{margin:0;font-size:12.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .gprompt .meta{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:rgba(238,237,255,.6)}
 .gprompt .meta b{color:var(--text);font-weight:500}

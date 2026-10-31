@@ -4,6 +4,32 @@ How OpenIllusion is put together: where the code is, what one run does, where th
 are kept, and the API. What each screen does is in [docs/APP.md](docs/APP.md); the
 template file, the Builder and the cloud models in [docs/TEMPLATES.md](docs/TEMPLATES.md).
 
+## Reliability and distribution guarantees
+
+- Each variant prepares its own copy of the request and resolves its random seed
+  independently. Explicit cancellation is terminal; normal server shutdown keeps
+  request IDs and active state for restart. Resumed local jobs reconnect the proxy
+  before polling. One shared permit count honors parallelism changes across all
+  existing runs, and completed task objects leave the task registry.
+- Failed preparation removes its partial generation folder. A failed manifest save
+  is surfaced in the queue rather than silently reporting a terminal state that
+  disagrees with the filesystem. Restore closes a maintenance gate against new
+  runs and template mutations; active templates cannot be deleted or replaced.
+- Generation exports use unique scratch directories and publish complete files
+  atomically with collision-free names. Full and Light exports with the same title
+  no longer replace each other.
+- Template loading, Builder save and template-package installation share executable
+  contract validation for bindings, media tokens and outputs. Only supported
+  versions load; versionless legacy templates migrate from v1. Builder resolves
+  cloud roles through the same adapter discriminator logic used by input fitting.
+- `build_backend.py` builds the locked frontend for distributable wheels. Wheels
+  include `server/static`, adapters, the `templates` resource package and the
+  `schema` resource package; editable installs retain the launcher/Docker build
+  flow. The launcher hashes frontend metadata/public assets and Python metadata,
+  version, constraints and build backend. `constraints.txt` pins direct runtime
+  dependencies for launcher and container installs; Docker base images are pinned
+  to verified multi-platform digests. Transitive Python packages are not yet locked.
+
 ## System map
 
 One Python process serves both the web app and its API on `:7870`. The browser

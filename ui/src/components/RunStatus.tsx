@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { Job } from "../lib/api";
 import { cx, jobProgress, QUEUED, Ring } from "./oi";
 
@@ -76,7 +76,7 @@ export function RunHud({ job, small, onCancel }: { job: Job; small?: boolean; on
     return (
       <div className="runhud sm">
         <div className="rh-t"><b>{r.title}</b><span className="mono">{clock(r.spent)}{time && ` · ${time}`}</span></div>
-        <div className={cx("rbar", !r.known && "indet")}><i style={r.known ? { width: `${r.value * 100}%` } : undefined} /></div>
+        <div className={cx("rbar", !r.known && "indet")}><i style={r.known ? { "--p": r.value } as CSSProperties : undefined} /></div>
       </div>
     );
   }

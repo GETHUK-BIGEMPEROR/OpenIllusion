@@ -128,7 +128,9 @@ def install(data: bytes) -> engines.Engine:
             head = json.loads(z.read("illusion.json"))
         except (KeyError, ValueError):
             raise Refused("Not a template .illusion: it has no readable illusion.json.") from None
-        if not isinstance(head, dict) or head.get("format") != FORMAT or not isinstance(head.get("version"), int):
+        if (not isinstance(head, dict) or head.get("format") != FORMAT
+                or not isinstance(head.get("version"), int) or isinstance(head.get("version"), bool)
+                or head["version"] < 1):
             raise Refused("Not a template .illusion.")
         if head["version"] > VERSION:
             raise Refused("This template was made by a newer OpenIllusion. Update, then add it.")

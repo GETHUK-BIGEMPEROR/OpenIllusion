@@ -66,6 +66,9 @@ async def _cleanup(app: web.Application) -> None:
     for task in (app.get("proxy_keeper"), app.get("janitor")):
         if task:
             task.cancel()
+    # A process stop is not the same as the user cancelling a generation.
+    # Leave active jobs in jobs.json so startup can resume/collect them.
+    await jobs.MANAGER.shutdown()
     for ws in list(routes._sockets):
         await ws.close()
     proxy.stop()

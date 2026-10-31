@@ -1,0 +1,10 @@
+include build_backend.py
+include constraints.txt
+include ui/package.json ui/package-lock.json ui/tsconfig.json ui/vite.config.ts ui/index.html
+recursive-include ui/src *
+recursive-include ui/public *
+prune ui/node_modules
+recursive-include server/static *
+recursive-include server/adapters *.json
+recursive-include templates *
+recursive-include schema *.json

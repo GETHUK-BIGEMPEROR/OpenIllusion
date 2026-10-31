@@ -34,7 +34,8 @@ export function Ring({ p, sm }: { p: number; sm?: boolean }) {
 /** Every tile loop on screen plays; one scrolled away pauses, so only the screenful decodes. The clips are
  *  small (720p at most), so a screenful is cheap; what made the page stutter was blur drawn over them. */
 const loops = new Map<HTMLVideoElement, number>(); // each mounted loop, by how much of it shows
-const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+const motionQuery = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+let calm = motionQuery?.matches ?? false;
 
 function settle() {
   const on = new Set(calm ? [] : [...loops].filter(([, r]) => r > 0).map(([v]) => v));
@@ -42,6 +43,24 @@ function settle() {
     if (on.has(v)) { if (v.paused) v.play().catch(() => {}); }
     else if (!v.paused) v.pause();
   }
+}
+
+// CSS cannot stop an already playing video. Keep decorative media in sync even
+// when the operating-system preference changes while OpenIllusion is open.
+motionQuery?.addEventListener("change", (event) => {
+  calm = event.matches;
+  settle();
+});
+
+export function useReducedMotion() {
+  const [reduced, setReduced] = useState(() => motionQuery?.matches ?? false);
+  useEffect(() => {
+    if (!motionQuery) return;
+    const change = (event: MediaQueryListEvent) => setReduced(event.matches);
+    motionQuery.addEventListener("change", change);
+    return () => motionQuery.removeEventListener("change", change);
+  }, []);
+  return reduced;
 }
 
 /** Tile media: a shimmer at the right shape until the picture arrives, then a fade in.
@@ -52,6 +71,7 @@ export function Media({ src, video, poster, ar, children, imgStyle }: {
 }) {
   const [loaded, setLoaded] = useState(false);
   const [near, setNear] = useState(false);
+  const reduced = useReducedMotion();
   const box = useRef<HTMLDivElement>(null);
   const vid = useRef<HTMLVideoElement>(null);
   useEffect(() => setLoaded(false), [src, video]);
@@ -62,7 +82,7 @@ export function Media({ src, video, poster, ar, children, imgStyle }: {
     io.observe(el);
     return () => io.disconnect();
   }, [video]);
-  const live = !!video && near;
+  const live = !!video && near && !reduced;
   // Loops play while on screen (see settle).
   useEffect(() => {
     const v = vid.current;
@@ -73,7 +93,7 @@ export function Media({ src, video, poster, ar, children, imgStyle }: {
     return () => { io.disconnect(); loops.delete(v); settle(); };
   }, [live]);
   const done = () => setLoaded(true);
-  const still = video ? poster : src;
+  const still = video ? poster ?? src : src;
   return (
     <div ref={box} className={cx("media", (loaded || (!src && !video)) && "loaded")} style={{ "--ar": ar } as CSSProperties}>
       {live ? (
@@ -93,8 +113,9 @@ export type CompareSide = string | { url: string; kind: "image" | "video"; poste
 /** Before/after wipe, photos or clips. Drag, or use the arrow keys. Two clips loop in step. */
 export function Compare({ before, after, lb = "Before", la = "After", intro, children }: { before: CompareSide; after: CompareSide; lb?: string; la?: string; intro?: boolean; children?: ReactNode }) {
   // With intro, the result wipes in from the right once, then the slider is yours.
-  const [x, setX] = useState(intro ? 100 : 50);
-  const [wiping, setWiping] = useState(!!intro);
+  const reduced = useReducedMotion();
+  const [x, setX] = useState(intro && !reduced ? 100 : 50);
+  const [wiping, setWiping] = useState(!!intro && !reduced);
   const el = useRef<HTMLDivElement>(null);
   const vBefore = useRef<HTMLVideoElement>(null);
   const vAfter = useRef<HTMLVideoElement>(null);
@@ -111,11 +132,20 @@ export function Compare({ before, after, lb = "Before", la = "After", intro, chi
     return () => lead.removeEventListener("timeupdate", sync);
   }, [before, after]);
   useEffect(() => {
-    if (!intro) return;
+    const clips = [vBefore.current, vAfter.current].filter(Boolean) as HTMLVideoElement[];
+    if (reduced) clips.forEach((clip) => clip.pause());
+    else clips.forEach((clip) => void clip.play().catch(() => {}));
+  }, [before, after, reduced]);
+  useEffect(() => {
+    if (!intro || reduced) {
+      setX(50);
+      setWiping(false);
+      return;
+    }
     const f = requestAnimationFrame(() => requestAnimationFrame(() => setX(50)));
     const t = window.setTimeout(() => setWiping(false), 1100);
     return () => { cancelAnimationFrame(f); clearTimeout(t); };
-  }, [intro]);
+  }, [intro, reduced]);
   const at = (clientX: number) => {
     const r = el.current!.getBoundingClientRect();
     setX(Math.min(100, Math.max(0, ((clientX - r.left) / r.width) * 100)));
@@ -126,11 +156,11 @@ export function Compare({ before, after, lb = "Before", la = "After", intro, chi
       onPointerDown={(e) => { el.current!.setPointerCapture(e.pointerId); setWiping(false); at(e.clientX); }}
       onPointerMove={(e) => { if (e.buttons) at(e.clientX); }}
       onKeyDown={(e) => {
-        if (e.key === "ArrowLeft") { e.preventDefault(); setX((v) => Math.max(0, v - 5)); }
-        if (e.key === "ArrowRight") { e.preventDefault(); setX((v) => Math.min(100, v + 5)); }
+        if (e.key === "ArrowLeft") { e.preventDefault(); setWiping(false); setX((v) => Math.max(0, v - 5)); }
+        if (e.key === "ArrowRight") { e.preventDefault(); setWiping(false); setX((v) => Math.min(100, v + 5)); }
       }}>
-      {side(before, lb, vBefore)}
-      {side(after, la, vAfter, "after")}
+      {side(before, lb, vBefore, undefined, !reduced)}
+      {side(after, la, vAfter, "after", !reduced)}
       <span className="pill tg l">{lb}</span><span className="pill tg r">{la}</span>
       <div className="handle"><div className="knob"><I n="compare" /></div></div>
       {children}
@@ -138,9 +168,9 @@ export function Compare({ before, after, lb = "Before", la = "After", intro, chi
   );
 }
 
-function side(s: CompareSide, alt: string, ref: RefObject<HTMLVideoElement>, className?: string) {
+function side(s: CompareSide, alt: string, ref: RefObject<HTMLVideoElement>, className?: string, play = true) {
   if (typeof s === "string" || s.kind === "image") return <img className={className} src={typeof s === "string" ? s : s.url} alt={alt} draggable={false} />;
-  return <video ref={ref} className={className} key={s.url} src={s.url} poster={s.poster ?? undefined} muted loop playsInline autoPlay aria-label={alt} />;
+  return <video ref={ref} className={className} key={s.url} src={s.url} poster={s.poster ?? undefined} muted loop playsInline autoPlay={play} preload={play ? "auto" : "metadata"} aria-label={alt} />;
 }
 
 export function EmptyBox({ icon, title, children, action, style }: { icon?: IconName; title: string; children?: ReactNode; action?: ReactNode; style?: CSSProperties }) {
@@ -267,9 +297,10 @@ export function KeyStat() {
   const k = keyState(status.data);
   return (
     <div className="gstat" ref={box}>
-      <button className={cx("gchip kchip", k.tone)} type="button" aria-expanded={open} aria-label={`Comfy API: ${k.word}. Show details`} onClick={() => setOpen(!open)}>
+      <button className={cx("gchip kchip", k.tone, k.tone !== "ok" && "attention")} type="button" aria-expanded={open} aria-label={`Comfy API: ${k.word}. Show details`} onClick={() => setOpen(!open)}>
         <span className="gring"><i className={cx("dot", k.tone === "off" && "off", k.tone === "warn" && "warn", k.tone === "bad" && "bad")} /></span>
         <I n="key" className="kic" /><b>Comfy API</b><span className="gv">{k.word}</span>
+        <span className="gmob">{k.word}</span>
         <I n="down" className="gcv" />
       </button>
       {open && <KeyPop k={k} has={!!status.data?.has_key} />}
@@ -320,16 +351,18 @@ export function GpuStat() {
   const gpu = gpuName(l.gpu) ?? "GPU";
   const cpu = onCpu(l.gpu);
   const ver = l.comfyui_version ? `ComfyUI ${l.comfyui_version.split(".").slice(0, 2).join(".")}` : "ComfyUI";
+  const compactStatus = cur ? `${Math.round(p * 100)}%` : cpu ? "CPU" : !l.ok ? "API off" : "Ready";
   const c = 2 * Math.PI * 7;
   return (
     <div className="gstat" ref={box}>
-      <button className="gchip" type="button" aria-expanded={open} aria-label={`${gpu}, ${ver}. Show GPU status`} title={cpu ? CPU_NOTE : undefined} onClick={() => setOpen(!open)}>
+      <button className={cx("gchip", (!l.ok || cpu) && "attention", cur && "active")} type="button" aria-expanded={open} aria-label={`${gpu}, ${ver}, ${compactStatus}. Show GPU status`} title={cpu ? CPU_NOTE : undefined} onClick={() => setOpen(!open)}>
         <span className="gring">
           <svg viewBox="0 0 18 18" aria-hidden><circle cx="9" cy="9" r="7" strokeDasharray={c} strokeDashoffset={c * (1 - p)} style={{ opacity: cur ? 1 : 0 }} /></svg>
           <i className={cx("dot", cur && "busy", (!l.ok || cpu) && "warn")} />
         </span>
         <b>{gpu}</b><span className="gv">{ver}</span>
         {cur && <span className="gp mono">{Math.round(p * 100)}%</span>}
+        <span className="gmob">{compactStatus}</span>
         <I n="down" className="gcv" />
       </button>
       {open && <GpuPop l={l} cur={cur} waiting={local.length - (cur ? 1 : 0)} />}

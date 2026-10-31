@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import random
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -142,9 +143,21 @@ def input_plans(spec: dict) -> dict[str, prep.Plan]:
 
 
 def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | None = None) -> sc.Manifest:
-    """Copy inputs into a new generation folder and write a running manifest."""
+    """Copy inputs into a new generation folder and write a running manifest.
+
+    A folder without generation.json is neither a generation nor scratch, so
+    no janitor can safely remove it later. Roll back every preparation failure.
+    """
     sid = sc.new_id()
     folder = store.folder(sid)
+    try:
+        return _prepare_generation(spec, parent, variant_no, sid, folder)
+    except BaseException:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+
+
+def _prepare_generation(spec: dict, parent: str | None, variant_no: int | None, sid: str, folder: Path) -> sc.Manifest:
     (folder / "refs").mkdir(parents=True, exist_ok=True)
     strip = settings.load().get("strip_exif", True)
     e = engines.get(spec["engine"])
@@ -227,8 +240,8 @@ def prepare_generation(spec: dict, parent: str | None = None, variant_no: int | 
         params=spec.get("params") or {}, request_template=template, status="running",
         tags=spec.get("tags") or [], lineage=lineage,
     )
-    store.save(m, shelf="mine")
     _write_workflow(folder, m)
+    store.save(m, shelf="mine")
     # Record the other side of a chain (Edit → Motion).
     for ref in m.lineage.chain:
         kind, _, other = ref.partition(":")

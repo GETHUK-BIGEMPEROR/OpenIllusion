@@ -14,6 +14,7 @@ connection (or a restart) collects the original run instead of a second one.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import shutil
 import time
@@ -30,6 +31,33 @@ from .router import Router, RouterError
 
 MAX_BODY = 100 * 1024 * 1024  # Router's request limit
 TERMINAL = ("done", "failed", "moderated", "cancelled")
+
+
+class MaintenanceError(RuntimeError):
+    """A library-wide maintenance operation temporarily refuses mutations."""
+
+
+class _Slot:
+    """One permit from a Manager's live, dynamically sized run limit.
+
+    The permit count belongs to the manager rather than to a replaceable
+    ``asyncio.Semaphore``.  Changing max_parallel therefore cannot give new
+    jobs a second pool of permits while old jobs still hold the first one.
+    """
+
+    def __init__(self, manager: "Manager"):
+        self.manager = manager
+
+    async def __aenter__(self):
+        while self.manager._slots_in_use >= self.manager._slot_limit():
+            await asyncio.sleep(0.05)
+        # There is no await between the check and increment. All jobs run on
+        # this process's one event loop, so two waiters cannot take one place.
+        self.manager._slots_in_use += 1
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.manager._slots_in_use = max(0, self.manager._slots_in_use - 1)
 
 
 @dataclass
@@ -67,8 +95,9 @@ class Manager:
         self.jobs: dict[str, Job] = {}
         self.tasks: dict[str, asyncio.Task] = {}
         self.listeners: list[Callable[[dict], None]] = []
-        self._sem: asyncio.Semaphore | None = None
-        self._sem_size = 0
+        self._slots_in_use = 0
+        self._stopping = False
+        self._maintenance: str | None = None
         self.router_factory: Callable[[], Router] = Router
         self.v2_factory: Callable[[], local.ComfyV2] = local.ComfyV2
         self.comfyui_factory: Callable[[], local.ComfyUI] = local.ComfyUI
@@ -77,12 +106,42 @@ class Manager:
 
     # ---- plumbing ------------------------------------------------------
 
-    def sem(self) -> asyncio.Semaphore:
-        n = int(settings.load().get("max_parallel") or 2)
-        if self._sem is None or n != self._sem_size:
-            self._sem = asyncio.Semaphore(n)
-            self._sem_size = n
-        return self._sem
+    def _slot_limit(self) -> int:
+        return max(1, int(settings.load().get("max_parallel") or 2))
+
+    def sem(self) -> _Slot:
+        return _Slot(self)
+
+    @property
+    def maintenance(self) -> str | None:
+        return self._maintenance
+
+    def begin_maintenance(self, kind: str) -> bool:
+        """Close the mutation gate. The caller checks active jobs first."""
+        if self._maintenance is not None or self.active_ids():
+            return False
+        self._maintenance = kind
+        return True
+
+    def end_maintenance(self, kind: str) -> None:
+        if self._maintenance == kind:
+            self._maintenance = None
+
+    def active_for_engine(self, engine_id: str) -> bool:
+        return any(j.state not in TERMINAL and (j.engine == engine_id or (not j.engine and j.model == engine_id))
+                   for j in self.jobs.values())
+
+    def _track(self, job_id: str, task: asyncio.Task) -> None:
+        """Keep active tasks cancellable, without retaining every completed run forever."""
+        self.tasks[job_id] = task
+
+        def done(t: asyncio.Task) -> None:
+            if self.tasks.get(job_id) is t:
+                self.tasks.pop(job_id, None)
+            if not t.cancelled():
+                t.exception()  # retrieve an unexpected exception instead of warning at shutdown
+
+        task.add_done_callback(done)
 
     def emit(self, job: Job, save: bool = True) -> None:
         """Tell the open pages. ``save=False`` for progress and previews: they only matter live."""
@@ -139,6 +198,7 @@ class Manager:
 
     def resume(self) -> int:
         """Pick up runs that were in flight when OpenIllusion stopped."""
+        self._stopping = False
         f = paths.user_root() / "jobs.json"
         if not f.exists():
             return 0
@@ -157,28 +217,70 @@ class Manager:
                     pass
             self.jobs[job.id] = job
             if job.state not in TERMINAL:
-                self.tasks[job.id] = asyncio.ensure_future(self._run(job))
+                self._track(job.id, asyncio.create_task(self._run(job)))
                 n += 1
         return n
+
+    async def shutdown(self) -> None:
+        """Stop local tasks while leaving in-flight jobs resumable on the next start."""
+        self._stopping = True
+        self._persist()
+        pending = [t for t in self.tasks.values() if not t.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        self._persist()
 
     # ---- public ----------------------------------------------------------
 
     async def start(self, spec: dict) -> list[str]:
         """Create one generation per variant and queue them. Returns generation ids."""
+        if self._maintenance is not None:
+            raise MaintenanceError(f"{self._maintenance.capitalize()} is in progress; wait for it to finish")
         variants = max(1, min(4, int(spec.get("variants") or 1)))
-        ids: list[str] = []
         parent = sc.new_id() if variants > 1 else None
-        for n in range(variants):
-            m = staging.prepare_generation(spec, parent=parent, variant_no=n + 1 if variants > 1 else None)
-            e = engines.get(m.engine.model)
-            job = Job(
-                id=m.id, title=m.title, mode=m.mode, model=engines.router_model(m.engine.model), provider=e.provider,
-                engine=m.engine.model, prompt=m.prompt, parent=parent, poster=staging.poster_url(m), kind=e.kind,
-                typical=store.typical(m.engine.model),
-            )
+        staged: list[sc.Manifest] = []
+        prepared: list[tuple[sc.Manifest, Job]] = []
+        try:
+            for n in range(variants):
+                # Preparing a random seed mutates params. Each variant gets the
+                # untouched request so random seeds are rolled independently.
+                one = copy.deepcopy(spec)
+                m = staging.prepare_generation(one, parent=parent, variant_no=n + 1 if variants > 1 else None)
+                staged.append(m)
+                e = engines.get(m.engine.model)
+                prepared.append((m, Job(
+                    id=m.id, title=m.title, mode=m.mode, model=engines.router_model(m.engine.model), provider=e.provider,
+                    engine=m.engine.model, prompt=m.prompt, parent=parent, poster=staging.poster_url(m), kind=e.kind,
+                    typical=store.typical(m.engine.model),
+                )))
+        except BaseException:
+            # Do not expose a partial variant group when a later variant could
+            # not be staged. Prepared manifests were indexed, so remove both
+            # their folders and index entries before returning the error.
+            rebuild = False
+            for m in staged:
+                try:
+                    store.delete(m.id)
+                    if not store.purge(m.id):
+                        rebuild = True
+                except Exception:
+                    rebuild = True
+                    shutil.rmtree(store.folder(m.id), ignore_errors=True)
+                    shutil.rmtree(store.trash_folder(m.id), ignore_errors=True)
+            if rebuild:
+                try:
+                    store.reindex()
+                except Exception:
+                    traceback.print_exc()
+            raise
+
+        ids: list[str] = []
+        for m, job in prepared:
             self.jobs[job.id] = job
             self.emit(job)
-            self.tasks[job.id] = asyncio.ensure_future(self._run(job))
+            self._track(job.id, asyncio.create_task(self._run(job)))
             ids.append(m.id)
         try:
             usage.note(m.engine.model)
@@ -218,8 +320,13 @@ class Manager:
             async with self.sem():
                 await self._run_inner(job)
         except asyncio.CancelledError:
-            if job.state not in TERMINAL:
+            if job.state not in TERMINAL and not self._stopping:
                 self._finish(job, "cancelled", "Cancelled.")
+            else:
+                # Normal process shutdown is not a user cancellation. Keep
+                # the last request id/state in jobs.json so resume() collects it.
+                self._persist()
+            raise
         except RouterError as e:
             self._router_failure(job, e)
         except local.V2Error as e:
@@ -347,6 +454,16 @@ class Manager:
     async def _run_local(self, job: Job, m: sc.Manifest, folder: Path) -> None:
         e = engines.get(m.engine.model)
         v2 = self.v2_factory()
+        if job.request_id:
+            # The managed proxy is a child of this process. A resumed local
+            # job can have an id while the proxy still needs to be restarted.
+            self.set(job, "estimating", "Reconnecting to your ComfyUI")
+            up = await self.ensure_proxy()
+            if not up.get("ok"):
+                reason = up.get("reason") or "proxy_failed"
+                text = "Couldn't reconnect to Comfy API v2 to resume this run. Start ComfyUI, then try again."
+                self._finish(job, "failed", text, error={"error_type": reason, "message": text}, fixes=["rerun"])
+                return
         if not job.request_id:
             self.set(job, "estimating", "Connecting to your ComfyUI")
             up = await self.ensure_proxy()
@@ -578,7 +695,7 @@ class Manager:
         else:
             self._finish(job, "failed", e.message or et, error=e.to_dict(), fixes=["rerun"])
 
-    def _finish(self, job: Job, state: str, detail: str, error: dict | None = None, fixes: list[str] | None = None) -> None:
+    def _finish(self, job: Job, state: str, detail: str, error: dict | None = None, fixes: list[str] | None = None) -> bool:
         try:
             m = store.get(job.id)
             m.status = state if state in ("done", "failed", "moderated", "cancelled") else m.status
@@ -588,9 +705,16 @@ class Manager:
                 m.result.error = {**(error or {"message": detail}), "detail": detail}
                 m.result.elapsed = round(time.time() - (job.started or job.created), 1)
             store.save(m)
-        except Exception:
-            pass
+        except Exception as ex:
+            # generation.json is the source of truth. Do not claim a terminal
+            # outcome only in the ephemeral queue when it could not be saved.
+            traceback.print_exc()
+            why = f"Couldn't save this run's final state: {ex or ex.__class__.__name__}. Restart OpenIllusion to retry it."
+            self.set(job, job.state if job.state not in TERMINAL else "waiting", why,
+                     error={"error_type": "persistence_error", "message": str(ex)}, fixes=[])
+            return False
         self.set(job, state, detail, error=error, fixes=fixes or [], progress=None, preview=None)
+        return True
 
 
 MANAGER = Manager()

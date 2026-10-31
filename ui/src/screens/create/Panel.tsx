@@ -1,7 +1,7 @@
 // Create's left panel: the template header, the prompt, settings summary, and the Run bar.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { cx, I, useStatus, gpuName, onCpu, CPU_NOTE } from "../../components/oi";
+import { cx, I, useStatus, gpuName, onCpu, CPU_NOTE, useReducedMotion } from "../../components/oi";
 import { useLocalCheck, useRunner } from "../../components/Studio";
 import { OriginTag, TemplateTools, tplModel, tplName, useCoverActions } from "../../components/TemplateCard";
 import { Spinner } from "../../components/ui";
@@ -28,6 +28,7 @@ export function advSummary(params: ParamSpec[], s: StudioState) {
 /** `run`: the finished run of this template on the stage, if one is; a draft publishes with it. */
 export function Hero({ e, run }: { e: EngineInfo; run?: string | null }) {
   const [open, setOpen] = useState(false);
+  const reduced = useReducedMotion();
   const openTemplate = useApp((s) => s.openTemplate);
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const status = useStatus();
@@ -45,7 +46,7 @@ export function Hero({ e, run }: { e: EngineInfo; run?: string | null }) {
   return (
     <div className="thero" ref={ref}>
       <div className="thero-img">
-        {e.cover_video ? <video src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 22%" }} />
+        {e.cover_video && !reduced ? <video src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 22%" }} />
           : e.cover ? <img src={e.cover} alt="" />
           : <span aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 90% at 100% 0%,rgba(255,79,163,.18),transparent 60%),linear-gradient(160deg,#261F3A,#141120)" }} />}
         <div className="thero-cap"><h2>{tplName(e)}</h2><p><i className={cx("dot", e.kind !== "local" && "violet")} />{tplModel(e)} · {where}<OriginTag e={e} /></p></div>

@@ -18,14 +18,15 @@ export const tplModel = (e: Pick<EngineInfo, "provider" | "model_name">) => e.mo
 export function TemplateCard({ e, hint, selected, locked, onUse, onInspect }: { e: EngineInfo; hint?: { text: string; off?: boolean }; selected?: boolean; locked?: string | null; onUse: () => void; onInspect: () => void }) {
   const n = e.inputs?.length ?? 0;
   const del = useRemoveTemplate(e, () => {});
+  const [tools, setTools] = useState(false);
   const local = e.kind === "local";
   const video = e.mode === "motion";
   // Drop a photo or clip on a card: the template opens in Create with it in place of the sample.
   const drop = useFileDrop((files) => void openWithFiles(e, files), { accept: isMediaFile, disabled: !n });
   return (
     <article className={cx("card tcard", selected && "sel", drop.over && "drop")} {...drop.props} data-drop="Drop to run it on your file"
-      tabIndex={0} role="button" aria-label={`Open ${tplName(e)}`}
-      onClick={onUse} onKeyDown={(ev) => { if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); onUse(); } }}>
+      aria-label={tplName(e)}>
+      <button className="card-use" type="button" aria-label={`Open ${tplName(e)} in Create`} onClick={onUse} />
       <Media src={e.cover} video={e.cover_video} poster={e.cover} ar={clampAspect(e.cover ? e.cover_aspect : 1)}>
         {!e.cover && !e.cover_video && <NoCover e={e} />}
       </Media>
@@ -38,18 +39,20 @@ export function TemplateCard({ e, hint, selected, locked, onUse, onInspect }: { 
         <span className="pill kindb" title={video ? "Makes a video" : "Makes a photo"}><I n={video ? "film" : "image"} />{video ? "Video" : "Photo"}</span>
       </div>
       {/* Shown on hover, under the kind badge, so they never take room from the badges. */}
-      <div className="cacts">
+      <div className={cx("cacts", tools && "open")}>
         {local && (
-          <a className="icon-btn sm glass reveal" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} aria-label={`Download the ComfyUI workflow of ${tplName(e)}`} title="Download ComfyUI workflow"
+          <a className="icon-btn sm glass reveal tool-extra" href={templateWorkflowUrl(e.id)} download={`${e.id.split("/").pop()}.json`} aria-label={`Download the ComfyUI workflow of ${tplName(e)}`} title="Download ComfyUI workflow"
             onClick={(ev) => ev.stopPropagation()}><I n="download" /></a>
         )}
-        <button className="icon-btn sm glass reveal" type="button" aria-label={`Build a template from ${tplName(e)}`} title="Build from this"
+        <button className="icon-btn sm glass reveal tool-extra" type="button" aria-label={`Build a template from ${tplName(e)}`} title="Build from this"
           onClick={(ev) => { ev.stopPropagation(); go({ name: "build", from: e.id }); }}><I n="graph" /></button>
         <button className="icon-btn sm glass reveal" type="button" aria-label={`Details for ${tplName(e)}`} title="Details" onClick={(ev) => { ev.stopPropagation(); onInspect(); }}><I n="info" /></button>
         {del && (
-          <button className="icon-btn sm glass reveal del" type="button" aria-label={`${del.label}: ${tplName(e)}`} title={del.label} disabled={del.busy}
+          <button className="icon-btn sm glass reveal del tool-extra" type="button" aria-label={`${del.label}: ${tplName(e)}`} title={del.label} disabled={del.busy}
             onClick={(ev) => { ev.stopPropagation(); void del.run(); }}><I n="trash" /></button>
         )}
+        <button className="icon-btn sm glass touch-tools" type="button" aria-label={tools ? `Hide tools for ${tplName(e)}` : `More tools for ${tplName(e)}`}
+          aria-expanded={tools} onClick={() => setTools((v) => !v)}><I n={tools ? "x" : "more"} /></button>
       </div>
       <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)}{hint && <span className={cx("when", hint.off && "off")}>{hint.text}</span>}</p>
         <OriginTag e={e} /></div><span className="go"><I n="arrow" /></span></div>

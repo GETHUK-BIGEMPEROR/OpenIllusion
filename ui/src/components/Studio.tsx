@@ -16,9 +16,11 @@ export function useStudio(mode: Mode) {
   const s = useApp((st) => st[mode]);
   const set = useApp((st) => st.setStudio);
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
-  // A studio without a template, or on one that's gone, opens on the mode's first template.
+  // A genuinely empty studio opens on the mode's first template. A remix whose template is
+  // missing keeps its recipe intact so Create can explain what must be installed or remapped.
   useEffect(() => {
     if (!engines.data || engines.isFetching || engines.data.some((e) => e.id === s.engine)) return;
+    if (s.engine) return;
     const pick = engines.data.find((e) => e.mode === mode);
     if (pick && pick.id !== s.engine) set(mode, { engine: pick.id });
   }, [mode, s.engine, engines.data, engines.isFetching, set]);
@@ -375,7 +377,7 @@ export function useRunner({ set, spec, compose, onRan, prepare }: {
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key.toLowerCase() === "r" && !document.querySelector("[role=dialog]")) {
+      if (e.key.toLowerCase() === "r" && !document.querySelector('[role="dialog"]:not([aria-hidden="true"]):not([inert]):not([hidden])')) {
         e.preventDefault();
         void run_.current();
       }

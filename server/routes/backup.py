@@ -89,6 +89,8 @@ def register(routes: web.RouteTableDef) -> None:
             return err(409, "Wait for the runs in progress to finish, then restore.")
         if _busy:
             return err(409, "A backup or restore is already running")
+        if not jobs.MANAGER.begin_maintenance("restore"):
+            return err(409, "The library became busy. Wait for its runs or maintenance to finish, then restore.")
         _busy.add("restore")
         try:
             res = await asyncio.to_thread(backup.restore, src, folder / "unpack", progress=_reporter("restore"))
@@ -96,6 +98,7 @@ def register(routes: web.RouteTableDef) -> None:
             return err(422, str(e))
         finally:
             _busy.discard("restore")
+            jobs.MANAGER.end_maintenance("restore")
             shutil.rmtree(folder, ignore_errors=True)
         library_changed()
         return web.json_response(res)

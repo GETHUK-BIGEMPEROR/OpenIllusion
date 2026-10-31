@@ -174,6 +174,16 @@ export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, o
   const mirror = () => set({ fh: !e.fh, crop: e.crop && [1 - e.crop[0] - e.crop[2], e.crop[1], e.crop[2], e.crop[3]] });
   const flip = () => set({ fv: !e.fv, crop: e.crop && [e.crop[0], 1 - e.crop[1] - e.crop[3], e.crop[2], e.crop[3]] });
   const shape = (r: number) => set({ ratio: r, crop: shapeCrop(o.tw, o.th, r), width: null });
+  const cropValue = (part: 0 | 1 | 2 | 3, percent: number) => {
+    if (!e.crop || !Number.isFinite(percent)) return;
+    const c: Crop = [...e.crop];
+    const value = percent / 100;
+    if (part === 0) c[0] = clamp(value, 0, 1 - c[2]);
+    if (part === 1) c[1] = clamp(value, 0, 1 - c[3]);
+    if (part === 2) c[2] = clamp(value, MIN, 1 - c[0]);
+    if (part === 3) c[3] = clamp(value, MIN, 1 - c[1]);
+    set({ crop: c });
+  };
   const cw = e.crop ? e.crop[2] * o.tw : o.tw, ch = e.crop ? e.crop[3] * o.th : o.th;
   const setSide = (v: number, which: "w" | "h") => { if (Number.isFinite(v) && v > 0) set({ width: which === "w" ? v : Math.round((v * cw) / ch) }); };
   const fitIt = () => {
@@ -203,7 +213,15 @@ export function Editor({ m, fit, model, role, edits: e, onEdits, title, sheet, o
               </button>
             ))}
           </div>
-          <p className="ed-hint">Drag the frame to choose what stays; corners resize it.{fit?.aspect ? " Faded shapes are ones the model won't take." : ""}</p>
+          {e.crop && e.ratio == null && (
+            <div className="ed-crop-values" role="group" aria-label="Free crop position and size in percent">
+              {(["Left", "Top", "Width", "Height"] as const).map((label, part) => (
+                <label key={label}><span>{label}</span><input className="mono" type="number" min={part < 2 ? 0 : MIN * 100} max={100} step={0.5}
+                  value={Math.round(e.crop![part] * 1000) / 10} onChange={(ev) => cropValue(part as 0 | 1 | 2 | 3, +ev.target.value)} /><i>%</i></label>
+              ))}
+            </div>
+          )}
+          <p className="ed-hint">Drag the frame to choose what stays; corners or the percentage fields resize it.{fit?.aspect ? " Faded shapes are ones the model won't take." : ""}</p>
         </section>
       );
       case "turn": return (

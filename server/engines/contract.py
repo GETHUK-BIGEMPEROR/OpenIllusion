@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .. import paths, prep
-from .build import MEDIA, build_local, build_cloud
+from .build import MEDIA, build_local, build_cloud, tokens_in
 
 
 log = logging.getLogger("openillusion")
@@ -76,6 +76,17 @@ class Engine:
 # An ``aspect`` is a choice of shapes (Create shows them as frames); ``size`` is a shape and a step written as pixels.
 FIELD_TYPES = {*MEDIA, "text", "string", "int", "number", "bool", "seed", "select", "segmented", "aspect", "size"}
 _PARAM_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+TEMPLATE_VERSION = 2
+
+
+def template_version(data: dict) -> int:
+    """The contract version in ``data``, with versionless legacy files treated as v1."""
+    value = data.get("version", 1)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError("template version is a positive integer")
+    if value > TEMPLATE_VERSION:
+        raise ValueError("this template was made by a newer OpenIllusion")
+    return value
 
 
 def model_out_of_label(d: dict) -> dict:
@@ -99,7 +110,7 @@ def upgrade(data: dict) -> dict:
     That text is folded into the prompt's default here, so it stays visible
     and editable; the hidden copy in the workflow is emptied.
     """
-    if int(data.get("version") or 1) >= 2:
+    if template_version(data) == TEMPLATE_VERSION:
         return model_out_of_label(data)
     d = copy.deepcopy(model_out_of_label(data))
     binds = d.pop("bindings", None) or {}
@@ -206,6 +217,81 @@ def _field(f: Any) -> dict:
     return out
 
 
+_MISSING = object()
+
+
+def _at_path(value: Any, path: list) -> Any:
+    cur = value
+    for key in path:
+        try:
+            cur = cur[key]
+        except (KeyError, IndexError, TypeError):
+            return _MISSING
+    return cur
+
+
+def validate_template(data: dict, fields: list[dict], source_version: int) -> None:
+    """Validate the executable half of a template before it reaches the registry or disk.
+
+    Builder assembly already makes these promises. Keeping the same checks at the contract
+    boundary means a hand-written template or a ``.illusion`` cannot defer a bad binding
+    until somebody presses Run.
+    """
+    cloud = data.get("kind") == "cloud"
+    if cloud:
+        body = data.get("body")
+        if not isinstance(body, dict):
+            raise ValueError("a cloud template has a request body")
+        declared = {(f["type"], int(f["key"].split(":", 1)[1])) for f in fields if f["type"] in MEDIA}
+        unknown = {(kind, number) for kind, number, _ in tokens_in(body)} - declared
+        if unknown:
+            kind, number = sorted(unknown)[0]
+            raise ValueError(f"the request has an undeclared {kind}:{number} token")
+        if source_version == TEMPLATE_VERSION and not data.get("result"):
+            raise ValueError("a cloud template needs a result path")
+    else:
+        workflow = data.get("workflow")
+        if not isinstance(workflow, dict):
+            raise ValueError("a local template has a workflow")
+        for node_id, node in workflow.items():
+            if not isinstance(node, dict) or not isinstance(node.get("inputs"), dict):
+                raise ValueError(f"workflow node {node_id} has inputs")
+        for node_id in data.get("outputs") or []:
+            if str(node_id) not in workflow:
+                raise ValueError(f"result node {node_id} isn't in the workflow")
+
+    for field in fields:
+        binds = field.get("bind") or []
+        if source_version == TEMPLATE_VERSION and field["type"] in MEDIA and not binds:
+            raise ValueError(f"{field['key']} has no binding")
+        for bind in binds:
+            if cloud:
+                path = bind[0] if field["type"] == "size" else bind
+                if not isinstance(path, list) or not path or not all(isinstance(k, (str, int)) for k in path):
+                    raise ValueError(f"{field['key']} has a bad request path")
+                held = _at_path(body, path)
+                if held is _MISSING:
+                    parent = _at_path(body, path[:-1]) if len(path) > 1 else body
+                    writable_leaf = (isinstance(parent, dict) and isinstance(path[-1], str)) or (
+                        isinstance(parent, list) and isinstance(path[-1], int) and 0 <= path[-1] < len(parent))
+                    # "Auto" settings intentionally omit their leaf; choosing a concrete
+                    # value later writes it back. Media tokens may never be absent.
+                    if field["type"] in MEDIA or not writable_leaf:
+                        raise ValueError(f"{field['key']} points outside the request body")
+                if field["type"] in MEDIA:
+                    number = int(field["key"].split(":", 1)[1])
+                    if not any(kind == field["type"] and n == number for kind, n, _ in tokens_in(held)):
+                        raise ValueError(f"{field['key']} binding holds no matching media token")
+            else:
+                if not (isinstance(bind, list) and len(bind) in (2, 3) and isinstance(bind[1], str)):
+                    raise ValueError(f"{field['key']} has a bad workflow binding")
+                node = workflow.get(str(bind[0]))
+                if node is None or bind[1] not in node["inputs"]:
+                    raise ValueError(f"{field['key']} points outside the workflow")
+                if len(bind) == 3 and field["type"] != "size" and bind[2] not in ("int", "float", "str", "bool", "megapixels"):
+                    raise ValueError(f"{field['key']} has an unknown binding cast")
+
+
 def _model_settings(data: dict, fields: list[dict]) -> list[dict]:
     """A cloud template saved before models had settings: the ones its job asks for, at the
     model's defaults. Each file's role is the adapter input whose value its place in the body holds."""
@@ -247,8 +333,9 @@ def shipped_ref(base: Path, rel: str) -> str:
 
 
 def load_template(data: dict, base: Path | None = None) -> "Engine":
-    if data.get("format") != "openillusion.template":
+    if not isinstance(data, dict) or data.get("format") != "openillusion.template":
         raise ValueError("not a openillusion.template")
+    source_version = template_version(data)
     data = lift_computed(upgrade(data))
     cloud = data.get("kind") == "cloud"
     tid = data["id"]
@@ -269,6 +356,7 @@ def load_template(data: dict, base: Path | None = None) -> "Engine":
         fields += _model_settings(data, fields)
     if len({f["key"] for f in fields}) != len(fields):
         raise ValueError("two inputs share a key")
+    validate_template(data, fields, source_version)
     media = [f for f in fields if f["type"] in MEDIA]
     clips = {f["key"] for f in media if f["type"] == "video"}
     keep = data.get("keep_sound") if cloud else None

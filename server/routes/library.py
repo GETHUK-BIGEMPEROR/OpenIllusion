@@ -64,6 +64,8 @@ def register(routes: web.RouteTableDef) -> None:
         if gid in jobs.MANAGER.active_ids():
             return err(409, "This run is still going. Cancel it first.")
         try:
+            if not store.folder(gid).exists():
+                return err(404, "Generation not found")
             store.delete(gid)
         except ValueError:
             return err(404, "Generation not found")
@@ -186,15 +188,22 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.post(API + "/generations/{id}/rerun")
     async def rerun(request):
+        if jobs.MANAGER.maintenance:
+            return err(409, f"{jobs.MANAGER.maintenance.capitalize()} is in progress; wait for it to finish")
         sid = request.match_info["id"]
         try:
             m = store.get(sid)
-        except FileNotFoundError:
+        except (FileNotFoundError, ValueError):
             return err(404, "Generation not found")
         b = await body(request)
+        engine_id = str(b.get("engine") or m.engine.model)
+        try:
+            e = engines.get(engine_id)
+        except KeyError:
+            return err(409, "This generation's template is no longer installed. Remix it and choose another template.")
         spec = spec_from_generation(m)
         if b.get("engine"):
-            spec["engine"] = b["engine"]
+            spec["engine"] = engine_id
             spec.pop("raw", None)
         else:
             raw = json.loads(json.dumps(m.request_template))
@@ -203,11 +212,7 @@ def register(routes: web.RouteTableDef) -> None:
                 spec["params"]["seed"] = seed
                 if "seed" in raw:
                     raw["seed"] = seed
-                try:
-                    e = engines.get(m.engine.model)
-                except KeyError:
-                    e = None
-                for t in (e.bindings.get("params.seed", []) if e and e.kind == "local" else []):
+                for t in (e.bindings.get("params.seed", []) if e.kind == "local" else []):
                     if str(t[0]) in raw:  # the seed lives inside a workflow node
                         raw[str(t[0])]["inputs"][t[1]] = seed
             spec["raw"] = raw
@@ -216,6 +221,8 @@ def register(routes: web.RouteTableDef) -> None:
             return err(409, "This generation is missing media: " + ", ".join(missing) + ". Remix it and add your own.", missing=missing)
         try:
             ids = await jobs.MANAGER.start(spec)
+        except jobs.MaintenanceError as e:
+            return err(409, str(e))
         except (FileNotFoundError, ValueError) as e:
             return err(400, str(e))
         return web.json_response({"ids": ids})
@@ -292,6 +299,8 @@ def register(routes: web.RouteTableDef) -> None:
             data = await request.read()
         # A template's .illusion goes straight into your templates; a generation's is reviewed first.
         if template_pack.is_pack(data):
+            if jobs.MANAGER.maintenance:
+                return err(409, f"{jobs.MANAGER.maintenance.capitalize()} is in progress; wait for it to finish")
             try:
                 e = await asyncio.to_thread(template_pack.install, data)
             except template_pack.archive.Refused as ex:

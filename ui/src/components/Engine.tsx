@@ -34,7 +34,7 @@ export function EngineDropdown({ mode, value, onChange }: { mode: Mode; value: s
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button type="button" aria-haspopup="listbox" aria-label={value ? `Engine: ${engine?.label ?? value}. Change engine` : "Choose an engine"} className="eng-pick">
+        <button type="button" aria-haspopup="dialog" aria-label={value ? `Engine: ${engine?.label ?? value}. Change engine` : "Choose an engine"} className="eng-pick">
           <span aria-hidden className={cx("eng-glyph", engine?.kind === "local" && "local")}>{engineGlyph(engine)}</span>
           <span className="eng-t">
             <b className={cx(!value && "none")}>{engine?.label ?? (value || "Choose an engine")}</b>
@@ -44,7 +44,7 @@ export function EngineDropdown({ mode, value, onChange }: { mode: Mode; value: s
         </button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="start" sideOffset={8} className="pop eng-pop">
+        <Popover.Content align="start" sideOffset={8} className="pop eng-pop" role="dialog" aria-label="Choose a template">
           <p className="eyebrow eng-h"><i className="dot violet" aria-hidden />Cloud · Comfy Router</p>
           {cloud.length ? <EngineList list={cloud} value={value} pick={pick} /> : <p className="eng-none">No cloud {mode} templates yet.</p>}
           <div className="eng-sep">
@@ -59,10 +59,10 @@ export function EngineDropdown({ mode, value, onChange }: { mode: Mode; value: s
 
 function EngineList({ list, value, pick }: { list: EngineInfo[]; value: string; pick: (id: string) => void }) {
   return (
-    <ul role="listbox" className="eng-list">
+    <ul className="eng-list">
       {list.map((e) => (
         <li key={e.id}>
-          <button type="button" role="option" aria-selected={e.id === value} onClick={() => pick(e.id)} className="eng-opt">
+          <button type="button" aria-pressed={e.id === value} onClick={() => pick(e.id)} className="eng-opt">
             <span aria-hidden className={cx("eng-glyph sm", e.kind === "local" && "local")}>{engineGlyph(e)}</span>
             <span className="eng-t">
               <span className="eng-name"><b>{e.label}</b></span>

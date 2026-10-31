@@ -2,7 +2,7 @@
 # OPENILLUSION_COMFYUI_URL points). See README → Setup → Docker.
 
 # 1 · the web app
-FROM node:20-slim AS ui
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS ui
 WORKDIR /src/ui
 COPY ui/package.json ui/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -10,18 +10,18 @@ COPY ui/ ./
 RUN npm run build
 
 # 2 · the server, which serves the web app from server/static
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     OPENILLUSION_HOME=/data \
     OPENILLUSION_COMFYUI_URL=http://host.docker.internal:8188
 WORKDIR /app
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml constraints.txt build_backend.py README.md LICENSE ./
 COPY server/ server/
 COPY templates/ templates/
 COPY schema/ schema/
 COPY --from=ui /src/server/static/ server/static/
 # Editable: the server finds templates/ next to its own folder.
-RUN pip install -e . \
+RUN pip install -c constraints.txt -e . \
  && useradd --create-home --uid 1000 openillusion \
  && mkdir -p /data && chown openillusion /data
 USER openillusion

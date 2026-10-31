@@ -420,6 +420,37 @@ def test_a_template_without_a_title_is_refused(label):
         engines.load_template(t)
 
 
+@pytest.mark.parametrize("version", [-1, 0, 3, 999, "2", True])
+def test_template_versions_are_explicitly_gated(version):
+    with pytest.raises(ValueError, match="version|newer"):
+        engines.load_template({"format": "openillusion.template", "version": version, "id": "x", "label": "X",
+                               "workflow": {}, "inputs": []})
+
+
+def test_local_template_bindings_and_outputs_must_exist():
+    base = {"format": "openillusion.template", "version": 2, "id": "x", "label": "X",
+            "workflow": {"1": {"class_type": "LoadImage", "inputs": {"image": ""}}},
+            "inputs": [{"key": "image:1", "type": "image", "bind": [["1", "image"]]}]}
+    with pytest.raises(ValueError, match="result node"):
+        engines.load_template({**base, "outputs": ["99"]})
+    with pytest.raises(ValueError, match="outside the workflow"):
+        engines.load_template({**base, "inputs": [{"key": "image:1", "type": "image", "bind": [["99", "image"]]}]})
+
+
+def test_cloud_template_bindings_and_tokens_must_match_the_declared_inputs():
+    base = {"format": "openillusion.template", "version": 2, "id": "x", "label": "X", "kind": "cloud",
+            "model": "acme/model", "body": {"prompt": "", "image": "{{image:1|uri}}"},
+            "inputs": [{"key": "image:1", "type": "image", "bind": [["image"]]},
+                       {"key": "prompt", "type": "text", "bind": [["prompt"]]}],
+            "result": [["url"]]}
+    with pytest.raises(ValueError, match="outside the request body"):
+        engines.load_template({**base, "inputs": [{"key": "image:1", "type": "image", "bind": [["missing"]]}]})
+    with pytest.raises(ValueError, match="undeclared image:2"):
+        engines.load_template({**base, "body": {"prompt": "", "image": "{{image:2|uri}}"}})
+    with pytest.raises(ValueError, match="result path"):
+        engines.load_template({**base, "result": []})
+
+
 def test_a_template_without_a_prompt_runs_without_one():
     e = engines.load_template({"format": "openillusion.template", "version": 2, "id": "up", "label": "Up", "workflow": {"1": {"class_type": "LoadImage", "inputs": {"image": ""}}},
                                "inputs": [{"key": "image:1", "type": "image", "label": "Photo", "bind": [["1", "image"]]}]})

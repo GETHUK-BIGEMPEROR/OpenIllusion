@@ -208,7 +208,8 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
                   )}
                 </div>
                 <Masonry label={g} maxCols={6} minCol={180} items={v.map((r) => ({ key: r.id, aspect: r.width && r.height ? r.width / r.height : undefined, r }))}
-                  render={({ r }) => <GenCard g={r} job={jobOf.get(r.id)} cap={capOf(r)} picking={picking} picked={picked.has(r.id)} onPick={() => pick(r.id)} />} />
+                  render={({ r }) => <GenCard g={r} job={jobOf.get(r.id)} cap={capOf(r)} picking={picking} picked={picked.has(r.id)} onPick={() => pick(r.id)}
+                    templatesReady={!!engines.data} templateInstalled={byId.has(r.model)} />} />
               </section>
             ))
             : <Empty shelf={shelf} tab={tab} filtered={!!model} clear={() => { setTab("all"); setModel(""); }} />}
@@ -241,7 +242,10 @@ export function Skeleton() {
 }
 
 /** One run on the wall. Running ones sharpen as they sample; failed ones say why on the card. */
-function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; job?: Job; cap: { name: string; model: string }; picking: boolean; picked: boolean; onPick: () => void }) {
+function GenCard({ g, job, cap, picking, picked, onPick, templatesReady, templateInstalled }: {
+  g: GenerationRow; job?: Job; cap: { name: string; model: string }; picking: boolean; picked: boolean; onPick: () => void;
+  templatesReady: boolean; templateInstalled: boolean;
+}) {
   const qc = useQueryClient();
   const toast = useApp((s) => s.toast);
   const loadGeneration = useApp((s) => s.loadGeneration);
@@ -252,6 +256,7 @@ function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; j
   const img = (st === "running" && job?.preview) || (g.poster ? fileUrl(g.id, g.poster) : null);
   const video = st === "done" && g.result_kind === "video" && g.preview ? fileUrl(g.id, g.preview) : null;
   const ar = g.width && g.height ? g.width / g.height : 4 / 5;
+  const missingTemplate = templatesReady && !templateInstalled;
 
   const open = () => (picking ? onPick() : go({ name: "generation", id: g.id }));
   const star = async () => {
@@ -285,9 +290,10 @@ function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; j
   const failText = g.status === "moderated" ? "Blocked by moderation" : g.status === "cancelled" ? "Cancelled" : "Run failed";
 
   return (
-    <article className={cx("card gcard", `st-${st}`, picked && "picked")} tabIndex={0} role="button" style={{ "--p": p } as CSSProperties}
-      aria-label={`${g.prompt || g.title}, ${st}`} aria-pressed={picking ? picked : undefined}
-      onClick={open} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(); } }}>
+    <article className={cx("card gcard", `st-${st}`, picked && "picked")} style={{ "--p": p } as CSSProperties}
+      aria-label={`${g.prompt || g.title}, ${st}`}>
+      <button className="card-use" type="button" aria-label={picking ? `${picked ? "Deselect" : "Select"} ${g.prompt || g.title}` : `Open ${g.prompt || g.title}`}
+        aria-pressed={picking ? picked : undefined} onClick={open} />
       <Media src={img} video={video} poster={img} ar={ar}>
         {!img && !video && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#261F3A,#141120)" }} />}
         {(st === "running" || st === "queued") && (
@@ -301,7 +307,8 @@ function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; j
             <span className="ic"><I n="alert" /></span>
             <b>{failText}</b>
             <p title={g.error ?? undefined}>{g.error ?? "Open it to see what went wrong."}</p>
-            {!picking && <button className="btn sm" type="button" onClick={(e) => { e.stopPropagation(); void retry(); }}><I n="refresh" />Try again</button>}
+            {!picking && <button className="btn sm" type="button" disabled={missingTemplate} onClick={() => void retry()}
+              title={missingTemplate ? "Install the matching .illusion template first" : undefined}><I n={missingTemplate ? "alert" : "refresh"} />{missingTemplate ? "Template missing" : "Try again"}</button>}
           </div>
         )}
       </Media>
@@ -315,7 +322,7 @@ function GenCard({ g, job, cap, picking, picked, onPick }: { g: GenerationRow; j
           <>
             <button className={cx("icon-btn sm glass fav", !g.starred && "reveal")} type="button" aria-pressed={g.starred} aria-label={g.starred ? "Unstar" : "Star"}
               onClick={(e) => { e.stopPropagation(); void star(); }}><I n="star" /></button>
-            <button className="icon-btn sm glass reveal" type="button" aria-label="Open in Create" title="Open in Create"
+            <button className="icon-btn sm glass reveal" type="button" aria-label={missingTemplate ? "Template not installed" : "Open in Create"} title={missingTemplate ? "Install the matching .illusion template first" : "Open in Create"} disabled={missingTemplate}
               onClick={(e) => { e.stopPropagation(); void remix(); }}><I n="remix" /></button>
           </>
         )}
@@ -441,8 +448,8 @@ function Community() {
             {q.data && !items.length && <p className="help" style={{ textAlign: "center" }}>This index lists no generations.</p>}
             {!!items.length && (
               <Masonry label={q.data?.name ?? "Index"} items={items} maxCols={6} minCol={180} render={({ s }) => (
-                <article className="card gcard st-done" tabIndex={0} role="button" aria-label={`Review ${s.title ?? s.url}`} onClick={() => !busy && void open(s.url)}
-                  onKeyDown={(e) => { if (e.key === "Enter") void open(s.url); }}>
+                <article className="card gcard st-done" aria-label={s.title ?? s.url}>
+                  <button className="card-use" type="button" aria-label={`Review ${s.title ?? s.url}`} disabled={busy === s.url} onClick={() => void open(s.url)} />
                   <Media src={s.poster} ar={4 / 5}>{busy === s.url && <div className="hud"><div className="hud-in"><Spinner size={16} /></div></div>}</Media>
                   <div className="ctop">{s.mode && <span className="pill">{s.mode === "motion" ? "Video" : "Image"}</span>}</div>
                   <div className="gprompt"><p>{s.title ?? s.url.split("/").pop()}</p><div className="meta">{s.model && <b>{s.model.split("/").pop()}</b>}{s.author && <span>by {s.author}</span>}</div></div>

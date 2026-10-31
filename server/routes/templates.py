@@ -6,8 +6,13 @@ import asyncio
 
 from aiohttp import web
 
-from .. import engines, store, template_pack, usage
+from .. import engines, jobs, store, template_pack, usage
 from .common import API, err, body, template_info
+
+
+def _maintenance_error():
+    kind = jobs.MANAGER.maintenance
+    return err(409, f"{kind.capitalize()} is in progress; wait for it to finish") if kind else None
 
 
 def register(routes: web.RouteTableDef) -> None:
@@ -24,6 +29,8 @@ def register(routes: web.RouteTableDef) -> None:
     @routes.get(API + "/engines")
     async def list_engines(request):
         if request.query.get("reload"):
+            if blocked := _maintenance_error():
+                return blocked
             engines.reload_templates()
         mode = request.query.get("mode")
         used = usage.load()
@@ -54,6 +61,8 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.put(API + "/cover")
     async def put_cover(request):
+        if blocked := _maintenance_error():
+            return blocked
         b = await body(request)
         e = engines.ENGINES.get(b.get("engine", ""))
         if e is None:
@@ -104,6 +113,8 @@ def register(routes: web.RouteTableDef) -> None:
     # of it (it has been tested), which becomes its cover when it has none yet.
     @routes.post(API + "/templates/publish")
     async def publish_template(request):
+        if blocked := _maintenance_error():
+            return blocked
         b = await body(request)
         e = engines.ENGINES.get(str(b.get("engine", "")))
         if e is None or not e.draft:
@@ -118,6 +129,8 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.delete(API + "/cover")
     async def delete_cover(request):
+        if blocked := _maintenance_error():
+            return blocked
         e = engines.ENGINES.get(request.query.get("engine", ""))
         if e is None:
             return err(404, "No such template")
@@ -129,6 +142,8 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.patch(API + "/templates")
     async def patch_template(request):
+        if blocked := _maintenance_error():
+            return blocked
         b = await body(request)
         try:
             e = engines.edit_template(str(b.pop("engine", "")), b)
@@ -140,6 +155,8 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.post(API + "/templates/duplicate")
     async def duplicate_template(request):
+        if blocked := _maintenance_error():
+            return blocked
         try:
             e = await asyncio.to_thread(engines.duplicate_template, str((await body(request)).get("engine", "")))
         except KeyError:
@@ -148,6 +165,8 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.post(API + "/templates/hide")
     async def hide_template(request):
+        if blocked := _maintenance_error():
+            return blocked
         b = await body(request)
         try:
             engines.hide_template(str(b.get("engine", "")), bool(b.get("hidden", True)))
@@ -157,6 +176,8 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.delete(API + "/templates")
     async def reset_template(request):
+        if blocked := _maintenance_error():
+            return blocked
         try:
             e = engines.reset_template(request.query.get("engine", ""))
         except KeyError:

@@ -1,0 +1,1 @@
+"""Published OpenIllusion JSON schemas."""

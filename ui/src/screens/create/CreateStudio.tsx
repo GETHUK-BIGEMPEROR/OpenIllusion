@@ -1,10 +1,10 @@
 // Create: the studio page for one template (Image or Video).
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { typing } from "../../components/ABPlayer";
 import { dropIntoStudio, isMediaFile, useFileDrop } from "../../components/Drop";
 import { OutputSize, useEngine, ParamFields } from "../../components/Engine";
-import { cx, GpuStat, I, jobProgress, KeyStat } from "../../components/oi";
+import { cx, EmptyBox, GpuStat, I, jobProgress, KeyStat } from "../../components/oi";
 import { invalidFields, LocalNeeds, NoTemplates, useCompose, useCurrent, useRunner, useStudio, type Fix } from "../../components/Studio";
 import { tplName } from "../../components/TemplateCard";
 import { api, isMedia, type Manifest, type Mode } from "../../lib/api";
@@ -33,6 +33,7 @@ export const MotionStudio = () => <CreateStudio mode="motion" />;
  */
 function CreateStudio({ mode }: { mode: Mode }) {
   const [s, set] = useStudio(mode);
+  const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const engine = useEngine(mode, s.engine);
   const media = mediaFields(engine);
   // The inputs list: photos, clips and sounds, in the template's order.
@@ -220,6 +221,22 @@ function CreateStudio({ mode }: { mode: Mode }) {
   }
 
   if (!s.engine && !engine) return <NoTemplates mode={mode} />;
+  if (s.engine && engines.isError && !engine) {
+    return <div className="page studio-missing"><EmptyBox icon="alert" title="Couldn't check the template" action={<button className="btn" type="button" onClick={() => engines.refetch()}>Try again</button>}>{errMsg(engines.error)}</EmptyBox></div>;
+  }
+  if (s.engine && engines.isSuccess && !engine) {
+    const name = s.engine.split("/").pop() ?? s.engine;
+    return (
+      <div className="page studio-missing">
+        <EmptyBox icon="alert" title="Template not installed" action={<div className="acts">
+          <a className="btn primary" href="#/explore"><I n="search" />Choose a template</a>
+          <button className="btn" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))}><I n="upload" />Import .illusion</button>
+        </div>}>
+          This recipe uses <b>{name}</b>. Install that template or choose another one explicitly. The imported inputs, prompt, and settings are still kept.
+        </EmptyBox>
+      </div>
+    );
+  }
 
   const inputView = eff === "input" || eff === "empty";
   const editing = inputView && !!engine && !!selField;

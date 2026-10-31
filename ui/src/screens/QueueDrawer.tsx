@@ -165,7 +165,11 @@ function JobRow({ j, onOpen }: { j: Job; onOpen: () => void }) {
     }
   };
   const retry = async () => {
-    try { await api.rerun(j.id); } catch (e) { toast({ text: errMsg(e), tone: "error" }); }
+    try {
+      await api.rerun(j.id);
+      await qc.invalidateQueries({ queryKey: ["jobs"] });
+      await qc.refetchQueries({ queryKey: ["jobs"] });
+    } catch (e) { toast({ text: errMsg(e), tone: "error" }); }
   };
   const cancel = () => api.cancel(j.id).catch((e) => toast({ text: errMsg(e), tone: "error" }));
   const dismiss = async () => { try { qc.setQueryData(["jobs"], await api.dismissJob(j.id)); } catch (e) { toast({ text: errMsg(e), tone: "error" }); } };

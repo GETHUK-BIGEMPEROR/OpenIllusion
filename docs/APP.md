@@ -40,6 +40,30 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 The current design is the settled one. Change it on purpose, and write the change
 here in the same commit.
 
+- **Keyboard and touch share the same actions.** Cards have a semantic primary
+  button with separate tools. Phone controls retain accessible names, and coarse
+  pointers get at least 44 px targets. Free crop offers percentage fields as well
+  as draggable handles. More identifies the current secondary section and opens
+  a keyboard-navigable menu; Settings keeps the active section in view.
+- **Details keep their context.** Explore's inspector overlays the wall without
+  resizing it. A closed inspector cannot receive focus; the phone sheet contains
+  focus and returns it to its trigger. On touch, card tools expand from More.
+  The shared-template import panel becomes compact after its first exposure.
+- **Motion serves feedback.** Shared durations are 120 ms for presses, 160 ms for
+  compact feedback, 200 ms for entrances, 240 ms for layout, and 130 ms for exits.
+  Hover movement requires a fine pointer; the command palette opens immediately.
+  Reduced motion reacts without a reload, stops decorative video loops and spatial
+  effects, and preserves short color/opacity feedback. Run uses a static gradient;
+  generation effects and progress favor transform/opacity. Comparison drags capture
+  their pointer, and toasts have an explicit exit state.
+- **Recipes never change templates silently.** A missing template keeps its recipe
+  intact and names what must be installed. Import and generation actions explain
+  the missing template instead of starting an unrelated studio or failed rerun.
+- **Finished files stay yours.** Repeated generation exports receive numbered
+  suffixes and never overwrite an earlier export. Active templates cannot be
+  deleted or replaced until their runs finish. Restore temporarily blocks new
+  runs and template changes.
+
 - **One-click simple.** Each screen has one main action (Use, Run, Save), in
   the neon gradient. The box's own settings (sampler, steps, model flags) never show.
 - **Say what it is, not how it's built.** Inputs read Image 1, Video 1, Audio 1;

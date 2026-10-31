@@ -70,7 +70,7 @@ button.lpill:disabled{cursor:default}
 .ed-h.sw{left:-3px;bottom:-3px;cursor:nesw-resize}.ed-h.sw::after{left:0;bottom:0;border-right:0;border-top:0}
 .ed-h.se{right:-3px;bottom:-3px;cursor:nwse-resize}.ed-h.se::after{right:0;bottom:0;border-left:0;border-top:0}
 .ed-dims{position:absolute;left:50%;bottom:8px;translate:-50% 0;white-space:nowrap;padding:3px 8px;border-radius:6px;background:rgba(7,5,10,.85);font-size:11px;pointer-events:none}
-.ed-keep{position:absolute;z-index:3;border:2px dashed var(--orange);border-radius:2px;pointer-events:none;transition:all .35s var(--ease)}
+.ed-keep{position:absolute;z-index:3;border:2px dashed var(--orange);border-radius:2px;pointer-events:none}
 .ed-keep span{position:absolute;left:6px;top:6px;max-width:calc(100% - 12px);overflow:hidden;text-overflow:ellipsis;padding:3px 8px;border-radius:6px;background:var(--orange);color:var(--on-accent);font-size:11px;font-weight:600;white-space:nowrap}
 .ed-orig{position:absolute;z-index:4;right:10px;top:10px;padding:4px 9px;border-radius:7px;background:rgba(7,5,10,.8);font-size:11.5px;color:var(--text-2)}
 .ed-frame .ed-play{position:absolute;z-index:4;left:10px;bottom:10px}
@@ -93,6 +93,11 @@ button.lpill:disabled{cursor:default}
 .ed-shapes .ic i{display:block;border:1.5px solid currentColor;border-radius:3px}
 .ed-shapes .ic .i{width:18px;height:18px}
 .ed-shapes button.out,.ed-chips button.out{opacity:.4}
+.ed-crop-values{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ed-crop-values label{height:36px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px;padding:0 9px;border-radius:9px;background:var(--field);border:1px solid var(--line);font-size:11px;color:var(--text-3)}
+.ed-crop-values label:focus-within{border-color:var(--violet)}
+.ed-crop-values input{min-width:0;width:100%;background:none;border:0;outline:0;color:var(--text);text-align:right;font-size:12px}
+.ed-crop-values i{font-style:normal}
 .ed-big{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .ed-big button{display:flex;align-items:center;gap:9px;height:42px;padding:0 11px;border-radius:10px;border:1px solid var(--line);font-size:12.5px;color:var(--text-2);transition:background .15s,color .15s}
 .ed-big button:hover{border-color:var(--line-2);color:var(--text);background:var(--raised)}
@@ -196,7 +201,7 @@ button.lpill:disabled{cursor:default}
 .brole-h{align-items:center}
 .bpills{display:flex;flex-wrap:wrap;gap:6px}
 .bcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(208px,1fr));gap:12px}
-.bcard{min-width:0;display:flex;flex-direction:column;overflow:hidden;border-radius:14px;border:1px solid var(--line);background:var(--raised);transition:border-color .15s,box-shadow .15s;animation:rise .4s calc(var(--i,0) * 60ms) var(--ease) both}
+.bcard{min-width:0;display:flex;flex-direction:column;overflow:hidden;border-radius:14px;border:1px solid var(--line);background:var(--raised);transition:border-color .15s,box-shadow .15s;animation:rise var(--motion-enter) calc(var(--i,0) * 40ms) var(--ease-out) both}
 .bcard:hover{border-color:var(--line-2)}
 .bcard.drag{border-color:var(--violet);box-shadow:0 0 0 4px rgba(157,107,255,.16)}
 .bcard-pic{position:relative;display:block;height:150px;background:#000;cursor:zoom-in}
@@ -252,6 +257,8 @@ button.lpill:disabled{cursor:default}
   .ed.inline .ed-sec,.ed.inline .ed-own{flex-direction:row;align-items:center;gap:6px;padding:0;border:0}
   .ed.inline .ed-sec h3,.ed.inline .ed-hint{display:none}
   .ed.inline .ed-shapes,.ed.inline .ed-big,.ed.inline .ed-chips{display:flex;flex-wrap:nowrap;gap:6px}
+  .ed.inline .ed-crop-values{display:flex;flex:none;gap:6px}
+  .ed.inline .ed-crop-values label{flex:none;width:116px}
   .ed.inline .ed-shapes button{flex:none;width:56px;padding:5px 2px 4px}
   .ed.inline .ed-big button,.ed.inline .ed-chips button{flex:none}
   .ed.inline .ed-wh label{flex:none;width:96px}
@@ -260,6 +267,7 @@ button.lpill:disabled{cursor:default}
   .ed.inline .ed-out{min-height:48px;padding:6px 8px 6px 12px}
   .ed.inline .ed-delta>span:nth-child(n+2),.ed.inline .ed-note{display:none}
 }
+@media (pointer:coarse){.ed-crop-values label{min-height:44px}}
 /* A phone: the stage gets most of the height while you edit. */
 @container app (max-width:760px){
   .studio:has(.stage-ed){grid-template-rows:auto 64cqh minmax(0,1fr)}

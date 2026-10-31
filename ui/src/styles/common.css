@@ -13,12 +13,13 @@ kbd{font:500 10.5px/1 var(--mono);padding:4px 6px;border-radius:6px;border:1px s
 .hfilters::-webkit-scrollbar{display:none}
 /* the local GPU, top right of every page while a local ComfyUI answers */
 .gstat{position:relative;flex:none}
-.gchip{height:32px;display:inline-flex;align-items:center;gap:8px;padding:0 9px 0 8px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);font-size:12.5px;color:var(--text-2);white-space:nowrap;transition:background .15s,border-color .15s}
+.gchip{height:32px;display:inline-flex;align-items:center;gap:8px;padding:0 9px 0 8px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);font-size:12.5px;color:var(--text-2);white-space:nowrap;scale:1;transition:background var(--motion-fast),border-color var(--motion-fast),scale var(--motion-press) var(--ease-out)}
 .gchip:hover,.gchip[aria-expanded="true"]{background:var(--raised);border-color:rgba(176,156,255,.26)}
 .gchip b{font-weight:500;color:var(--text)}
 .gchip .gv{font:500 11px var(--mono);color:var(--text-3);padding-left:8px;border-left:1px solid var(--line-2)}
 .gchip .gp{font-size:11px;color:var(--accent)}
-.gchip .gcv{width:14px;height:14px;color:var(--text-3);transition:transform .3s var(--spring)}
+.gchip .gmob{display:none;font:600 11px var(--mono);color:var(--accent)}
+.gchip .gcv{width:14px;height:14px;color:var(--text-3);transition:transform var(--motion-fast) var(--ease-out)}
 .gchip[aria-expanded="true"] .gcv{transform:rotate(180deg)}
 .gring{position:relative;width:18px;height:18px;display:grid;place-items:center;flex:none}
 .gring svg{position:absolute;inset:0;transform:rotate(-90deg)}
@@ -55,16 +56,16 @@ kbd{font:500 10.5px/1 var(--mono);padding:4px 6px;border-radius:6px;border:1px s
 .hsub[data-start="false"]{--l:40px}
 .hsub[data-end="true"]{--r:0px}
 .hsub::-webkit-scrollbar{display:none}
-.btn{height:32px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:500;font-size:12.5px;background:var(--raised);border:1px solid var(--line-2);white-space:nowrap;transition:background .15s,filter .15s,border-color .15s}
+.btn{height:32px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:500;font-size:12.5px;background:var(--raised);border:1px solid var(--line-2);white-space:nowrap;scale:1;transition:background var(--motion-fast),filter var(--motion-fast),border-color var(--motion-fast),scale var(--motion-press) var(--ease-out)}
 .btn:hover{background:var(--hover)}
 .btn .i{width:16px;height:16px}
 .btn.primary{background:var(--neon) border-box;background-size:220% 100%;color:#fff;text-shadow:0 1px 2px rgba(10,7,20,.35);border-color:transparent;font-weight:600;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1),0 8px 24px -10px rgba(255,79,163,.6),0 8px 24px -12px rgba(47,216,255,.5)}
-.btn.primary:hover{filter:brightness(1.06);animation:flow 2.4s ease-in-out infinite alternate}
+.btn.primary:hover{filter:brightness(1.06)}
 .btn.ghost{background:transparent;border-color:transparent;color:var(--text-2)}
 .btn.ghost:hover{background:var(--raised);color:var(--text)}
 .btn.danger{color:var(--rose)}
 .btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:8px}
-.icon-btn{width:32px;height:32px;display:inline-grid;place-items:center;border-radius:9px;color:var(--text-2);flex:none;transition:background .15s,color .15s}
+.icon-btn{width:32px;height:32px;display:inline-grid;place-items:center;border-radius:9px;color:var(--text-2);flex:none;scale:1;transition:background var(--motion-fast),color var(--motion-fast),scale var(--motion-press) var(--ease-out)}
 .icon-btn:hover{background:var(--hover);color:var(--text)}
 .icon-btn.sm{width:28px;height:28px;border-radius:8px}
 .icon-btn.sm .i{width:15px;height:15px}
@@ -73,12 +74,12 @@ kbd{font:500 10.5px/1 var(--mono);padding:4px 6px;border-radius:6px;border:1px s
 .filters{display:flex;align-items:center;gap:8px;padding:0 18px 10px;max-width:calc(var(--wall-max) + 36px);margin:0 auto;overflow-x:auto;scrollbar-width:none}
 .filters::-webkit-scrollbar{display:none}
 .seg{display:inline-flex;padding:2px;border-radius:10px;background:var(--field);border:1px solid var(--line);flex:none;gap:2px}
-.seg button{height:26px;padding:0 10px;border-radius:8px;border:1px solid transparent;color:var(--text-2);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:background .15s,color .15s}
+.seg button{height:26px;padding:0 10px;border-radius:8px;border:1px solid transparent;color:var(--text-2);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;scale:1;transition:background var(--motion-fast),color var(--motion-fast),scale var(--motion-press) var(--ease-out)}
 .seg button:hover{color:var(--text)}
 .seg button[aria-pressed="true"],.seg button[aria-checked="true"]{color:var(--text);background:linear-gradient(var(--hover),var(--hover)) padding-box,var(--neon) border-box;box-shadow:none}
 .seg button:disabled{opacity:.4}
 .seg .n{font:500 10.5px var(--mono);color:var(--text-3)}
-.chip{height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;flex:none;white-space:nowrap;transition:all .15s}
+.chip{height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;flex:none;white-space:nowrap;scale:1;transition:color var(--motion-fast),border-color var(--motion-fast),background var(--motion-fast),scale var(--motion-press) var(--ease-out)}
 .chip:hover{color:var(--text);border-color:rgba(176,156,255,.28)}
 .chip[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
 .vsep{width:1px;height:20px;background:var(--line-2);flex:none}
@@ -125,7 +126,11 @@ kbd{font:500 10.5px/1 var(--mono);padding:4px 6px;border-radius:6px;border:1px s
 .busy-fill{flex:1;display:grid;place-items:center}
 .acts{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
 /* a floating panel: popovers and menus */
-.pop{z-index:80;padding:4px;border-radius:12px;background:var(--raised);box-shadow:0 0 0 1px rgba(240,239,237,.09),0 24px 64px rgba(0,0,0,.6);animation:pop .16s var(--ease)}
+.pop{z-index:80;padding:4px;border-radius:12px;background:var(--raised);box-shadow:0 0 0 1px rgba(240,239,237,.09),0 24px 64px rgba(0,0,0,.6);transform-origin:var(--radix-popover-content-transform-origin,top center);animation:pop var(--motion-fast) var(--ease-out)}
+
+/* Independent scale avoids fighting transforms used to position popovers, centered
+   bars and cards. Pointer and touch presses get the same immediate acknowledgement. */
+:where(.btn,.icon-btn,.gchip,.chip,.seg button):not(:disabled):active{scale:.97}
 /* Notice: icon, title, body, actions; tone sets the wash */
 .notice{display:flex;gap:10px;padding:10px 12px;border-radius:8px;border:1px solid rgba(157,107,255,.2);background:rgba(157,107,255,.07);font-size:12px}
 .notice>.i{margin-top:1px;color:#C4A9FF}

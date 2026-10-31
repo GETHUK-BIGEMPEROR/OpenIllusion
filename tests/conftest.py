@@ -105,7 +105,7 @@ def clip_template(monkeypatch):
             {"key": "video:1", "type": "video", "required": True, "bind": [["video_url"]]},
             {"key": "prompt", "type": "text", "required": True, "bind": [["prompt"]]},
         ],
-        "result": [],
+        "result": [["url"]],
     }
     e = engines.load_template(data)
     e.data = data

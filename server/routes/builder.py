@@ -10,8 +10,20 @@ from pathlib import Path
 import httpx
 from aiohttp import web
 
-from .. import adapters, builder, engines, local, paths, staging
+from .. import adapters, builder, engines, jobs, local, paths, staging
 from .common import API, UPLOAD_EXT, err, body, asset_info, template_info
+
+MAX_WORKFLOW = 200 * 1024 * 1024
+
+
+async def _read_workflow_part(part) -> bytes | None:
+    """Read a workflow without buffering beyond the advertised limit."""
+    data = bytearray()
+    while chunk := await part.read_chunk(1 << 20):
+        data.extend(chunk)
+        if len(data) > MAX_WORKFLOW:
+            return None
+    return bytes(data)
 
 
 def register(routes: web.RouteTableDef) -> None:
@@ -22,11 +34,14 @@ def register(routes: web.RouteTableDef) -> None:
             part = await (await request.multipart()).next()
             if part is None or part.name != "file":
                 return err(400, "Send the workflow as multipart field 'file'")
-            name, data = part.filename or "workflow.json", await part.read(decode=False)
+            name = part.filename or "workflow.json"
+            data = await _read_workflow_part(part)
+            if data is None:
+                return err(413, "That file is too large to be a workflow")
         else:
             b = await body(request)
             name, data = "workflow.json", str(b.get("text") or "").encode()
-        if len(data) > 200 * 1024 * 1024:
+        if len(data) > MAX_WORKFLOW:
             return err(413, "That file is too large to be a workflow")
         try:
             api_wf, ui_wf = await asyncio.to_thread(builder.read_workflow, name, data)
@@ -145,12 +160,16 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.post(API + "/builder/save")
     async def builder_save(request):
+        if jobs.MANAGER.maintenance:
+            return err(409, f"{jobs.MANAGER.maintenance.capitalize()} is in progress; wait for it to finish")
         b = await body(request)
         replace = b.get("replace") or None
         if replace:
             old = engines.ENGINES.get(replace)
             if old is None or not old.built or old.origin != "user":
                 return err(404, "Only templates you built can be replaced")
+            if jobs.MANAGER.active_for_engine(replace):
+                return err(409, "Wait for this template's active runs to finish before replacing it")
         try:
             if b.get("kind") == "cloud":
                 data = builder.assemble_cloud(b)
@@ -168,6 +187,12 @@ def register(routes: web.RouteTableDef) -> None:
             for m in builder.media_rows(b.get("media") or []):
                 if m.get("sample"):
                     samples[m["slot"]] = staging.resolve_asset(str(m["sample"]))
+            # Local assembly awaited ComfyUI above; close the race with a run
+            # that may have started while the template was being checked.
+            if jobs.MANAGER.maintenance:
+                return err(409, f"{jobs.MANAGER.maintenance.capitalize()} is in progress; wait for it to finish")
+            if replace and jobs.MANAGER.active_for_engine(replace):
+                return err(409, "Wait for this template's active runs to finish before replacing it")
             tid = builder.save(data, samples, replace=replace, taken=set(engines.ENGINES))
         except (builder.BuildError, KeyError, ValueError) as e:
             return err(422, str(e))
@@ -176,8 +201,13 @@ def register(routes: web.RouteTableDef) -> None:
 
     @routes.delete(API + "/builder/template")
     async def builder_delete(request):
+        if jobs.MANAGER.maintenance:
+            return err(409, f"{jobs.MANAGER.maintenance.capitalize()} is in progress; wait for it to finish")
+        engine_id = request.query.get("engine", "")
+        if jobs.MANAGER.active_for_engine(engine_id):
+            return err(409, "Wait for this template's active runs to finish before deleting it")
         try:
-            engines.delete_template(request.query.get("engine", ""))
+            engines.delete_template(engine_id)
         except KeyError:
             return err(409, "Only templates you built can be deleted")
         return web.json_response({"ok": True})

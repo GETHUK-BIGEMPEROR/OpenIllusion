@@ -81,6 +81,19 @@ def test_adding_refuses_a_package_that_is_off(change, says):
     assert set(engines.ENGINES) == before
 
 
+@pytest.mark.parametrize("version", [-1, 0, True, "1"])
+def test_template_package_versions_are_positive_integers(version):
+    data, _ = template_pack.export(HAT)
+
+    def change(files):
+        head = json.loads(files["illusion.json"])
+        head["version"] = version
+        files["illusion.json"] = json.dumps(head).encode()
+
+    with pytest.raises(template_pack.Refused, match="Not a template"):
+        template_pack.install(_rewrite(data, change))
+
+
 @pytest.mark.usefixtures("fresh_templates")
 def test_a_template_cannot_name_a_file_outside_its_package():
     data, _ = template_pack.export(HAT)

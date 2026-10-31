@@ -2,21 +2,23 @@
 .wall-wrap{padding:12px 18px 48px;position:relative;z-index:1}
 .wall{position:relative;max-width:var(--wall-max);margin:0 auto;min-height:200px}
 /* One parent, each tile placed by Masonry; a filter or sort slides tiles to their new place. */
-.wall>.tile{position:absolute;top:0;left:0;transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+.wall>.tile{position:absolute;top:0;left:0;transition:transform var(--motion-layout) var(--ease-move)}
 .wall>.tile:hover,.wall>.tile:focus-within{z-index:1}
 @media (prefers-reduced-motion:reduce){.wall>.tile{transition:none}}
-.card{position:relative;border-radius:var(--r);overflow:hidden;background:var(--raised);cursor:pointer;isolation:isolate;transition:transform .3s cubic-bezier(.2,.7,.2,1),box-shadow .3s;animation:rise .45s cubic-bezier(.2,.7,.2,1) both;outline-offset:3px}
-.card:hover{transform:translateY(-2px);box-shadow:0 0 28px -6px rgba(157,107,255,.65),0 18px 40px -20px rgba(0,0,0,.8)}
-.card::after{position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:var(--neon);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .3s;pointer-events:none;z-index:4}
+.card{position:relative;border-radius:var(--r);overflow:hidden;background:var(--raised);cursor:pointer;isolation:isolate;transition:transform var(--motion-fast) var(--ease-out),box-shadow var(--motion-fast);animation:rise var(--motion-enter) var(--ease-out) both;outline-offset:3px}
+.card::after{position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:var(--neon);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity var(--motion-fast);pointer-events:none;z-index:4}
 /* The neon edge is a masked layer: it only exists on the card under the cursor or picked, never on the whole wall. */
-.card:hover::after,.card.sel::after,.card:focus-visible::after{content:"";opacity:1}
+.card.sel::after,.card:focus-within::after{content:"";opacity:1}
 .card.sel::after{padding:2px}
 .card.sel{box-shadow:0 0 30px -4px rgba(255,79,163,.6)}
+.card-use{position:absolute;inset:0;z-index:2;border-radius:inherit;cursor:pointer}
+.card-use:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+.card>.cap,.card>.ctop{pointer-events:none}
+.card>.ctop button,.card>.ctop a{pointer-events:auto}
 .media{position:relative;aspect-ratio:var(--ar,1);background:linear-gradient(105deg,var(--raised) 35%,#2a2333 50%,var(--raised) 65%) 0 0/300% 100%;animation:shimmer 1.3s linear infinite;overflow:hidden}
 .media.loaded{animation:none;background:var(--raised)}
-.media img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .45s,transform .7s cubic-bezier(.2,.7,.2,1)}
+.media img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity var(--motion-enter),transform var(--motion-enter) var(--ease-out)}
 .media.loaded img{opacity:1}
-.card:hover .media img{transform:scale(1.04)}
 .cap{position:absolute;inset:auto 0 0 0;padding:34px 11px 10px;background:linear-gradient(transparent,rgba(7,6,13,.55) 40%,rgba(7,6,13,.9));display:flex;align-items:flex-end;gap:10px;z-index:2}
 .cap-t{flex:1;min-width:0}
 .cap h3{margin:0;font:600 13px/1.25 var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -26,11 +28,18 @@
 .cap .pill.mine{margin-top:6px;height:18px;font-size:10.5px}
 .ctop{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:5px;align-items:center;z-index:3}
 .ctop .fspacer{flex:1}
-.go{width:32px;height:32px;border-radius:50%;background:var(--neon);box-shadow:0 0 16px -2px rgba(255,79,163,.7);color:var(--on-accent);display:grid;place-items:center;flex:none;opacity:0;transform:translateY(6px) scale(.9);transition:all .25s cubic-bezier(.2,.7,.2,1)}
+.go{width:32px;height:32px;border-radius:50%;background:var(--neon);box-shadow:0 0 16px -2px rgba(255,79,163,.7);color:var(--on-accent);display:grid;place-items:center;flex:none;opacity:0;transform:translateY(5px) scale(.95);transition:opacity var(--motion-fast),transform var(--motion-fast) var(--ease-out)}
 .go .i{width:17px;height:17px;stroke-width:2.2}
-.card:hover .go,.card:focus-visible .go{opacity:1;transform:none}
-.reveal{opacity:0;transition:opacity .2s}
-.card:hover .reveal,.card:focus-within .reveal,.card.sel .reveal{opacity:1}
+.card:focus-within .go{opacity:1;transform:none}
+.reveal{opacity:0;transition:opacity var(--motion-fast)}
+.card:focus-within .reveal,.card.sel .reveal{opacity:1}
+@media (hover:hover) and (pointer:fine){
+  .card:hover{transform:translateY(-2px);box-shadow:0 0 28px -6px rgba(157,107,255,.65),0 18px 40px -20px rgba(0,0,0,.8)}
+  .card:hover::after{content:"";opacity:1}
+  .card:hover .media img{transform:scale(1.025)}
+  .card:hover .go{opacity:1;transform:none}
+  .card:hover .reveal{opacity:1}
+}
 @media (hover:none){.go,.reveal{opacity:1;transform:none}}
 /* template cards: the cover's input left of the cursor, the cover right of it */
 
@@ -50,3 +59,10 @@
 .ctags>.pill{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cacts{position:absolute;top:44px;right:10px;display:flex;gap:6px;z-index:3}
 .cacts .del:hover{color:var(--rose);border-color:var(--rose)}
+.touch-tools{display:none}
+@media (hover:none){
+  .tcard .touch-tools{display:inline-grid}
+  .tcard .tool-extra{display:none}
+  .tcard .cacts.open{display:grid;grid-template-columns:repeat(2,44px)}
+  .tcard .cacts.open .tool-extra{display:inline-grid}
+}

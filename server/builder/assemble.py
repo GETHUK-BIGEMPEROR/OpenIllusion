@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .. import adapters, paths, prep
+from .. import adapters, fit, paths, prep
 from .workflow import BuildError
 from .analysis import output_kind, result_nodes, _label, _int_widget
 
@@ -320,10 +320,10 @@ def cloud_preset(e) -> dict:
     media = []
     for f in e.fields:
         if f["type"] in ("image", "video", "audio") and f.get("bind"):
-            held = at(body, f["bind"][0])
-            i = next((n for n, x in enumerate(a.inputs) if x["type"] == f["type"] and adapters.fill(x["value"], f["key"]) == held), None)
-            if i is None:
+            hit = fit.adapter_input(e, f)
+            if hit is None:
                 raise BuildError(f"{f.get('label') or f['key']} fills none of {a.name}'s inputs")
+            i, _ = hit
             media.append({"slot": f["key"], "kind": f["type"], "input": i})
     files = [(m["input"], m["slot"]) for m in media]
     asked = {f["key"]: f for f in e.fields}
@@ -396,6 +396,10 @@ def save(data: dict, samples: dict[str, Path], replace: str | None = None, taken
             slug, i = f"{base}-{i}", i + 1
         tid = f"{kind}/{slug}"
     data["id"] = tid
+    # The same executable-contract gate protects shipped files and imported packs.
+    # Run it before copying samples so a bad Builder payload leaves nothing behind.
+    from ..engines.contract import load_template
+    load_template(copy.deepcopy(data))
     media_dir = root / "media" / f"{kind}__{slug}"
     if samples:
         media_dir.mkdir(parents=True, exist_ok=True)

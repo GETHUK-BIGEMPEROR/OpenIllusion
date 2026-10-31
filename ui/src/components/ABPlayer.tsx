@@ -33,6 +33,7 @@ export function ABPlayer({ a, b, overlay, info, height, keys = true, className, 
   const [ar, setAr] = useState(16 / 9);
   const shape = (w: number, h: number) => { if (w && h) setAr(w / h); };
   const [wipe, setWipe] = useState(0.5);
+  const wipePointer = useRef<number | null>(null);
   const va = useRef<HTMLVideoElement>(null);
   const vb = useRef<HTMLVideoElement>(null);
   const [t, setT] = useState(0);
@@ -42,6 +43,15 @@ export function ABPlayer({ a, b, overlay, info, height, keys = true, className, 
   const videos = () => [va.current, vb.current].filter(Boolean) as HTMLVideoElement[];
   const hasVideo = (a?.kind === "video" && !!a.src) || (b?.kind === "video" && !!b.src);
   const bar = hasVideo || !!(a && b) || !!info;
+  const placeWipe = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setWipe(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
+  };
+  const endWipe = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (wipePointer.current !== e.pointerId) return;
+    wipePointer.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
 
   const seek = useCallback((time: number) => {
     for (const v of videos()) v.currentTime = Math.max(0, Math.min(time, (v.duration || time) - 0.01));
@@ -135,14 +145,19 @@ export function ABPlayer({ a, b, overlay, info, height, keys = true, className, 
         <div
           className="ab-pane wipe"
           onPointerMove={(e) => {
-            if (e.buttons !== 1) return;
-            const r = e.currentTarget.getBoundingClientRect();
-            setWipe(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
+            if (wipePointer.current !== e.pointerId) return;
+            placeWipe(e);
           }}
           onPointerDown={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            setWipe(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
+            if (!e.isPrimary || wipePointer.current != null || (e.pointerType === "mouse" && e.button !== 0)) return;
+            e.preventDefault();
+            wipePointer.current = e.pointerId;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            placeWipe(e);
           }}
+          onPointerUp={endWipe}
+          onPointerCancel={endWipe}
+          onLostPointerCapture={(e) => { if (wipePointer.current === e.pointerId) wipePointer.current = null; }}
         >
           {render(b, vb)}
           <div className="ab-clip" style={{ clipPath: `inset(0 ${100 - wipe * 100}% 0 0)` }}>{render(a, va)}</div>
