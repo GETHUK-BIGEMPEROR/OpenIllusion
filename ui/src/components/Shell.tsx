@@ -6,7 +6,7 @@ import { isActive, useJobs } from "../lib/live";
 import { go, href, parse, type Route } from "../lib/route";
 import { cachedEngine } from "../lib/query";
 import { useApp } from "../lib/store";
-import { I } from "./oi";
+import { GpuStat, I, KeyStat } from "./oi";
 import { dropIntoStudio, isAudio, isMediaFile, openWithFiles, pageDrop, pageDropHint } from "./Drop";
 import { buildAction, workflowToBuilder } from "../screens/builder/Builder";
 import { isBackup, openBackup } from "../screens/RestoreReview";
@@ -29,14 +29,18 @@ function useQueueBadge() {
   return running ? String(running) : "";
 }
 
-export function Rail({ route }: { route: Route }) {
+/** The top bar: the app's name, its four places, then search, the two connections, the queue, Trash and Settings.
+ *  Hidden on a phone, where the tab bar takes over and each page header carries the connection chips. */
+export function TopBar({ route }: { route: Route }) {
   const setQueue = useApp((s) => s.setQueue);
   const queueOpen = useApp((s) => s.queueOpen);
+  const setPalette = useApp((s) => s.setPalette);
   const badge = useQueueBadge();
   const current = section(route);
   const lastStudio = useApp((s) => s.lastStudio);
+  const mac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
-  // 1/2/3 jump between Explore, Create and Library when no field has focus.
+  // 1/2/3/4 jump between Explore, Create, Library and Build when no field has focus.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -49,31 +53,40 @@ export function Rail({ route }: { route: Route }) {
   }, []);
 
   return (
-    <nav className="rail" aria-label="Main">
-      <a className="logo" href={href({ name: "explore" })} aria-label="OpenIllusion home"><LogoMark /></a>
-      {NAV.map((n) => (
-        <a key={n.name} className="nav-btn" href={href({ name: n.name === "edit" ? lastStudio : n.name })} aria-current={current === n.name ? "page" : undefined} title={`${n.label} (${n.key})`}>
-          <I n={n.icon} />{n.label}
-        </a>
-      ))}
-      <button className="nav-btn" type="button" aria-expanded={queueOpen} onClick={() => setQueue(!queueOpen)} aria-label={badge ? `Queue, ${badge} running` : "Queue"}>
-        <I n="layers" />Queue<span className="badge">{badge}</span>
-      </button>
-      <div className="rail-spacer" />
-      <a className="nav-btn" href={href({ name: "trash" })} aria-current={current === "trash" ? "page" : undefined} title="Deleted generations, kept 7 days"><I n="trash" />Trash</a>
-      <a className="nav-btn" href={href({ name: "settings" })} aria-current={current === "settings" ? "page" : undefined}><I n="sliders" />Settings</a>
-    </nav>
+    <header className="topbar">
+      <a className="brand" href={href({ name: "explore" })} aria-label="OpenIllusion home"><LogoMark size={26} /><span>OpenIllusion</span></a>
+      <nav className="tnav" aria-label="Main">
+        {NAV.map((n) => (
+          <a key={n.name} href={href({ name: n.name === "edit" ? lastStudio : n.name })} aria-current={current === n.name ? "page" : undefined} title={`${n.label} (${n.key})`}>
+            <I n={n.icon} /><span>{n.label}</span>
+          </a>
+        ))}
+      </nav>
+      <div className="tright">
+        <button className="tsearch" type="button" onClick={() => setPalette(true)} aria-label="Search templates and results" aria-keyshortcuts={mac ? "Meta+K" : "Control+K"}>
+          <I n="search" /><span>Search or jump to</span><kbd aria-hidden>{mac ? "⌘K" : "Ctrl K"}</kbd>
+        </button>
+        <KeyStat />
+        <GpuStat />
+        <span className="tsep" aria-hidden />
+        <button className="tbtn" type="button" aria-expanded={queueOpen} onClick={() => setQueue(!queueOpen)} aria-label={badge ? `Queue, ${badge} running` : "Queue"}>
+          <I n="layers" /><span className="tl">Queue</span><span className="badge">{badge}</span>
+        </button>
+        <a className="tbtn icon" href={href({ name: "trash" })} aria-current={current === "trash" ? "page" : undefined} aria-label="Trash" title="Deleted generations, kept 7 days"><I n="trash" /></a>
+        <a className="tbtn icon" href={href({ name: "settings" })} aria-current={current === "settings" ? "page" : undefined} aria-label="Settings" title="Settings"><I n="sliders" /></a>
+      </div>
+    </header>
   );
 }
 
-/** The rail's other pages, under More on a phone. */
+/** The top bar's other pages, under More on a phone. */
 const MORE = [
   { name: "build", label: "Build a template", icon: "graph" },
   { name: "trash", label: "Trash", icon: "trash" },
   { name: "settings", label: "Settings", icon: "sliders" },
 ] as const;
 
-/** Phone: the rail becomes a tab bar with Create in the middle; the rest of the rail is under More. */
+/** Phone: the top bar becomes a tab bar with Create in the middle; the rest is under More. */
 export function TabBar({ route }: { route: Route }) {
   const setQueue = useApp((s) => s.setQueue);
   const badge = useQueueBadge();
@@ -137,11 +150,10 @@ export function TabBar({ route }: { route: Route }) {
 
 export function LogoMark({ size = 40 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden>
-      <defs><linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#FF4FA3" /><stop offset=".5" stopColor="#9D6BFF" /><stop offset="1" stopColor="#2FD8FF" /></linearGradient></defs>
-      <rect width="40" height="40" rx="12" fill="url(#logo-g)" />
-      <circle cx="20" cy="20" r="10.5" fill="none" stroke="#0A0714" strokeWidth="4.5" />
-      <circle cx="23.6" cy="16.4" r="3.3" fill="#0A0714" />
+    <svg className="logomark" viewBox="0 0 24 24" width={size} height={size} aria-hidden>
+      <defs><linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#FF4FA3" /><stop offset=".55" stopColor="#B36BFF" /><stop offset="1" stopColor="#4FC3FF" /></linearGradient></defs>
+      <circle cx="9" cy="12" r="6.2" fill="none" stroke="url(#logo-g)" strokeWidth="2.2" />
+      <circle cx="15" cy="12" r="6.2" fill="none" stroke="url(#logo-g)" strokeWidth="2.2" />
     </svg>
   );
 }

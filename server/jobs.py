@@ -90,6 +90,13 @@ class Job:
         return asdict(self)
 
 
+def _kept(generation_id: str) -> bool:
+    try:
+        return store.folder(generation_id).exists()
+    except ValueError:
+        return False
+
+
 class Manager:
     def __init__(self):
         self.jobs: dict[str, Job] = {}
@@ -191,6 +198,14 @@ class Manager:
         self._persist()
         return True
 
+    def forget(self, ids: list[str]) -> None:
+        """Runs deleted from the Library leave the queue too: their rows would point at files that are gone."""
+        gone = [k for k in ids if k in self.jobs and self.jobs[k].state in TERMINAL]
+        for k in gone:
+            self.jobs.pop(k)
+        if gone:
+            self._persist()
+
     def clear_finished(self) -> None:
         for k in [k for k, j in self.jobs.items() if j.state in TERMINAL]:
             self.jobs.pop(k, None)
@@ -215,6 +230,8 @@ class Manager:
                     job.engine, job.prompt = m.engine.model, m.prompt
                 except Exception:
                     pass
+            if job.state in TERMINAL and not _kept(job.id):
+                continue  # its run was deleted from the Library while OpenIllusion was off
             self.jobs[job.id] = job
             if job.state not in TERMINAL:
                 self._track(job.id, asyncio.create_task(self._run(job)))

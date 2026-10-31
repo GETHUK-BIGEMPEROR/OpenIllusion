@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Hash routes keep the app a single static page at /.
 export type Route =
@@ -9,7 +9,7 @@ export type Route =
   | { name: "generation"; id: string }
   | { name: "settings" }
   | { name: "trash" }
-  | { name: "build"; from?: string; cloud?: boolean }
+  | { name: "build"; from?: string; edit?: string; cloud?: boolean }
   | { name: "connect" };
 
 export function parse(hash: string): Route {
@@ -29,7 +29,7 @@ export function parse(hash: string): Route {
     case "trash":
       return { name: "trash" };
     case "build":
-      return { name: "build", from: q.get("from") ?? undefined, cloud: q.get("track") === "cloud" || undefined };
+      return { name: "build", from: q.get("edit") ? undefined : q.get("from") ?? undefined, edit: q.get("edit") || undefined, cloud: q.get("track") === "cloud" || undefined };
     case "connect":
       return { name: "connect" };
     case "library":
@@ -52,7 +52,7 @@ export function href(r: Route): string {
     case "explore":
       return "#/explore" + (r.t || r.source ? `?${new URLSearchParams({ ...(r.t ? { t: r.t } : {}), ...(r.source ? { source: r.source } : {}) })}` : "");
     case "build":
-      return r.from ? `#/build?from=${encodeURIComponent(r.from)}` : r.cloud ? "#/build?track=cloud" : "#/build";
+      return r.edit ? `#/build?edit=${encodeURIComponent(r.edit)}` : r.from ? `#/build?from=${encodeURIComponent(r.from)}` : r.cloud ? "#/build?track=cloud" : "#/build";
     case "library":
       return r.shelf && r.shelf !== "mine" ? `#/library?shelf=${r.shelf}` : "#/library";
     default:
@@ -64,10 +64,38 @@ export function go(r: Route) {
   window.location.hash = href(r);
 }
 
+let navigationGuard: (() => Promise<boolean>) | null = null;
+
+/** Keep the current screen mounted while its unsaved changes are confirmed. */
+export function useNavigationGuard(active: boolean, check: () => Promise<boolean>) {
+  const latest = useRef(check);
+  latest.current = check;
+  useEffect(() => {
+    if (!active) return;
+    const guard = () => latest.current();
+    navigationGuard = guard;
+    return () => { if (navigationGuard === guard) navigationGuard = null; };
+  }, [active]);
+}
+
 export function useRoute(): Route {
   const [route, setRoute] = useState(() => parse(window.location.hash));
   useEffect(() => {
-    const on = () => setRoute(parse(window.location.hash));
+    let current = window.location.hash;
+    let revision = 0;
+    const on = async () => {
+      const next = window.location.hash;
+      if (next === current) return;
+      const ticket = ++revision;
+      if (navigationGuard) {
+        history.replaceState(null, "", window.location.pathname + window.location.search + current);
+        if (!await navigationGuard() || ticket !== revision) return;
+        history.replaceState(null, "", window.location.pathname + window.location.search + next);
+      }
+      current = next;
+      setRoute(parse(next));
+      window.dispatchEvent(new Event("oi:navigated"));
+    };
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);

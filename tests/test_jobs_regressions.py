@@ -384,3 +384,24 @@ def test_router_probe_can_decode_a_non_200_response():
     result = asyncio.run(_probe_router(ProbeRouter()))
     assert result["ok"] is False
     assert result["status"] == 401
+
+
+def test_a_run_deleted_from_the_library_leaves_the_queue(monkeypatch):
+    kept, deleted, gone = (store.save(_manifest()) for _ in range(3))
+    monkeypatch.setattr(jobs, "MANAGER", jobs.Manager())
+    for m in (kept, deleted):
+        jobs.MANAGER.jobs[m.id] = _job(m, state="done")
+
+    async def go(client):
+        return (await client.delete(f"/api/generations/{deleted.id}")).status
+
+    assert _call(go) == 200
+    assert set(jobs.MANAGER.jobs) == {kept.id}
+
+    # A finished row whose run went while the app was off is not brought back on start.
+    rows = [_job(kept, state="done").to_dict(), _job(gone, state="failed").to_dict()]
+    store.delete(gone.id)
+    (paths.user_root() / "jobs.json").write_text(json.dumps(rows), "utf-8")
+    resumed = jobs.Manager()
+    assert resumed.resume() == 0
+    assert set(resumed.jobs) == {kept.id}

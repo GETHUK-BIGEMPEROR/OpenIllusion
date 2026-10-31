@@ -8,7 +8,7 @@
 .set-sec{display:grid;gap:14px;scroll-margin-top:84px}
 .set-sec>h2{margin:0;font:600 17px/1.2 var(--display)}
 .set-sec>p{margin:-8px 0 0;font-size:13px;color:var(--text-2);max-width:600px}
-.set-sec.later .ech .ic{background:rgba(157,107,255,.14);color:var(--violet)}
+.set-sec.later .ech .ic{background:rgba(179,107,255,.14);color:var(--violet)}
 .engines{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .set-card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-content:start}
 .set-card.on{border-color:rgba(61,245,168,.3);background:linear-gradient(180deg,rgba(61,245,168,.06),transparent 40%),var(--panel)}

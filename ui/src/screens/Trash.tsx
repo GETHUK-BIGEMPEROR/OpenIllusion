@@ -210,7 +210,7 @@ function TrashCard({ t, picking, picked, onPick }: { t: TrashItem; picking: bool
         onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(); } },
       } : {})}>
       <Media src={img} poster={img} ar={aspect(t)}>
-        {!img && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#261F3A,#141120)" }} />}
+        {!img && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#22222A,#121217)" }} />}
       </Media>
       <div className="ctop">
         {picking && <span className="check"><I n="check" /></span>}

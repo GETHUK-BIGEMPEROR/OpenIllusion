@@ -1,0 +1,54 @@
+/* ---------- glow: motion and neon, kept quiet ----------
+   Last in the cascade, so it only adds: a moving gradient and a passing sheen on the main action, a neon edge on what's
+   picked or hovered, a breathing light on live status, striped progress, glass edges on floating panels. Every animation
+   here stops under prefers-reduced-motion (the block at the end). */
+@keyframes sheen-pass{0%,64%{transform:translateX(-140%) skewX(-20deg)}100%{transform:translateX(420%) skewX(-20deg)}}
+@keyframes ping{0%{transform:scale(1);opacity:.6}80%,100%{transform:scale(2.7);opacity:0}}
+@keyframes stripes{to{background-position:28px 0,0 0}}
+@keyframes live-edge{50%{box-shadow:0 0 0 1px rgba(179,107,255,.7),0 0 26px -4px rgba(179,107,255,.65)}}
+@keyframes ambient{0%,100%{opacity:.34;transform:scale(1)}50%{opacity:.5;transform:scale(1.06)}}
+
+/* The main action: its gradient drifts, a sheen passes every few seconds, hover lifts it into a brighter glow. */
+.run:not(:disabled),.btn.primary:not(:disabled){background-image:var(--neon-flow);background-size:200% 100%;animation:flow 7s ease-in-out infinite alternate;transition:transform var(--motion-fast) var(--ease-out),box-shadow .25s,filter var(--motion-fast)}
+.run:not(:disabled)::after{animation:sheen-pass 5s ease-in-out infinite}
+.run:not(:disabled):hover,.btn.primary:not(:disabled):hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 0 4px rgba(179,107,255,.14),0 16px 38px -12px rgba(179,107,255,.9),0 0 28px -6px rgba(255,79,163,.7)}
+.run:not(:disabled):hover::after{animation:sheen-pass 5s ease-in-out infinite}
+
+/* Buttons and chips: a soft violet rim on hover; picked choices carry the gradient edge and its glow. */
+.btn,.chip,.xfacet,.icon-btn{transition:background var(--motion-fast),border-color var(--motion-fast),color var(--motion-fast),box-shadow .25s,filter var(--motion-fast),scale var(--motion-press) var(--ease-out)}
+.btn:not(.primary):not(:disabled):hover,.chip:hover,.xfacet:hover,.xfacet[data-state="open"]{box-shadow:0 0 0 1px rgba(179,107,255,.2),0 0 18px -6px rgba(179,107,255,.55)}
+.seg button[aria-pressed="true"],.seg button[aria-checked="true"]{box-shadow:0 0 14px -5px rgba(179,107,255,.75)}
+.sizes button[aria-pressed="true"],.rb-count button[aria-pressed="true"]{background:linear-gradient(#1B1A24,#1B1A24) padding-box,var(--neon) border-box;border:1px solid transparent;box-shadow:0 0 18px -6px rgba(179,107,255,.8)}
+.xfacet.on{box-shadow:0 0 16px -6px rgba(179,107,255,.7)}
+.switch[aria-checked="true"]{background:var(--neon);box-shadow:0 0 14px -2px rgba(179,107,255,.7)}
+.switch[aria-checked="true"]::after{background:#fff}
+
+/* Focus: the violet ring, with a little light around it. */
+:focus-visible{outline-color:#C9A6FF;box-shadow:0 0 0 5px rgba(179,107,255,.2)}
+
+/* Floating panels are glass with a lit top edge. */
+.gpop,.pop,.qpanel,.dlg,.palette,.tabmore{background:rgba(18,18,24,.9);backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);box-shadow:inset 0 1px 0 rgba(214,190,255,.12),0 0 0 1px rgba(179,107,255,.05),0 30px 70px -24px #000}
+.phead{background:rgba(6,6,10,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+
+/* Live status: the dots in the top bar send out a slow ring; progress is striped and moving. */
+.topbar .gchip .dot,.topbar .kchip .dot{position:relative}
+.topbar .gchip .dot:not(.off)::after{content:"";position:absolute;inset:0;border-radius:50%;background:inherit;animation:ping 2.6s cubic-bezier(0,0,.2,1) infinite}
+.bar i,.vram i{background-image:repeating-linear-gradient(115deg,rgba(255,255,255,.2) 0 7px,transparent 7px 14px),var(--neon);background-size:28px 100%,100% 100%;animation:stripes 1s linear infinite}
+
+/* Media lifts with a neon rim and a slow zoom. */
+@media (hover:hover) and (pointer:fine){
+  .card:hover{transform:translateY(-3px);box-shadow:0 0 0 1px rgba(255,255,255,.12),0 0 28px -6px rgba(179,107,255,.7),0 26px 50px -24px rgba(255,79,163,.45)}
+  .card:hover .media img{transform:scale(1.05)}
+  .card .media img{transition:opacity var(--motion-enter),transform .7s cubic-bezier(.2,.7,.2,1)}
+}
+
+/* The Create stage: the result's own colours, blurred, glow behind it and breathe slowly. */
+.stage{isolation:isolate}
+.stage-amb{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:-1}
+.stage-amb img{position:absolute;left:10%;top:-10%;width:80%;height:120%;object-fit:cover;filter:blur(90px) saturate(1.5);opacity:.4;animation:ambient 9s ease-in-out infinite}
+.stage-amb::after{content:"";position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 40%,transparent,var(--bg) 88%)}
+
+@media (prefers-reduced-motion:reduce){
+  .run,.btn.primary,.run::after,.topbar::after,.brand .logomark,.badge,.bar i,.vram i,.stage-amb img,.topbar .gchip .dot::after{animation:none!important}
+  .run:hover,.btn.primary:hover,.card:hover{transform:none!important}
+}

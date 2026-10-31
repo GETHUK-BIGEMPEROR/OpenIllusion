@@ -48,7 +48,9 @@ virtualenv when present; set `PYTHON` to override. Set
 
 Desktop and touch-phone checks cover both onboarding paths, setup errors,
 readiness/source filters, unavailable checks, cloud variant billing copy,
-inspector focus and reduced motion. Provider requests are mocked and unexpected
+inspector focus, reduced motion, template editing/copying, unsaved-change guards,
+source selection, cloud model search and responsive Builder panels.
+Provider requests are mocked and unexpected
 writes are blocked. `.github/workflows/check.yml` runs Python tests, the frontend
 build and these browser checks on pushes and pull requests.
 

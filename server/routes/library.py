@@ -69,6 +69,7 @@ def register(routes: web.RouteTableDef) -> None:
             store.delete(gid)
         except ValueError:
             return err(404, "Generation not found")
+        jobs.MANAGER.forget([gid])
         library_changed(gid)
         return web.json_response({"ok": True, "trash_days": store.TRASH_DAYS})
 
@@ -79,6 +80,7 @@ def register(routes: web.RouteTableDef) -> None:
         active = jobs.MANAGER.active_ids()
         moved = await asyncio.to_thread(store.delete_many, [i for i in ids if i not in active])
         if moved:
+            jobs.MANAGER.forget(moved)
             library_changed(*moved)
         return web.json_response({"moved": moved, "kept": [i for i in ids if i in active], "trash_days": store.TRASH_DAYS})
 

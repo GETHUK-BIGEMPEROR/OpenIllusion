@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -103,6 +104,8 @@ def register(routes: web.RouteTableDef) -> None:
                 p = builder.cloud_preset(e)
             except builder.BuildError as ex:
                 return err(422, str(ex))
+            if b.get("edit"):
+                p["label"] = e.label
             for m in p["media"]:
                 src = e.default_inputs.get(m["slot"])
                 m["sample"] = await _sample(src) if src and src.is_file() else None
@@ -129,7 +132,10 @@ def register(routes: web.RouteTableDef) -> None:
             src = e.default_inputs.get(slot) if slot else None
             m["sample"] = await _sample(src) if src and src.is_file() else None
         a.pop("workflow")
-        return web.json_response({"token": token, "source": f"{slug}.json", "format": "api", **a, "preset": builder.preset(e)})
+        preset = builder.preset(e)
+        if b.get("edit"):
+            preset["label"] = e.label
+        return web.json_response({"token": token, "source": f"{slug}.json", "format": "api", **a, "preset": preset})
 
     @routes.get(API + "/templates/workflow")
     async def template_workflow(request):
@@ -166,8 +172,10 @@ def register(routes: web.RouteTableDef) -> None:
         replace = b.get("replace") or None
         if replace:
             old = engines.ENGINES.get(replace)
-            if old is None or not old.built or old.origin != "user":
-                return err(404, "Only templates you built can be replaced")
+            if old is None or old.data is None or old.path is None:
+                return err(404, "That template no longer exists; save a copy instead")
+            if b.get("kind") and b["kind"] != old.kind:
+                return err(422, "A template's local/cloud backend cannot change in place; save a copy instead")
             if jobs.MANAGER.active_for_engine(replace):
                 return err(409, "Wait for this template's active runs to finish before replacing it")
         try:
@@ -180,9 +188,9 @@ def register(routes: web.RouteTableDef) -> None:
                 except httpx.HTTPError:
                     return err(503, "ComfyUI isn't reachable, so the workflow can't be checked. Start it and save again.")
                 data = builder.assemble_local(b, draft, info)
-            base = engines.ENGINES.get(str(b.get("base") or ""))
+            base = engines.ENGINES.get(str(replace or b.get("base") or ""))
             if base is not None and base.data:
-                builder.inherit(data, base.data, base.label)
+                builder.inherit(data, base.data, base.label, editing=bool(replace), fixed=b.get("fixed") if b.get("kind") == "local" else None)
             samples = {}
             for m in builder.media_rows(b.get("media") or []):
                 if m.get("sample"):
@@ -193,9 +201,18 @@ def register(routes: web.RouteTableDef) -> None:
                 return err(409, f"{jobs.MANAGER.maintenance.capitalize()} is in progress; wait for it to finish")
             if replace and jobs.MANAGER.active_for_engine(replace):
                 return err(409, "Wait for this template's active runs to finish before replacing it")
-            tid = builder.save(data, samples, replace=replace, taken=set(engines.ENGINES))
+            previous = copy.deepcopy(base.data) if replace and base else None
+            if previous is not None and base.origin == "shipped":
+                # The override stays in the user's home. Keep portable references
+                # to bundled covers rather than writing to the shipped directory.
+                for key in ("cover", "cover_video"):
+                    if previous.get(key) and not previous[key].startswith("shipped:"):
+                        previous[key] = engines.shipped_ref(base.path.parent, previous[key])
+            tid = builder.save(data, samples, replace=replace, taken=set(engines.ENGINES), previous=previous)
         except (builder.BuildError, KeyError, ValueError) as e:
             return err(422, str(e))
+        except OSError:
+            return err(507, "Couldn't write the template or its samples. Check disk space and permissions, then try again.")
         engines.reload_templates()
         return web.json_response(template_info(engines.ENGINES[tid]))
 

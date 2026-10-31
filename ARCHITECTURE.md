@@ -121,7 +121,7 @@ non-root user, the home folder in a volume, ComfyUI reached on the host by
 | `lib/spec.ts` · `fields.ts` | Studio state → the run spec the server composes (`toSpec`); which inputs a template shows; a prompt as the model gets it, names swapped for tokens (`sentAs`). |
 | `lib/route.ts` · `live.ts` · `query.ts` | Hash routes; the WebSocket feed of job updates; React Query setup. |
 | `lib/errors.ts` · `imports.ts` | Failures in one vocabulary (`describeFailure`: a title, what to do, the raw text for Show details), for the stage, queue and generation page; where an import lands (`landImport`: a template goes straight to Explore, a generation is reviewed first). |
-| `App.tsx` · `components/Shell.tsx` · `Palette.tsx` | Layout, rail and tab bar, drops anywhere on the page (files from outside only: a drag that starts on the page, like selected text, is ignored; a page with inputs of its own takes media through `usePageDrop`), Ctrl K palette. |
+| `App.tsx` · `components/Shell.tsx` · `Palette.tsx` | Layout, top bar and phone tab bar, drops anywhere on the page (files from outside only: a drag that starts on the page, like selected text, is ignored; a page with inputs of its own takes media through `usePageDrop`), Ctrl K palette. |
 | `screens/*` | One file per screen; see [The app](docs/APP.md#the-app-screen-by-screen). |
 | `screens/builder/` | Builder: Local workflow and Comfy Router tabs, three steps with Back, the checklist, save and first run (`Builder.tsx`); the start step and model cards (`Start.tsx`), the template's numbered sections and the workflow's missing nodes and models (`Sections.tsx`, `SourceCheck`), output size and settings with Ask/Lock (`Settings.tsx`), the side panel: Create's view, the checklist, Run (`Rail.tsx`), row state from a workflow or preset (`model.ts`). On Router: job cards built from the adapter's sets or `models` (`modes.ts`), inputs grouped by role (each role's limits as pills counted across its files, **Fit all to spec**, a card per sample with Edit, Replace, Remove), a sentence on what the run makes, and the same `set`/`needs`/`models` checks as the server. |
 | `screens/create/` | Create: the page (`CreateStudio.tsx`; the stage shows the picked input in the editor, or the run), input cards, the inline editor and the edits made just before Run (`Inputs.tsx`), the canvas (`Canvas.tsx`), prompt and Run (`Panel.tsx`), this template's runs (`History.tsx`). |
@@ -130,7 +130,7 @@ non-root user, the home folder in a volume, ComfyUI reached on the host by
 | `lib/edits.ts` | The editor's logic, no UI: the `Edits` a file carries, what they make (`outOf`), the model's limits as checks and a file's one-line status, Fit to spec (a port of `fit.plan`), and the ops sent to `/api/media/edit`. |
 | `components/ui.tsx` · `oi.tsx` · `bits.tsx` · `sprite.ts` | Shared pieces: buttons, segmented tabs, fields, spinners; page head, header chips (`KeyStat`, `GpuStat`), sideways-scrolling rows, media; the icon sprite (`<I n>`). |
 | `components/Confirm.tsx` · `Mentions.tsx` | The one confirm dialog (`confirm()`; deleting for good takes a press-and-hold); the file-name chips under a cloud prompt. |
-| `styles/` | The only styling: `base.css` tokens and reset, `common.css`/`fields.css` shared pieces, one stylesheet per area, `responsive.css` for phones. |
+| `styles/` | The only styling: `base.css` tokens and reset, `common.css`/`fields.css` shared pieces, one stylesheet per area, `responsive.css` for phones, `glow.css` last (motion and neon, all off under reduced motion). Fonts are bundled through `@fontsource` in `index.css`. |
 
 **Folders:**
 
@@ -291,6 +291,21 @@ with a `backup.json` (format, version, app, counts, and every file's size and sh
   or restore at a time.
 
 ## API
+
+Template editing uses the existing Builder endpoints. `POST builder/from-template`
+with `{engine, edit: true}` keeps the template's original name;
+without `edit`, the preset is named as a copy. `POST builder/save` with `replace`
+updates a template of the same backend, rechecks active
+runs after awaited validation, and retains its cover/publication metadata.
+Shipped templates are saved as user-home overrides with the same id and portable
+references to their bundled covers; bundled files remain unchanged and Reset can
+restore them. Omitting `replace` always creates a new draft. Existing generation folders and
+their recipes are never rewritten. New samples are content-addressed and copied
+atomically before the template JSON is replaced.
+
+The hash router can defer navigation while an editor confirms unsaved changes.
+`oi:navigated` signals accepted navigation, so confirmation dialogs are not
+cancelled merely because a guarded hash change was attempted.
 
 Everything is under `/api` on `:7870`, same origin only. `lib/api.ts` has a
 typed call for each.

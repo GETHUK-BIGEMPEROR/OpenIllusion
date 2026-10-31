@@ -42,8 +42,8 @@ export function useJobFeed() {
           if (msg.type === "job") upsert(qc, msg.data as Job);
           if (msg.type === "backup" || msg.type === "restore") qc.setQueryData(["progress", msg.type], msg.data);
           if (msg.type === "library") {
-            // Deleted, restored, imported or edited elsewhere (another tab, the API).
-            for (const key of ["generations", "facets", "trash"]) qc.invalidateQueries({ queryKey: [key] });
+            // Deleted, restored, imported or edited elsewhere (another tab, the API). A deleted run leaves the queue too.
+            for (const key of ["generations", "facets", "trash", "jobs"]) qc.invalidateQueries({ queryKey: [key] });
             for (const id of (msg.data?.ids ?? []) as string[]) qc.invalidateQueries({ queryKey: ["generation", id] });
           }
         } catch {

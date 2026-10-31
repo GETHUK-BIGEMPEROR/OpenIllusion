@@ -227,10 +227,15 @@ def facets() -> dict:
         c = db()
         models = [r[0] for r in c.execute("SELECT DISTINCT model FROM generations ORDER BY model")]
         counts = {r[0]: r[1] for r in c.execute("SELECT shelf, COUNT(*) FROM generations GROUP BY shelf")}
+        # Per shelf: how many are videos and how many are starred, for the Library header.
+        stats = {
+            r[0]: {"videos": r[1] or 0, "starred": r[2] or 0}
+            for r in c.execute("SELECT shelf, SUM(result_kind = 'video'), SUM(starred) FROM generations GROUP BY shelf")
+        }
         tags: set[str] = set()
         for (t,) in c.execute("SELECT tags FROM generations"):
             tags.update(json.loads(t or "[]"))
-    return {"models": models, "shelves": counts, "tags": sorted(tags)}
+    return {"models": models, "shelves": counts, "stats": stats, "tags": sorted(tags)}
 
 
 def delete(generation_id: str) -> None:

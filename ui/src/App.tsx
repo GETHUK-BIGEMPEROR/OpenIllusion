@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { Sprite } from "./components/oi";
 import { Palette } from "./components/Palette";
 import { ConfirmHost } from "./components/Confirm";
-import { DropOverlay, Rail, TabBar, Toasts } from "./components/Shell";
+import { DropOverlay, TabBar, Toasts, TopBar } from "./components/Shell";
 import { api } from "./lib/api";
 import { errMsg } from "./lib/format";
 import { landImport } from "./lib/imports";
@@ -123,7 +123,7 @@ export function App() {
     <div className="app" id="app" data-route={route.name}>
       <Sprite />
       <div className="shell">
-        <Rail route={route} />
+        <TopBar route={route} />
         <main className="main">
           {route.name === "explore" && <Explore t={route.t} source={route.source} />}
           {route.name === "library" && <Library shelf={route.shelf} />}
@@ -132,7 +132,7 @@ export function App() {
           {route.name === "generation" && <GenerationDetail key={route.id} id={route.id} />}
           {route.name === "settings" && <Settings />}
           {route.name === "trash" && <Trash />}
-          {route.name === "build" && <Builder key={route.cloud ? "cloud" : "local"} from={route.from} cloud={route.cloud} />}
+          {route.name === "build" && <Builder key={route.edit ? `edit:${route.edit}` : route.from ? `from:${route.from}` : route.cloud ? "cloud" : "local"} from={route.from} edit={route.edit} cloud={route.cloud} />}
         </main>
         <TabBar route={route} />
       </div>

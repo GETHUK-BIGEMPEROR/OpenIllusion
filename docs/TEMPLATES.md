@@ -133,20 +133,51 @@ Animate a photo reads it from the photo, so no shape is fixed in the graph.
 
 ## Making a template (Builder)
 
-The Builder has two tabs, **Local workflow** and **Comfy Router**, and three
-steps shown at the top: 1 bring a workflow or pick a model, 2 set it up, 3 run
-it once. The tabs differ only in step 1, where the input list comes from.
+### Editing an existing template
 
-Step 2 is one numbered column of sections (a spine down the left counts only the
-sections shown) beside a side panel that stays in view:
+Create's **Edit template** opens `#/build?edit={id}`, prefilled with the saved
+template's name, description, samples, prompt and Ask/Lock settings. The unsent
+Create draft is not used as the template's defaults.
 
-- **On Create, people see**: the template as Create will show it, its name, model,
+**Save template** updates the same id. For a shipped template, it creates a local
+override in the user's home, never changing bundled files; Reset restores the
+bundled version. **Save as copy** creates a separate draft under a new id.
+**Save and test** is a separate action:
+normal saving never starts a job and does not require a filled test prompt or
+local sample. Cloud testing uses a paid provider run, with no cost quote available.
+
+Replacement preserves the cover, added date and published/draft state. Past
+generation manifests and request snapshots are untouched. Local templates still
+require a reachable ComfyUI to inspect and validate their workflow. Replacement
+is refused while that template has active runs. Samples use content-addressed
+filenames and atomic copies, so a failed save cannot overwrite the old sample.
+
+Back to Create preserves the unsent draft when edits are discarded. Saving
+returns to Create with the saved defaults. Navigation/reload warns about unsaved
+edits. **Build from this** (`?from={id}`) continues to create a new template.
+
+### Creating a new template
+
+The Builder offers two source choices, **Local workflow** and **Comfy Router**,
+with three steps: bring a workflow or pick a model, set defaults, save the template.
+The choices differ in where the input list comes from. Cloud models can be
+searched by model name, id, role or supported action.
+
+Step 2 groups template details, inputs, prompt and settings into compact cards.
+The desktop save panel stays beside the form; on narrow layouts it appears before
+the form, in the same keyboard order as its visual order:
+
+- **Save template** saves a new draft without generating. Missing test samples or
+  an empty starting prompt do not block saving an otherwise valid template.
+- **Create preview**: the template as Create will show it, its name, model,
   the files it asks for by the names Create gives them, the prompt, the settings
   asked on Create with their starting values, and the locked ones in one line.
-- **Before the first run**: a checklist (named, inputs fit the model, every asked
+- **Test this template**, an optional section: a checklist (named, inputs fit the model, every asked
   setting named, result picked, prompt written, every input has a sample), each
   met or with what's missing.
-- **Run**, with the first unmet item as the reason when it can't run.
+- **Save and test**, inside that section, starts one run. The first unmet item
+  explains why testing is blocked, independently of the save action. New drafts
+  still require a finished test run before publication.
 
 ```mermaid
 flowchart LR
@@ -159,12 +190,13 @@ flowchart LR
   DE --> F["Fill<br/>samples + prompt"]
   MO --> F
   F --> ST["Settings<br/>shape · size · length…<br/>asked on Create or fixed"]
-  ST --> RU["Run<br/>saved as a draft, frozen to the inputs used"]
+  ST --> SV["Save template<br/>saved as a draft;<br/>no run starts"]
+  SV --> RU["Optional test<br/>Save and test,<br/>or Run in Create"]
   RU --> PB["Publish in Create<br/>needs a finished run;<br/>it becomes the cover"]
 ```
 
 - **Detect** is `builder.analyze`: UI-format workflows are converted to API format
-  and subgraphs flattened, then every loader becomes a required input. Step *Run*
+  and subgraphs flattened, then every loader becomes a required input. Step *Save*
   is `builder.assemble_local`.
 - **Picking a model**: each adapter is a card under *Make video* and *Make photos*.
   Each card says what the model **Does** (its mode names, `modeNames`) and what it
@@ -213,7 +245,7 @@ flowchart LR
   and the rest fill the empty inputs of their kind (that role first, then what the
   job must have), and a Router role takes more up to its cap. Files dropped anywhere
   else on the page do the same (`placeFiles`); a dropped ComfyUI workflow starts over.
-- **Run** saves the template as a draft and runs it once in Create, as soon as
+- **Save and test** saves the template as a draft and runs it once in Create, as soon as
   Create can run it (`autorun` waits for Run to unblock; after 30 s it gives up and
   a toast says why). Samples you dropped become its defaults. When a result looks right, **Publish** (in the
   draft bar under the cover) puts it on Explore with that result as its cover.

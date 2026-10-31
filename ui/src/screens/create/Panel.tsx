@@ -48,7 +48,7 @@ export function Hero({ e, run }: { e: EngineInfo; run?: string | null }) {
       <div className="thero-img">
         {e.cover_video && !reduced ? <video src={e.cover_video} poster={e.cover ?? undefined} muted loop playsInline autoPlay aria-hidden style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 22%" }} />
           : e.cover ? <img src={e.cover} alt="" />
-          : <span aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 90% at 100% 0%,rgba(255,79,163,.18),transparent 60%),linear-gradient(160deg,#261F3A,#141120)" }} />}
+          : <span aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 90% at 100% 0%,rgba(255,79,163,.18),transparent 60%),linear-gradient(160deg,#22222A,#121217)" }} />}
         <div className="thero-cap"><h2>{tplName(e)}</h2><p><i className={cx("dot", e.kind !== "local" && "violet")} />{tplModel(e)} · {where}<OriginTag e={e} /></p></div>
       </div>
       <button className="btn sm glass change" type="button" aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen(!open)}><I n="refresh" />Change</button>

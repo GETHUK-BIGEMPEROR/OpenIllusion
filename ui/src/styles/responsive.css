@@ -1,6 +1,6 @@
 /* ---------- medium widths ---------- */
 @container app (max-width:1180px){
-  .explore .scrim.on{display:block;position:absolute;inset:0;z-index:25;background:rgba(6,4,9,.45);animation:fade .2s}
+  .explore .scrim.on{display:block;position:absolute;inset:0;z-index:25;background:rgba(4,4,8,.45);animation:fade .2s}
   .studio{grid-template-columns:316px minmax(0,1fr)}
   .ttools{gap:6px}
   .ttools .ttool{padding:0 6px;font-size:12px}
@@ -35,10 +35,11 @@
 
 /* ---------- phone ---------- */
 @container app (max-width:760px){
-  .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
-  .rail{display:none}
-  .trashlink{display:inline-flex}  /* no rail on phones: the way into the trash */
-  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;padding:6px 6px 10px;border-top:1px solid var(--line);background:rgba(15,13,24,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);z-index:20}
+  .shell{grid-template-rows:minmax(0,1fr) auto}
+  .topbar{display:none}
+  .hstats{display:contents}  /* no top bar on phones: search and the connections sit in each page header */
+  .trashlink{display:inline-flex}  /* no top bar on phones: the way into the trash */
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;padding:6px 6px 10px;border-top:1px solid var(--line);background:rgba(14,14,19,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);z-index:20}
   .tab{display:grid;justify-items:center;gap:3px;padding:6px 0 2px;color:var(--text-3);font-size:10px;font-weight:500;text-decoration:none;position:relative;scale:1;transition:scale var(--motion-press) var(--ease-out),color var(--motion-fast)}
   .tab:active{scale:.97}
   .tab .i{width:21px;height:21px}
@@ -50,8 +51,8 @@
   .tab.create span{color:var(--text-3)}
   .tab.create[aria-current="page"] span{color:var(--text)}
   .tabbar{position:relative}
-  .tabmore-scrim{position:absolute;left:0;right:0;bottom:100%;height:100vh;border:0;padding:0;background:rgba(6,4,9,.45);animation:fade .2s}
-  .tabmore{position:absolute;right:8px;bottom:calc(100% + 8px);min-width:210px;display:grid;padding:6px;border-radius:16px;background:#13101F;border:1px solid var(--line-2);box-shadow:0 30px 70px -24px #000;transform-origin:bottom right;animation:drop .22s var(--spring)}
+  .tabmore-scrim{position:absolute;left:0;right:0;bottom:100%;height:100vh;border:0;padding:0;background:rgba(4,4,8,.45);animation:fade .2s}
+  .tabmore{position:absolute;right:8px;bottom:calc(100% + 8px);min-width:210px;display:grid;padding:6px;border-radius:16px;background:#121218;border:1px solid var(--line-2);box-shadow:0 30px 70px -24px #000;transform-origin:bottom right;animation:drop .22s var(--spring)}
   .tabmore a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:var(--text-2);font-size:14px;text-decoration:none}
   .tabmore a:hover,.tabmore a[aria-current="page"]{background:var(--raised);color:var(--text)}
   .tabmore .i{width:19px;height:19px;color:var(--text-3)}

@@ -9,7 +9,7 @@ import { cx, Spinner } from "./ui";
 export { cx };
 
 /** The neon gradient, for strokes: ``stroke:url(#ng)`` in CSS. */
-const NEON = '<defs><linearGradient id="ng" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF4FA3"/><stop offset=".5" stop-color="#9D6BFF"/><stop offset="1" stop-color="#2FD8FF"/></linearGradient></defs>';
+const NEON = '<defs><linearGradient id="ng" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF4FA3"/><stop offset=".5" stop-color="#B36BFF"/><stop offset="1" stop-color="#4FC3FF"/></linearGradient></defs>';
 
 /** The icon sprite, once per page. */
 export function Sprite() {
@@ -203,7 +203,7 @@ export function useStatus() {
   return useQuery({ queryKey: ["status"], queryFn: () => api.status(), refetchInterval: 30_000 });
 }
 
-/** A page's header: no visible title, since the rail already names the page; ``title`` is a hidden heading for screen
+/** A page's header: no visible title, since the top bar already names the page; ``title`` is a hidden heading for screen
  *  readers. ``lead``: a visible start, like a back button. ``search={false}``: the page has its own search field.
  *  ``bar``: a row of filters under the header line; ``sub``: a row under that, which scrolls sideways. */
 export function PageHead({ title, lead, filters, actions, sub, bar, search = true }: { title: string; lead?: ReactNode; filters?: ReactNode; actions?: ReactNode; sub?: ReactNode; bar?: ReactNode; search?: boolean }) {
@@ -217,9 +217,12 @@ export function PageHead({ title, lead, filters, actions, sub, bar, search = tru
         <div className={bar ? "hfilters open" : "hfilters"}>{filters}</div>
         <div className="hactions">
           {actions}
-          {search && <button className="icon-btn" type="button" aria-label="Search templates and results" title={`Search (${mac ? "⌘K" : "Ctrl K"})`} onClick={() => setPalette(true)}><I n="search" /></button>}
-          <KeyStat />
-          <GpuStat />
+          {/* On a phone there's no top bar: search and the connections ride in each page header instead. */}
+          <span className="hstats">
+            {search && <button className="icon-btn" type="button" aria-label="Search templates and results" title={`Search (${mac ? "⌘K" : "Ctrl K"})`} onClick={() => setPalette(true)}><I n="search" /></button>}
+            <KeyStat />
+            <GpuStat />
+          </span>
         </div>
       </div>
       {bar && <div className="phead-bar">{bar}</div>}

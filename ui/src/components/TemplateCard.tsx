@@ -127,6 +127,8 @@ export function TemplateTools({ e }: { e: EngineInfo }) {
   const del = useRemoveTemplate(e, () => go({ name: "explore" }));
   return (
     <div className="ttools">
+      <button className="ttool edit-template" type="button" onClick={() => go({ name: "build", edit: e.id })}
+        title="Edit this template's saved defaults, inputs and settings"><I n="pencil" />Edit template</button>
       <button className="ttool" type="button" onClick={() => go({ name: "build", from: e.id })}
         title={e.kind === "local" ? "A new template from this one's workflow, inputs and prompt" : "A new template on the same model, with this one's inputs, prompt and settings"}>
         Build from this

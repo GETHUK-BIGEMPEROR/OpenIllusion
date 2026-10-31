@@ -1,6 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
+import type { IconName } from "../components/sprite";
 import { appRoot, cx, EmptyBox, I, jobProgress, QUEUED } from "../components/oi";
 import { useRemoveTemplate } from "../components/TemplateCard";
 import { api, type EngineInfo, type Job } from "../lib/api";
@@ -16,7 +17,7 @@ import { useApp, type StudioState } from "../lib/store";
 
 const FAILED = new Set(["failed", "moderated"]);
 
-/** Every run from both studios, grouped by what it needs from you. Slides out from the rail; a bottom sheet on phones. */
+/** Every run from both studios, grouped by what it needs from you. Slides in under the top bar; a bottom sheet on phones. */
 export function QueueDrawer() {
   const open = useApp((s) => s.queueOpen);
   const setOpen = useApp((s) => s.setQueue);
@@ -93,6 +94,13 @@ export function QueueDrawer() {
   );
 }
 
+/** The first picture that loads (a run's files can be gone: deleted from the Library, an expired cover), else the icon. */
+function Thumb({ srcs, icon, style }: { srcs: (string | null | undefined)[]; icon: IconName; style?: CSSProperties }) {
+  const [bad, setBad] = useState<string[]>([]);
+  const src = srcs.find((u): u is string => !!u && !bad.includes(u));
+  return src ? <img src={src} alt="" style={style} onError={() => setBad((b) => [...b, src])} /> : <I n={icon} />;
+}
+
 /** A draft: opens in Create, where a finished run of it lets you publish it to Explore. The trash deletes it. */
 function DraftRow({ e, tested, onOpen }: { e: EngineInfo; tested: boolean; onOpen: () => void }) {
   const openTemplate = useApp((s) => s.openTemplate);
@@ -101,7 +109,7 @@ function DraftRow({ e, tested, onOpen }: { e: EngineInfo; tested: boolean; onOpe
   return (
     <div className={cx("qitem qdraft", tested && "ok")}>
       <button type="button" className="th" onClick={open} aria-label={`Open ${e.label} in Create`} style={{ padding: 0, border: 0, background: "var(--field)", display: "grid", placeItems: "center", color: "var(--text-3)" }}>
-        {e.cover ? <img src={e.cover} alt="" /> : <I n={e.mode === "motion" ? "film" : "image"} />}
+        <Thumb srcs={[e.cover]} icon={e.mode === "motion" ? "film" : "image"} />
       </button>
       <button type="button" onClick={open} style={{ display: "block", width: "100%", minWidth: 0, textAlign: "left", background: "none", border: 0, padding: 0, color: "inherit", cursor: "pointer" }}>
         <b>{e.label.trim() || "Untitled"}<span className="qprompt"> · {e.model_name || e.provider}</span></b>
@@ -178,7 +186,7 @@ function JobRow({ j, onOpen }: { j: Job; onOpen: () => void }) {
   return (
     <div className={cx("qitem", failed && "failed")} style={waiting ? { opacity: 0.75 } : undefined}>
       <button type="button" className="th" onClick={onOpen} aria-label={`Open ${name}`} style={{ padding: 0, border: 0, background: "var(--field)", display: "grid", placeItems: "center", color: "var(--text-3)" }}>
-        {j.preview || j.poster ? <img src={j.preview ?? j.poster!} alt="" style={waiting ? { filter: "blur(3px) saturate(.4)" } : undefined} /> : <I n="image" />}
+        <Thumb srcs={[j.preview, j.poster]} icon="image" style={waiting ? { filter: "blur(3px) saturate(.4)" } : undefined} />
       </button>
       <div style={{ minWidth: 0 }}>
         <button type="button" onClick={onOpen} style={{ display: "block", width: "100%", minWidth: 0, textAlign: "left", background: "none", border: 0, padding: 0, color: "inherit", cursor: "pointer" }}>

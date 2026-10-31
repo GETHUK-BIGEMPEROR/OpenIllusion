@@ -1,13 +1,13 @@
 // Build: turn a ComfyUI workflow or a Router model into a template. The page and its two steps.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { I, PageHead } from "../../components/oi";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { EmptyBox, I, PageHead } from "../../components/oi";
 import { tplName } from "../../components/TemplateCard";
-import { cx } from "../../components/ui";
+import { cx, Spinner } from "../../components/ui";
 import { api, type BuildSpec, type CloudPreset, type RouterAdapter } from "../../lib/api";
 import { confirm } from "../../lib/confirm";
 import { errMsg } from "../../lib/format";
-import { go } from "../../lib/route";
+import { go, useNavigationGuard } from "../../lib/route";
 import { autorun, useApp } from "../../lib/store";
 import { type Check, Rail, type RailSetting, shownValue } from "./Rail";
 import { CloudInputs, InputsSection, JobSection, PromptSection, ResultSection, slotNames, SourceBar, SourceCheck, TitleField } from "./Sections";
@@ -50,9 +50,10 @@ export function looksLikeWorkflow(text: string): boolean {
 }
 
 /** Build a template: drop a ComfyUI workflow (local) or pick a Router model (cloud), choose what people fill in, name it. */
-export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
+export function Builder({ from, edit, cloud }: { from?: string; edit?: string; cloud?: boolean }) {
   const toast = useApp((s) => s.toast);
   const openTemplate = useApp((s) => s.openTemplate);
+  const lastStudio = useApp((s) => s.lastStudio);
   const qc = useQueryClient();
   const [src, setSrc] = useState<Source | null>(null);
   const [reading, setReading] = useState<string | null>(null);
@@ -63,12 +64,38 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
   const [details, setDetails] = useState<Details>({ label: "", blurb: "", mode: "edit" });
   const [output, setOutput] = useState<OutputState>({ result: "", size: "" });
   const [csets, setCsets] = useState<CloudSettingState>({});
-  const [saving, setSaving] = useState<"save" | "try" | null>(null);
+  const [saving, setSaving] = useState<"save" | "copy" | "try" | null>(null);
+  const [readAttempt, setReadAttempt] = useState(0);
+  const initial = useRef<string | null>(null);
+  const allowLeave = useRef(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
   const [track, setTrack] = useState<Track>(cloud ? "cloud" : "local");
+  const [compact, setCompact] = useState(() => window.innerWidth <= 1100);
+  useEffect(() => {
+    const app = document.getElementById("app");
+    if (!app) return;
+    const observer = new ResizeObserver(() => setCompact(app.clientWidth <= 1100));
+    observer.observe(app);
+    return () => observer.disconnect();
+  }, []);
   // A cloud template this one is built from: it keeps that one's model hints and the multiple its inputs are trimmed to.
   const [base, setBase] = useState<string | undefined>(undefined);
+  const snapshot = JSON.stringify({ media, prompt, params, details, output, csets });
+  const dirty = !!src && initial.current !== null && initial.current !== snapshot;
+  useEffect(() => { if (src && initial.current === null) initial.current = snapshot; }, [src, snapshot]);
+  useNavigationGuard(!!edit && dirty, async () => {
+    if (allowLeave.current) return true;
+    if (saving) return false;
+    const answer = await confirm({ tone: "neutral", icon: "pencil", view: () => ({ title: "Discard template edits?", body: "Your changes haven't been saved. The original template and your generations are unchanged.", action: "Discard changes" }) });
+    return answer.ok;
+  });
+  useEffect(() => {
+    if (!edit || !dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => { if (!allowLeave.current) { event.preventDefault(); event.returnValue = ""; } };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [edit, dirty]);
 
   const load = (s: Source) => {
     const init = s.kind === "local" ? fromWorkflow(s.a) : fromAdapter(s.a);
@@ -141,13 +168,14 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     }
   }, []);
 
-  // #/build?from=<template>: its workflow, set up the way that template has it.
+  // Editing and copying share the same prefill, but only Edit can replace the source.
   useEffect(() => {
-    if (!from) return;
+    const source = edit ?? from;
+    if (!source) return;
     let live = true;
-    setReading(from.split("/").pop() ?? from);
+    setReading(source.split("/").pop() ?? source);
     setReadErr(null);
-    api.buildFromTemplate(from)
+    api.buildFromTemplate(source, !!edit)
       .then(async (r) => {
         if (!("kind" in r)) return void (live && load({ kind: "local", a: r }));
         const a = r;
@@ -159,7 +187,7 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
       .catch((e) => { if (live) setReadErr(errMsg(e)); })
       .finally(() => { if (live) setReading(null); });
     return () => { live = false; };
-  }, [from]);
+  }, [from, edit, readAttempt]);
 
   // Pasting a workflow anywhere on the start screen reads it.
   useEffect(() => {
@@ -195,11 +223,12 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     if (src.kind === "local") c.push({ ok: !!output.result, text: output.result ? "Result picked" : "Pick the node the result comes from" });
     if (prompt.pick && prompt.required) {
       const ok = !!prompt.def.trim();
-      c.push({ ok, text: ok ? "Prompt written" : "Write the prompt the first run uses" });
+      c.push({ ok, text: ok ? "Prompt written" : "Write the prompt the first run uses", runOnly: true });
     }
     return c;
   }, [details.label, media, prompt.pick, prompt.required, prompt.def, params, src, output.result]);
   const problems = checks.filter((c) => !c.ok).map((c) => c.text);
+  const saveProblems = checks.filter((c) => !c.ok && !c.runOnly).map((c) => c.text);
 
   // Width and height on the output size's node belong to it, not to the controls.
   const sizeOwns = (r: ParamRow) => !!output.size && r.node === output.size && (r.input === "width" || r.input === "height");
@@ -208,6 +237,8 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const fromId = src?.kind === "cloud" ? base : src?.a.preset?.base;
   const fromTpl = fromId ? engines.data?.find((e) => e.id === fromId) : undefined;
+  const canReplace = !!edit && fromTpl?.id === edit;
+  const saveWhy = saveProblems[0] ?? (edit && !fromTpl ? "Wait for the original template to load" : "");
 
   const spec = (): BuildSpec | null => {
     if (!src) return null;
@@ -217,10 +248,11 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     const shared = {
       label: details.label.trim(), blurb: details.blurb.trim(), mode: details.mode,  // mode: the server reads it off the result node for workflows
       media: on.map((m) => ({
-        node: m.node, input: src.kind === "cloud" ? m.slot : m.input, kind: m.kind, label: "", hint: "", required: src.kind === "cloud" || m.required, sample: m.sample?.asset ?? null,
+        node: m.node, input: src.kind === "cloud" ? m.slot : m.input, kind: m.kind, label: src.kind === "local" ? m.label : "", hint: m.hint, required: src.kind === "cloud" || m.required, sample: m.sample?.asset ?? null,
+        ...(m.window ? { window: m.window } : {}), ...(m.fps ? { fps: m.fps } : {}),
       })),
       prompt: prompt.pick ? {
-        label: "Prompt", hint: "", default: prompt.def, required: prompt.required,
+        label: prompt.label || "Prompt", hint: prompt.hint, default: prompt.def, required: prompt.required,
         ...(src.kind === "local" ? { node: prompt.pick.split("|")[0], input: prompt.pick.split("|")[1] } : {}),
       } : null,
       params: shown.map((r) => ({ node: r.node, input: r.input, key: r.key ?? r.name.split(".").pop(), type: r.type, label: r.label.trim(), min: r.min, max: r.max, step: r.step, options: r.options, unit: r.unit, default: r.value, help: r.help })),
@@ -250,21 +282,25 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
       ...params.filter((r) => r.on && !sizeOwns(r)).map((r) => ({ label: r.label.trim() || "Unnamed", value: shownValue(r.value, { unit: r.unit ?? undefined }), asked: true })),
     ];
 
-  const save = async (then: "save" | "try") => {
+  const save = async (then: "save" | "copy" | "try") => {
     setTried(true);
-    if (problems.length || (then === "try" && why)) return;
+    if (saving || saveWhy || (then === "try" && why)) return;
     const s = spec();
     if (!s) return;
+    const replacing = canReplace && then !== "copy";
+    if (replacing) s.replace = edit;
+    else if (canReplace && s.label === fromTpl?.label) s.label += " (copy)";
     setSaving(then);
     setSaveErr(null);
     try {
       const e = await api.saveTemplate(s);
       await qc.invalidateQueries({ queryKey: ["engines"] });
-      // Saved as a draft: it opens in Create, off Explore until a finished run of it is published there.
+      allowLeave.current = true;
+      // Return with the saved defaults; historical generations keep their own recipe snapshots.
       openTemplate(e.mode, e.id);
       if (then === "try") Object.assign(autorun, { engine: e.id, until: Date.now() + 30_000 });
       go({ name: e.mode });
-      toast({ text: then === "try" ? `${e.label} is saved as a draft and running once. Publish it when the result looks right.`
+      toast({ text: replacing ? `${e.label} updated.${then === "try" ? " Running a test with its saved defaults." : " No run started."}` : then === "try" ? `${e.label} is saved as a draft and running once. Publish it when the result looks right.`
         : `${e.label} is saved as a draft. Run it once, then publish it.`, tone: "ok" });
     } catch (e) {
       setSaveErr(errMsg(e));
@@ -284,56 +320,67 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
     if (from) go({ name: "build" });
   };
 
+  const sidebar = src && <Rail key="sidebar" src={src} name={details.label.trim()} model={src.kind === "cloud" ? src.a.name : details.model_name?.trim() || "Your GPU"}
+    media={media} prompt={prompt} settings={railSets} checks={[...checks, ...sampleCheck]} why={why} tried={tried} saving={!!saving} saveErr={saveErr}
+    saveWhy={saveWhy} onSave={() => void save("save")} onRun={() => void save("try")} compact={compact}
+    editing={edit ? { canReplace, onCopy: () => void save("copy") } : undefined} />;
+
   return (
     <div className="page">
       <div className="scroll">
-        <PageHead title="Build a template" />
+        <PageHead title={edit ? "Edit template" : "Build a template"} />
         <div className={cx("build", src && "wide")}>
           {!src && (
             <div className="build-h">
               <div>
-                <h2>{track === "cloud" ? "Turn a Comfy Router model into a template." : "Turn a ComfyUI workflow into a template."}</h2>
-                <p>{track === "cloud"
-                  ? "Pick a model and what it does, fill its inputs, run it once. When the result looks right, publish it to Explore."
-                  : "Bring a workflow that already works, drop in samples, run it once. When the result looks right, publish it to Explore."}</p>
+                <span className="beyebrow">{edit ? "Template editor" : "Template builder"}</span>
+                <h2>{edit ? "Edit template" : "Make it reusable."}</h2>
+                <p>{edit ? "Loading the saved inputs, defaults and settings—not your current Create draft."
+                  : "Start with a workflow or cloud model. Set the defaults once, then create with it anytime."}</p>
               </div>
-              <Tabs track={track} setTrack={(t) => { setTrack(t); setReadErr(null); }} />
+              {!edit && <Tabs track={track} setTrack={(t) => { setTrack(t); setReadErr(null); }} />}
             </div>
           )}
           {!src ? (
             <>
-              <Steps cloud={track === "cloud"} />
-              <Start track={track} reading={reading} error={readErr} onFile={readFile} onModel={pickModel} />
+              {edit ? readErr ? <EmptyBox icon="alert" title="Couldn't open the template" action={<><button className="btn" type="button" onClick={() => setReadAttempt(x => x + 1)}>Try again</button><button className="btn" type="button" onClick={() => go({ name: lastStudio })}>Back to Create</button></>}>{readErr}</EmptyBox> : <div className="bedit-loading" role="status"><Spinner />Loading template…</div> : <><Steps cloud={track === "cloud"} /><Start track={track} reading={reading} error={readErr} onFile={readFile} onModel={pickModel} /></>}
             </>
           ) : (
             <>
               <div className="bld-top">
-                <button className="btn sm ghost" type="button" onClick={() => void reset()}><I n="left" />{src.kind === "cloud" ? "Models" : "Workflows"}</button>
-                <MiniSteps cloud={src.kind === "cloud"} onBack={() => void reset()} />
+                {edit ? <button className="btn sm ghost" type="button" onClick={() => go({ name: fromTpl?.mode ?? details.mode })}><I n="left" />Back to Create</button> : <><button className="btn sm ghost" type="button" onClick={() => void reset()}><I n="left" />{src.kind === "cloud" ? "Models" : "Workflows"}</button><MiniSteps cloud={src.kind === "cloud"} onBack={() => void reset()} /></>}
                 <SourceBar src={src} />
               </div>
-              <SourceCheck src={src} />
-              <TitleField d={details} setD={setDetails} invalid={tried && !details.label.trim()} from={fromTpl && tplName(fromTpl)} model={src.kind === "cloud" ? src.a.name : null} />
+              <section className="bcontext" aria-label={edit ? "Template editing" : "Template setup"}>
+                <div><h2>{edit ? "Edit template" : "Set up your template"}{dirty && <span className="pill">Unsaved changes</span>}</h2>
+                  <p>{edit ? "Change the saved defaults. Past generation recipes stay unchanged." : "Choose what people fill in and what stays fixed. Save without starting a run."}</p></div>
+              </section>
               <div className="bld-main">
+              {compact && sidebar}
+              <div className="bform" key="form">
+                <section className="bidentity" aria-label="Template details"><h3><I n="pencil" size={15} />Template details</h3>
+                  <TitleField d={details} setD={setDetails} invalid={tried && !details.label.trim()} from={!edit && fromTpl ? tplName(fromTpl) : undefined} model={src.kind === "cloud" ? src.a.name : null} />
+                </section>
+                <SourceCheck src={src} />
               {src.kind === "cloud" ? (
-                <div className="bform">
+                <>
                   <JobSection a={src.a} rows={media} setRows={setMedia} />
                   <CloudInputs a={src.a} rows={media} setRows={setMedia} />
                   <PromptSection src={src} p={prompt} setP={setPrompt}
                     files={media.filter((m) => m.on && m.sample).map((m) => ({ key: m.key, kind: m.kind, label: m.label, thumb: m.kind === "audio" ? null : m.sample!.poster ?? m.sample!.url }))} />
                   <CloudSettings list={settingsFor(src.a, media.filter((m) => m.on))} st={csets} setSt={setCsets} />
-                </div>
+                </>
               ) : (
-                <div className="bform">
+                <>
                   <InputsSection rows={media} setRows={setMedia} />
                   <PromptSection src={src} p={prompt} setP={setPrompt} />
                   <SizeSection a={src.a} mode={src.a.results.find((r) => r.node === output.result)?.kind === "video" ? "motion" : "edit"} o={output} setO={setOutput} />
                   <ControlsSection rows={params} setRows={setParams} owned={sizeOwns} />
                   {src.a.results.length !== 1 && <ResultSection a={src.a} o={output} setO={setOutput} />}
-                </div>
+                </>
               )}
-              <Rail src={src} name={details.label.trim()} model={src.kind === "cloud" ? src.a.name : details.model_name?.trim() || "Your GPU"} media={media} prompt={prompt}
-                settings={railSets} checks={[...checks, ...sampleCheck]} why={why} tried={tried} saving={!!saving} saveErr={saveErr} onRun={() => void save("try")} />
+              </div>
+              {!compact && sidebar}
               </div>
             </>
           )}
@@ -344,8 +391,8 @@ export function Builder({ from, cloud }: { from?: string; cloud?: boolean }) {
 }
 
 const STEPS = {
-  cloud: [["Pick a model", "On Comfy Router"], ["Set it up", "Only what you fill is asked for"], ["Run once", "Then publish it to Explore"]],
-  local: [["Bring a workflow", "Saved or exported from ComfyUI"], ["Check what it asks", "Found in the workflow"], ["Run once", "Then publish it to Explore"]],
+  cloud: [["Pick a model", "On Comfy Router"], ["Set defaults", "Inputs, prompt and settings"], ["Save template", "Test when you're ready"]],
+  local: [["Bring a workflow", "From your ComfyUI"], ["Set defaults", "Inputs, prompt and settings"], ["Save template", "Test when you're ready"]],
 };
 
 /** Step 1's three steps, the first one current. */
@@ -368,7 +415,7 @@ function MiniSteps({ cloud, onBack }: { cloud: boolean; onBack: () => void }) {
     <ol className="msteps" aria-label="Steps">
       <li className="done"><button type="button" onClick={onBack} title={`Back to ${first.toLowerCase()}`}><span className="n"><I n="check" /></span>{first}</button></li>
       <li className="on" aria-current="step"><span className="n">2</span>{now}</li>
-      <li><span className="n">3</span>{last}, then publish</li>
+      <li><span className="n">3</span>{last}</li>
     </ol>
   );
 }

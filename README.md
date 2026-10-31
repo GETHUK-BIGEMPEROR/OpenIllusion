@@ -28,6 +28,9 @@ models, and building a template from a workflow to Explore.
 - **Turns your own workflows into templates.** Drop any ComfyUI workflow and the app
   finds its inputs, prompt and settings; run it once and it's a template on Explore. Any
   model or custom node your ComfyUI has. See [Your own workflows](#your-own-workflows).
+- **Edits templates without rebuilding from scratch.** Create → Edit template opens
+  the saved defaults, samples and settings. Save template updates your own template;
+  Save as copy keeps a separate version. Testing is optional and past recipes stay intact.
 - **Fits your files to the model** before a run: crop, cut, resize, change the frame
   rate, in one editor that shows the model's limits.
 - **Keeps every result with its recipe**, so any run can be compared against its input,

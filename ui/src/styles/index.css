@@ -1,6 +1,8 @@
-@import "@fontsource-variable/sora";
-@import "@fontsource-variable/unbounded";
-@import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/fraunces/opsz-italic.css";
+@import "@fontsource/dm-mono/400.css";
+@import "@fontsource/dm-mono/500.css";
 /* OpenIllusion styles, one file per area. Order is the cascade: later files win ties,
    and responsive.css overrides every area at medium and phone widths, so keep it near the end. */
 @import "./base.css";
@@ -17,3 +19,4 @@
 @import "./responsive.css";
 @import "./builder.css";
 @import "./editor.css";
+@import "./glow.css";

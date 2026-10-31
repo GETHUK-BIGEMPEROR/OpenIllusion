@@ -14,10 +14,10 @@ export type Track = "local" | "cloud";
 
 export function Tabs({ track, setTrack }: { track: Track; setTrack: (t: Track) => void }) {
   return (
-    <div className="seg bld-tabs" role="tablist" aria-label="Build from">
+    <div className="bld-tabs" role="group" aria-label="Build from">
       {([["local", "cpu", "Local workflow"], ["cloud", "cloud", "Comfy Router"]] as const).map(([t, icon, label]) => (
-        <button key={t} type="button" role="tab" aria-selected={track === t} aria-pressed={track === t} onClick={() => setTrack(t)}>
-          <I n={icon} />{label}
+        <button key={t} type="button" aria-pressed={track === t} onClick={() => setTrack(t)}>
+          <I n={icon} /><span><b>{label}</b><small>{t === "local" ? "Your ComfyUI and models" : "Cloud · no local GPU"}</small></span><I n="check" className="source-check" size={14} />
         </button>
       ))}
     </div>
@@ -49,10 +49,12 @@ function LocalStart({ reading, over, onFile }: { reading: string | null; over: b
       <button type="button" className={cx("dropwf", over && "drag")} onClick={() => input.current?.click()} disabled={busy}>
         <span className="ic">{busy ? <Spinner size={20} /> : <I n="upload" />}</span>
         <b>{busy ? `Reading ${reading}…` : over ? "Drop it" : "Drop a ComfyUI workflow"}</b>
-        <p>The .json you saved or exported from ComfyUI, or a .png, .webp or .mp4 ComfyUI made: they carry the workflow inside. Pasting the JSON works too.</p>
+        <p>Use a saved workflow, or an image or video that carries one inside.</p>
+        <span className="dropwf-types"><span>JSON</span><span>PNG / WEBP</span><span>MP4 / WEBM / MOV</span></span>
+        <span className="dropwf-paste">Choose a file, drag it here, or paste workflow JSON</span>
       </button>
       <input ref={input} type="file" hidden accept=".json,.png,.webp,.mp4,.webm,.mov,application/json" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
-      {!comfyUp && status.data && <p className="bc-warn"><I n="alert" />ComfyUI isn't running. The builder reads node definitions from it, so start it first.</p>}
+      {!comfyUp && status.data && <div className="bc-warn"><I n="info" /><span>Start ComfyUI to read and check the workflow.</span><a href="#/settings">Connection settings<I n="arrow" size={12} /></a></div>}
       {sample && (
         <div className="try-wf"><button className="btn ghost" type="button" disabled={!!reading} onClick={() => go({ name: "build", from: sample.id })}>
           {reading === sample.id.split("/").pop() ? <Spinner size={13} /> : <I n="play" />}Try it with the {tplName(sample)} workflow
@@ -66,9 +68,16 @@ function RouterStart({ onModel }: { onModel: (a: RouterAdapter) => void }) {
   const status = useStatus();
   const hasKey = !!status.data?.has_key;
   const models = useQuery({ queryKey: ["builder-models"], queryFn: api.builderModels, staleTime: Infinity });
+  const [search, setSearch] = useState("");
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = (m: RouterAdapter) => {
+    const text = [m.name, m.model, ...modeNames(m), ...m.inputs.map(x => x.role)].join(" ").toLowerCase();
+    return words.every(word => text.includes(word));
+  };
+  const shown = (models.data ?? []).filter(matches);
   return (
     <>
-      {!hasKey ? (
+      {!status.data ? <div className="bc-empty" role="status"><Spinner size={14} />Checking your connection…</div> : !hasKey ? (
         <div className="dropwf bc-gate">
           <span className="ic"><I n="key" /></span>
           <b>Add a Comfy API key</b>
@@ -76,17 +85,19 @@ function RouterStart({ onModel }: { onModel: (a: RouterAdapter) => void }) {
           <a className="btn primary" href="#/settings">Add a key in Settings</a>
         </div>
       ) : (
-        models.isLoading ? <div className="bc-empty"><Spinner size={14} />Loading models</div>
-          : models.isError ? <div className="bc-empty">{errMsg(models.error)}</div>
-          : (["motion", "edit"] as const).map((mode) => {
-            const list = (models.data ?? []).filter((m) => m.mode === mode);
+        models.isLoading ? <div className="bc-empty" role="status"><Spinner size={14} />Loading models</div>
+          : models.isError ? <div className="bc-empty" role="alert"><span>{errMsg(models.error)}</span><button className="btn sm" type="button" onClick={() => void models.refetch()}>Try again</button></div>
+          : <><div className="bc-toolbar"><label className="bc-search"><I n="search" size={16} /><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Find a model or what it does…" aria-label="Find a cloud model" />{search && <button type="button" aria-label="Clear model search" onClick={() => setSearch("")}><I n="x" size={14} /></button>}</label><span className="mono" role="status">{shown.length} {shown.length === 1 ? "model" : "models"}</span></div>
+          {!shown.length && <div className="bc-empty"><I n="search" size={16} /><span>{words.length ? "No models match. Try a model name or an action like edit or video." : "No cloud models are available."}</span>{words.length > 0 && <button className="btn sm" type="button" onClick={() => setSearch("")}>Show all</button>}</div>}
+          {(["motion", "edit"] as const).map((mode) => {
+            const list = shown.filter((m) => m.mode === mode);
             return list.length > 0 && (
               <section key={mode} className="bc-group" aria-label={mode === "motion" ? "Video models" : "Photo models"}>
                 <h3><I n={mode === "motion" ? "film" : "image"} />{mode === "motion" ? "Make video" : "Make photos"}<span className="mono">{list.length}</span></h3>
                 <div className="bc-grid">{list.map((m) => <ModelCard key={m.model} m={m} onPick={() => onModel(m)} />)}</div>
               </section>
             );
-          })
+          })}</>
       )}
     </>
   );

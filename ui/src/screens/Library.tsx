@@ -49,6 +49,25 @@ async function moveToTrash(ids: string[], qc: QueryClient, toast: ToastFn) {
 // The tab and template filter outlive a trip to the viewer and back.
 const last = { tab: "all" as Tab, model: "" };
 
+/** The top of Library: a line on what lives here and the counts for this shelf. */
+function LibHero({ total, videos, starred, models, imported }: { total: number; videos?: number; starred?: number; models: number; imported: boolean }) {
+  const stats: [string, number | undefined][] = [["Generations", total], ["Videos", videos], ["Starred", starred], ["Templates used", imported ? undefined : models]];
+  return (
+    <section className="lhero" aria-labelledby="lhero-h">
+      <div className="lh-copy">
+        <span className="eyebrow"><I n="folder" size={13} />{imported ? "Imported" : "My generations"}</span>
+        <h2 id="lhero-h" className="lh-title">{imported ? <>Everything you <em className="accent">brought in.</em></> : <>Everything you've <em className="accent">made.</em></>}</h2>
+        <p className="lh-lead">Saved as plain files on your disk. Open one to compare it with its input, run it again or use it as a template cover.</p>
+      </div>
+      <dl className="lh-stats">
+        {stats.filter(([, v]) => v !== undefined).map(([k, v]) => (
+          <div key={k}><dt>{k}</dt><dd className="mono">{v!.toLocaleString()}</dd></div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 /** Library: every run, newest first, grouped by day on a masonry wall. Source lives in the URL. */
 export function Library({ shelf: fromRoute }: { shelf?: string }) {
   const shelf = SOURCES.some((s) => s.id === fromRoute) ? fromRoute! : "mine";
@@ -195,6 +214,7 @@ export function Library({ shelf: fromRoute }: { shelf?: string }) {
   return (
     <div className="page library">
       <div className="scroll">
+        {!community && <LibHero total={total ?? all.length} videos={facets.data?.stats?.[shelf]?.videos} starred={facets.data?.stats?.[shelf]?.starred} models={models.length} imported={shelf === "imported"} />}
         <PageHead title={community ? "Community" : "Library"} lead={community ? back : undefined} filters={filters || undefined} actions={actions} />
         <div className="wall-wrap lib">
           {community ? <Community />
@@ -295,7 +315,7 @@ function GenCard({ g, job, cap, picking, picked, onPick, templatesReady, templat
       <button className="card-use" type="button" aria-label={picking ? `${picked ? "Deselect" : "Select"} ${g.prompt || g.title}` : `Open ${g.prompt || g.title}`}
         aria-pressed={picking ? picked : undefined} onClick={open} />
       <Media src={img} video={video} poster={img} ar={ar}>
-        {!img && !video && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#261F3A,#141120)" }} />}
+        {!img && !video && <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg,#22222A,#121217)" }} />}
         {(st === "running" || st === "queued") && (
           <>
             <RunVeil job={job} preview={!!job?.preview && !queued} />
@@ -463,7 +483,7 @@ function Community() {
   );
 }
 
-/** Phones have no rail: a quiet way into the trash, under My generations. */
+/** Phones have no top bar: a quiet way into the trash, under My generations. */
 function TrashLink({ n }: { n: number }) {
   if (!n) return null;
   return (

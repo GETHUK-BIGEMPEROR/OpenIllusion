@@ -8,6 +8,7 @@ import json
 import math
 import re
 import shutil
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -363,17 +364,53 @@ def _choices(s: dict) -> list:
     return list(s.get("options") or [s.get("default")])
 
 
-def inherit(data: dict, base: dict, base_label: str) -> None:
+def inherit(data: dict, base: dict, base_label: str, editing: bool = False, fixed: list[dict] | None = None) -> None:
     """A template built from another keeps what the builder doesn't show: the multiple its inputs are
     trimmed to and its model hints."""
     if (base.get("size") or {}).get("multiple"):
         data["size"] = {"multiple": base["size"]["multiple"]}
     if base.get("hints"):
         data["hints"] = copy.deepcopy(base["hints"])
-    data["source"] = f"Built in OpenIllusion from {base_label}"
+    if editing:
+        if base.get("size"):
+            data["size"] = copy.deepcopy(base["size"])
+        old_fields = {f["key"]: f for f in base.get("inputs", [])}
+        for f in data.get("inputs", []):
+            old = old_fields.get(f["key"])
+            if not old or old.get("type") != f.get("type"):
+                continue
+            for key, value in old.items():
+                if (key not in f and key != "default") or key == "advanced":
+                    f[key] = copy.deepcopy(value)
+            # Builder selects a widget by its first destination. Keep the other
+            # destinations of a shared control instead of silently disconnecting it.
+            if data["kind"] == "local" and old.get("bind") and f.get("bind") and old["bind"][0][:2] == f["bind"][0][:2]:
+                f["bind"] = copy.deepcopy(old["bind"])
+        present = {f["key"] for f in data.get("inputs", [])}
+        if data["kind"] == "local":
+            # Post-processing controls have no graph widget, so Builder cannot
+            # reconstruct them. They must survive an edit unchanged.
+            data["inputs"] += [copy.deepcopy(f) for f in base.get("inputs", [])
+                               if f["key"] not in present and not f.get("bind")]
+            changed = {(str(x["node"]), x["input"]): x["value"] for x in fixed or []}
+            shared = [f for f in base.get("inputs", []) if f["key"] not in present
+                      and len(f.get("bind", [])) > 1 and tuple(map(str, f["bind"][0][:2])) in changed
+                      and f.get("type") not in ("image", "video", "audio", "size", "text")]
+            if shared:
+                from ..engines.contract import load_template
+                original = load_template(copy.deepcopy(base))
+                for f in shared:
+                    value = changed[tuple(map(str, f["bind"][0][:2]))]
+                    # Locking a shared control fixes all of its destinations,
+                    # using the original casts rather than only its first widget.
+                    wf = original.build({"inputs": original.inputs, "prompt": original.default_prompt, "params": {f["key"]: value}})
+                    for node, inp, *_ in f["bind"]:
+                        if str(node) in data["workflow"]:
+                            data["workflow"][str(node)]["inputs"][inp] = wf[str(node)]["inputs"][inp]
+    data["source"] = base.get("source", data.get("source", "")) if editing else f"Built in OpenIllusion from {base_label}"
 
 
-def save(data: dict, samples: dict[str, Path], replace: str | None = None, taken: set[str] = frozenset()) -> str:
+def save(data: dict, samples: dict[str, Path], replace: str | None = None, taken: set[str] = frozenset(), previous: dict | None = None) -> str:
     """Write a built template to the user's templates folder. Returns its id.
 
     A new template is a draft: off Explore until a finished run of it publishes it (that run is its cover
@@ -384,10 +421,16 @@ def save(data: dict, samples: dict[str, Path], replace: str | None = None, taken
     if replace:
         tid = replace
         slug = tid.split("/", 1)[1]
+        if not tid.startswith(kind + "/"):
+            raise BuildError("A template's backend cannot change in place")
         old = root / f"{kind}__{slug}.json"
         if old.is_file():
             prev = json.loads(old.read_text("utf-8"))
-            data.update({k: prev[k] for k in ("cover", "cover_video", "draft", "added") if prev.get(k)})
+        elif previous is not None and previous.get("id") in (tid, slug):
+            prev = previous
+        else:
+            raise BuildError("The template no longer exists; save a copy instead")
+        data.update({k: prev[k] for k in ("cover", "cover_video", "draft", "added") if k in prev})
     else:
         data["draft"], data["added"] = True, time.time()
         base = slugify(data["label"])
@@ -404,8 +447,16 @@ def save(data: dict, samples: dict[str, Path], replace: str | None = None, taken
     if samples:
         media_dir.mkdir(parents=True, exist_ok=True)
     for slot, src in samples.items():
-        dst = media_dir / f"sample-{slot.replace(':', '-')}{src.suffix.lower()}"
-        shutil.copyfile(src, dst)
+        digest = hashlib.sha256(src.read_bytes()).hexdigest()[:16]
+        dst = media_dir / f"sample-{slot.replace(':', '-')}-{digest}{src.suffix.lower()}"
+        if not dst.exists():
+            with tempfile.NamedTemporaryFile(dir=media_dir, prefix=".sample-", delete=False) as f:
+                temporary = Path(f.name)
+            try:
+                shutil.copyfile(src, temporary)
+                temporary.replace(dst)
+            finally:
+                temporary.unlink(missing_ok=True)
         _input(data, slot)["default"] = dst.relative_to(root).as_posix()
     paths.write_atomic(root / f"{kind}__{slug}.json", json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return tid

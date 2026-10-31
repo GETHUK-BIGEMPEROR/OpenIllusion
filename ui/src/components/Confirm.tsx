@@ -15,8 +15,8 @@ export function ConfirmHost() {
   // Leaving the page cancels: the dialog is about what was on screen.
   useEffect(() => {
     const cancel = () => settle({ ok: false, option: false });
-    window.addEventListener("hashchange", cancel);
-    return () => window.removeEventListener("hashchange", cancel);
+    window.addEventListener("oi:navigated", cancel);
+    return () => window.removeEventListener("oi:navigated", cancel);
   }, []);
   if (!open) return null;
   const v = open.view(option);

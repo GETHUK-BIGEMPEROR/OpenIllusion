@@ -671,7 +671,7 @@ export const api = {
     return req<WorkflowAnalysis>("POST", "/builder/workflow", fd);
   },
   buildFromText: (text: string) => req<WorkflowAnalysis>("POST", "/builder/workflow", { text }),
-  buildFromTemplate: (engine: string) => req<WorkflowAnalysis | CloudPreset>("POST", "/builder/from-template", { engine }),
+  buildFromTemplate: (engine: string, edit = false) => req<WorkflowAnalysis | CloudPreset>("POST", "/builder/from-template", { engine, edit }),
   builderModels: () => req<RouterAdapter[]>("GET", "/builder/models"),
   saveTemplate: (spec: BuildSpec) => req<EngineInfo>("POST", "/builder/save", spec),
   duplicateTemplate: (engine: string) => req<EngineInfo>("POST", "/templates/duplicate", { engine }),
@@ -697,7 +697,7 @@ export const api = {
   cancelAll: () => req<{ cancelled: number; jobs: Job[] }>("POST", "/jobs/cancel"),
   dismissJob: (id: string) => req<Job[]>("POST", `/jobs/${id}/dismiss`),
   generations: (f: Record<string, unknown>) => req<GenerationRow[]>("GET", `/generations?${qs(f)}`),
-  facets: () => req<{ models: string[]; shelves: Record<string, number>; tags: string[] }>("GET", "/facets"),
+  facets: () => req<{ models: string[]; shelves: Record<string, number>; stats?: Record<string, { videos: number; starred: number }>; tags: string[] }>("GET", "/facets"),
   generation: (id: string) => req<Manifest>("GET", `/generations/${id}`),
   patch: (id: string, p: Partial<Pick<Manifest, "title" | "outcome" | "notes" | "tags" | "starred">>) => req<Manifest>("PATCH", `/generations/${id}`, p),
   remove: (id: string) => req("DELETE", `/generations/${id}`),

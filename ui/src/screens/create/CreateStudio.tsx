@@ -7,7 +7,7 @@ import { OutputSize, useEngine, ParamFields } from "../../components/Engine";
 import { cx, EmptyBox, GpuStat, I, jobProgress, KeyStat } from "../../components/oi";
 import { invalidFields, LocalNeeds, NoTemplates, useCompose, useCurrent, useRunner, useStudio, type Fix } from "../../components/Studio";
 import { tplName } from "../../components/TemplateCard";
-import { api, isMedia, type Manifest, type Mode } from "../../lib/api";
+import { api, fileUrl, isMedia, type Manifest, type Mode } from "../../lib/api";
 import { clipSlots, clipWindow, fieldsOf, leadSlot, mediaFields, settingsOf, videoField } from "../../lib/fields";
 import { needsFile, runInput } from "../../lib/edits";
 import { errMsg } from "../../lib/format";
@@ -81,6 +81,11 @@ function CreateStudio({ mode }: { mode: Mode }) {
   const live = !!shownJob && isActive(shownJob);
   const done = shown?.status === "done" && !!shown.result?.file;
   const failed = shown && !live && FAILED.has(shown.status) ? shown : null;
+
+  // The light behind the stage: the shown result's colours, else the template's cover.
+  const ambient = (done && shown?.result
+    ? (shown.result.poster ? fileUrl(shown.id, shown.result.poster) : shown.result.kind !== "video" ? fileUrl(shown.id, shown.result.file!) : null)
+    : null) ?? engine?.cover ?? null;
 
   // The template's own example: its cover beside the input it was made from.
   const example = !!engine?.cover;
@@ -287,6 +292,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
       </aside>
 
       <section className="stage" aria-label="Preview">
+        {ambient && <div className="stage-amb" aria-hidden><img key={ambient} src={ambient} alt="" /></div>}
         <div className="stage-top">
           <div className="crumb">Create<span>/</span><b>{engine ? tplName(engine) : "…"}</b></div>
           <span style={{ flex: 1 }} />
@@ -312,8 +318,7 @@ function CreateStudio({ mode }: { mode: Mode }) {
           )}
           <button className="icon-btn" type="button" aria-label="Open in Library" title="Open in Library" disabled={!shown} style={shown ? undefined : { opacity: 0.35 }}
             onClick={() => shown && go({ name: "generation", id: shown.id })}><I n="expand" /></button>
-          <KeyStat />
-          <GpuStat />
+          <span className="hstats"><KeyStat /><GpuStat /></span>
         </div>
 
         {editing ? (

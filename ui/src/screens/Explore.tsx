@@ -2,9 +2,9 @@ import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Masonry } from "../components/Masonry";
-import { EmptyBox, I, PageHead, useStatus } from "../components/oi";
+import { EmptyBox, I, Media, PageHead, useStatus } from "../components/oi";
 import type { IconName } from "../components/sprite";
-import { TemplateCard, tplModel } from "../components/TemplateCard";
+import { TemplateCard, tplModel, tplName } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
 import { useFileDrop } from "../components/Drop";
 import { cx, Spinner } from "../components/ui";
@@ -191,6 +191,15 @@ export function Explore({ t, source }: { t?: string; source?: "local" | "cloud" 
     };
   }, [isOpen, phoneInspector]);
 
+  // A filter or search picked up in the hero brings the results into view.
+  const head = useRef<HTMLDivElement>(null);
+  const firstFilter = useRef(true);
+  useEffect(() => {
+    if (firstFilter.current) { firstFilter.current = false; return; }
+    const sc = exploreScroll.current, at = head.current?.offsetTop ?? 0;
+    if (sc && sc.scrollTop < at - 4) sc.scrollTo({ top: at, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [f.q, f.kind, f.model, f.takes, f.source, f.ready]);
+
   const kindN = (k: Kind) => byKind.filter((e) => k === "all" || e.mode === k).length;
   const bar = (
     <div className="xbar">
@@ -248,6 +257,11 @@ export function Explore({ t, source }: { t?: string; source?: "local" | "cloud" 
   return (
     <div className="page explore">
       <div ref={exploreScroll} className="scroll">
+        {!!every.length && <Hero every={every} onUse={use_} />}
+        {models.length > 1 && (
+          <ModelStrip every={every} models={models} picked={f.model} onPick={(m) => set({ model: f.model === m ? "" : m })} />
+        )}
+        <div ref={head} />
         <PageHead title="Explore" search={false} filters={<Search value={f.q} onChange={(q) => set({ q })} found={engines.data ? shown.length : null} total={every.length} />}
           bar={bar}
           actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a Comfy Router model"><I n="plus" /><span className="lbl">New template</span></a>} />
@@ -277,6 +291,95 @@ export function Explore({ t, source }: { t?: string; source?: "local" | "cloud" 
         {panel && <TemplateInspector key={panel.id} e={panel} locked={locked(panel)} onUse={() => use_(panel)} onClose={close} />}
       </aside>
     </div>
+  );
+}
+
+const featuredFirst = (a: EngineInfo, b: EngineInfo) => Number(b.curated) - Number(a.curated) || (b.uses ?? 0) - (a.uses ?? 0);
+
+/** The top of Explore: what the app does in one line, a few templates to try, and the ones you ran last. */
+function Hero({ every, onUse }: { every: EngineInfo[]; onUse: (e: EngineInfo) => void }) {
+  const covered = every.filter((e) => e.cover || e.cover_video);
+  const recent = covered.filter((e) => e.used_at).sort((a, b) => (b.used_at ?? 0) - (a.used_at ?? 0)).slice(0, 3);
+  const mosaic = recent.length >= 3 ? recent : [...recent, ...covered.filter((e) => !recent.includes(e)).sort(featuredFirst)].slice(0, 3);
+  const picks = covered.filter((e) => e.cover && !mosaic.includes(e)).sort(featuredFirst).slice(0, 4);
+  const local = every.some((e) => e.kind === "local"), cloud = every.some((e) => e.kind === "cloud");
+  return (
+    <section className="xhero" aria-labelledby="xhero-h">
+      <div className="xh-copy">
+        <span className="eyebrow"><span className="dot" />{every.length} templates{local && cloud ? " · local and cloud" : local ? " · on your GPU" : " · in the cloud"}</span>
+        <h2 id="xhero-h" className="xh-title">Make photos and video with <em className="accent">any model.</em></h2>
+        <p className="xh-lead">Pick a template, drop in your files, and run it on your own GPU or in the cloud.</p>
+        {!!picks.length && (
+          <div className="xh-picks" role="group" aria-label="Try one">
+            <span className="xh-try" aria-hidden>Try</span>
+            {picks.map((e) => (
+              <button key={e.id} type="button" className="xpick" onClick={() => onUse(e)}>
+                <img src={e.cover!} alt="" loading="lazy" />{tplName(e)}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="xh-acts">
+          <a className="btn xh-btn light" href="#/build"><I n="plus" />New template</a>
+          <button className="btn xh-btn" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))}><I n="import" />Import</button>
+        </div>
+      </div>
+      {mosaic.length === 3 && (
+        <div className="xmosaic">
+          <p className="eyebrow xm-h">{recent.length ? "Pick up where you left off" : "Start with one of these"}</p>
+          {mosaic.map((e, i) => (
+            <button key={e.id} type="button" className={cx("xmo", i === 0 && "big")} onClick={() => onUse(e)} aria-label={`Open ${tplName(e)} in Create`}>
+              <Media src={e.cover} video={e.cover_video} poster={e.cover} ar={1} />
+              <span className="xmo-top">
+                {e.mode === "motion" && <span className="pill"><I n="film" />Video</span>}
+                {!!e.used_at && i === 0 && <span className="pill">Last used</span>}
+              </span>
+              <span className="xmo-cap">
+                <span className="xmo-t"><b>{tplName(e)}</b><small><ModelBadge e={e} />{tplModel(e)} · {e.kind === "local" ? "Your GPU" : "Cloud"}</small></span>
+                {i === 0 && <span className="xmo-go">Use template<I n="arrow" /></span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** A model's maker as one letter on a tile tinted for it, the same tint as its templates without a cover. */
+function ModelBadge({ e }: { e: Pick<EngineInfo, "provider" | "id" | "model_name"> }) {
+  let h = 0;
+  for (const c of e.provider ?? e.id) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return <span className="mbadge" aria-hidden style={{ "--h": h } as CSSProperties}>{tplModel(e).trim().charAt(0).toUpperCase()}</span>;
+}
+
+/** Every model as a card: a template's cover, its name, where it runs and how many templates use it. Picking one filters the wall. */
+function ModelStrip({ every, models, picked, onPick }: { every: EngineInfo[]; models: [string, { local: boolean; cloud: boolean }][]; picked: string; onPick: (m: string) => void }) {
+  const cards = models.map(([m, w]) => {
+    const of = every.filter((e) => tplModel(e) === m).sort(featuredFirst);
+    return { m, w, n: of.length, cover: of.find((e) => e.cover)?.cover, first: of[0] };
+  }).sort((a, b) => b.n - a.n || a.m.localeCompare(b.m));
+  return (
+    <section className="xmodels" aria-labelledby="xmodels-h">
+      <div className="xsec-h">
+        <div><span className="eyebrow">Models</span><h2 id="xmodels-h">Browse by <em className="accent">model</em></h2></div>
+        <span className="xsec-say">{picked
+          ? <button type="button" className="xclear" onClick={() => onPick(picked)}><I n="x" size={13} />Show every model</button>
+          : "Pick one to filter the templates below"}</span>
+      </div>
+      <div className="xmrow" role="group" aria-label="Filter by model">
+        {cards.map(({ m, w, n, cover, first }) => (
+          <button key={m} type="button" className="xmc" aria-pressed={picked === m} onClick={() => onPick(m)}>
+            {cover ? <img src={cover} alt="" loading="lazy" /> : <span className="xmc-blank" />}
+            <span className="xmc-cap">
+              <ModelBadge e={first} />
+              <b>{m}</b>
+              <small><i className={cx("dot", !w.local && "violet")} />{w.local && w.cloud ? "GPU and cloud" : w.local ? "Your GPU" : "Cloud"} · {n} {n === 1 ? "template" : "templates"}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

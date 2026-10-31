@@ -37,7 +37,7 @@ export function SourceBar({ src }: { src: Source }) {
     return (
       <div className="bld-source">
         <span className="bc-ic cloud" aria-hidden>{src.a.name.slice(0, 2)}</span>
-        <div><b>{src.a.name}</b><span className="mono">{src.a.model} · Comfy Router · makes {src.a.mode === "motion" ? "video" : "photos"}</span></div>
+        <div><b>{src.a.name}</b><span title={src.a.model}>Cloud model · {src.a.mode === "motion" ? "Video" : "Photo"} output</span></div>
       </div>
     );
   }
@@ -414,7 +414,7 @@ export function ResultSection({ a, o, setO }: { a: WorkflowAnalysis; o: OutputSt
 export function TitleField({ d, setD, invalid, from, model }: { d: Details; setD: (f: (d: Details) => Details) => void; invalid: boolean; from?: string; model: string | null }) {
   return (
     <div className={cx("bname", invalid && "bad")}>
-      <label htmlFor="bd-label">Template name, as Explore, Create and your Library show it</label>
+      <label htmlFor="bd-label">Template name</label>
       <div className="bname-in">
         <span className="bname-f">
           <input id="bd-label" value={d.label} maxLength={60} placeholder="Name it by what it makes, like Rainy street at night" spellCheck={false} aria-invalid={invalid || undefined}
@@ -426,6 +426,9 @@ export function TitleField({ d, setD, invalid, from, model }: { d: Details; setD
             title="The model this workflow runs, shown under the name on Explore" onChange={(e) => { const v = e.target.value; setD((x) => ({ ...x, model_name: v })); }} />}
       </div>
       {invalid && <span className="bname-err" role="alert">Give it a name. Explore, Create and your Library show it.</span>}
+      <label htmlFor="bd-blurb">Description</label>
+      <textarea id="bd-blurb" className="input bname-blurb" rows={2} maxLength={400} value={d.blurb} placeholder="What this template makes and when to use it"
+        onChange={(event) => { const blurb = event.target.value; setD(value => ({ ...value, blurb })); }} />
       {from && <p className="bname-from">Built from <b>{from}</b>.</p>}
     </div>
   );
