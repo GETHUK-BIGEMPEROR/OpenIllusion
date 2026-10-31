@@ -2,7 +2,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Masonry } from "../components/Masonry";
-import { EmptyBox, I, Media, PageHead, useStatus } from "../components/oi";
+import { EmptyBox, I, Media, PageHead, useReducedMotion, useStatus } from "../components/oi";
 import type { IconName } from "../components/sprite";
 import { TemplateCard, tplModel, tplName } from "../components/TemplateCard";
 import { TemplateInspector } from "../components/TemplateInspector";
@@ -263,8 +263,7 @@ export function Explore({ t, source }: { t?: string; source?: "local" | "cloud" 
         )}
         <div ref={head} />
         <PageHead title="Explore" search={false} filters={<Search value={f.q} onChange={(q) => set({ q })} found={engines.data ? shown.length : null} total={every.length} />}
-          bar={bar}
-          actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a Comfy Router model"><I n="plus" /><span className="lbl">New template</span></a>} />
+          bar={bar} />
         {f.ready && <div className="xreadiness" role="status">
           <span>{checks.isFetching ? "Checking local nodes and models…" : "Connection and requirements checked, not inputs, available VRAM or cloud credit."}</span>
           <button type="button" className="xclear" onClick={() => { if (status.data?.local.comfyui) void checks.refetch(); void status.refetch(); }} disabled={checks.isFetching || status.isFetching}><I n="refresh" size={13} />Check again</button>
@@ -319,10 +318,6 @@ function Hero({ every, onUse }: { every: EngineInfo[]; onUse: (e: EngineInfo) =>
             ))}
           </div>
         )}
-        <div className="xh-acts">
-          <a className="btn xh-btn light" href="#/build"><I n="plus" />New template</a>
-          <button className="btn xh-btn" type="button" onClick={() => window.dispatchEvent(new Event("oi:import"))}><I n="import" />Import</button>
-        </div>
       </div>
       {mosaic.length === 3 && (
         <div className="xmosaic">
@@ -353,12 +348,33 @@ function ModelBadge({ e }: { e: Pick<EngineInfo, "provider" | "id" | "model_name
   return <span className="mbadge" aria-hidden style={{ "--h": h } as CSSProperties}>{tplModel(e).trim().charAt(0).toUpperCase()}</span>;
 }
 
-/** Every model as a card: a template's cover, its name, where it runs and how many templates use it. Picking one filters the wall. */
+/** Every model as a card: a template's cover, its name, where it runs and how many templates use it. Picking one filters the wall.
+ *  The row drifts slowly, endlessly (paused under the mouse or focus): enough copies of the set to fill it twice,
+ *  moved one set's run left and round again. The copies are only seen, never tabbed to. Still with reduced motion. */
 function ModelStrip({ every, models, picked, onPick }: { every: EngineInfo[]; models: [string, { local: boolean; cloud: boolean }][]; picked: string; onPick: (m: string) => void }) {
   const cards = models.map(([m, w]) => {
     const of = every.filter((e) => tplModel(e) === m).sort(featuredFirst);
     return { m, w, n: of.length, cover: of.find((e) => e.cover)?.cover, first: of[0] };
   }).sort((a, b) => b.n - a.n || a.m.localeCompare(b.m));
+  const reduced = useReducedMotion();
+  const row = useRef<HTMLDivElement>(null);
+  const set = useRef<HTMLDivElement>(null);
+  const [run, setRun] = useState({ w: 0, reps: 1 });
+  useEffect(() => {
+    const r = row.current, s = set.current;
+    if (!r || !s || reduced) return;
+    const measure = () => {
+      const w = s.offsetWidth + parseFloat(getComputedStyle(s).columnGap || "0");
+      if (w > 0) setRun({ w, reps: Math.max(1, Math.ceil(r.clientWidth / w)) });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(r);
+    ro.observe(s);
+    return () => ro.disconnect();
+  }, [reduced, cards.length]);
+  const drift = !reduced && run.w > 0;
+  const copies = drift ? run.reps * 2 : 1;
   return (
     <section className="xmodels" aria-labelledby="xmodels-h">
       <div className="xsec-h">
@@ -367,9 +383,12 @@ function ModelStrip({ every, models, picked, onPick }: { every: EngineInfo[]; mo
           ? <button type="button" className="xclear" onClick={() => onPick(picked)}><I n="x" size={13} />Show every model</button>
           : "Pick one to filter the templates below"}</span>
       </div>
-      <div className="xmrow" role="group" aria-label="Filter by model">
+      <div ref={row} className={cx("xmrow", drift && "drift")} role="group" aria-label="Filter by model">
+        <div className="xm-track" style={{ "--run": `${run.w * run.reps}px`, "--dur": `${(run.w * run.reps) / 26}s` } as CSSProperties}>
+        {Array.from({ length: copies }, (_, k) => (
+        <div key={k} ref={k === 0 ? set : undefined} className="xm-set" aria-hidden={k > 0 || undefined}>
         {cards.map(({ m, w, n, cover, first }) => (
-          <button key={m} type="button" className="xmc" aria-pressed={picked === m} onClick={() => onPick(m)}>
+          <button key={m} type="button" className="xmc" aria-pressed={picked === m} tabIndex={k > 0 ? -1 : undefined} onClick={() => onPick(m)}>
             {cover ? <img src={cover} alt="" loading="lazy" /> : <span className="xmc-blank" />}
             <span className="xmc-cap">
               <ModelBadge e={first} />
@@ -378,6 +397,9 @@ function ModelStrip({ every, models, picked, onPick }: { every: EngineInfo[]; mo
             </span>
           </button>
         ))}
+        </div>
+        ))}
+        </div>
       </div>
     </section>
   );
@@ -447,7 +469,7 @@ function Opt({ on, n, dim, say, icon, onPick, children }: { on: boolean; n?: num
   );
 }
 
-/** Under the templates: add one someone exported, by dropping its .illusion here or choosing it. */
+/** Under the templates, stuck to the bottom: add one someone exported (drop its .illusion here or choose it), or make a new one in Build. */
 function AddTemplate() {
   const toast = useApp((s) => s.toast);
   const input = useRef<HTMLInputElement>(null);
@@ -472,14 +494,16 @@ function AddTemplate() {
   };
   const drop = useFileDrop((files) => void add(files));
   return (
-    <section {...drop.props} className={cx("xadd", compact && "compact", drop.over && "over")} aria-label="Add a shared template">
+    <section {...drop.props} className={cx("xadd", compact && "compact", drop.over && "over")} aria-label="Add a template">
       <input ref={input} type="file" accept=".illusion" hidden onChange={(ev) => { void add([...(ev.target.files ?? [])]); ev.target.value = ""; }} />
       <span className="xadd-ic">{busy ? <Spinner size={18} /> : <I n="import" />}</span>
       <div className="xadd-t">
-        <b>{compact ? "Import a shared template" : "Add a template someone shared"}</b>
-        <p>{compact ? "Drop an .illusion file here, or choose one." : "Drop its .illusion here. It brings its samples and cover, and lands on Explore as yours. Export one from any template in Create."}</p>
+        <b>Add a template</b>
+        <p>{compact ? "Drop a shared .illusion here, or make a new one." : "Drop an .illusion someone shared: it brings its samples and cover, and lands on Explore as yours. Or make your own from a ComfyUI workflow or a cloud model."}</p>
       </div>
-      <button className="btn" type="button" disabled={busy} onClick={() => input.current?.click()}><I n="upload" />Choose file</button>
+      <button className="btn" type="button" disabled={busy} onClick={() => input.current?.click()}><I n="upload" /><span className="lbl">Choose file</span></button>
+      <span className="xadd-or" aria-hidden />
+      <a className="btn primary" href="#/build" title="Make a template from a ComfyUI workflow or a Comfy Router model"><I n="plus" /><span className="lbl">New template</span></a>
     </section>
   );
 }

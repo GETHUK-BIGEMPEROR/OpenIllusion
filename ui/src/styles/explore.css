@@ -97,7 +97,7 @@
 }
 
 /* Stuck to the bottom of the wall, see-through: add a template someone shared. */
-.xadd{position:sticky;bottom:16px;z-index:4;max-width:720px;margin-inline:auto;display:flex;align-items:center;gap:14px;margin-top:22px;padding:10px 12px 10px 14px;border-radius:16px;border:1.5px dashed rgba(255,255,255,.18);background:rgba(14,14,19,.94);box-shadow:0 10px 30px rgba(0,0,0,.35);transition:border-color .15s,background .15s}
+.xadd{position:sticky;bottom:16px;z-index:4;max-width:820px;margin-inline:auto;display:flex;align-items:center;gap:14px;margin-top:22px;padding:10px 12px 10px 14px;border-radius:16px;border:1.5px dashed rgba(255,255,255,.18);background:rgba(14,14,19,.94);box-shadow:0 10px 30px rgba(0,0,0,.35);transition:border-color .15s,background .15s}
 .xadd.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,rgba(14,14,19,.7))}
 .xadd-ic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--text-2)}
 .xadd-ic .i{width:18px;height:18px}
@@ -105,10 +105,11 @@
 .xadd-t b{display:block;font-size:14px;font-weight:600}
 .xadd-t p{margin:2px 0 0;font-size:12px;line-height:1.45;color:rgba(255,255,255,.86)}
 .xadd>.btn{flex:none}
-.xadd.compact{max-width:520px;gap:10px;padding-block:8px}
+.xadd-or{flex:none;align-self:stretch;width:1px;margin:4px 2px;background:rgba(255,255,255,.12)}
+.xadd.compact{max-width:640px;gap:10px;padding-block:8px}
 .xadd.compact .xadd-ic{width:32px;height:32px}
 .xadd.compact .xadd-t p{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@container app (max-width:560px){.xadd{gap:10px;padding:8px 8px 8px 10px}.xadd-t p{display:none}.xadd-t b{font-size:13px}}
+@container app (max-width:560px){.xadd{gap:10px;padding:8px 8px 8px 10px}.xadd-t p{display:none}.xadd-t b{font-size:13px}.xadd .btn .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}}
 
 /* ---------- the top of Explore: a headline, a few to try, the ones you ran last, then the models ---------- */
 .eyebrow{display:inline-flex;align-items:center;gap:8px;font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--text-3)}
@@ -125,8 +126,6 @@ em.accent{font-family:var(--serif);font-style:italic;font-weight:400;letter-spac
 .xpick{height:36px;display:inline-flex;align-items:center;gap:8px;padding:0 14px 0 4px;border-radius:999px;border:1px solid var(--line-2);background:rgba(255,255,255,.04);font-size:12.5px;font-weight:500;color:var(--text);transition:border-color var(--motion-fast),background var(--motion-fast),box-shadow .25s}
 .xpick img{width:28px;height:28px;border-radius:50%;object-fit:cover}
 .xpick:hover{border-color:rgba(255,255,255,.24);background:rgba(255,255,255,.07);box-shadow:0 0 0 1px rgba(179,107,255,.2),0 0 18px -6px rgba(179,107,255,.55)}
-.xh-acts{display:flex;gap:10px;flex-wrap:wrap}
-.xh-btn{height:42px;padding:0 18px;border-radius:13px;font-size:13.5px}
 .btn.light{background:linear-gradient(180deg,#fff,#E4E4EA);color:#0A0A0E;border-color:#fff;box-shadow:0 8px 24px -10px rgba(255,255,255,.45)}
 .btn.light:hover{background:#fff;color:#0A0A0E;box-shadow:0 0 0 4px rgba(255,255,255,.08),0 10px 30px -8px rgba(255,255,255,.55)}
 .xmosaic{position:relative;display:grid;grid-template-columns:1.55fr 1fr;grid-template-rows:1fr 1fr;gap:12px;height:420px;margin-top:28px}
@@ -155,9 +154,15 @@ em.accent{font-family:var(--serif);font-style:italic;font-weight:400;letter-spac
 .xsec-say{font-size:12.5px;color:var(--text-3)}
 .xclear{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);color:var(--text);font-size:12px;font-weight:500}
 .xclear:hover{background:var(--hover)}
-.xmrow{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(160px,1fr);gap:12px;overflow-x:auto;scrollbar-width:none;padding:4px;margin:-4px;scroll-snap-type:x proximity}
+.xmrow{overflow-x:auto;scrollbar-width:none;padding:4px;margin:-4px;scroll-snap-type:x proximity}
+.xm-track,.xm-set{display:flex;gap:12px;width:max-content}
+/* drifting: one set's run left, then round again; the edges fade so cards slide in and out */
+.xmrow.drift{overflow:hidden;scroll-snap-type:none;padding-block:10px;margin-block:-10px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.xmrow.drift .xm-track{animation:xm-drift var(--dur) linear infinite}
+.xmrow.drift:hover .xm-track,.xmrow.drift:focus-within .xm-track{animation-play-state:paused}
+@keyframes xm-drift{to{transform:translateX(calc(-1 * var(--run)))}}
 .xmrow::-webkit-scrollbar{display:none}
-.xmc{position:relative;display:block;height:190px;border-radius:18px;overflow:hidden;background:var(--raised);text-align:left;scroll-snap-align:start;box-shadow:0 0 0 1px rgba(255,255,255,.07);transition:transform .3s var(--ease-out),box-shadow .3s;animation:rise .6s var(--ease-out) both}
+.xmc{position:relative;display:block;flex:none;width:184px;height:190px;border-radius:18px;overflow:hidden;background:var(--raised);text-align:left;scroll-snap-align:start;box-shadow:0 0 0 1px rgba(255,255,255,.07);transition:transform .3s var(--ease-out),box-shadow .3s;animation:rise .6s var(--ease-out) both}
 .xmc:nth-child(2){animation-delay:.04s}.xmc:nth-child(3){animation-delay:.08s}.xmc:nth-child(4){animation-delay:.12s}.xmc:nth-child(5){animation-delay:.16s}.xmc:nth-child(6){animation-delay:.2s}.xmc:nth-child(n+7){animation-delay:.24s}
 .xmc>img,.xmc-blank{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scale(1.04);transition:transform .7s cubic-bezier(.2,.7,.2,1)}
 .xmc-blank{background:radial-gradient(90% 70% at 100% 0,rgba(179,107,255,.3),transparent 60%),linear-gradient(160deg,#1E1E28,#121218)}
@@ -181,8 +186,7 @@ em.accent{font-family:var(--serif);font-style:italic;font-weight:400;letter-spac
   .xmodels{padding:20px 14px 12px}
   .xsec-h h2{font-size:20px}
   .xsec-say{display:none}
-  .xmrow{grid-auto-columns:138px}
-  .xmc{height:150px}
+  .xmc{width:138px;height:150px}
 }
 @media (prefers-reduced-motion:reduce){
   em.accent,.xmo-go,.xh-copy>*,.xmo,.xmc{animation:none}
