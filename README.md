@@ -23,7 +23,7 @@
 
 <p align="center">
   <a href="#quick-start"><b>Quick start</b></a> ·
-  <a href="https://youtu.be/Pr_a42KhWn4"><b>Watch the demo</b></a> ·
+  <a href="docs/media/demo.mp4"><b>Watch the demo</b></a> ·
   <a href="#what-it-does">What it does</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#setup">Setup</a> ·
@@ -99,8 +99,8 @@ plain files on your machine. Entered in Comfy's
 ## Demo
 
 <p align="center">
-  <a href="https://youtu.be/Pr_a42KhWn4"><img src="docs/media/demo.webp" alt="OpenIllusion demo video, under 2 minutes" width="80%"></a><br>
-  <sub><b><a href="https://youtu.be/Pr_a42KhWn4">Watch the demo</a></b> (1:53): swaps, MiniMax H3 live on a 16 GB GPU, cloud models, and building a template from a workflow to Explore.</sub>
+  <a href="docs/media/demo.mp4"><img src="docs/media/demo.webp" alt="OpenIllusion demo video, under 2 minutes" width="80%"></a><br>
+  <sub><b><a href="docs/media/demo.mp4">Watch the demo</a></b> (1:35): Explore, building a template from a ComfyUI workflow and from a cloud model, MiniMax H3 live on a 16 GB GPU, and sharing it as one <code>.illusion</code> file.</sub>
 </p>
 
 ## Screenshots
@@ -459,7 +459,7 @@ Make your own from any ComfyUI workflow or Router model in Build
 | Model bonus | **Built with MiniMax H3** |
 | Comfy Developer Platform | Comfy API (local runs through comfy-api-proxy) and Comfy Router (cloud runs) |
 | Workflow files | Every local template in [templates/local/](templates/local/) carries its full ComfyUI workflow (API format) under `workflow`; the app also exports any of them as a plain workflow `.json` for ComfyUI |
-| Demo video | [youtu.be/Pr_a42KhWn4](https://youtu.be/Pr_a42KhWn4) (under 2 min) |
+| Demo video | [docs/media/demo.mp4](docs/media/demo.mp4) (1:35) |
 
 **MiniMax H3 is the core model.** Every video template that runs on your own GPU runs
 MiniMax H3 through ComfyUI's built-in H3 nodes: Create a video (the full model, 20 steps),
