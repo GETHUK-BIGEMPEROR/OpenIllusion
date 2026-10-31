@@ -3,7 +3,7 @@
   "version": 2,
   "added": 1793240665,
   "mode": "motion",
-  "label": "Dancing Animal",
+  "label": "Make an animal dance",
   "blurb": "Swaps the animal in a clip for the one in a photo on Seedance 2.5. Its moves, the room and the clip's sound stay. Runs on Comfy Router with your key.",
   "inputs": [
     {

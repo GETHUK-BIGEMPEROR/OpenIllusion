@@ -13,13 +13,14 @@ import { ago, errMsg } from "../lib/format";
 import { landImport } from "../lib/imports";
 import { go, href } from "../lib/route";
 import { useApp } from "../lib/store";
+import { templateReadiness, useLocalReadiness } from "../lib/readiness";
 
 type Kind = "all" | "edit" | "motion";
 type Takes = "" | "image" | "video" | "audio" | "words";
 type Sort = "featured" | "recent" | "newest" | "most" | "az";
-type Filters = { q: string; kind: Kind; model: string; takes: Takes; sort: Sort };
+type Filters = { q: string; kind: Kind; model: string; takes: Takes; sort: Sort; source: "" | "local" | "cloud"; ready: boolean };
 // Search, filters and order outlive a trip to Create and back. Recently used first: what you ran last, then the rest as featured.
-const last: Filters = { q: "", kind: "all", model: "", takes: "", sort: "recent" };
+const last: Filters = { q: "", kind: "all", model: "", takes: "", sort: "recent", source: "", ready: false };
 
 // Mixed shapes, so the placeholder wall looks like the one that replaces it.
 const SKELETON = [0.8, 0.75, 0.8, 1, 0.66, 0.8, 1.33, 0.75].map((aspect, i) => ({ key: String(i), aspect }));
@@ -68,16 +69,19 @@ function score(e: EngineInfo, words: string[]): number {
 }
 
 /** Every template as one wall, photos and videos, local and cloud together. Search and filters on top; click runs it in Create, (i) opens its details. */
-export function Explore({ t }: { t?: string }) {
+export function Explore({ t, source }: { t?: string; source?: "local" | "cloud" }) {
   const engines = useQuery({ queryKey: ["engines"], queryFn: () => api.engines(), staleTime: Infinity });
   const status = useStatus();
   const openTemplate = useApp((s) => s.openTemplate);
-  const [f, setF] = useState<Filters>(last);
+  const [f, setF] = useState<Filters>(() => ({ ...last, ...(source ? { source } : {}) }));
   const set = (p: Partial<Filters>) => setF((x) => ({ ...x, ...p }));
   useEffect(() => { Object.assign(last, f); }, [f]);
+  useEffect(() => { if (source) set({ source, ready: false }); }, [source]);
 
   // Explore shows what's published; a draft from the Builder waits in the Queue until a tested run publishes it.
   const every = useMemo(() => (engines.data ?? []).filter((e) => !e.hidden && !e.draft), [engines.data]);
+  const checks = useLocalReadiness(every, status.data);
+  const readiness = (e: EngineInfo) => templateReadiness(e, status.data, checks.data, checks.isError);
 
   const words = f.q.toLowerCase().split(/\s+/).filter(Boolean);
   const scores = useMemo(() => new Map(every.map((e) => [e.id, score(e, words)])), [every, f.q]); // words come from f.q
@@ -86,7 +90,9 @@ export function Explore({ t }: { t?: string }) {
     (scores.get(e.id) ?? 0) > 0
     && (skip === "kind" || f.kind === "all" || e.mode === f.kind)
     && (skip === "model" || !f.model || tplModel(e) === f.model)
-    && (skip === "takes" || takes(e, f.takes));
+    && (skip === "takes" || takes(e, f.takes))
+    && (skip === "source" || !f.source || e.kind === f.source)
+    && (skip === "ready" || !f.ready || readiness(e).state === "ready");
   const without = (k: keyof Filters) => every.filter((e) => pass(e, k));
 
   const models = useMemo(() => {
@@ -110,17 +116,15 @@ export function Explore({ t }: { t?: string }) {
   };
   const shown = every.filter((e) => pass(e)).sort(order[f.sort]);
   const tiles = shown.map((e) => ({ key: e.id, aspect: e.cover ? e.cover_aspect : undefined, e }));
-  // Each card says the thing it's sorted by, so the order explains itself.
+  // Sorting context stays in the model tooltip rather than competing with the artwork.
   const hint = (e: EngineInfo): { text: string; off?: boolean } | undefined =>
     f.sort === "recent" ? (e.used_at ? { text: ago(e.used_at) } : { text: "Not run yet", off: true })
       : f.sort === "most" ? (e.uses ? { text: e.uses === 1 ? "1 run" : `${e.uses} runs` } : { text: "Not run yet", off: true })
         : f.sort === "newest" && e.added ? { text: ago(e.added) } : undefined;
-  const narrowed = !!(f.q || f.kind !== "all" || f.model || f.takes);
-  const clear = () => set({ q: "", kind: "all", model: "", takes: "" });
+  const narrowed = !!(f.q || f.kind !== "all" || f.model || f.takes || f.source || f.ready);
+  const clear = () => set({ q: "", kind: "all", model: "", takes: "", source: "", ready: false });
 
-  const locked = (e: EngineInfo) =>
-    e.kind === "cloud" ? (status.data?.router.ok ? null : "Add a Comfy API key in Settings")
-      : status.data?.local.comfyui ? null : "Start ComfyUI or set its address in Settings";
+  const locked = (e: EngineInfo) => readiness(e).state === "setup" ? readiness(e).reason : null;
   const use_ = (e: EngineInfo) => { openTemplate(e.mode, e.id); go({ name: e.mode }); };
 
   // The panel keeps showing the last template while it slides shut.
@@ -195,6 +199,15 @@ export function Explore({ t }: { t?: string }) {
         <button type="button" aria-pressed={f.kind === "edit"} onClick={() => set({ kind: "edit" })}><I n="image" />Photo<span className="n">{kindN("edit")}</span></button>
         <button type="button" aria-pressed={f.kind === "motion"} onClick={() => set({ kind: "motion" })}><I n="film" />Video<span className="n">{kindN("motion")}</span></button>
       </div>
+      <Facet label="Runs on" value={f.source === "local" ? "Local" : f.source === "cloud" ? "Cloud" : null} icon="layers">
+        {(done) => <>
+          <Opt on={!f.source} n={without("source").length} onPick={() => { set({ source: "" }); done(); }}>Local and cloud</Opt>
+          <Opt on={f.source === "local"} n={without("source").filter(e => e.kind === "local").length} icon="cpu" say="Your ComfyUI and hardware" onPick={() => { set({ source: "local" }); done(); }}>Local</Opt>
+          <Opt on={f.source === "cloud"} n={without("source").filter(e => e.kind === "cloud").length} icon="cloud" say="Comfy Router · API key required" onPick={() => { set({ source: "cloud" }); done(); }}>Cloud</Opt>
+        </>}
+      </Facet>
+      <button type="button" className={cx("xfacet xready", f.ready && "on")} aria-pressed={f.ready} onClick={() => set({ ready: !f.ready })}
+        title="Connection, nodes and models checked. Review inputs in Create."><I n="check" size={14} />Ready to run<span className="mono">{without("ready").filter(e => readiness(e).state === "ready").length}</span></button>
       <Facet label="Model" value={f.model || null} icon="cpu">
         {(done) => (
           <>
@@ -238,6 +251,10 @@ export function Explore({ t }: { t?: string }) {
         <PageHead title="Explore" search={false} filters={<Search value={f.q} onChange={(q) => set({ q })} found={engines.data ? shown.length : null} total={every.length} />}
           bar={bar}
           actions={<a className="btn" href="#/build" title="Make a template from a ComfyUI workflow or a Comfy Router model"><I n="plus" /><span className="lbl">New template</span></a>} />
+        {f.ready && <div className="xreadiness" role="status">
+          <span>{checks.isFetching ? "Checking local nodes and models…" : "Connection and requirements checked, not inputs, available VRAM or cloud credit."}</span>
+          <button type="button" className="xclear" onClick={() => { if (status.data?.local.comfyui) void checks.refetch(); void status.refetch(); }} disabled={checks.isFetching || status.isFetching}><I n="refresh" size={13} />Check again</button>
+        </div>}
         <div className="wall-wrap wtop">
           {engines.isLoading ? (
             <Masonry label="Loading templates" items={SKELETON} maxCols={5} minCol={200} render={(x) => <div aria-hidden className="card"><div className="media" style={{ "--ar": x.aspect } as CSSProperties} /></div>} />
@@ -245,10 +262,11 @@ export function Explore({ t }: { t?: string }) {
             <EmptyBox icon="alert" title="Couldn't load templates" action={<button className="btn" type="button" onClick={() => engines.refetch()}>Try again</button>}>{errMsg(engines.error)}</EmptyBox>
           ) : tiles.length ? (
             <Masonry label="Templates" items={tiles} maxCols={5} minCol={200}
-              render={({ e }) => <TemplateCard e={e} hint={hint(e)} locked={locked(e)} selected={e.id === t} onUse={() => use_(e)} onInspect={() => inspect(e.id === t ? undefined : e.id)} />} />
+              render={({ e }) => <TemplateCard e={e} hint={hint(e)} readiness={readiness(e)} selected={e.id === t} onUse={() => use_(e)} onInspect={() => inspect(e.id === t ? undefined : e.id)} />} />
           ) : (
-            <EmptyBox icon="search" title={f.q ? `Nothing matches “${f.q.trim()}”` : "No templates match"} action={<button className="btn" type="button" onClick={clear}>Show all</button>}>
-              {f.q ? "Try another word: what it does (hat, swap, relight), or the model." : "Clear the filters to see all of them."}
+            <EmptyBox icon={f.ready ? "check" : "search"} title={f.ready ? (checks.isFetching ? "Checking what's ready" : "No ready templates match") : f.q ? `Nothing matches “${f.q.trim()}”` : "No templates match"}
+              action={<><button className="btn" type="button" onClick={clear}>Show all</button>{f.ready && <a className="btn primary" href="#/connect">Set up a connection</a>}</>}>
+              {f.ready ? "Connect your ComfyUI or add a cloud key. Local templates also need their nodes and models installed." : f.q ? "Try another word: what it does (hat, swap, relight), or the model." : "Clear the filters to see all of them."}
             </EmptyBox>
           )}
           <AddTemplate />

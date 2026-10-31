@@ -26,6 +26,14 @@
 .cap p .when{margin-left:8px;padding-left:8px;border-left:1px solid rgba(238,237,255,.25);font-family:var(--body);color:rgba(238,237,255,.92)}
 .cap p .when.off{color:rgba(238,237,255,.45);font-style:italic}
 .cap .pill.mine{margin-top:6px;height:18px;font-size:10.5px}
+.card-meta{display:flex;gap:10px;align-items:center;margin-top:5px;font-size:10.5px;color:rgba(238,237,255,.7)}
+.card-source{display:inline-flex;align-items:center;gap:5px}
+.card-source .dot{width:5px;height:5px;background:var(--text-3)}
+.card-source.ready .dot{background:var(--mint)}
+.card-source.ready .dot.violet{background:var(--violet)}
+.card-own{color:var(--text-2)}
+.readiness.setup{color:#FFC48F}
+.readiness.checking,.readiness.unknown{color:var(--text-2)}
 .ctop{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:5px;align-items:center;z-index:3}
 .ctop .fspacer{flex:1}
 .go{width:32px;height:32px;border-radius:50%;background:var(--neon);box-shadow:0 0 16px -2px rgba(255,79,163,.7);color:var(--on-accent);display:grid;place-items:center;flex:none;opacity:0;transform:translateY(5px) scale(.95);transition:opacity var(--motion-fast),transform var(--motion-fast) var(--ease-out)}

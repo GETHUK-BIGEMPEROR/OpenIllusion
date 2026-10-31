@@ -72,7 +72,7 @@ export function App() {
     if (st.palette) st.setPalette(false);
   }, [routeKey]);
 
-  // First run checks the local ComfyUI once, until the user opens Explore from there.
+  // First run offers local or cloud; browsing does not require either connection.
   useEffect(() => {
     const s = status.data;
     if (s && !s.onboarded && route.name !== "connect" && route.name !== "settings") go({ name: "connect" });
@@ -125,7 +125,7 @@ export function App() {
       <div className="shell">
         <Rail route={route} />
         <main className="main">
-          {route.name === "explore" && <Explore t={route.t} />}
+          {route.name === "explore" && <Explore t={route.t} source={route.source} />}
           {route.name === "library" && <Library shelf={route.shelf} />}
           {route.name === "motion" && <MotionStudio />}
           {route.name === "edit" && <EditStudio />}

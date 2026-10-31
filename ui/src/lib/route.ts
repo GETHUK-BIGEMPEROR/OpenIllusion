@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 // Hash routes keep the app a single static page at /.
 export type Route =
-  | { name: "explore"; t?: string }
+  | { name: "explore"; t?: string; source?: "local" | "cloud" }
   | { name: "library"; shelf?: string }
   | { name: "motion" }
   | { name: "edit" }
@@ -39,7 +39,7 @@ export function parse(hash: string): Route {
       if (q.get("shelf") === "trash") return { name: "trash" };
       return { name: "library", shelf: q.get("shelf") ?? undefined };
     default:
-      return { name: "explore", t: q.get("t") ?? undefined };
+      return { name: "explore", t: q.get("t") ?? undefined, source: q.get("source") === "cloud" ? "cloud" : q.get("source") === "local" ? "local" : undefined };
   }
 }
 
@@ -50,7 +50,7 @@ export function href(r: Route): string {
     case "edit":
       return "#/create";
     case "explore":
-      return r.t ? `#/explore?t=${encodeURIComponent(r.t)}` : "#/explore";
+      return "#/explore" + (r.t || r.source ? `?${new URLSearchParams({ ...(r.t ? { t: r.t } : {}), ...(r.source ? { source: r.source } : {}) })}` : "");
     case "build":
       return r.from ? `#/build?from=${encodeURIComponent(r.from)}` : r.cloud ? "#/build?track=cloud" : "#/build";
     case "library":

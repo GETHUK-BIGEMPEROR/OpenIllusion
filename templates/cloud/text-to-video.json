@@ -2,7 +2,7 @@
   "format": "openillusion.template",
   "version": 2,
   "mode": "motion",
-  "label": "Text to Video",
+  "label": "Create a video",
   "blurb": "Makes a video with sound from words alone on Veo 3.1 Fast. Runs on Comfy Router with your key.",
   "inputs": [
     {

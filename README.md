@@ -5,6 +5,11 @@ in a photo, a clip or a sound, change the prompt, press Run. No nodes and no wir
 each one is a ComfyUI workflow on your own GPU, or a cloud model's request, run exactly as
 its author saved it.
 
+First run offers **Use my GPU** or **Use cloud**; cloud needs a Comfy API key, not
+a local ComfyUI. Explore's **Runs on** and **Ready to run** filters help find a
+template your setup supports. Readiness checks connections and local requirements,
+not available VRAM or cloud credit. Cloud runs show when their cost is unavailable.
+
 [![OpenIllusion demo video, under 2 minutes](docs/media/demo.webp)](https://youtu.be/Pr_a42KhWn4)
 
 **[Watch the demo](https://youtu.be/Pr_a42KhWn4)** (1:53): swaps, MiniMax H3 live on a 16 GB GPU, cloud
@@ -381,13 +386,13 @@ models in [Setup](#setup); cloud ones need a Comfy API key.
 | Create a photo | Qwen Image 2.1 | Your GPU | words | photo |
 | Add a hat, Add glasses, New hair, Makeup, Expression, Outfit swap, Holding a product | Qwen Image 2.1 | Your GPU | a photo (two for outfit and product) | the photo, edited |
 | Background swap, Relight, Season & weather, Recolor, Remove anything, Restyle, Restore & colorize, Product shot, Remove background | Qwen Image 2.1 | Your GPU | a photo | the photo, edited |
-| Text to Image | Seedream 5.0 Pro, GPT Image 2, Grok Imagine Image 2.0 | Cloud | words | photo |
-| Text to Video | Veo 3.1 Fast, Kling 3 Omni, Wan 3.0 | Cloud | words | video with sound |
-| Reference to Video | Wan 3.0 | Cloud | a photo | video with sound |
+| Create a photo | Seedream 5.0 Pro, GPT Image 2, Grok Imagine Image 2.0 | Cloud | words | photo |
+| Create a video | Veo 3.1 Fast, Kling 3 Omni, Wan 3.0 | Cloud | words | video with sound |
+| Animate a reference photo | Wan 3.0 | Cloud | a photo | video with sound |
 | Swap character | Kling 3 Omni | Cloud | a clip and a photo | the clip with the photo's character |
-| Character Swap | Seedance 2.5 | Cloud | a clip and a photo | the clip with the photo's character in place of its own |
-| Swap two people, Multi character swap | Seedance 2.5 | Cloud | a clip and two photos | the clip with both people swapped |
-| Dancing Animal | Seedance 2.5 | Cloud | a clip and a photo | the clip with the photo's animal |
+| Swap a character | Seedance 2.5 | Cloud | a clip and a photo | the clip with the photo's character in place of its own |
+| Swap two people, Swap multiple characters | Seedance 2.5 | Cloud | a clip and two photos | the clip with both people swapped |
+| Make an animal dance | Seedance 2.5 | Cloud | a clip and a photo | the clip with the photo's animal |
 
 Make your own from any ComfyUI workflow or Router model in Build
 ([docs/TEMPLATES.md](docs/TEMPLATES.md#making-a-template-builder)).

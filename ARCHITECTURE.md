@@ -297,7 +297,7 @@ typed call for each.
 
 | Area | Routes |
 | --- | --- |
-| Status and setup | `GET status` · `POST local/check` · `POST local/proxy/start` · `POST onboarded` · `GET ws` (job updates) |
+| Status and setup | `GET status` · `POST local/check` · `GET local/readiness` (published visible local templates, one node/model snapshot; `?fresh=1` bypasses its cache; no jobs submitted) · `POST local/proxy/start` · `POST onboarded` · `GET ws` (job updates) |
 | Settings and key | `GET/POST settings` · `POST key/test` · `POST key/forget` |
 | Folder picker | `GET folders?path=` (a folder's folders, the places and drives) · `POST folders` (`{parent, name}`: a new folder) |
 | Templates | `GET engines` · `PATCH/DELETE templates` · `POST templates/duplicate` · `POST templates/hide` (`{engine, hidden}`: a shipped template off Explore or back) · `POST templates/publish` (`{engine, generation}`: a draft on Explore; the run must be a finished one of it and becomes the cover when it has none) · `GET templates/input` · `GET templates/workflow` · `GET templates/export` (a template's `.illusion`; `POST import` adds one) · `GET/PUT/DELETE cover` (`PUT {engine, generation, reuse?}`: without `reuse`, a run with other inputs than the template answers 409 with `differs`, the inputs it changed; `reuse: true` keeps them as the template's defaults first) |
@@ -348,4 +348,3 @@ into the Builder shows its `mod_N` slots as plain settings.
 | med | Limits | Fits are read from docs, never from a refusal. Seedance's per-file numbers come second-hand; Kling's "720–2160 px" for clips is read as both sides. | Phase 6: correct any fit a real refusal disagrees with |
 | med | ComfyUI versions | Every local template has generated on ComfyUI 0.42. On 0.43 their nodes all check out and Create a photo has run; the MiniMax H3 and Qwen edit templates haven't generated there yet. | Run each on the newest ComfyUI before a release |
 | med | Platforms | Install and runs are checked on Windows (plain Python and Docker Desktop) only. | Run the README's setup on Linux and macOS |
-| low | Explore | Explore's cards don't say which local templates are missing models; Connect counts them, and a template lists them once opened. | Mark cards from the same check |

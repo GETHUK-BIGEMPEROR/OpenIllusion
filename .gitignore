@@ -10,6 +10,8 @@ dist/
 # UI
 ui/node_modules/
 server/static/
+ui/test-results/
+ui/playwright-report/
 
 # Editors / OS
 .vscode/

@@ -187,6 +187,8 @@ details.adv[open] summary .chev{transform:rotate(180deg)}
 .rb-count button:disabled:hover{color:var(--text-3)}
 .runbar .run{flex:1;height:48px}
 .runbar .run kbd{margin-left:4px}
+.rb-cost{display:flex;align-items:flex-start;gap:6px;margin:0;font-size:11px;line-height:1.5;color:var(--text-3)}
+.rb-cost>.i{flex:none;margin-top:2px}
 .areachip{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 2px 0 8px;border-radius:6px;background:rgba(255,79,163,.12);color:var(--accent);font-size:11px}
 .areachip button{width:16px;height:16px;display:grid;place-items:center;border-radius:4px}
 .areachip .i{width:12px;height:12px}

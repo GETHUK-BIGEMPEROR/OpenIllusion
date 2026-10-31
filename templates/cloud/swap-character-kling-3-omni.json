@@ -3,7 +3,7 @@
   "version": 2,
   "added": 1793246720,
   "mode": "motion",
-  "label": "Swap character",
+  "label": "Swap a character",
   "blurb": "Puts the character from a photo into a clip on Kling 3 Omni, in place of its person. The motion, the place and the clip's sound stay. Runs on Comfy Router with your key.",
   "inputs": [
     {

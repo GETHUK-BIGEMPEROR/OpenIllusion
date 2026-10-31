@@ -28,7 +28,7 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 | Build | `#/build`, `#/build?from={template}`, `#/build?track=cloud` (opens on Comfy Router) | Make a template in three steps; see [Builder](TEMPLATES.md#making-a-template-builder). | `screens/builder/` |
 | Queue | drawer | Every run from both studios, grouped by what it needs from you: Running, Up next, Needs attention, then **Drafts** (templates saved in Build and not published: a Draft pill, orange until a run of it finishes, then mint Ready; click one to open it in Create, run it and publish it; its trash deletes it, held to confirm), then Finished (a finished run's check turns into a remove button under the pointer: off the queue, still in the Library; Clear finished takes them all). | `screens/QueueDrawer.tsx` |
 | Settings | `#/settings` | Your GPU (ComfyUI and proxy URLs), Output limits, Templates (shipped ones taken off Explore, each with Put back), Storage (disk use, clean working copies, back up and restore, the output folder: typed, or **Choose…** for the folder picker), Cloud (API key). | `screens/Settings.tsx` |
-| Connect | `#/connect` | First run only: check the ComfyUI on this machine and count the templates whose models are in it, then open Explore. A ComfyUI started with `--cpu` gets a warning here, on the header's GPU pill and above Run; runs still go. No account. | `screens/Connect.tsx` |
+| Connect | `#/connect` | Choose Use my GPU (ComfyUI checks and template requirements) or Use cloud (test a Comfy key, no local setup). Either can be skipped to browse. Completion opens Explore filtered to Local or Cloud. CPU-only ComfyUI remains supported with a warning. | `screens/Connect.tsx` |
 | Export template | Create's header, the inspector | **Export .illusion**: one template with its samples and the cover you set, to share, as it is: no export date, no Builder state, no use history, files without their own dates (see [What leaves without dates](../ARCHITECTURE.md#what-leaves-without-dates)). The other OpenIllusion drops it on Explore's Add a template (or anywhere) and it's theirs: deletable, under a new id if theirs is taken. Local templates also keep **ComfyUI workflow**, a `.json` for ComfyUI itself (dropped back here it starts a new template in Build). | `server/template_pack.py`, `components/TemplateCard.tsx` |
 | Export | sheet | Export on a finished run (Create, the Generation page): a `.illusion` file (Light, Full, or Recipe only), the recipe as JSON, or a link. It says what the file is for: drop it on any OpenIllusion page or press Library → Import; it opens under Imported, and Open in Create loads it to run again. | `screens/ShareSheet.tsx` |
 | Import | dialog | Library → Import, a drop anywhere, or a link: a bundle, PNG or MP4 with a recipe. Review, then add to the Library. A dropped ComfyUI workflow goes to Build instead. | `screens/ImportReview.tsx` |
@@ -39,6 +39,26 @@ Every page header ends with two status chips (`KeyStat`, `GpuStat` in
 
 The current design is the settled one. Change it on purpose, and write the change
 here in the same commit.
+
+- **Choose a connection, not a prerequisite.** First run offers Use my GPU and
+  Use cloud equally. Cloud setup accepts and tests a Comfy key without requiring
+  ComfyUI. Either path can be skipped to browse; completing setup opens Explore
+  filtered to that path. Failure to save onboarding stays visible and retryable.
+- **Readiness is checked, never assumed.** Explore combines Runs on (Local/Cloud)
+  and Ready to run with its existing filters. Local readiness checks all declared
+  inputs against one ComfyUI node/model snapshot, excludes drafts and hidden
+  templates, and respects proxy availability and upstream mismatch. A failed
+  check is unknown, not ready. Cloud readiness requires a working key/connection.
+  This is not an assurance of sufficient VRAM, valid user inputs or provider funds.
+- **Let the result lead.** Explore cards show the outcome, model and a quiet
+  Local/Cloud line. Only user-owned templates get Yours; shipped origin and
+  sorting timestamps remain in tooltips/details instead of repeated orange badges.
+  Setup warnings stay visible. Shipped names describe outcomes; model names stay
+  underneath. Existing user-renamed templates are not rewritten.
+- **No invented prices.** Cloud Run says cost is unavailable and how many paid
+  requests the selected variants represent. No numeric quote is shown until the
+  app has a reliable pricing source. Cloud onboarding explains billing and which
+  files leave the machine.
 
 - **Keyboard and touch share the same actions.** Cards have a semantic primary
   button with separate tools. Phone controls retain accessible names, and coarse

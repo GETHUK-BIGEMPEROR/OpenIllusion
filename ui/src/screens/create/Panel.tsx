@@ -226,6 +226,7 @@ export function RunBar({ s, set, engine, spec, runner, queued, varies }: {
           {runner.busy ? <Spinner /> : <I n="zap" />}{s.variants > 1 ? `Run ${s.variants} variants` : "Run"}<kbd>R</kbd>
         </button>
       </div>
+      {engine?.kind === "cloud" && <p className="rb-cost" role="note"><I n="info" size={13} /><span>Cost unavailable · {s.variants} paid {s.variants === 1 ? "run" : "runs"} via Comfy Router. Price depends on the model and settings.</span></p>}
     </div>
   );
 }

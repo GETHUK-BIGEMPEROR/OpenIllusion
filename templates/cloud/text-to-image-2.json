@@ -2,7 +2,7 @@
   "format": "openillusion.template",
   "version": 2,
   "mode": "edit",
-  "label": "Text to Image",
+  "label": "Create a photo",
   "blurb": "Makes a photo from words alone on Grok Imagine Image 2.0. Runs on Comfy Router with your key.",
   "inputs": [
     {

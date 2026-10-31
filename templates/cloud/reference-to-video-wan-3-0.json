@@ -3,7 +3,7 @@
   "version": 2,
   "added": 1793246720,
   "mode": "motion",
-  "label": "Reference to Video",
+  "label": "Animate a reference photo",
   "blurb": "Makes a video with sound on Wan 3.0 from words and a photo: the prompt sets the scene and what is said, Image 1 who is in it. Runs on Comfy Router with your key.",
   "inputs": [
     {

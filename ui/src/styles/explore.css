@@ -44,6 +44,12 @@
 .xs-x:hover{background:var(--hover);color:var(--text)}
 .phead-bar{max-width:calc(var(--wall-max) + 48px);margin:0 auto;padding:0 24px 10px}
 .xbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.xready{gap:6px}
+.xready .mono{font-size:11px;color:var(--text-3)}
+.xready[aria-pressed="true"]>.i{color:var(--mint)}
+.xreadiness{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:calc(var(--wall-max) + 48px);margin:0 auto;padding:0 24px 8px;font-size:12px;line-height:1.5;color:var(--text-3)}
+.xreadiness .xclear{flex:none}
+@media (max-width:720px){.xreadiness{padding-inline:14px;align-items:flex-start}}
 .xfacet{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 9px 0 11px;border-radius:11px;border:1px solid var(--line);background:var(--panel);color:var(--text-2);font-size:12.5px;white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
 .xfacet:hover,.xfacet[data-state="open"]{color:var(--text);border-color:var(--line-2);background:var(--raised)}
 .xfacet b{font-weight:600;color:var(--text);max-width:180px;overflow:hidden;text-overflow:ellipsis}
@@ -76,6 +82,9 @@
   .xsearch{height:40px}
   .xsearch kbd{display:none}
   .xfacet.on .xf-l{display:none}
+  .xfacet.end{margin-left:0;padding-inline:8px}
+  .xfacet.end .xf-l{display:none}
+  .xfacet.end b{max-width:100px;font-size:12px}
 }
 /* room between search, filters and tags: three rows, each its own step */
 .explore .phead-row.hrow{padding-top:16px;padding-bottom:16px}

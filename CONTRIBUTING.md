@@ -38,6 +38,20 @@ Conventions:
 - **Tests fake the network.** Router, Comfy Cloud and ComfyUI are `httpx`
   mock transports; no test needs a key or a GPU.
 
+## Browser regression checks
+
+From `ui/`, run `npm ci`, `npx playwright install chromium`, `npm run build`,
+then `npm run test:e2e`. The runner starts a separate backend on 17871 with its
+home under `.pytest_cache/e2e-home`, never your normal library. It uses the repo's
+virtualenv when present; set `PYTHON` to override. Set
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium binary.
+
+Desktop and touch-phone checks cover both onboarding paths, setup errors,
+readiness/source filters, unavailable checks, cloud variant billing copy,
+inspector focus and reduced motion. Provider requests are mocked and unexpected
+writes are blocked. `.github/workflows/check.yml` runs Python tests, the frontend
+build and these browser checks on pushes and pull requests.
+
 ## Build a distributable wheel
 
 Run `python -m pip wheel --no-deps .` with Node.js 18+ and npm installed. The PEP

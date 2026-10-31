@@ -87,6 +87,27 @@ def register(routes: web.RouteTableDef) -> None:
             return web.json_response({"ok": False, "reachable": False, "message": f"ComfyUI unreachable: {ex.__class__.__name__}"})
         return web.json_response({"reachable": True, **local.check(workflow, info, e.hints)})
 
+    @routes.get(API + "/local/readiness")
+    async def local_readiness(request):
+        """Check published templates against one snapshot, without submitting a job."""
+        hidden = engines.hidden_templates()
+        templates = [e for e in engines.ENGINES.values()
+                     if e.kind == "local" and not e.draft and e.id not in hidden]
+        if not templates:
+            return web.json_response({"reachable": True, "templates": {}})
+        try:
+            info = await local.ComfyUI().object_info(fresh=bool(request.query.get("fresh")))
+        except (httpx.HTTPError, ValueError) as ex:
+            return web.json_response({"reachable": False, "templates": {},
+                                      "message": f"Couldn't check ComfyUI: {ex.__class__.__name__}"})
+        checked = {}
+        for e in templates:
+            try:
+                checked[e.id] = local.check(engines.defaults_workflow(e, every_input=True), info, e.hints)
+            except (KeyError, ValueError, TypeError) as ex:
+                checked[e.id] = {"ok": False, "message": f"Review this template: {ex.__class__.__name__}"}
+        return web.json_response({"reachable": True, "templates": checked})
+
     @routes.post(API + "/key/test")
     async def key_test(request):
         b = await body(request)

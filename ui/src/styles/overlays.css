@@ -128,6 +128,26 @@
 .wbox .whelp{font-size:12.5px;color:var(--violet);text-decoration:none}
 .wbox .whelp:hover{text-decoration:underline}
 .wfoot{margin:0;font-size:11.5px;color:var(--text-3);max-width:360px;line-height:1.5}
+.wpaths{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%;text-align:left}
+.wpath{display:grid;gap:8px;align-content:start;padding:18px 16px;border:1px solid var(--line-2);border-radius:16px;background:var(--panel);transition:border-color var(--motion-fast),background var(--motion-fast),scale var(--motion-press) var(--ease-out)}
+.wpath>.i{color:var(--violet);width:22px;height:22px}
+.wpath b{font-size:14px;font-weight:600}
+.wpath span{font-size:12px;line-height:1.5;color:var(--text-2)}
+.wpath.on{border-color:var(--violet);background:rgba(157,107,255,.12)}
+.wpath:active{scale:.98}
+.wpath:focus-visible{outline:2px solid var(--violet);outline-offset:3px}
+.wcloud{display:grid;gap:8px;width:100%;text-align:left}
+.wcloud label{font-size:13px;font-weight:500}
+.wkey-row{display:flex;gap:8px;align-items:center}
+.wkey-row .input{min-width:0;flex:1;font-size:12px}
+.wkey-row .btn{flex:none}
+.wcloud p{margin:0;font-size:12px;line-height:1.5;color:var(--text-3)}
+.wcloud .wconnected{display:flex;align-items:center;gap:7px;color:var(--mint);margin-bottom:8px}
+.wcloud .wkey-result:empty{display:none}
+.wcloud .wkey-result.ok{color:var(--mint)}
+.wcloud .wkey-result.bad{color:var(--rose)}
+@media (max-width:380px){.wkey-row{flex-wrap:wrap}.wkey-row .input{flex-basis:100%}.wpath{padding:14px 12px}}
+@media (prefers-reduced-motion:reduce){.wpath:active{scale:1}}
 /* ---------- dialogs (export, import review) ---------- */
 .dlg-bg{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);animation:fade .2s}
 .dlg{--w:540px;position:fixed;z-index:50;left:50%;top:50%;translate:-50% -50%;width:min(var(--w),calc(100vw - 32px));max-height:calc(100vh - 48px);display:flex;flex-direction:column;border-radius:12px;border:1px solid var(--line);background:var(--panel);box-shadow:0 0 0 1px rgba(240,239,237,.09),0 24px 64px rgba(0,0,0,.6);outline:none;animation:pop .18s var(--ease)}

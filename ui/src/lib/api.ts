@@ -287,6 +287,12 @@ export interface LocalCheck {
   bad_values: { node_id: string; class_type: string; input: string; value: unknown; options?: unknown[] }[];
 }
 
+export interface LocalReadiness {
+  reachable: boolean;
+  message?: string;
+  templates: Record<string, Partial<LocalCheck> & { ok: boolean }>;
+}
+
 /** Edits for /media/edit, all optional: turned first, then cropped (fractions of the turned picture), then sized. */
 export interface MediaOps {
   rotate?: 0 | 90 | 180 | 270;
@@ -682,6 +688,7 @@ export const api = {
   mediaEdit: (asset: string, ops: MediaOps, name?: string) => req<Asset>("POST", "/media/edit", { asset, ops, name }),
   compose: (spec: Spec) => req<{ template: Record<string, unknown>; warnings: { field: string; level: string; text: string }[]; prep?: Record<string, PrepPlan> }>("POST", "/compose", spec),
   localCheck: (spec: Spec, fresh = false) => req<LocalCheck>("POST", "/local/check", { ...spec, fresh }),
+  localReadiness: () => req<LocalReadiness>("GET", "/local/readiness"),
   startProxy: () => req<{ ok: boolean; reason?: string | null; local: LocalStatus }>("POST", "/local/proxy/start"),
   run: (spec: Spec) => req<{ ids: string[] }>("POST", "/run", spec),
   jobs: () => req<Job[]>("GET", "/jobs"),

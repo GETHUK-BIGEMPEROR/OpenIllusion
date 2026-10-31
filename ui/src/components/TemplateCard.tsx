@@ -9,13 +9,14 @@ import { isMediaFile, openWithFiles, useFileDrop } from "./Drop";
 import { clampAspect } from "./Masonry";
 import { cx, I, Media } from "./oi";
 import type { IconName } from "./sprite";
+import type { Readiness } from "../lib/readiness";
 
 /** A template's name, and the model under it (a Router model's own name, a workflow's as its author gave it). */
 export const tplName = (e: Pick<EngineInfo, "label">) => e.label;
 export const tplModel = (e: Pick<EngineInfo, "provider" | "model_name">) => e.model_name || e.provider;
 
 /** A template on the Explore wall. Click opens it in Create; the (i) button opens its details. */
-export function TemplateCard({ e, hint, selected, locked, onUse, onInspect }: { e: EngineInfo; hint?: { text: string; off?: boolean }; selected?: boolean; locked?: string | null; onUse: () => void; onInspect: () => void }) {
+export function TemplateCard({ e, hint, selected, readiness, onUse, onInspect }: { e: EngineInfo; hint?: { text: string; off?: boolean }; selected?: boolean; readiness?: Readiness; onUse: () => void; onInspect: () => void }) {
   const n = e.inputs?.length ?? 0;
   const del = useRemoveTemplate(e, () => {});
   const [tools, setTools] = useState(false);
@@ -32,9 +33,8 @@ export function TemplateCard({ e, hint, selected, locked, onUse, onInspect }: { 
       </Media>
       <div className="ctop">
         <div className="ctags">
-          {!local && <span className="pill" title={locked ?? "Runs on Comfy Router"} style={locked ? { color: "#FFC48F" } : undefined}><i className="dot violet" />Cloud</span>}
-          {n > 1 ? <span className="pill minor">{n} inputs</span> : n === 0 ? <span className="pill minor">Words only</span> : null}
-          {locked && local && <span className="pill" title={locked} style={{ color: "#FFC48F" }}>Needs setup</span>}
+          {readiness && readiness.state !== "ready" && <span className={cx("pill", "readiness", readiness.state)} title={readiness.reason}>{readiness.label}</span>}
+          {n > 1 && <span className="pill minor">{n} inputs</span>}
         </div>
         <span className="pill kindb" title={video ? "Makes a video" : "Makes a photo"}><I n={video ? "film" : "image"} />{video ? "Video" : "Photo"}</span>
       </div>
@@ -54,8 +54,9 @@ export function TemplateCard({ e, hint, selected, locked, onUse, onInspect }: { 
         <button className="icon-btn sm glass touch-tools" type="button" aria-label={tools ? `Hide tools for ${tplName(e)}` : `More tools for ${tplName(e)}`}
           aria-expanded={tools} onClick={() => setTools((v) => !v)}><I n={tools ? "x" : "more"} /></button>
       </div>
-      <div className="cap"><div className="cap-t"><h3>{tplName(e)}</h3><p>{tplModel(e)}{hint && <span className={cx("when", hint.off && "off")}>{hint.text}</span>}</p>
-        <OriginTag e={e} /></div><span className="go"><I n="arrow" /></span></div>
+      <div className="cap"><div className="cap-t"><h3 title={tplName(e)}>{tplName(e)}</h3><p title={[tplModel(e), hint?.text, e.origin === "user" ? "Created by you" : "Included with OpenIllusion"].filter(Boolean).join(" · ")}>{tplModel(e)}</p>
+        <div className="card-meta"><span title={readiness?.reason} className={cx("card-source", readiness?.state === "ready" && "ready")}><i className={cx("dot", !local && "violet")} />{local ? "Local" : "Cloud"}{readiness?.state === "ready" && <span className="sr"> · Ready to run</span>}</span>{e.origin === "user" && <span className="card-own">Yours</span>}</div>
+        </div><span className="go"><I n="arrow" /></span></div>
     </article>
   );
 }

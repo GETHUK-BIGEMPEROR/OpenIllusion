@@ -2,7 +2,7 @@
   "format": "openillusion.template",
   "version": 2,
   "mode": "motion",
-  "label": "Multi character swap",
+  "label": "Swap multiple characters",
   "blurb": "Swaps the two people in a clip for the characters in your two photos, left and right, on Seedance 2.5. Runs on Comfy Router with your key.",
   "inputs": [
     {

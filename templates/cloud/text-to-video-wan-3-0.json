@@ -3,7 +3,7 @@
   "version": 2,
   "added": 1793246720,
   "mode": "motion",
-  "label": "Text to Video",
+  "label": "Create a video",
   "blurb": "Makes a video with sound from words alone on Wan 3.0. Runs on Comfy Router with your key.",
   "inputs": [
     {

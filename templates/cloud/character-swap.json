@@ -2,7 +2,7 @@
   "format": "openillusion.template",
   "version": 2,
   "mode": "motion",
-  "label": "Character Swap",
+  "label": "Swap a character",
   "blurb": "Puts the character from Image 1 into Video 1 in place of the one in it, on Seedance 2.5. Runs on Comfy Router with your key.",
   "inputs": [
     {
