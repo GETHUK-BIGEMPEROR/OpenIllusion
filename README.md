@@ -1,48 +1,136 @@
-# OpenIllusion
+<p align="center">
+  <img src="docs/media/banner.webp" alt="OpenIllusion: every ComfyUI workflow, one click. On your own GPU or in the cloud." width="100%">
+</p>
 
-**OpenIllusion turns ComfyUI workflows into one-click templates.** Pick a template, drop
-in a photo, a clip or a sound, change the prompt, press Run. No nodes and no wires: behind
-each one is a ComfyUI workflow on your own GPU, or a cloud model's request, run exactly as
-its author saved it.
+<p align="center">
+  <img src="docs/media/logo.svg" alt="" width="20" align="center">&nbsp;
+  <b>OpenIllusion turns ComfyUI workflows into one-click templates.</b><br>
+  Pick a template, drop in a photo, a clip or a sound, press Run. No nodes, no wires.
+</p>
 
-First run offers **Use my GPU** or **Use cloud**; cloud needs a Comfy API key, not
-a local ComfyUI. Explore's **Runs on** and **Ready to run** filters help find a
-template your setup supports. Readiness checks connections and local requirements,
-not available VRAM or cloud credit. Cloud runs show when their cost is unavailable.
+<p align="center">
+  <a href="https://github.com/GETHUK-BIGEMPEROR/OpenIllusion/actions/workflows/check.yml"><img alt="Checks" src="https://github.com/GETHUK-BIGEMPEROR/OpenIllusion/actions/workflows/check.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-B36BFF?style=flat-square&labelColor=0E0E13"></a>
+  <img alt="Version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-FF4FA3?style=flat-square&labelColor=0E0E13">
+  <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/runs_on-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-4FC3FF?style=flat-square&labelColor=0E0E13">
+  <br>
+  <img alt="ComfyUI" src="https://img.shields.io/badge/ComfyUI-0.42+-F4F3F8?style=flat-square&labelColor=0E0E13">
+  <img alt="Comfy Router" src="https://img.shields.io/badge/Comfy_Router-cloud-F4F3F8?style=flat-square&labelColor=0E0E13">
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10+-F4F3F8?style=flat-square&logo=python&logoColor=white&labelColor=0E0E13">
+  <img alt="React 18" src="https://img.shields.io/badge/React-18-F4F3F8?style=flat-square&logo=react&logoColor=white&labelColor=0E0E13">
+  <img alt="Built with MiniMax H3" src="https://img.shields.io/badge/built_with-MiniMax_H3-FF4FA3?style=flat-square&labelColor=0E0E13">
+</p>
 
-[![OpenIllusion demo video, under 2 minutes](docs/media/demo.webp)](https://youtu.be/Pr_a42KhWn4)
+<p align="center">
+  <a href="#quick-start"><b>Quick start</b></a> ·
+  <a href="https://youtu.be/Pr_a42KhWn4"><b>Watch the demo</b></a> ·
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#setup">Setup</a> ·
+  <a href="#docs">Docs</a>
+</p>
 
-**[Watch the demo](https://youtu.be/Pr_a42KhWn4)** (1:53): swaps, MiniMax H3 live on a 16 GB GPU, cloud
-models, and building a template from a workflow to Explore.
+<p align="center">
+  <img src="docs/media/explore.webp" alt="OpenIllusion Explore: a headline, templates to try, your recent runs and every model" width="100%">
+</p>
 
-**What it does**
+## Quick start
 
-- **Makes video and photos on your GPU**, through the ComfyUI you already run. Put a
-  character from a photo into a clip, animate a photo, make video with sound from words
-  (MiniMax H3); make a photo, or edit one: add a hat, new hair, swap the background,
-  relight, restore an old photo (Qwen Image 2.1). 22 of these ship.
-- **Runs premium models in the cloud**, in the same app and the same way, on
-  [Comfy Router](https://docs.comfy.org/development/comfy-router/reference.md) with your
-  Comfy API key: Seedance 2.5, Kling 3 Omni, Veo 3.1, Wan 3.0, Seedream 5.0, GPT Image 2,
-  Grok Imagine. 12 ship, for people with no GPU or who want those models.
-- **Turns your own workflows into templates.** Drop any ComfyUI workflow and the app
-  finds its inputs, prompt and settings; run it once and it's a template on Explore. Any
-  model or custom node your ComfyUI has. See [Your own workflows](#your-own-workflows).
-- **Edits templates without rebuilding from scratch.** Create → Edit template opens
-  the saved defaults, samples and settings. Save template updates your own template;
-  Save as copy keeps a separate version. Testing is optional and past recipes stay intact.
-- **Fits your files to the model** before a run: crop, cut, resize, change the frame
-  rate, in one editor that shows the model's limits.
-- **Keeps every result with its recipe**, so any run can be compared against its input,
-  run again, exported or backed up.
-- **Shares a template as one file** (`.illusion`) that anyone with the app drops in. See
-  [Share a template](#share-a-template-the-illusion-file).
+```powershell
+git clone https://github.com/GETHUK-BIGEMPEROR/OpenIllusion.git
+cd OpenIllusion
+.\start.bat        # Windows; or double-click start.bat
+./start.sh         # macOS and Linux
+```
 
-Open source under the [MIT license](LICENSE). Entered in Comfy's
-[Open Source Higgsfield](https://comfy.org/open-source-higgsfield/) contest; see
-[Contest entry](#contest-entry). To run it, see [Setup](#setup).
+One command installs, builds and opens http://127.0.0.1:7870. First run asks **Use my
+GPU** (your ComfyUI on `:8188`) or **Use cloud** (a Comfy API key, no GPU needed).
+Explore's **Runs on** and **Ready to run** filters then show what your setup can run.
+Readiness checks connections and local requirements, not free VRAM or cloud credit.
+Docker, the models each template needs and troubleshooting: [Setup](#setup).
 
-**Docs.** This page is what the app is and how to run it. The rest:
+## What it does
+
+<table>
+<tr>
+<td width="33%" valign="top">
+<b>🎬 Video and photos on your GPU</b><br>
+Through the ComfyUI you already run. Put a character from a photo into a clip, animate a
+photo, make video with sound from words (MiniMax H3); make or edit a photo: a hat, new
+hair, a new background, relight, restore (Qwen Image 2.1). <b>22 ship.</b>
+</td>
+<td width="33%" valign="top">
+<b>☁️ Premium models in the cloud</b><br>
+Same app, same way, on <a href="https://docs.comfy.org/development/comfy-router/reference.md">Comfy Router</a>
+with your key: Seedance 2.5, Kling 3 Omni, Veo 3.1, Wan 3.0, Seedream 5.0, GPT Image 2,
+Grok Imagine. <b>12 ship</b>, for anyone without a GPU.
+</td>
+<td width="33%" valign="top">
+<b>🧩 Your workflows, as templates</b><br>
+Drop any ComfyUI workflow: the app finds its inputs, prompt and settings. Run it once and
+it's a template on Explore. Any model or custom node your ComfyUI has.
+<a href="#your-own-workflows">More</a>
+</td>
+</tr>
+<tr>
+<td valign="top">
+<b>✂️ Files fitted to the model</b><br>
+Crop, cut, resize and change the frame rate in one editor that shows the model's
+limits, before the run. The original always stays.
+</td>
+<td valign="top">
+<b>🗂️ Every result keeps its recipe</b><br>
+Inputs, prompt, settings and the exact workflow, so any run can be compared with its
+input, run again, exported or backed up. Edit a template's defaults any time.
+</td>
+<td valign="top">
+<b>📦 A template is one file</b><br>
+Export <code>.illusion</code> and anyone with the app drops it in: checked first, never runs code,
+never carries your key. <a href="#share-a-template-the-illusion-file">More</a>
+</td>
+</tr>
+</table>
+
+Open source under the [MIT license](LICENSE). No account, no analytics, your library is
+plain files on your machine. Entered in Comfy's
+[Open Source Higgsfield](https://comfy.org/open-source-higgsfield/) contest
+([Contest entry](#contest-entry)).
+
+## Demo
+
+<p align="center">
+  <a href="https://youtu.be/Pr_a42KhWn4"><img src="docs/media/demo.webp" alt="OpenIllusion demo video, under 2 minutes" width="80%"></a><br>
+  <sub><b><a href="https://youtu.be/Pr_a42KhWn4">Watch the demo</a></b> (1:53): swaps, MiniMax H3 live on a 16 GB GPU, cloud models, and building a template from a workflow to Explore.</sub>
+</p>
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/media/wall.webp" alt="Explore: every template on one wall"><br>
+<b>Explore.</b> Every template on one wall, each shown by a real result it made. Search, filter by photo or video, model, input and where it runs.
+</td>
+<td width="50%" valign="top">
+<img src="docs/media/create.webp" alt="Create: Swap a character on Seedance 2.5"><br>
+<b>Create.</b> Inputs, prompt and settings on the left; the result against its input on the stage, side by side or as a wipe.
+</td>
+</tr>
+<tr>
+<td valign="top">
+<img src="docs/media/build-local.webp" alt="Build from a ComfyUI workflow"><br>
+<b>Build, local.</b> Any ComfyUI workflow: it finds the inputs, the prompt and the output settings.
+</td>
+<td valign="top">
+<img src="docs/media/build-cloud.webp" alt="Build from a Comfy Router model"><br>
+<b>Build, cloud.</b> Any Comfy Router model: pick what it does, and Create asks only for that.
+</td>
+</tr>
+</table>
+
+## Docs
+
+This page is what the app is and how to run it. The rest:
 
 | Doc | What's in it |
 | --- | --- |
@@ -50,20 +138,6 @@ Open source under the [MIT license](LICENSE). Entered in Comfy's
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System and code map, one run end to end, storage and backups, the API, status and weak spots |
 | [docs/TEMPLATES.md](docs/TEMPLATES.md) | The template file, the Builder, Comfy Router models and their adapters, adding a model |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Running it for development, tests, conventions |
-
-## Screenshots
-
-**Explore.** Every template, each shown by a real result it made.
-![Explore](docs/media/explore.webp)
-
-**Create.** A template's inputs, prompt and settings on the left; the result against its input on the stage.
-![Create: Character Swap on Seedance 2.5](docs/media/create.webp)
-
-**Build, local.** Any ComfyUI workflow: it finds the inputs, the prompt and the output settings.
-![Build from a ComfyUI workflow](docs/media/build-local.webp)
-
-**Build, cloud.** Any Comfy Router model: pick what it does, and Create asks only for that.
-![Build from a Comfy Router model](docs/media/build-cloud.webp)
 
 ## Using it
 
@@ -178,48 +252,6 @@ result with its recipe: Light (smaller files), Full (original files, the driving
 the workflow) or Recipe only. Dropped on anyone's OpenIllusion it lands in Library →
 Imported, and Open in Create runs it again. A PNG or MP4 the app made can carry its
 recipe inside it too.
-
-## Contest entry
-
-| | |
-| --- | --- |
-| Contest | [Open Source Higgsfield](https://comfy.org/open-source-higgsfield/) by Comfy, build period 10/15 to 10/30/2026 |
-| Categories | Best Overall, Most Innovative |
-| What it is | A working app on top of ComfyUI that lets anyone run, and make, their own one-click templates: pick one, drop in photos, clips or sounds, press Run |
-| License | MIT ([LICENSE](LICENSE)) |
-| Setup | [Setup](#setup) below: install, the models each template needs, start |
-| Model bonus | **Built with MiniMax H3** |
-| Comfy Developer Platform | Comfy API (local runs through comfy-api-proxy) and Comfy Router (cloud runs) |
-| Workflow files | Every local template in [templates/local/](templates/local/) carries its full ComfyUI workflow (API format) under `workflow`; the app also exports any of them as a plain workflow `.json` for ComfyUI |
-| Demo video | [youtu.be/Pr_a42KhWn4](https://youtu.be/Pr_a42KhWn4) (under 2 min) |
-
-**MiniMax H3 is the core model.** Every video template that runs on your own GPU runs
-MiniMax H3 through ComfyUI's built-in H3 nodes: Create a video (the full model, 20 steps),
-Create a video Turbo and H3 T2V Turbo (from words) and Animate a photo (photo as first
-frame), all video with sound on H3 FL2VA, the last three with its turbo LoRA; and
-Character swap (H3 Ref2VA with a character swap LoRA). The
-local photo templates (Qwen Image 2.1) make and fix the stills those videos start from.
-The cloud templates (Comfy Router, your key) are there beside them for people with no GPU.
-
-**What's new in it:**
-
-- **Templates as black boxes.** Any ComfyUI workflow becomes a template with only
-  numbered inputs, one prompt and the output settings any generator has (shape, size,
-  length); the app detects them and runs the workflow untouched. A new template is a
-  draft until a run of it works; Publish then puts it on Explore with that result as
-  its cover. See [The idea](#the-idea).
-- **Files fitted to the model.** Each input card says whether the model takes the file
-  as it is; one editor crops, cuts, resizes and resamples to fit before the run. See the
-  Edit a file row in [The app](docs/APP.md#the-app-screen-by-screen).
-- **Recipes travel with results.** Every result keeps its inputs, workflow and settings;
-  export, import, Open in Create and whole-library backups carry them.
-- **A template is one file.** Export `.illusion` and anyone with the app drops it in; it is
-  checked before anything is added and never runs code. See
-  [Share a template](#share-a-template-the-illusion-file).
-
-Built with ComfyUI, comfy-api-proxy (Comfy API v2), MiniMax H3 and Qwen Image 2.1 by
-Comfy-Org, the [MiniMax H3 Character Swap LoRA](https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA)
-by akatz-ai.
 
 ## Setup
 
@@ -400,7 +432,81 @@ models in [Setup](#setup); cloud ones need a Comfy API key.
 Make your own from any ComfyUI workflow or Router model in Build
 ([docs/TEMPLATES.md](docs/TEMPLATES.md#making-a-template-builder)).
 
+## Contest entry
+
+| | |
+| --- | --- |
+| Contest | [Open Source Higgsfield](https://comfy.org/open-source-higgsfield/) by Comfy, build period 10/15 to 10/30/2026 |
+| Categories | Best Overall, Most Innovative |
+| What it is | A working app on top of ComfyUI that lets anyone run, and make, their own one-click templates: pick one, drop in photos, clips or sounds, press Run |
+| License | MIT ([LICENSE](LICENSE)) |
+| Setup | [Setup](#setup) below: install, the models each template needs, start |
+| Model bonus | **Built with MiniMax H3** |
+| Comfy Developer Platform | Comfy API (local runs through comfy-api-proxy) and Comfy Router (cloud runs) |
+| Workflow files | Every local template in [templates/local/](templates/local/) carries its full ComfyUI workflow (API format) under `workflow`; the app also exports any of them as a plain workflow `.json` for ComfyUI |
+| Demo video | [youtu.be/Pr_a42KhWn4](https://youtu.be/Pr_a42KhWn4) (under 2 min) |
+
+**MiniMax H3 is the core model.** Every video template that runs on your own GPU runs
+MiniMax H3 through ComfyUI's built-in H3 nodes: Create a video (the full model, 20 steps),
+Create a video Turbo and H3 T2V Turbo (from words) and Animate a photo (photo as first
+frame), all video with sound on H3 FL2VA, the last three with its turbo LoRA; and
+Character swap (H3 Ref2VA with a character swap LoRA). The
+local photo templates (Qwen Image 2.1) make and fix the stills those videos start from.
+The cloud templates (Comfy Router, your key) are there beside them for people with no GPU.
+
+**What's new in it:**
+
+- **Templates as black boxes.** Any ComfyUI workflow becomes a template with only
+  numbered inputs, one prompt and the output settings any generator has (shape, size,
+  length); the app detects them and runs the workflow untouched. A new template is a
+  draft until a run of it works; Publish then puts it on Explore with that result as
+  its cover. See [The idea](#the-idea).
+- **Files fitted to the model.** Each input card says whether the model takes the file
+  as it is; one editor crops, cuts, resizes and resamples to fit before the run. See the
+  Edit a file row in [The app](docs/APP.md#the-app-screen-by-screen).
+- **Recipes travel with results.** Every result keeps its inputs, workflow and settings;
+  export, import, Open in Create and whole-library backups carry them.
+- **A template is one file.** Export `.illusion` and anyone with the app drops it in; it is
+  checked before anything is added and never runs code. See
+  [Share a template](#share-a-template-the-illusion-file).
+
+Credits and the full stack: [Built with](#built-with).
+
+## Built with
+
+| Part | What |
+| --- | --- |
+| Server | Python 3.10+, [aiohttp](https://docs.aiohttp.org/), SQLite (a derived index; your library is plain files) |
+| Page | React 18, TypeScript, Vite, TanStack Query, Radix UI; plain CSS, fonts bundled so nothing loads from the web |
+| Your GPU | [ComfyUI](https://github.com/comfyanonymous/ComfyUI) through comfy-api-proxy (Comfy API v2) |
+| Cloud | [Comfy Router](https://docs.comfy.org/development/comfy-router/reference.md) with your Comfy API key |
+| Models | MiniMax H3 and Qwen Image 2.1 by Comfy-Org; the [MiniMax H3 Character Swap LoRA](https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA) by akatz-ai |
+| Checks | pytest for the server, Playwright for the app on desktop and phone, on every push |
+
+## Brand
+
+<img src="docs/media/icon.png" alt="The OpenIllusion mark: two overlapping rings in a pink to violet to cyan gradient" width="96" align="right">
+
+**The mark** is two rings that overlap: what you put in and what comes out, one shape.
+It is drawn in the app's one accent, the neon gradient.
+
+| | |
+| --- | --- |
+| Files | [`logo.svg`](docs/media/logo.svg) (the mark), [`icon.png`](docs/media/icon.png) (512 px app icon), [`banner.webp`](docs/media/banner.webp), [`social-preview.png`](docs/media/social-preview.png) (1280×640, for link previews) |
+| Gradient | ![#FF4FA3](https://img.shields.io/badge/-%23FF4FA3-FF4FA3?style=flat-square) pink → ![#B36BFF](https://img.shields.io/badge/-%23B36BFF-B36BFF?style=flat-square) violet → ![#4FC3FF](https://img.shields.io/badge/-%234FC3FF-4FC3FF?style=flat-square) cyan |
+| Ink | ![#06060A](https://img.shields.io/badge/-%2306060A-06060A?style=flat-square) background, ![#F4F3F8](https://img.shields.io/badge/-%23F4F3F8-F4F3F8?style=flat-square) text |
+| Type | **Bricolage Grotesque** for headings, **Figtree** for text, *Fraunces italic* for the one accented word in a headline, `DM Mono` for numbers and ids |
+| Wordmark | `OpenIllusion`, one word, capital O and I |
+
+The full look, motion included, is in [docs/APP.md](docs/APP.md#design-rules).
+
 ## License
 
 [MIT](LICENSE), © 2026 GETHUK-BIGEMPEROR. Models, LoRAs and node packs the templates use are not
 part of this repo and keep their own licenses.
+
+<p align="center">
+  <br>
+  <img src="docs/media/logo.svg" alt="OpenIllusion" width="44"><br>
+  <sub><b>OpenIllusion</b> · every ComfyUI workflow, one click</sub>
+</p>

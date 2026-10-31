@@ -1,3 +1,5 @@
+<a href="../README.md"><img src="media/logo.svg" alt="OpenIllusion" width="36"></a>
+
 # The app
 
 What each screen does and the rules the design keeps. How it's built is in
@@ -153,7 +155,9 @@ here in the same commit.
   top bar 60px, cards 10px apart. Bricolage Grotesque for headings, Figtree for
   text, a Fraunces italic for the one accented word in a headline (`em.accent`, the
   gradient drifting through it), DM Mono for numbers and ids; all bundled through
-  `@fontsource`, so nothing loads from the web.
+  `@fontsource`, so nothing loads from the web. The mark is two overlapping rings in
+  the gradient (`LogoMark` in `components/Shell.tsx`); the favicon and
+  `docs/media/logo.svg` are the same drawing.
 - **Motion, kept quiet.** `glow.css`, last in the cascade, only adds: the main
   action's gradient drifts and a sheen passes every few seconds, hover lifts it;
   buttons and chips get a soft violet rim on hover, picked choices a neon edge;

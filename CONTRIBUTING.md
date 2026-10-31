@@ -1,3 +1,5 @@
+<a href="README.md"><img src="docs/media/logo.svg" alt="OpenIllusion" width="36"></a>
+
 # Contributing
 
 The app, its docs and their split: [README.md](README.md) (what it is, setup),

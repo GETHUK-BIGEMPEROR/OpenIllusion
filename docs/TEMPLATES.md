@@ -1,3 +1,5 @@
+<a href="../README.md"><img src="media/logo.svg" alt="OpenIllusion" width="36"></a>
+
 # Templates, the Builder and cloud models
 
 What a template file holds, how the Builder makes one, and how cloud models are
