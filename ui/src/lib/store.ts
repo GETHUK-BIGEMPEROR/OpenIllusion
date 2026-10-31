@@ -309,10 +309,11 @@ export const useApp = create<AppState>()(
     {
       name: "openillusion.studio.v1",
       storage: safeStorage,
-      partialize: (s) => ({ motion: s.motion, edit: s.edit, lastStudio: s.lastStudio, abView: s.abView }),
+      partialize: (s) => ({ motion: s.motion, edit: s.edit, lastStudio: s.lastStudio }),
       // v2: the built-in cloud engines were removed; drafts pointing at one start without an engine.
       // v3: one clip per video input instead of a single clip.
-      version: 3,
+      // v4: the compare view isn't kept: every visit opens side by side.
+      version: 4,
       migrate: (old, from) => {
         const st = old as Partial<AppState>;
         if (from < 2) for (const m of ["motion", "edit"] as const) if (st[m] && !st[m]!.engine.startsWith("local/")) st[m] = { ...st[m]!, engine: "" };
@@ -324,6 +325,7 @@ export const useApp = create<AppState>()(
             st[m] = { ...rest, videos: video ? [{ ...video, slot: "video:1" }] : [] };
           }
         }
+        if (from < 4) delete st.abView;
         return st as AppState;
       },
     },

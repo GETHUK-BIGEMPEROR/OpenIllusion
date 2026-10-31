@@ -56,7 +56,7 @@ export function Canvas({ mode, lead, eff, s, set, engine, base, out, shown, job,
   }, [clip?.url, reduced]);
 
   // Every result, the template's example included, sits over one bar: what it is on the left, how to compare on the right.
-  // The input and result open side by side until you pick the wipe; the pick stays, run to run and on a run's page.
+  // The input and result open side by side; a pick of the wipe holds run to run and on a run's page, until the app is closed.
   const player = (a: Side | null, b: Side, info: ReactNode, act?: ReactNode, tip?: string, overlay?: ReactNode) => (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
       <ABPlayer key={b.src ?? ""} a={a} b={b} view={abView} onView={setAbView} overlay={overlay} info={<><div className="ab-info" title={tip}>{info}</div>{act}</>} />
