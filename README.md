@@ -108,12 +108,22 @@ plain files on your machine. Entered in Comfy's
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="docs/media/wall.webp" alt="Explore: every template on one wall"><br>
-<b>Explore.</b> Every template on one wall, each shown by a real result it made. Search, filter by photo or video, model, input and where it runs.
+<img src="docs/media/wall.webp" alt="Explore: browse by model, then every template on one wall"><br>
+<b>Explore.</b> Every template on one wall, each shown by a real result it made. Browse by model, search, filter by photo or video, where it runs and whether it's ready to run.
 </td>
 <td width="50%" valign="top">
-<img src="docs/media/create.webp" alt="Create: Swap a character on Seedance 2.5"><br>
-<b>Create.</b> Inputs, prompt and settings on the left; the result against its input on the stage, side by side or as a wipe.
+<img src="docs/media/create.webp" alt="Create: Swap a character on Seedance 2.5, the run beside its input"><br>
+<b>Create.</b> Inputs, prompt and settings on the left; your run against its input on the stage, side by side or as a wipe; every earlier run in the rail.
+</td>
+</tr>
+<tr>
+<td valign="top">
+<img src="docs/media/library.webp" alt="Library: every run, grouped by day"><br>
+<b>Library.</b> Every run, newest first, as plain files on your disk. Starred, running, failed, by template; clear, select, import.
+</td>
+<td valign="top">
+<img src="docs/media/generation.webp" alt="A run's page: the result, its prompt, template and settings"><br>
+<b>A run.</b> The result with its recipe: prompt, template, settings, outcome and notes. Open in Create, re-run, share, download.
 </td>
 </tr>
 <tr>
@@ -127,6 +137,11 @@ plain files on your machine. Entered in Comfy's
 </td>
 </tr>
 </table>
+
+<p align="center">
+  <img src="docs/media/phone.webp" alt="On a phone: Explore, a run's page and the Library with a run in progress" width="88%"><br>
+  <sub><b>On your phone.</b> The same app, laid out for touch: a tab bar, the status chips in each page's header, runs followed live.</sub>
+</p>
 
 ## Docs
 
@@ -424,7 +439,7 @@ models in [Setup](#setup); cloud ones need a Comfy API key.
 | Create a photo | Seedream 5.0 Pro, GPT Image 2, Grok Imagine Image 2.0 | Cloud | words | photo |
 | Create a video | Veo 3.1 Fast, Kling 3 Omni, Wan 3.0 | Cloud | words | video with sound |
 | Animate a reference photo | Wan 3.0 | Cloud | a photo | video with sound |
-| Swap character | Kling 3 Omni | Cloud | a clip and a photo | the clip with the photo's character |
+| Swap a character | Kling 3 Omni | Cloud | a clip and a photo | the clip with the photo's character |
 | Swap a character | Seedance 2.5 | Cloud | a clip and a photo | the clip with the photo's character in place of its own |
 | Swap two people, Swap multiple characters | Seedance 2.5 | Cloud | a clip and two photos | the clip with both people swapped |
 | Make an animal dance | Seedance 2.5 | Cloud | a clip and a photo | the clip with the photo's animal |

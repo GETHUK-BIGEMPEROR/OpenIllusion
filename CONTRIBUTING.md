@@ -17,7 +17,7 @@ adapters).
 .venv\Scripts\python -m server --port 7870      # backend
 npm --prefix ui run dev                          # Vite on :5178, HMR, proxies /api to :7870
 .venv\Scripts\python -m pytest -q                # tests
-npx --prefix ui tsc -p ui/tsconfig.json --noEmit # typecheck
+npm --prefix ui run typecheck                    # typecheck
 .venv\Scripts\python -m server.gen_schema        # regenerate schema/generation.v1.json
 ```
 
@@ -37,6 +37,9 @@ Conventions:
   the port are left to whoever runs it; the app only refuses cross-origin writes.
 - **Nothing installs itself.** Missing ComfyUI nodes and models are listed, never
   installed.
+- **Screenshots follow the screens.** A change that shows on a screen pictured in
+  `docs/media/` retakes that picture from the running app (1600×900, WebP), with a
+  library of real runs, never an empty one.
 - **Tests fake the network.** Router, Comfy Cloud and ComfyUI are `httpx`
   mock transports; no test needs a key or a GPU.
 
