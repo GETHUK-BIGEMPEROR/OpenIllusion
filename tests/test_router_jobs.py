@@ -189,3 +189,51 @@ def test_one_server_per_home_folder():
         paths.release_home()
     paths.claim_home("http://127.0.0.1:7871/")  # free again once the first one stops
     paths.release_home()
+
+
+def _keyed(fake: FakeRouter, seen: list[str]):
+    """The fake Router, noting the key each API call came with (asset downloads are signed, keyless)."""
+    def call(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/v2/"):
+            seen.append(request.headers.get("X-API-Key", ""))
+        return fake(request)
+    return call
+
+
+def test_a_run_keeps_the_key_of_the_browser_that_started_it(tmp_path, uploads, monkeypatch):
+    fake, seen = FakeRouter(make_video(tmp_path / "out.mp4", seconds=2).read_bytes()), []
+    mgr = jobs.Manager()
+    mgr.router_factory = lambda: Router(transport=httpx.MockTransport(_keyed(fake, seen)))
+    monkeypatch.setattr(asyncio, "sleep", _fast_sleep)
+
+    async def go():
+        settings.use_key("comfyui-browser-a-1111")
+        ids = await mgr.start(motion_spec())
+        settings.use_key("")  # the tab closes; another browser, with no key, opens the app
+        await asyncio.gather(*mgr.tasks.values())
+        return ids
+
+    ids = asyncio.run(go())
+    assert mgr.jobs[ids[0]].state == "done"
+    assert seen and set(seen) == {"comfyui-browser-a-1111"} and mgr.keys == {}  # dropped once it ended
+
+
+def test_a_run_a_restart_left_waiting_takes_the_next_key_sent(tmp_path, uploads, monkeypatch):
+    fake, seen = FakeRouter(make_video(tmp_path / "out.mp4", seconds=2).read_bytes()), []
+    mgr = jobs.Manager()
+    mgr.router_factory = lambda: Router(transport=httpx.MockTransport(_keyed(fake, seen)))
+    monkeypatch.setattr(asyncio, "sleep", _fast_sleep)
+
+    async def go():
+        ids = await mgr.start(motion_spec())  # no key, as after a restart
+        for _ in range(500):  # until it reaches the wait for a key
+            if "API key" in mgr.jobs[ids[0]].detail:
+                break
+            await _real_sleep(0)
+        assert mgr.jobs[ids[0]].state == "waiting" and "API key" in mgr.jobs[ids[0]].detail
+        settings.remember(key="comfyui-browser-b-2222")  # a browser holding a key opens the app
+        await asyncio.gather(*mgr.tasks.values())
+        return ids
+
+    ids = asyncio.run(go())
+    assert mgr.jobs[ids[0]].state == "done" and set(seen) == {"comfyui-browser-b-2222"}

@@ -30,7 +30,8 @@ Conventions:
 - **No guessing from schemas at run time.** A model's behaviour lives in its
   adapter file, written from its docs.
 - **Secrets stay off the server's disk.** The API key and proxy token live in the
-  browser's storage and the server's memory; the server never sends them back, and
+  browser's storage; the server holds the key only for the request (or run) that
+  brought it and the token in memory, never sends them back, and
   never writes them into a settings file, a generation or a backup. A CSP runs only
   the app's own bundle, so a script that got in couldn't send the key anywhere.
 - **Networking is the deployer's.** https, reverse proxies, logins and who can reach

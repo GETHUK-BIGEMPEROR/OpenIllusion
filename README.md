@@ -347,7 +347,8 @@ links) before it runs; the app never downloads models. Into ComfyUI's `models/` 
 Restart ComfyUI (or press Check again in the app) after adding files.
 
 **3 · Cloud templates (optional).** Paste a Comfy API key in Settings → Cloud. The
-browser keeps it; the server never saves it. A headless server can take it from `COMFY_API_KEY`.
+browser keeps it and sends it with each request; the server never saves it, and another
+browser has to paste its own. A headless server can take it from `COMFY_API_KEY`.
 
 **Update.** `start.bat --update` (or `./start.sh --update`): it pulls the latest version,
 reinstalls what changed and starts. With Docker, `git pull` then `docker compose up --build -d`.

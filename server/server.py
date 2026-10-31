@@ -110,10 +110,10 @@ async def _headers(request: web.Request, handler):
 
 @web.middleware
 async def _secrets(request: web.Request, handler):
-    """Take the key and proxy token the browser holds; the server keeps them in memory only."""
+    """Take the key and proxy token the browser holds. The key is this request's alone: a browser
+    that sends none has none, whatever another browser sent (a kept-alive connection resets it too)."""
     key, token = request.headers.get("X-Comfy-Key"), request.headers.get("X-Comfy-Proxy-Token")
-    if key or token:
-        settings.remember(key=key or None, token=token or None)
+    settings.remember(key=key or "", token=token or None)
     return await handler(request)
 
 

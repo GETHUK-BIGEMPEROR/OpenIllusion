@@ -11,7 +11,9 @@ template file, the Builder and the cloud models in [docs/TEMPLATES.md](docs/TEMP
 One Python process serves both the web app and its API on `:7870`. The browser
 only ever talks to that port. The API key and the proxy token are never written
 to disk by the server: the browser holds them (`localStorage`) and sends them with
-each request; the server keeps them in memory until it stops and never sends them back.
+each request; the server never sends them back. The key belongs to the browser that
+sent it: another browser with no key has none, and a run keeps its starter's key in
+memory until it ends. The proxy token is machine-wide, held in memory until the server stops.
 
 ```mermaid
 flowchart LR
@@ -95,7 +97,7 @@ Packaging and checks, also at the root:
 | `backup.py` | Whole-library backups (`.illusionbackup`): `create`, `inspect` (what a restore would add), `restore` (merge). See [Backups](#backups). |
 | `usage.py` | When each template was last run and how often (`usage.json`), for Recently used and Most used; a run of several variants counts once; with no file yet it starts from the library's runs. |
 | `folders.py` | The folder picker's side: a folder's folders (no files, hidden ones out), Home and its media folders, the drives (Windows) or `/`, and making a new folder. A browser can't hand a page a folder's path, so `components/FolderPicker.tsx` walks the server's disk through it; in Docker that is the container's. |
-| `settings.py` · `storage.py` · `paths.py` | Settings (on disk) and the secrets (in memory, `remember`); disk usage and cleanup; home folder paths, what each entry is (`TIERS`), and `write_atomic`. See [Storage](#storage). |
+| `settings.py` · `storage.py` · `paths.py` | Settings (on disk) and the secrets (`remember`: the key per request and per run, a `ContextVar`; the proxy token in memory); disk usage and cleanup; home folder paths, what each entry is (`TIERS`), and `write_atomic`. See [Storage](#storage). |
 
 **UI** (`ui/src/`, React + Vite):
 
@@ -235,9 +237,11 @@ each entry is; a test fails when the app writes something it doesn't list.
   templates, `.shelf`, the queue) goes through `paths.write_atomic`: temp file,
   fsync, rename. A crash leaves the old file, never half of one.
 - **Secrets off the server's disk.** The server never writes the key or the proxy
-  token. The browser keeps them in `localStorage` and sends them as headers; the server
-  holds them in memory, so after a restart the first request from the app brings them
-  back, and a resumed cloud run waits until then. Forget clears both.
+  token. The browser keeps them in `localStorage` and sends them as headers. The key
+  lives only for the request that carried it (`settings._key`), so a browser that never
+  pasted one has none; a run takes its starter's key (`Manager.keys`) and drops it when it
+  ends. The proxy token stays in memory until the server stops. After a restart a resumed
+  cloud run waits for the next key a browser sends (`resume_key`). Forget clears both.
   `COMFY_API_KEY` in the server's environment still works. `settings.migrate` deletes the `secrets.json` (and
   any key in `settings.json`) an older version wrote.
 - **The queue file** (`jobs.json`) is written when a run changes state, not on progress:

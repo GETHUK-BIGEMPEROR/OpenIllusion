@@ -405,7 +405,7 @@ function CloudCard({ s, save }: { s: S; save: Save }) {
           {s.key_source === "browser" && <button className="btn ghost" type="button" onClick={forget}>Forget</button>}
         </div>
         <p id="api-key-result" role="status" className="help" style={result ? { color: result.ok ? "var(--mint)" : "#FFB3BD", display: "flex", gap: 6, alignItems: "center" } : undefined}>
-          {result ? <><I n={result.ok ? "check" : "info"} />{result.text}</> : s.key_source === "env" ? "From COMFY_API_KEY in the server's environment." : "Kept in this browser, never on the server's disk. The server holds it in memory while it runs."}
+          {result ? <><I n={result.ok ? "check" : "info"} />{result.text}</> : s.key_source === "env" ? "From COMFY_API_KEY in the server's environment." : "Kept in this browser only, never on the server's disk: other browsers need their own. A run you start holds it until it ends."}
         </p>
       </form>
       {s.has_key && (

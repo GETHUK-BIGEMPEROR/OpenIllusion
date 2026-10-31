@@ -35,11 +35,16 @@ def test_secrets_never_touch_the_disk():
 
 
 def test_the_browser_sends_the_secrets_back_after_a_restart():
-    settings._session.update(api_key="", local_token="")  # what a restart leaves
-    assert settings.api_key() == "" and not settings.public()["has_key"]
-    assert settings.remember(key="comfyui-sent-key-1111") is True
-    assert settings.remember(key="comfyui-sent-key-1111") is False  # same key, nothing changes
-    assert settings.api_key() == "comfyui-sent-key-1111" and settings.local_token() == ""
+    settings._session.update(local_token="")  # what a restart leaves
+    settings.use_key("")
+    assert settings.api_key() == "" and not settings.public()["has_key"] and settings.resume_key() == ""
+    assert settings.remember(key="comfyui-sent-key-1111", token="tok") is True
+    assert settings.remember(key="comfyui-sent-key-1111", token="tok") is False  # same token, nothing changes
+    assert settings.api_key() == "comfyui-sent-key-1111" and settings.local_token() == "tok"
+    assert settings.resume_key() == "comfyui-sent-key-1111"  # what a run a restart left waiting may take
+    with settings.using_key("comfyui-run-key-2222"):
+        assert settings.api_key() == "comfyui-run-key-2222"
+    assert settings.api_key() == "comfyui-sent-key-1111"
     settings.save({"api_key": ""})  # Forget
     assert settings.api_key() == ""
 

@@ -43,5 +43,16 @@ def test_the_key_arrives_with_a_request_and_never_goes_back():
         return r.status, await r.text()
     status, text = call(go)
     assert status == 200 and '"has_key": true' in text and "comfyui-header-key-4321" not in text
-    assert settings.api_key() == "comfyui-header-key-4321"
     assert not paths.secrets_file().exists()
+
+
+def test_a_key_is_the_browsers_that_sent_it():
+    # Another browser on the same server, without the key in its storage, has none.
+    async def go(c):
+        mine = await (await c.get("/api/settings", headers={"X-Comfy-Key": "comfyui-header-key-4321"})).json()
+        other = await (await c.get("/api/settings")).json()
+        return mine, other
+    mine, other = call(go)
+    assert mine["has_key"] and mine["key_hint"] == "…4321" and mine["key_source"] == "browser"
+    assert not other["has_key"] and other["key_source"] is None
+    assert settings.api_key() == ""  # nothing left on the server for whoever asks next

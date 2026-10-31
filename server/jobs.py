@@ -102,6 +102,8 @@ class Manager:
         self.jobs: dict[str, Job] = {}
         self.tasks: dict[str, asyncio.Task] = {}
         self.listeners: list[Callable[[dict], None]] = []
+        # Each run's Comfy API key: the browser's that started it, in memory only, until the run ends.
+        self.keys: dict[str, str] = {}
         self._slots_in_use = 0
         self._stopping = False
         self._maintenance: str | None = None
@@ -294,7 +296,9 @@ class Manager:
             raise
 
         ids: list[str] = []
+        key = settings.api_key()
         for m, job in prepared:
+            self.keys[job.id] = key
             self.jobs[job.id] = job
             self.emit(job)
             self._track(job.id, asyncio.create_task(self._run(job)))
@@ -318,7 +322,8 @@ class Manager:
             return True
         if job.request_id:
             try:
-                await self.router_factory().cancel(job.model, job.request_id)
+                with settings.using_key(self.keys.get(job_id) or settings.api_key()):
+                    await self.router_factory().cancel(job.model, job.request_id)
             except Exception:
                 pass
             self.set(job, job.state, "Cancel requested. A run already at the provider may still finish.")
@@ -332,6 +337,8 @@ class Manager:
     # ---- the run -------------------------------------------------------
 
     async def _run(self, job: Job) -> None:
+        # The run's own key, whoever opens the app meanwhile (a resumed run has none yet).
+        settings.use_key(self.keys.get(job.id, ""))
         try:
             self.set(job, "waiting", "Waiting for a slot")
             async with self.sem():
@@ -354,6 +361,9 @@ class Manager:
         except Exception as e:  # keep the generation; a failed recipe is worth sharing too
             traceback.print_exc()
             self._finish(job, "failed", str(e) or e.__class__.__name__, error={"error_type": "internal_error", "message": str(e)})
+        finally:
+            if job.state in TERMINAL:
+                self.keys.pop(job.id, None)
 
     async def _run_inner(self, job: Job) -> None:
         folder = store.folder(job.id)
@@ -361,10 +371,15 @@ class Manager:
         if engines.get(m.engine.model).kind == "local":
             await self._run_local(job, m, folder)
             return
-        # After a restart the key is gone until the app is opened again and sends it.
+        # After a restart the key is gone until a browser that holds it opens the app and sends it.
         while not settings.api_key():
-            if job.state != "waiting":
-                self.set(job, "waiting", "Waiting for your API key · open OpenIllusion to send it")
+            if settings.resume_key():
+                settings.use_key(settings.resume_key())
+                self.keys[job.id] = settings.api_key()
+                continue
+            wait = "Waiting for your API key · open OpenIllusion to send it"
+            if job.detail != wait:
+                self.set(job, "waiting", wait)
             await asyncio.sleep(2)
         router = self.router_factory()
         inputs = [i.model_dump() for i in m.inputs]

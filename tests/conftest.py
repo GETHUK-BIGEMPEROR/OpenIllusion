@@ -19,6 +19,8 @@ def isolated(tmp_path, monkeypatch):
     store._conn = None
     monkeypatch.delenv("COMFY_API_KEY", raising=False)
     monkeypatch.setattr(settings, "_session", {k: "" for k in settings.SECRETS})
+    monkeypatch.setattr(settings, "_last", {"key": ""})
+    settings.use_key("")
     yield tmp_path
     if store._conn is not None:
         store._conn.close()
