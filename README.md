@@ -109,11 +109,11 @@ plain files on your machine. Entered in Comfy's
 <tr>
 <td width="50%" valign="top">
 <img src="docs/media/wall.webp" alt="Explore: browse by model, then every template on one wall"><br>
-<b>Explore.</b> Every template on one wall, each shown by a real result it made. Browse by model, search, filter by photo or video, where it runs and whether it's ready to run.
+<b>Explore.</b> Every template on one wall, each shown by a real result it made. Browse by model, search, filter by photo or video, where it runs and whether it's ready to run. One bar at the bottom adds a template: drop a shared <code>.illusion</code>, or start a new one.
 </td>
 <td width="50%" valign="top">
 <img src="docs/media/create.webp" alt="Create: Swap a character on Seedance 2.5, the run beside its input"><br>
-<b>Create.</b> Inputs, prompt and settings on the left; your run against its input on the stage, side by side or as a wipe; every earlier run in the rail.
+<b>Create.</b> Inputs, prompt and settings on the left; your run against its input on the stage, side by side or as a wipe, with its sound; every earlier run in the rail.
 </td>
 </tr>
 <tr>
@@ -139,7 +139,7 @@ plain files on your machine. Entered in Comfy's
 </table>
 
 <p align="center">
-  <img src="docs/media/phone.webp" alt="On a phone: Explore, a run's page and the Library with a run in progress" width="88%"><br>
+  <img src="docs/media/phone.webp" alt="On a phone: Explore, a run's page and the Library" width="88%"><br>
   <sub><b>On your phone.</b> The same app, laid out for touch: a tab bar, the status chips in each page's header, runs followed live.</sub>
 </p>
 
