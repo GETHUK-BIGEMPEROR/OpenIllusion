@@ -233,7 +233,8 @@ flowchart LR
   on Create. Each row has **Ask on Create | Lock**; all start locked, the likely ones
   (seed, steps, length, denoise) are listed first, the rest under *Show all*. Locked,
   a value you change here is fixed into the saved workflow; asked, it gets the name
-  Create shows. A template opened with *Build from this* keeps its controls as
+  Create shows. An asked seed (`seed`, `noise_seed`, …) is saved as the `seed` setting,
+  so Create rolls a real one each run instead of sending −1. A template opened with *Build from this* keeps its controls as
   they were (Duration stays 3/5/8/10/15 s, not a bare number box).
 - **Build from this, cloud.** A Router template opens on the Comfy Router tab with its
   model, each sample in the model input it fills (read off where the template's request

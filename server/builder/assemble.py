@@ -184,7 +184,9 @@ def assemble_local(spec: dict, draft: dict, info: dict) -> dict:
         n = api.get(str(p.get("node")))
         if n is None or p.get("input") not in n["inputs"]:
             raise BuildError(f"Node {p.get('node')} isn't in the workflow")
-        key = re.sub(r"[^a-z0-9_]", "_", (p.get("key") or p["input"]).lower()).strip("_") or "param"
+        # A seed is keyed "seed" whatever its node calls it (noise_seed...): runs roll and keep it by that name.
+        named = "seed" if p.get("type") == "seed" and "seed" not in keys else p["input"]
+        key = re.sub(r"[^a-z0-9_]", "_", (p.get("key") or named).lower()).strip("_") or "param"
         base, i = key, 2
         while key in keys:
             key, i = f"{base}_{i}", i + 1

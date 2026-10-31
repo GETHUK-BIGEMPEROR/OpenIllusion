@@ -337,3 +337,17 @@ def test_a_template_rebuilt_in_the_builder_keeps_its_settings():
     assert by["duration"]["options"] == [3, 5, 8, 10, 15] and by["duration"]["unit"] == "s" and by["duration"]["default"] == 5
     assert by["duration"]["bind"] == [["140:133", "value", "float"]]  # whole seconds into a float input
     assert by["size"]["aspect"] == "16:9" and by["size"]["default"] == "0.4 MP"
+
+
+def test_a_seed_by_any_name_is_rolled_not_sent_as_minus_one():
+    # RandomNoise calls its seed noise_seed; asked on Create, it still has to reach ComfyUI as a real number.
+    api, _ = builder.ui_to_api(ui_graph(), INFO)
+    api["20"] = {"class_type": "RandomNoise", "inputs": {"noise_seed": 1}, "_meta": {"title": "Noise"}}
+    params = [p for p in _local_spec()["params"] if p["type"] != "seed"] + [{"node": "20", "input": "noise_seed", "type": "seed"}]
+    data = builder.assemble_local(_local_spec(params=params), {"workflow": api}, INFO)
+    by = {f["key"]: f for f in data["inputs"]}
+    assert by["seed"]["bind"] == [["20", "noise_seed", "int"]] and by["seed"]["default"] == -1
+    e = engines.load_template({**data, "id": "noisy"})
+    wf = e.build({"inputs": [{"slot": "image:1"}], "prompt": "x", "params": {"seed": -1}})
+    assert wf["20"]["inputs"]["noise_seed"] == engines.SEED_TOKEN
+    assert e.build({"inputs": [{"slot": "image:1"}], "prompt": "x", "params": {"seed": 7}})["20"]["inputs"]["noise_seed"] == 7

@@ -162,9 +162,11 @@ def _prepare_generation(spec: dict, parent: str | None, variant_no: int | None, 
     strip = settings.load().get("strip_exif", True)
     e = engines.get(spec["engine"])
     if (e.kind == "local" or e.data is not None) and any(p.get("type") == "seed" for p in e.params):
-        seed = spec.setdefault("params", {}).get("seed")
-        if seed in (None, "") or int(seed) < 0:
-            spec["params"]["seed"] = random.randint(0, 2**31 - 1)
+        given = spec.setdefault("params", {})
+        # Every seed left at random gets a real one (ComfyUI refuses -1), "seed" and any other seed setting.
+        for k in {"seed"} | {f["key"] for f in e.params if f.get("type") == "seed" and f["key"] in given}:
+            if given.get(k) in (None, "") or int(given[k]) < 0:
+                given[k] = random.randint(0, 2**31 - 1)
         if spec.get("raw"):
             spec["raw"] = json.loads(json.dumps(spec["raw"]).replace(json.dumps(engines.SEED_TOKEN), str(spec["params"]["seed"])))
 
